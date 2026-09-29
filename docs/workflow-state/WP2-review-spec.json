@@ -1,0 +1,78 @@
+{
+ "reviewer": "명세 준수 리뷰어 (WP2 여행방·그룹·동기화)",
+ "findings": [
+  {
+   "severity": "blocker",
+   "where": "src/store/trips.ts:16, 201, 211-213, 263 / src/core/trip/outbox.ts",
+   "issue": "지금 트리에서 WP2 게이트가 실패한다. trips.ts가 outbox.ts에서 droppedJoins를 import하는데 outbox.ts에는 그런 export가 없다(TS2305). node scripts/gate-scope.mjs WP2를 돌리면 'tsc=FAIL, WP2 파일 오류 3건'이 나온다. trips.ts는 18:35, join.ts는 18:33에 수정됐고, 개발 보고의 ownFilesTscClean:true와 'gate 통과'는 그 이전 상태 기준이다. 실행 중에는 droppedJoins가 undefined라 noticeDroppedJoins가 TypeError를 던진다. (1) onRemote에서는 set() 직후에 던지므로 releaseCurrentIfGone, disconnect, 재계산 예약이 모두 건너뛰어진다. 다른 기기의 편집이 와도 재계산되지 않는다. (2) 구독 콜백이 던지면 루프백 push 전체가 reject되고, flush는 catch로 빠져 재시도에 들어간다. (3) acceptInvite의 원격 경로(lookupInvite 뒤 onRemote)는 try 안에서 던지므로 항상 'notFound'를 돌려준다. 이 기기에 없는 방에는 합류가 전혀 되지 않는다.",
+   "fix": "outbox.ts에 droppedJoins(prevPending, next, doc)를 순수 함수로 구현해 export한다. 이전 pending에 있던 내 member/join이 ack 뒤 doc 멤버에 없으면 그 op를 돌려주는 방식이다. wp2-sync 테스트도 추가한다(동시 합류로 정원 초과, 직전 재발급). 아니면 호출을 제거한다. 고친 뒤 gate-scope WP2와 /tmp/yt-export-wp2 export를 다시 돌리고, 보고서의 tsc·게이트 문구를 새 결과로 바꾼다."
+  },
+  {
+   "severity": "major",
+   "where": "src/screens/InviteAcceptScreen.tsx:8, 120, 164-167",
+   "issue": "JoinFail('ended'|'offline' 포함)로 INVITE_ERROR_TEXT(notFound/expired/revoked/full만 있음)를 인덱싱한다. tsc 오류 2건의 원인이다. 실행하면 종료된 방의 미리보기 안내문이 undefined로 빈 Notice가 된다. 합류에서 'ended'나 'offline'으로 실패하면 joinError가 undefined로 들어가 아무 안내 없이 버튼만 풀린다. 명세 FR-301 '만료 링크 안내'와 인수 기준 '종료 잠금 시 화면 안내'가 이 경로에서 깨진다.",
+   "fix": "core/trip/join의 JOIN_ERROR_TEXT를 import해 두 곳 모두 그것으로 바꾼다. 167행의 offline 전용 문자열도 JOIN_ERROR_TEXT.offline 하나로 합친다."
+  },
+  {
+   "severity": "major",
+   "where": "src/core/ops/members.ts:13-15, 99-105 / server/sync-server.mjs:84-88",
+   "issue": "member/anonymize 리듀서는 방장이면 닉네임과 anonymized만 바꾸고 leftReason 'deleted'와 leftAt을 두지 않는다. 인수 기준('nickname 탈퇴한 멤버, anonymized true, leftReason deleted, leftAt을 둔다')과 02 설계리뷰 결정(leftReason 'deleted')에 어긋난다. 근거로 주석에 '04 코드리뷰 회의'를 적었지만 docs/meetings에는 01~03밖에 없다. 합의되지 않은 결정이 코드에 먼저 들어간 것이다. 이 분기는 테스트도 없다(wp2-trip의 anonymize 테스트는 그룹원 junho만 본다). 서버 judgeInvite는 anonymize를 받으면 방장까지 활성 멤버에서 빼므로, 서버와 앱의 정원 판정이 달라진다.",
+   "fix": "인수 기준대로 방장에게도 leftReason과 leftAt을 둔다. 방장 나가기 우회가 걱정이면 이 예외를 sharedChangeRequests에 올리고 이번 회의록에 결정으로 남긴다. 어느 쪽이든 방장 anonymize 테스트를 추가하고, 서버 judgeInvite를 리듀서 의미와 맞춘다."
+  },
+  {
+   "severity": "major",
+   "where": "src/screens/MembersScreen.tsx:114-180",
+   "issue": "명세 권한표의 '멤버 초대'는 그룹원이 X다. 코드는 발급과 재발급만 canInvite로 막고, 초대 권한이 없는 그룹원에게도 초대 링크 행, '복사', '링크 공유하기', '이 기기에서 다른 사람으로 합류해 보기(시연)'를 그대로 보여준다. 기존 링크를 복사하거나 공유하는 것은 사실상 초대다. canInvite 기본값 false의 의미가 발급 버튼 하나로만 줄어든다.",
+   "fix": "mayInvite가 false면 링크, 복사, 공유 버튼과 시연 합류 버튼을 숨긴다. 대신 '초대는 방장 또는 초대 권한이 있는 멤버만 할 수 있습니다' 안내를 보인다. 링크 공유를 그룹원에게 허용하려면 프로토타입 가정으로 명시하고 회의에서 결정한다."
+  },
+  {
+   "severity": "minor",
+   "where": "src/store/trips.ts:65-76 (AcceptInviteResult, InvitePreview) / src/core/trip/join.ts:52",
+   "issue": "계약 A6의 acceptInvite 실패 사유에 'ended'와 'offline'이 추가됐고 previewInvite도 새로 생겼다. 그런데 개발 보고의 sharedChangeRequests와 notes에는 'acceptInvite 계약에 offline 사유가 없어 오프라인이면 notFound를 돌려준다'고 적혀 있어 코드와 반대다. 주석이 근거로 든 '04 코드리뷰 회의'도 아직 없다.",
+   "fix": "sharedChangeRequests에 'AcceptInviteResult.reason에 ended/offline 추가, previewInvite 추가'를 올리고, 회의에서 계약 A6 개정으로 확정한다. 보고서 notes의 옛 설명은 지운다."
+  },
+  {
+   "severity": "minor",
+   "where": "src/screens/InviteAcceptScreen.tsx:109-122",
+   "issue": "세션이 없으면 createGuest(name)로 게스트 세션을 먼저 만든 뒤 acceptInvite를 부른다. 미리보기와 합류 사이에 만료, 정원 초과, 재발급, 종료가 끼면 방 없이 게스트 세션만 남는다. 세션이 생기면서 루트 스택도 Onboarding에서 Main으로 바뀐다. 명세의 '세션 없음 → 닉네임 입력 후 게스트로 합류'는 합류가 성공해야 게스트가 되는 흐름이다.",
+   "fix": "userId를 먼저 발급해 acceptInvite에 넘기고, 성공했을 때만 그 userId로 게스트 세션을 확정한다. 아니면 실패했을 때 방금 만든 세션을 되돌린다."
+  },
+  {
+   "severity": "minor",
+   "where": "src/core/trip/members.ts:17-19, 42-47 / src/screens/MembersScreen.tsx:280-281",
+   "issue": "목업 14의 '대기' 칩은 '링크 열람 · 아직 합류 전'인 사람을 표시한다. 구현은 '확인 응답을 못 받은 합류 op'를 대기로 본다. 루프백에서는 ack가 거의 즉시 오므로 시연 중에 이 칩은 사실상 보이지 않는다. '후보 N곳'도 0이면 숨겨서, 인수 기준의 '멤버 행에 후보 N곳'을 모든 행이 충족하지는 않는다.",
+   "fix": "대기의 의미를 목업과 다르게 가져갈 거라면 추적표에 편차로 적는다. 목업을 따르려면 previewInvite 열람 기록 같은 근거가 필요하다. 후보 수는 0곳도 표시하거나, 0이면 숨기는 이유를 결정으로 남긴다."
+  },
+  {
+   "severity": "minor",
+   "where": "src/core/ops/trip.ts:53-57, 91-108",
+   "issue": "trip/update 리듀서는 patch를 키 필터 없이 펼친다. 원격 op에 members, invite, deletedAt 같은 키가 섞여 오면 그대로 반영된다. trip/setDay가 pickDayPatch로 키를 거르는 것과 일관되지 않다. 또 validate는 startDate/endDate 변경을 허용하는데 days 배열을 다시 만들지 않아서, 기간 밖 DaySetting이 남거나 새 날짜에 설정이 없는 상태가 된다. 지금은 화면에서 날짜를 바꿀 수 없어 드러나지 않는다.",
+   "fix": "TripPatch 키만 골라 반영한다. 날짜 변경은 validate에서 거부하거나, 리듀서에서 days를 기간에 맞게 다시 만든다."
+  },
+  {
+   "severity": "minor",
+   "where": "src/screens/TripSettingsScreen.tsx:215 / src/store/trips.ts:547-562 / src/services/sync/loopback.ts",
+   "issue": "삭제 확인 문구는 '후보, 시간표, 채팅, 사진과 일기가 함께 지워집니다'인데, 실제 trip/delete는 deletedAt만 두는 소프트 삭제다. 모든 멤버 기기의 docs, log, plans와 루프백 KV에 내용이 그대로 남고 보관 기한이 지나야 로컬에서만 지워진다. 루프백 저장소와 sync-server도 보관 기한이 지난 방을 지우지 않는다(NFR 데이터 보존 '1년 보관').",
+   "fix": "trip/delete가 접히면 removeLocal로 문서와 로그를 비운다(삭제 표시만 남긴다). purgeExpired가 루프백 저장분도 정리하게 한다. 아니면 확인 문구를 실제 동작에 맞게 바꾸고 한계로 기록한다."
+  },
+  {
+   "severity": "minor",
+   "where": "src/store/trips.ts:126 / src/screens/TripSettingsScreen.tsx:261-263 / src/screens/MembersScreen.tsx:191",
+   "issue": "용어와 문구 편차가 있다. (1) '합류가 확정되지 않았습니다'가 고정 용어 '확정'(확정 스팟)을 다른 뜻으로 쓴다. (2) 25의 선택지 라벨이 '직전과 같음'과 '첫 스팟'으로, 인수 기준의 '직전 날짜와 같음'과 '기점 없음(첫 스팟 사용)'과 다르다. (3) 14의 게스트 안내가 '본인에게 알립니다'인데 목업은 '방장과 본인에게 알립니다'다.",
+   "fix": "(1)은 '합류가 반영되지 않았습니다'로 바꾼다. (2)와 (3)은 인수 기준과 목업 문구에 맞추거나, 줄인 이유를 기록한다."
+  },
+  {
+   "severity": "minor",
+   "where": "src/services/registry.ts:82 / src/services/sync/loopback.ts:141-144 / src/store/trips.ts:402, 456",
+   "issue": "로컬 초대 판정은 appClock(시뮬레이터 가상 시각)을 쓰고, 루프백 lookupInvite는 liveClock(기기 시각)을 쓴다. 여행 시뮬레이터로 시각을 가속하면, 같은 코드가 로컬 경로에서는 만료인데 루프백 경로에서는 유효하게(또는 그 반대로) 판정될 수 있다.",
+   "fix": "루프백에 appClock을 주입하거나, lookupInvite가 now를 인자로 받게 해 판정 시각을 하나로 맞춘다."
+  },
+  {
+   "severity": "minor",
+   "where": "server/sync-server.mjs:61-99 / src/services/sync/http.ts:87-94",
+   "issue": "서버 judgeInvite는 받은 member/join을 검증 없이 모두 활성으로 센다. 재발급 직전에 옛 코드로 보낸 합류처럼 foldOps라면 거부될 op까지 세므로 '정원 초과'를 잘못 돌려줄 수 있다. http.ts는 서버가 error를 주면 로그를 받아 다시 판정하지 않고 그대로 반환한다.",
+   "fix": "서버가 error를 줘도 tripId를 함께 돌려주게 하고, 앱이 로그를 내려받아 inviteStatus로 최종 판정하게 한다. 아니면 서버 판정에서 활성 멤버 수를 셀 때 invite 코드와 op.at을 확인한다."
+  }
+ ],
+ "verdict": "반려. 지금 트리에서 WP2 게이트가 실패한다(tsc에서 WP2 파일 오류 3건). droppedJoins가 없어서 실행 중 onRemote와 flush가 예외를 던지고, 이 기기에 없는 방으로는 초대 합류가 되지 않는다. 개발 보고의 'tsc clean, 게이트 통과'는 보고 뒤에 수정된 파일과 맞지 않는다. blocker 1건과 major 3건을 고치고 게이트와 web export를 다시 돌린 뒤 재리뷰를 받는다. major 3건은 합류 실패 안내 누락, 방장 익명화가 인수 기준과 다른 점(근거로 든 회의록 없음), 그룹원에게 초대 링크가 노출되는 점이다. 순수 로직은 명세 예외 열을 대체로 충족한다. outbox, 초대 코드, 정원, 재발급 무효, 권한 validate, 기점 승계, 보관 기한 판정이 여기에 해당한다."
+}

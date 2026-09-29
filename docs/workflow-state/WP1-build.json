@@ -1,0 +1,112 @@
+{
+ "id": "WP1",
+ "summary": "I picked up the cut-off WP1 attempt from the current files instead of rewriting them. The 15 files already written matched the plan and contracts A1–A11: session, auth, the session store, local auth, bootstrap, flows, home, messages, useAuthDone, the scenario runner and steps, and the Splash, Onboarding, Home, Login, Signup and SocialConsent screens. This round I wrote the parts that were still missing. Screen 17 (Profile) is new: nickname duplicate check, image compression judged at 5MB with before and after sizes, preference tags, guest promotion, social linking, sign-out, and account deletion behind a quiet button and one ConfirmSheet. Screen 18 (More) replaced its placeholder: trip and account entry points, per-type notification toggles, location permission state, provider status with the Kakao key state, session expiry and last 4 token characters, the 1-year retention notice, group member location sharing marked \"꺼짐 · 미결정\", and demo tools (reset with confirm, scenario fill by stage with progress, network toggle, screen list). I added two small pure files, features/account/profile.ts and settings.ts. seedScenario now reports progress and collects failed steps (join rejected, missing target spot, invite rejected) into one amber toast. In the mock social login, \"same email\" now links to the account last signed in on that device. I added three test files, tests/wp1-session, wp1-auth and wp1-home, with 66 tests, all passing. node scripts/gate-scope.mjs WP1 passes (tsc 0 errors in WP1 files, own tests pass, YT_SCOPE foundation tests pass). The web export to /tmp/yt-export-wp1 succeeded with exactly 4 ttf files. In the full npm test run: 318 passed, 0 failed, 6 todo.",
+ "filesChanged": [
+  "tests/wp1-session.test.ts",
+  "tests/wp1-auth.test.ts",
+  "tests/wp1-home.test.ts",
+  "src/screens/ProfileScreen.tsx",
+  "src/screens/MoreScreen.tsx",
+  "src/features/account/profile.ts",
+  "src/features/account/settings.ts",
+  "src/demo/tools.ts",
+  "src/services/auth/local.ts",
+  "src/core/session.ts (이전 시도, 확인만)",
+  "src/core/auth.ts (이전 시도, 확인만)",
+  "src/store/session.ts (이전 시도, 확인만)",
+  "src/services/auth/index.ts (이전 시도, 확인만)",
+  "src/features/account/bootstrap.ts (이전 시도, 확인만)",
+  "src/features/account/flows.ts (이전 시도, 확인만)",
+  "src/features/account/home.ts (이전 시도, 확인만)",
+  "src/features/account/messages.ts (이전 시도, 확인만)",
+  "src/features/account/useAuthDone.ts (이전 시도, 확인만)",
+  "src/demo/scenarioRunner.ts (이전 시도, 확인만)",
+  "src/demo/scenarioSteps.ts (이전 시도, 확인만)",
+  "src/screens/SplashScreen.tsx (이전 시도, 확인만)",
+  "src/screens/OnboardingScreen.tsx (이전 시도, 확인만)",
+  "src/screens/HomeScreen.tsx (이전 시도, 확인만)",
+  "src/screens/LoginScreen.tsx (이전 시도, 확인만)",
+  "src/screens/SignupScreen.tsx (이전 시도, 확인만)",
+  "src/screens/SocialConsentScreen.tsx (이전 시도, 확인만)"
+ ],
+ "features": [
+  {
+   "fr": "FR-105 게스트 세션",
+   "status": "done",
+   "note": "core/session.ts: 128-bit base64url token from the injected Rng, expiry at issue + 30 days, touch extends to now + 30 days, expired sessions discarded with a bootstrap notice ('복구할 수 없어'), restore from memoryKV, only the last 4 token characters shown. Covered by wp1-session. The Onboarding screen shows guest limits before the start button."
+  },
+  {
+   "fr": "FR-101 이메일 회원가입",
+   "status": "done",
+   "note": "createLocalAuth: rejects duplicate email, returns the violated password rules (8+ chars, letters, digits), and screen 16 shows each rule as a chip. Verification goes through a mock mailbox, and resending invalidates the previous token. Passwords are stored only as salt + pure SHA-256; a test confirms the plain password never appears in the KV."
+  },
+  {
+   "fr": "FR-102 로그인·로그아웃",
+   "status": "done",
+   "note": "Account locks for 10 minutes after 5 straight failures (still locked at 9:59, unlocked at 10:01). Separate device-token limit of 20 tries per 10 minutes (IP-substitute assumption shown on screen 15). Unverified accounts are blocked. Account session lasts 30 days and renews on use. After expiry the re-login notice appears and trips stay. Signing back into the same account keeps the same userId, so the existing trips reappear."
+  },
+  {
+   "fr": "FR-103 소셜 로그인",
+   "status": "done",
+   "note": "Screen 26 is a mock consent screen with text and lines only, no logos. The 'fail' scenario shows an amber Notice and a retry button. For 'same email' the result is linkRequired and linking happens only after confirmLink(accept=true); declining changes nothing. The link target is the account last signed in on this device."
+  },
+  {
+   "fr": "FR-104 프로필 관리",
+   "status": "done",
+   "note": "Screen 17 rejects duplicate nicknames (against auth provider accounts). Images over 5MB are judged for compression and the before and after sizes are shown. A sample 8.4MB demo button covers the web, where real compression is not done. Web blob:/data: URIs are not stored. The 6 preference tags save to profile.tags."
+  },
+  {
+   "fr": "게스트 승격",
+   "status": "done",
+   "note": "Signup reuses the guest userId. After verification, completeAuth sends member/accountLinked to every trip the user is in, with the actorId set explicitly. '이관 범위 미결정 · 이 기기 데이터 유지' is shown on screens 16 and 17. wp1-auth tests the drafts, including the exclusions."
+  },
+  {
+   "fr": "계정 탈퇴(NFR 데이터 보존)",
+   "status": "done",
+   "note": "Screen 17: quiet button plus one ConfirmSheet. planAccountDeletion builds, per trip, photoRemoved for the user's own photos and member/anonymize for the user's member, including trips the user already left. Drafts go out with the explicit actorId, then AuthProvider.deleteAccount, then signOut. Guests get no deletion menu. wp1-auth checks the draft list and that sign-in fails after deletion. Checking the applied result belongs to the integration tests."
+  },
+  {
+   "fr": "FR-203 여행방 목록",
+   "status": "done",
+   "note": "Upcoming, ongoing and done segments with counts, using the shared tripStatus and appClock (useNow). Empty state that leads to trip creation. Card with D-day chip, avatars and candidate/confirmed/excluded counts, followed by the 6-cell menu. Chat cell is disabled with a reason in personal mode; the navigation cell has a '2차' badge. Covered by wp1-home."
+  },
+  {
+   "fr": "NFR 보안(계정)",
+   "status": "done",
+   "note": "salt + SHA-256 (core/sha256 via the injected hasher), 30-day session expiry, account limit of 5 plus device limit of 20. Screens state '프로토타입 · 단말 저장'."
+  },
+  {
+   "fr": "NFR 알림 설정·sessionExpiry",
+   "status": "done",
+   "note": "Screen 18 can turn off each of the 4 notification types (notifyPrefs). sessionExpiry: guest sessions get a notice 3 days before expiry, following the shared notify rules (once per 30 minutes, off switch). Checked at boot against the pre-extension session, and on the Home screen as simulator time moves. Tested for the 29:59 and 30:00 boundaries and the off switch."
+  },
+  {
+   "fr": "부팅(bootstrap)·화면 01",
+   "status": "done",
+   "note": "Loads the 4 fonts one by one with Font.loadAsync, then waits on waitHydrated for the 4 stores: 8 steps, with progress and step names. Deletes the old key once with a single notice, sends the expiry notice, and calls purgeExpired. Screen 01 uses the full rose background (the only screen that does) with the wordmark laid out as in mockup 01."
+  },
+  {
+   "fr": "화면 18 더보기·시연 도구",
+   "status": "done",
+   "note": "Entry points for members, trip settings, trip progress (2차), recommendations (2차), photos, diary and record map (3차), and profile, signup and login. Settings: notifications, location permission and device-location toggle, group location sharing marked '꺼짐 · 미결정', provider status via describeServices with the Kakao key state and '국내 SDK 선정 미결정', session expiry with last 4 token characters, retention (the current trip's last retention day). Demo tools: reset (confirm), scenario fill by stage with progress, network toggle, screen list."
+  },
+  {
+   "fr": "시연 리셋·seedScenario",
+   "status": "partial",
+   "note": "resetDemo calls resetServices, resets all 4 stores and calls setClockOverride(null). seedScenario runs the same step table (scenarioSteps) as runScenario, reports progress, collects failed steps into one amber toast, and selects the current trip. That it gives the same 14/11/3 twice after a reset is checked by the integration e2e, which I did not run. golden-e2e is todo and currently fails on the ExcludedSpot.nearestDate expected value for tooFar (WP4/test expectation). runScenario itself reaches buildPlan."
+  },
+  {
+   "fr": "runScenario 순수",
+   "status": "done",
+   "note": "Does not import RN modules; the foundation-core-boundary test passes."
+  }
+ ],
+ "sharedChangeRequests": [
+  "src/ui/tokens.ts (FOUNDATION): the screen 01 splash divider in the mockup is white at .55 on rose, but there is no composite token for it. SplashScreen currently uses the nearest surfaceC.tintLine. Please add a surfaceC.onRoseLine token (#DD94A9, roughly white .55 over #B3123F) and add it to NON_TEXT_PAIRS.",
+  "src/core/ports.ts AuthProvider (FOUNDATION, not urgent): there is no account lookup, so ProfileScreen reads the provider list by calling updateProfile(accountId, {}) with an empty patch. Adding getAccount(accountId): Promise<AuthResult> would remove that workaround. social() also takes no userId, so a guest can only be promoted through email signup. Please record in the contract that social-login promotion is out of scope.",
+  "Integration lead: golden-e2e (todo) fails only because the expected nearestDate for the tooFar exclusion (감은사지) is undefined while the plan outputs '2026-10-18'. Please decide whether the WP4 planner or the test expectation matches the contract (nearestDate belongs to dayFull).",
+  "Other package's tsc error, reported only: tests/wp3-candidates.test.ts(231,39) TS2345 (WP3)."
+ ],
+ "ownFilesTscClean": true,
+ "notes": "What I checked: node scripts/gate-scope.mjs WP1 passes (tsc 0 errors in WP1 files; 1 error in another package's file, reported only). The 3 files tests/wp1-session (19), wp1-auth (30) and wp1-home (17) pass. The YT_SCOPE=WP1 foundation tests (6 files) pass. npx expo export --platform web --output-dir /tmp/yt-export-wp1 succeeded with 4 ttf files. In the full npm test run: 324 tests, 318 passed, 0 failed, 6 todo. I did not start a dev server and did no git operations. The screens themselves (15, 16, 17, 18, 26, 01, 03, onboarding) still need a visual check on the web export. On web, the photo picker gives a blob: URI, so the profile image is only previewed during the session and only its size is saved. Real compression happens only on native. The sameEmail link target in social login is the account last signed in on this device; if there is none, it is the most recently created email account (mock assumption)."
+}

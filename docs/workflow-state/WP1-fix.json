@@ -1,0 +1,54 @@
+{
+  "id": "WP1",
+  "summary": "WP1 코드 리뷰 지적 29건(blocker 3, major 7, minor 19)을 반영했다. blocker와 major는 모두 고쳤다. FR-103 소셜 동일 이메일은 모의 제공자 이메일(providerEmail) 방식으로 정했다. 26 화면에 이메일 입력칸을 두고 socialFlow가 그 값을 넘긴다. 17 화면의 연결(intent 'link')은 지금 계정(linkToAccountId)에만 붙이고, 결과 계정이 다르면 judgeSocial이 거부해서 세션이 바뀌지 않는다. 게스트를 승격할 때는 게스트 때 고른 태그와 이미지 정보를 계정에 먼저 올린다. 로그아웃과 탈퇴는 signOutFlow가 맡아 지금 여행방 선택도 비운다. 앱을 쓰는 동안 useSessionKeepAlive가 세션을 연장하고, 만료되면 폐기와 안내를 한다. 만료 3일 전 알림은 세션 창마다 한 번만 띄운다. seedScenario는 이전 시나리오 방을 지우고 시작하며, 도중에 실패하거나 리셋이 끼어도 끝(finally)에서 시계를 정리한다. 모의 인증 메서드는 한 줄로 차례 실행한다. 디자인 쪽은 홈 머리말을 목업 03 .hd-row 배치로 바꿨고, 18 토글을 switch 접근성과 tint 칩으로 바꿨다. 이 밖에 버튼 위계, eyebrow 맥락 문구, 비밀번호 칩 앰버 표시, 시드 선택 2×2를 고쳤다. 게이트는 통과한다.",
+  "filesChanged": [
+    "src/services/auth/local.ts",
+    "src/features/account/flows.ts",
+    "src/features/account/social.ts (새 파일)",
+    "src/features/account/profile.ts",
+    "src/features/account/useSessionKeepAlive.ts (새 파일)",
+    "src/demo/tools.ts",
+    "src/screens/SocialConsentScreen.tsx",
+    "src/screens/ProfileScreen.tsx",
+    "src/screens/HomeScreen.tsx",
+    "src/screens/MoreScreen.tsx",
+    "src/screens/LoginScreen.tsx",
+    "src/screens/SignupScreen.tsx",
+    "src/screens/OnboardingScreen.tsx",
+    "src/core/session.ts (이전 반영 시도분 확인: keepSession, touchDue, notifiedKey, issueGuest deviceToken)",
+    "src/store/session.ts (이전 반영 시도분 확인: keepAlive, expiryNotifiedKey, signOut 프로필 초기화, createGuest 기기 토큰 재사용)",
+    "tests/wp1-auth.test.ts",
+    "tests/wp1-session.test.ts",
+    "../docs/meetings/04-코드리뷰-WP1.md"
+  ],
+  "features": [
+    {"fr": "FR-103 소셜 로그인", "status": "done", "note": "동일 이메일은 모의 제공자 이메일과 같은 계정만 대상이다. 26에서 입력한 providerEmail로 linkRequired가 오고, 확인한 뒤에만 연결한다(자동 병합 없음). 17 연결은 linkToAccountId로 지금 계정에만 붙이고 세션을 바꾸지 않는다. 결과 계정이 다르면 거부한다. 'fail'이면 앰버 Notice와 재시도를 보인다. 게스트가 소셜로 로그인하려 하면 복구 불가를 경고한다."},
+    {"fr": "게스트 승격", "status": "done", "note": "userId를 유지하고 member/accountLinked를 보낸다. 게스트 때 고른 성향 태그와 이미지 정보(promotionProfilePatch)를 applyAuth 전에 계정에 올린다. 이 기기 데이터가 유지된다."},
+    {"fr": "FR-105·FR-102 세션 갱신·만료", "status": "done", "note": "홈의 useSessionKeepAlive가 useNow가 바뀔 때마다 keepSession을 부른다. 앱 시각 1시간 간격으로 연장하고, 시뮬레이터 시각이 만료를 넘으면 폐기와 안내를 한다. 게스트는 복구 불가, 계정은 재로그인하면 여행방이 유지된다고 안내한다."},
+    {"fr": "NFR 알림 sessionExpiry", "status": "done", "note": "만료 3일 전 알림은 세션 창(userId:expiresAt)마다 한 번만 띄운다(expiryNotifiedKey). 30분 1회와 끄기 규칙을 함께 적용한다. 부팅과 사용 중 판정이 같은 표식을 본다."},
+    {"fr": "로그아웃·계정 탈퇴", "status": "done", "note": "signOutFlow가 세션, 프로필, ui.currentTripId를 비운다. 탈퇴는 초안 적용, deleteAccount, signOutFlow 순서다. 계정이 바뀌면 completeAuth도 지금 여행방 선택을 비운다."},
+    {"fr": "FR-101 회원가입", "status": "done", "note": "제출을 막지 않는다. 제공자가 돌려준 violations를 칩(앰버)과 Notice에 반영한다. 인증하기 버튼에 busy 가드를 달았다."},
+    {"fr": "FR-102 시도 제한", "status": "done", "note": "모의 인증 메서드를 serial로 한 줄로 실행해 병렬 호출로 잠금을 우회할 수 없다. 테스트로 확인했다."},
+    {"fr": "시연 도구 seedScenario·resetDemo", "status": "partial", "note": "이전 시나리오 방(같은 초대 코드)을 지우고 시작한다. try/finally와 세대 번호로 리셋이 끼어도 시계나 여행방을 되돌리지 않는다. 채우는 동안에는 리셋을 막는다. 두 번 연속 시드해 14·11·3이 같은지는 통합 e2e가 확인할 몫이다(스토어는 node 테스트에서 불러올 수 없다)."},
+    {"fr": "화면 03 홈", "status": "done", "note": "목업 .hd-row 배치다. eyebrow와 제목, 오른쪽에 프로필과 멤버 아이콘 버튼 두 개, 같은 머리말 안에 세그먼트가 있다. 메뉴 칸 제목은 btnSm이다."},
+    {"fr": "화면 18 더보기", "status": "done", "note": "토글 줄 전체가 switch다(이름, 힌트, checked). 켜짐은 tint 칩이다. 시드 단계는 2×2 배치에 뜻이 보이는 라벨을 달았다."},
+    {"fr": "화면 15·16·17·26 표기", "status": "done", "note": "eyebrow를 화면 번호 대신 맥락 문구로 바꿨다. 15와 17은 주 버튼을 Foot에 하나만 둔다. 17 머리 카드는 저장된 이름을 보인다."},
+    {"fr": "화면 01 스플래시 수치", "status": "skipped", "note": "태그라인 SemiBold 15, 단계 이름 12px, 구분선 흰색 .55는 토큰이 있어야 고칠 수 있다(화면에서 크기나 색을 직접 쓰면 디자인 규칙 위반이다). FOUNDATION에 요청했다."}
+  ],
+  "findingsResolved": 27,
+  "findingsDeferred": [
+    "D5(디자인, minor) 01 스플래시의 태그라인, 단계 이름, 구분선 수치: 화면에서 fontSize나 hex를 직접 쓰면 디자인 규칙 위반이다. T.tagline, 12px Regular 변형, surfaceC.onRoseLine 토큰이 들어오면 바꾼다.",
+    "D6(디자인, minor) 일부: 메뉴 칸 제목과 온보딩 카드 제목은 btnSm으로 고쳤다. '시간표 보기'(목업 12.5 Bold)는 맞는 토큰이 없어 btnSm(13)으로 두었다. 차이는 0.5px라 받아들인다.",
+    "C8(정확성, minor) 일부: 모의 인증 메서드를 직렬화했다. 17 ProviderChips의 updateProfile({}) 조회는 계약에 getAccount가 없어 남겨 두었다. 직렬화되어 경합은 없다.",
+    "C3(정확성, major)의 검증: 코드는 고쳤다. 두 번 연속 시드하는 테스트는 스토어가 node에서 불러와지지 않아 통합 e2e에 맡긴다."
+  ],
+  "sharedChangeRequests": [
+    "FOUNDATION src/core/ports.ts: AuthProvider.social 입력에 linkToAccountId?: string과 providerEmail?: string을 정식으로 넣어 달라. 지금은 services/auth/local.ts의 SocialInput과 LocalAuthProvider로 확장해 쓴다. getAccount(accountId): Promise<AuthResult>도 추가해 달라. 17 ProviderChips의 updateProfile({}) 우회를 없애려는 것이다.",
+    "FOUNDATION src/ui/tokens.ts: surfaceC.onRoseLine(#DD94A9, 로즈 위 흰색 .55 합성값, NON_TEXT_PAIRS에 추가), T.tagline(F.semibold 15, lineHeight 25.5), 12px Regular 변형(01 단계 이름), 필요하면 T.k(F.bold 14, 03 메뉴 칸 제목).",
+    "통합 담당: 리셋 없이 seedScenario('all')을 두 번 돌려 후보 14, 확정 11, 제외 3이 같은지 통합 e2e를 더해 달라. eyebrow에 화면 번호를 넣지 않는 규칙을 모든 패키지에 적용할지 정해 달라.",
+    "src/store/trips.ts 소유 패키지: useCurrentTrip이 지금 사람의 멤버십을 확인하지 않는다. WP1은 로그아웃, 탈퇴, 계정 전환 때 currentTripId를 비워 막았다. 선택자에서도 확인하면 더 안전하다.",
+    "다른 패키지 tsc 오류(보고만): src/screens/LiveTripScreen.tsx(196), src/screens/NavigateScreen.tsx(187) TS2367."
+  ],
+  "gateResult": "node scripts/gate-scope.mjs WP1: 통과(tsc=ok, own-tests=ok, foundation-scoped=ok). tsc의 WP1 파일 오류 0건, 다른 파일 오류 2건은 보고만 한다. tests/wp1-* 3개 파일이 통과한다(wp1-auth 36, wp1-session 24, wp1-home). YT_SCOPE=WP1 foundation 테스트 6개가 통과한다.",
+  "notes": "이전 반영 시도가 끊기면서 local.ts(providerEmail, linkToAccountId), core/session.ts(keepSession, notifiedKey), store/session.ts(keepAlive, signOut 프로필 초기화, 기기 토큰 재사용)까지만 들어가 있었다. flows, 화면, 테스트는 반영되지 않은 상태였고, 이번에 나머지를 채웠다. 개발 보고의 '같은 이메일이면 이 기기에서 마지막으로 로그인한 계정에 연결'은 틀린 설명이다. 지금은 모의 제공자가 돌려준 이메일 계정에 연결한다. npm test 전체는 484개 중 475개 통과, 3개 실패, todo 6개다. 실패 3개는 wp5-live 1개와 wp6-photo 2개로 WP1 파일이 아니다. npx expo export --platform web --output-dir /tmp/yt-export-wp1은 성공했고 ttf는 4개다. 개발 서버를 띄우지 않아 바뀐 배치(03 머리말, 15·17 Foot, 18 토글, 26 이메일 입력칸)는 눈으로 확인하지 않았다. 통합 QA 때 웹 export로 확인해야 한다. git 조작은 하지 않았다. 회의록은 docs/meetings/04-코드리뷰-WP1.md에 있다."
+}

@@ -1,0 +1,66 @@
+{
+ "reviewer": "명세 준수 리뷰어 (WP3 대화 인식·후보·추천)",
+ "findings": [
+  {
+   "severity": "major",
+   "where": "src/services/places/kakao.ts:131-146 (search), tests/wp3-providers.test.ts:52",
+   "issue": "수용 기준은 fakeFetch 테스트로 요청의 '헤더, 검색어, 지역 중심·반경'을 검증하라고 한다. 그런데 키워드 검색은 radius를 일부러 빼고, 테스트도 radius가 없다는 것을 단언한다. 기준을 거꾸로 확정한 셈이다. 카카오 문서상 x·y는 radius와 함께 쓸 때만 지역을 제한하고, 그 밖에는 distance 계산과 거리순 정렬에만 쓰인다. 지금처럼 sort=accuracy에 radius가 없으면 검색은 사실상 전국 대상이다. 그래서 '중앙시장', 'OO 카페'처럼 전국에 흔한 이름은 상위 15건에 경주 결과가 없을 수 있고, 이때 matchPhrase의 inRegion이 모두 버려 인식이 조용히 실패한다. 주석의 '지역 중심을 보내고'는 지역 편향이 있는 것처럼 오해하게 만든다. 이 계약 변경은 sharedChangeRequests에도 없다.",
+   "fix": "키워드 검색을 두 단계로 바꾼다. 먼저 x·y와 radius=min(지역 반경, 20000)으로 검색하고, 결과가 0건이거나 수동 등록처럼 지역 밖 확인이 필요할 때만 radius 없이 다시 검색한다. 테스트는 첫 요청에 radius가 들어가는지 단언한다. 수용 기준과 다르게 가는 부분은 설계 결정으로 계약 메모와 추적표에 남긴다."
+  },
+  {
+   "severity": "minor",
+   "where": "src/screens/SpotDetailScreen.tsx:71-85, src/features/candidates/detail.ts:65-67",
+   "issue": "'기점에서' 칸의 교통수단과 분이 서로 다른 기준으로 계산된다. 라벨은 at.item.legTransport(직전 스팟에서 이 스팟으로 오는 구간의 수단)를 먼저 쓰고, 분은 효과 안에서 그날 수단(day.transport) 또는 여행 수단으로 경로를 구한다. 구간 수단을 도보로 바꾼 두 번째 이후 스팟은 '도보 25분'처럼 자동차로 잰 분에 도보 라벨이 붙는다. 효과 의존성도 좌표뿐이라, 수단이나 그날 기점 설정이 바뀌어도 다시 계산하지 않는다. FR-803의 도착 예정 정보가 틀리게 보일 수 있다.",
+   "fix": "기점에서 오는 구간의 수단은 그날 수단 하나로 통일한다. 라벨과 경로 요청에 같은 값을 넘기고, useEffect 의존성에 transport와 day.date를 넣는다."
+  },
+  {
+   "severity": "minor",
+   "where": "src/features/chat/send.ts:8-12, 31-40",
+   "issue": "주석은 '추출은 로컬 규칙과 장소 사전으로 돌아 오프라인에서도 된다'고 하지만, 카카오 키가 있으면 places.search가 네트워크를 쓴다. 이 경우 오프라인에서 보낸 메시지는 추출이 결과 없음으로 끝나고, 재연결 뒤에도 다시 추출하지 않는다. FR-304의 재전송 큐로 메시지는 도착하지만 그 메시지의 FR-401 후보는 영구히 빠진다.",
+   "fix": "검색이 네트워크 오류로 실패한 메시지 id를 기록해 두고, 재연결 때 다시 추출한다. 또는 제공자 실패 때만 로컬 사전으로 대체한다. 적어도 주석은 실제 동작에 맞게 고친다."
+  },
+  {
+   "severity": "minor",
+   "where": "tests/wp3-extract-quality.test.ts:22-60",
+   "issue": "품질 문장 37개 가운데 35개가 로컬 사전의 이름이나 별칭을 그대로 쓴 문장이다. 추출 어휘도 같은 사전이라, 재현율 95.1%는 사실상 사전 조회가 되는지만 보여 준다. 띄어쓰기 변형 1건('동궁과월지')을 빼면 줄임말, 오타, 붙여 쓴 조사 연쇄 같은 변형이 거의 없다. 카카오 경로의 오탐도 재지 않는다. 예를 들어 접미사 규칙으로 '여행사', '간호사'가 후보 표현으로 나가는데, 로컬 사전에서는 버려지지만 카카오라면 이름에 그 말이 든 업체가 지역 안에 하나만 있어도 자동 등록될 수 있다. 수치 기준은 글자 그대로는 충족한다.",
+   "fix": "사전에 없는 표기 변형(예: '불국사 쪽', '석굴암갔다가', '보문 호수', '첨성대앞')과 접미사 일상어('여행사', '간호사', '미용사')를 문장에 더한다. 카카오 제공자에 fakeFetch로 흔한 동명 응답을 주는 오탐 케이스도 둔다. 접미사 규칙의 STOPWORDS에는 직업·업종 '-사'를 보강한다."
+  },
+  {
+   "severity": "minor",
+   "where": "src/data/places.ts:147-153, tests/wp3-candidates.test.ts:336-349",
+   "issue": "수용 기준은 14곳과 기점의 '체류'를 바꾸지 않는다는 것을 wp3 테스트가 단언하라고 한다. 그런데 PLACES는 stayMin을 버리고, 동결 비교 테스트도 stayMin을 비교에서 뺀다. 후보의 체류는 spotFromPlace가 DEFAULT_STAY_MIN[category]로 새로 정하고, 골든 테스트는 지금 두 값이 우연히 같다는 것만 확인한다. 시나리오의 체류가 카테고리 기본값과 달라지면 아무 테스트도 이를 지키지 못한다.",
+   "fix": "동결 테스트에서 SCENARIO_PLACES의 stayMin과 DEFAULT_STAY_MIN[category]가 같다는 것을 명시적으로 단언한다. 또는 DictPlace에 stayMin을 남겨 두고 spotFromPlace가 그 값을 먼저 쓰게 한다."
+  },
+  {
+   "severity": "minor",
+   "where": "src/features/candidates/components/ManualAdd.tsx:31-38, src/core/ops/spots.ts:57-66",
+   "issue": "FR-202로 이미 후보인 곳을 다시 담으면 토스트는 항상 '제안을 더했습니다'라고 알린다. 하지만 같은 멤버가 이미 수동으로 제안한 곳이면 sameProposal에 걸려 아무것도 바뀌지 않는다. 사용자가 직접 뺀 후보(removedByUser)에 담으면 제안자는 늘지만 여전히 제외 스팟에 남는데, 이 사실도 안내하지 않는다. addPlace가 거부됐을 때(r.ok=false, quiet 없음)는 스토어 토스트만 뜨고 검색어가 남는다.",
+   "fix": "put 전에 existingSpotId 후보의 proposals에 내 manual 제안이 있는지 보고, 있으면 '이미 제안한 곳입니다'라고 알린다. 제외 상태면 '제외 스팟에 있습니다. 되돌리려면 후보 화면에서 되돌리기'를 알리거나 담는 흐름에서 되돌리기를 권한다."
+  },
+  {
+   "severity": "minor",
+   "where": "src/core/recommend.ts:85-88, src/screens/RecommendScreen.tsx:57-65",
+   "issue": "FR-404 입력은 '기간, 확정 스팟'이다. 근접도 기준점(centroid)은 확정 스팟이 아니라 전체 후보에서 잡는데, 여기에는 제외 스팟과 목적지 밖(outsideRegion) 수동 후보도 들어간다. 그래서 포항 쪽 수동 후보가 하나만 있어도 기준점이 끌려가 추천 순위가 바뀐다. dates는 요청에 담기지만 로컬 점수는 쓰지 않는다. 영업 요일 등 기간 반영이 전혀 없다.",
+   "fix": "기준점은 plan에서 확정된 스팟으로 잡고, 계획이 없으면 removedByUser와 outsideRegion을 뺀 후보로 잡는다. 기간은 hours.closedWeekdays가 여행 기간 전부와 겹치는 곳을 빼는 정도로라도 반영하거나, 반영하지 않는다는 사실을 추적표에 적는다."
+  },
+  {
+   "severity": "minor",
+   "where": "src/services/recommend/ai.ts:52-54, src/services/extraction/ai.ts:29-31, src/screens/RecommendScreen.tsx:88",
+   "issue": "AI 프록시가 실패해 로컬로 대체되면 결과는 예시 데이터인데 제공자 id는 'ai'로 남는다. 그래서 23 화면의 '예시 데이터' 칩이 사라진다. 사용자는 실제 AI 추천으로 오해할 수 있다.",
+   "fix": "RecommendResult에 source('ai'|'local') 같은 필드를 두거나 대체 여부를 돌려준다. 화면은 이 값으로 '예시 데이터' 칩을 정한다."
+  },
+  {
+   "severity": "minor",
+   "where": "src/screens/SpotDetailScreen.tsx:214-218",
+   "issue": "'잘못 잡은 장소라 후보에서 지우기'(spot/delete)는 채팅 제안이 하나라도 있는 후보에만 보인다. 수동 등록이나 추천으로 잘못 담은 후보는 지울 길이 없고, '직접 빼기'로 넘겨도 제외 스팟 구역에 계속 남는다. 반대로 채팅 제안과 수동 제안이 섞인 후보를 지우면 다른 멤버의 수동 제안까지 함께 사라진다. 확인 문구에는 이 사실이 없다.",
+   "fix": "수동·추천 후보에는 '후보에서 지우기'를 따로 두거나, 내가 넣은 제안만 빼는 동작을 둔다. 혼합 후보를 지울 때는 확인 문구에 '다른 멤버 제안 N건도 함께 지워집니다'를 적는다."
+  },
+  {
+   "severity": "minor",
+   "where": "개발 보고 notes / docs/FR-추적표.md:17,24,46",
+   "issue": "보고는 'gate-scope WP3 통과(전체 tsc 오류 0건)'라고 하지만, 지금 npx tsc --noEmit은 WP3 밖 파일에서 오류 3건을 낸다(src/screens/InviteAcceptScreen.tsx:120,167, src/store/trips.ts:16 droppedJoins). 게이트는 이를 '보고만'으로 통과시킨다. FR-추적표의 FR-202·401·404 행도 여전히 '스텁'이고, 카카오 실키·CORS 미확인과 문서 확인일이 반영되지 않았다.",
+   "fix": "보고의 tsc 문구를 'WP3 파일 오류 0건'으로 고친다. 추적표 갱신(상태, 카카오 CORS·실키 미확인, 문서 확인일 2026-09-26, 키워드 검색 radius 결정)은 통합 담당에게 명시적으로 넘긴다."
+  }
+ ],
+ "verdict": "조건부 통과. FR-401, 402, 202, 304, 803, 404와 06·05·07·23·24 화면의 수용 기준은 코드와 테스트에서 대부분 확인된다. 확인한 것은 동궁 별칭, 조사 제외, 지시 표현 0건, 인식 실패 시 무표시, 동명 ambiguous, 반경 밖 버림, undo 회귀, restore→고정, 개인 모드 거부, previewOps 예고, 3~5곳 추천과 대체됨이다. gate-scope WP3와 품질 수치(재현율 95.1%, 오탐 0%)도 다시 돌려 통과를 확인했다. 다만 카카오 키워드 검색의 radius 누락은 수용 기준 문구('지역 중심·반경' 검증)와 정면으로 어긋나고 실제 인식 실패로 이어질 수 있어 major로 본다. 이 건을 고치거나 설계 결정으로 계약에 올린 뒤 통과시킨다. 나머지 minor 9건은 이번 회차 안에서 정리하기를 권한다. 용어 위반, 확정 결정 위반(확정 버튼, 자동 선별, 국내 전용, 구글 없음), 반짝이·별 아이콘은 발견되지 않았다."
+}

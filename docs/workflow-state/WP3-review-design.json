@@ -1,0 +1,84 @@
+{
+ "reviewer": "디자인 충실도 리뷰어 (WP3: 화면 05·06·07·23·24)",
+ "findings": [
+  {
+   "severity": "major",
+   "where": "src/features/chat/components/Bubble.tsx:41",
+   "issue": "말풍선 장소 강조의 글자색이 목업과 반대로 들어가 있다. 목업 05의 .msg .hl은 연핑크 면(#FDEFF3)에 진한 로즈(#8E0E32) 굵게(700)이다. 코드는 남의 말풍선에서 c='ink'에 bubble(Regular)을 쓰므로, 글자는 본문과 같은 색·굵기로 남고 면만 옅게 깔린다. 파일 주석('강조는 연핑크 면에 roseDeep 글씨')과도 맞지 않는다. 내 말풍선에서는 목업이 반투명 흰 면에 흰 글씨인데, 코드는 연핑크 면에 roseDeep을 써서 로즈 말풍선 안에 연핑크 조각이 박힌다.",
+   "fix": "남의 말풍선 강조는 c='roseDeep'으로 바꾸고, 굵게 쓸 수 있도록 tokens.T에 bubble 굵은 변형(F.bold, 13.5/21)을 더해 사용한다. 내 말풍선 강조는 목업의 rgba(255,255,255,.22)를 로즈 위에서 합성한 불투명 값을 surfaceC 토큰으로 추가하고, TEXT_ON_SURFACE_PAIRS에 onRose 조합으로 넣어 대비를 검사한 뒤 쓴다. 토큰 추가가 어렵다면 적어도 남의 말풍선은 roseDeep으로 고친다."
+  },
+  {
+   "severity": "major",
+   "where": "src/screens/ChatScreen.tsx:111-118",
+   "issue": "05 헤더 구성이 목업과 다르다. 목업은 한 줄 헤더(뒤로 / 이름 nm + 보조 줄 mt tight / 점 3개)이고 padding-bottom이 10이라 대화 영역을 최대한 남긴다. 코드는 공용 Header를 써서 아이콘 줄, eyebrow '05 · 그룹 채팅', Hahmlet 20 제목, 보조 줄을 세로로 쌓는다. 헤더가 목업보다 약 70px 커지고, 844 높이에서 말풍선이 한두 개 덜 보인다.",
+   "fix": "05 전용 한 줄 헤더를 둔다. 행 하나에 IconBtn(back), Col(grow, gap 2){Txt nm 제목, Txt mtTight 보조 줄}, IconBtn(dots)를 넣고 paddingBottom은 SP.l로 한다. src/ui는 WP3 소유가 아니므로 화면 안에서 Row/Col로 조립하거나, 공용 Header에 compact 모드를 추가해 달라고 요청한다. eyebrow는 뺀다."
+  },
+  {
+   "severity": "major",
+   "where": "src/screens/ChatScreen.tsx:165-179",
+   "issue": "입력줄이 목업과 다르다. 목업 05의 입력줄은 44×44 + 아이콘 버튼과 라벨 없는 44 높이 입력 칸 한 줄이다. 코드는 Field에 라벨 '보내는 사람 · 민지'를 붙여서 헤더 보조 줄과 같은 정보를 한 번 더 적는다. 보내기 버튼은 38 높이 텍스트 버튼이고 paddingTop: 22 매직 넘버로 입력 칸 위쪽에만 맞췄다. 입력 칸 박스(46)와 버튼(38)의 아래 끝이 어긋나고, 입력줄이 목업보다 약 22px 높다.",
+   "fix": "라벨 없는 입력 칸(높이 44, R.btn)과 같은 높이의 전송 아이콘 버튼을 한 줄에 둔다. 보내는 사람은 헤더 보조 줄에만 적는다. paddingTop: 22는 없앤다. Field에 라벨 없는 변형이 없으면 ui 소유자에게 변형을 요청한다."
+  },
+  {
+   "severity": "major",
+   "where": "src/screens/SpotDetailScreen.tsx:182",
+   "issue": "제안자 아바타 색이 멤버가 아니라 목록 안 순서로 정해진다. AvatarStack은 index=i로 색을 고르고, 05 채팅은 memberIndex(멤버 등록 순)를 쓴다. 불국사의 제안 순서는 준호, 수아, 민지이므로 07에서는 준호가 로즈, 수아가 앰버가 된다. 같은 사람이 05에서는 준호 앰버·수아 초록이고, 목업 07도 준 앰버·민 로즈·수 초록이다. 화면마다 같은 사람의 색이 바뀐다.",
+   "fix": "AvatarStack 대신 Avatar를 직접 겹쳐 그리고 index에는 features/chat/view.ts의 memberIndex(trip.members, id)를 넘긴다(두 번째부터 marginLeft: H.avatarOverlap). spotDetail이 이름과 함께 memberId를 돌려주게 바꾼다."
+  },
+  {
+   "severity": "major",
+   "where": "src/screens/CandidatesScreen.tsx:144-156",
+   "issue": "06의 정보 위계가 목업과 다르다. 목업은 Seg 바로 아래에서 확정 스팟 카드가 시작하고, 첫 화면에 확정 4장과 제외 2장이 보인다. 코드는 확정 목록 위에 수동 등록(Field 라벨 + 46 입력 칸 + 38 버튼 줄, 약 130px)과 연핑크 tinted '성향 태그로 추천 받기' 카드(약 70px)를 둔다. 첫 화면에서 확정 카드가 약 2장만 보이고, 면 강조(tinted)가 이 화면의 주제가 아닌 2차 기능 홍보에 쓰인다.",
+   "fix": "수동 등록은 헤더 오른쪽 IconBtn(search 또는 plus)이나 목록 끝의 quiet 버튼으로 열리는 시트로 옮기고, 목록은 Seg 바로 아래에서 시작한다. 추천 진입은 tinted 카드 대신 목록 끝의 quiet 행이나 헤더 메뉴로 내린다."
+  },
+  {
+   "severity": "minor",
+   "where": "src/screens/ChatScreen.tsx:113, src/screens/CandidatesScreen.tsx:48,102, src/screens/RecommendScreen.tsx:83,102,121, src/screens/ChatScreen.tsx:223",
+   "issue": "내부 화면 번호가 사용자에게 보인다. eyebrow에 '05 · 그룹 채팅', '06 · 후보 · 자동 선별', '23 · 여행지 추천'을 적었는데, 목업 05·06에는 eyebrow가 없고 07의 eyebrow는 '확정 스팟 · 10/18 둘째 날' 같은 상태 문구다. 본문 문구에도 '프로필(17)에 저장한 태그', '초대 수락(02)으로 합류한 뒤' 같은 화면 번호가 들어가 있다. 다른 패키지 화면에도 같은 패턴이 있어 팀 공통 문제로 보인다.",
+   "fix": "05·06에서는 eyebrow를 빼거나 상태 문구로 바꾼다. 23은 '여행지 추천'처럼 번호 없이 쓴다. 본문의 '(17)', '(02)'는 '프로필에서', '초대 수락으로'로 바꾼다. 팀 공통 규칙은 통합 회의에 올린다."
+  },
+  {
+   "severity": "minor",
+   "where": "src/features/chat/components/ExtractionCardView.tsx:28,43",
+   "issue": "추출 카드 글자 크기가 목업보다 크다. 목업은 제목이 12.5px Bold 로즈, 행 이름이 13.5px Bold다. 코드는 제목에 btnSm(13), 행 이름에 nm(15)을 써서 카드가 대화 흐름보다 두드러진다. 목업 메모의 '대화 흐름을 끊지 않는다'와 어긋난다.",
+   "fix": "tokens.T에 목업 값 변형(예: nmSm 13.5 Bold, 카드 제목 12.5 Bold)을 추가해 쓰거나, 최소한 행 이름을 nm보다 작은 기존 변형으로 바꾼다."
+  },
+  {
+   "severity": "minor",
+   "where": "src/screens/ChatScreen.tsx:137-146",
+   "issue": "메시지 줄 정렬과 밀도가 목업과 다르다. 목업 .msg는 align-items: flex-end라 아바타가 말풍선 아래 끝에 붙는다. 코드는 Row top이라 아바타가 이름 줄 위쪽에 붙는다. 말풍선마다 시각 줄이 한 줄씩 더 붙고, 말풍선 최대 폭도 82%로 목업(236/346, 약 68%)보다 넓다.",
+   "fix": "Row의 top을 빼고 alignItems: 'flex-end'로 둔다. 시각은 pending일 때나 마지막 메시지에만 보이거나 말풍선 옆 작은 글씨로 옮긴다. 폭은 약 70%로 줄인다."
+  },
+  {
+   "severity": "minor",
+   "where": "src/features/chat/components/Bubble.tsx:23,39; src/screens/SpotDetailScreen.tsx:146; src/features/candidates/components/PlacePickSheet.tsx:35",
+   "issue": "토큰 밖 매직 넘버가 있다: paddingVertical 9, borderRadius 4, paddingHorizontal 3, paddingVertical 11, maxHeight 360. 규칙상 위반은 아니지만(라운드 16 이하) AGENTS와 토큰 파일이 요구하는 '전부 토큰 경유' 원칙에서 벗어난다.",
+   "fix": "SP나 R에 해당 값(bubblePadV 9, hl 3 등)을 추가하거나 가까운 기존 토큰으로 맞춘다."
+  },
+  {
+   "severity": "minor",
+   "where": "src/screens/SpotDetailScreen.tsx:192-195",
+   "issue": "채팅 원문 인용의 타이포가 목업과 다르다. 목업은 원문이 13px 잉크이고 '— 준호'는 mt tight muted로 구분된다. 코드는 한 Txt(bubble, ink) 안에 말한 사람까지 같은 색·크기로 넣어 발화와 화자가 구분되지 않는다.",
+   "fix": "Txt를 중첩해 화자 부분만 v='mtTight'(muted)로 쓴다. Txt 중첩이 막혀 있으면 원문 Txt와 화자 Txt를 가로 줄(Row wrap)로 나눠 둔다."
+  },
+  {
+   "severity": "minor",
+   "where": "src/screens/SpotDetailScreen.tsx:127,162-167 / src/features/candidates/detail.ts:57",
+   "issue": "제외 스팟 상세에서 같은 사유가 두 번 나온다. eyebrow에 '제외 스팟 · 10/18 저녁 수용량 초과'를 적고, 바로 아래 excluded 카드에서도 '제외 스팟'과 같은 사유 문장을 반복한다. 영업시간 칩 '영업 09:00–18:00 · 예시'는 목업에 없는 칩이고 '· 예시'는 뜻이 불분명하다.",
+   "fix": "eyebrow는 '제외 스팟'까지만 쓰고, 사유는 excluded 카드 한 곳에만 둔다. 영업시간은 정보 칸이나 보조 줄로 옮기고 '예시'는 06처럼 '예시 데이터' 칩 규칙으로 통일한다."
+  },
+  {
+   "severity": "minor",
+   "where": "src/screens/CandidatesScreen.tsx:85, src/screens/CandidatesScreen.tsx:126-129",
+   "issue": "제외 카드의 '되돌리기'가 btnSm(13)이라 목업(12px Bold 로즈)보다 크다. WarnCard는 제목 '고정 스팟만으로 수용량을 넘습니다'를 본문 '10/18 고정 스팟만으로 수용량을 1시간 넘습니다'에서 거의 그대로 반복한다.",
+   "fix": "되돌리기 글자는 chip(11.5 Bold)이나 time(12 Bold)에 c='rose'로 맞춘다. WarnCard 제목은 '10/18 수용량 초과'처럼 날짜를 넣어 짧게 쓰고, 본문에는 초과분과 해결 방법만 적는다."
+  },
+  {
+   "severity": "minor",
+   "where": "src/screens/RecommendScreen.tsx:129-134",
+   "issue": "'인기 장소로 대체됨' 안내에 alert 아이콘을 쓴다. 오류가 아닌 상태 안내인데 경고 기호를 달아, 23에서 대체가 실패처럼 읽힌다.",
+   "fix": "아이콘을 빼거나 중립 아이콘(예: list)으로 바꾼다. tone은 line을 유지한다."
+  }
+ ],
+ "verdict": "조건부 반려. 금지 스타일 위반은 WP3 화면과 feature 파일에서 찾지 못했다(hex, fontWeight, fontFamily, 그림자, 왼쪽 컬러 보더, 이모지·반짝이·별 아이콘 모두 0건, 화살표는 주석에만 있음). 목업 05·06·07과 직접 비교하면 major 5건이 남는다. (1) 05 말풍선 강조 글자색이 목업과 반대이고 굵기가 없다. (2) 05 헤더가 3단으로 쌓인다. (3) 05 입력줄에 라벨이 중복되고 버튼과 입력 칸 정렬이 어긋난다. (4) 07 제안자 아바타 색이 목록 순서로 정해져 05·목업과 다르다. (5) 06 목록 위에 수동 등록과 추천 카드가 올라와 위계가 무너진다. 이 5건을 고친 뒤 재검토한다. 화면 23과 24는 목업에 없어 토큰과 공용 컴포넌트 준수만 확인했고, 큰 문제는 없다."
+}

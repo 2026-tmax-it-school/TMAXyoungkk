@@ -1,0 +1,66 @@
+{
+ "reviewer": "명세 준수 리뷰어 (WP1 계정·세션·홈·설정)",
+ "findings": [
+  {
+   "severity": "blocker",
+   "where": "src/services/auth/local.ts social() sameEmail 분기(약 330~360행), tests/wp1-auth.test.ts 216·237·248행",
+   "issue": "로컬 인증의 동일 이메일 판정이 providerEmail 인자 방식으로 바뀌었는데(파일 수정 시각 9/26 18:35, 테스트는 9/24) 테스트는 그대로다. 그래서 FR-103 테스트 3개가 실패한다(기대값 linkRequired, 실제 notFound). node scripts/gate-scope.mjs WP1을 돌리면 '실패 (own-tests=FAIL)'가 나온다. 개발 보고의 '66개 전부 통과, 게이트 통과'와 '같은 이메일이면 이 기기에서 마지막으로 로그인한 계정에 연결'은 현재 코드와 맞지 않는다. 코드는 lastByDevice를 버렸다고 주석에 적어 두었다.",
+   "fix": "연결 대상을 무엇으로 정할지 하나로 정한다(providerEmail 또는 기기별 마지막 계정). 그 결정에 맞춰 local.ts, wp1-auth 테스트, 개발 보고를 같이 고치고, 게이트를 다시 통과시킨 뒤 보고한다."
+  },
+  {
+   "severity": "blocker",
+   "where": "src/features/account/flows.ts socialFlow(90~98행), src/screens/SocialConsentScreen.tsx",
+   "issue": "socialFlow는 auth.social({provider, deviceToken, scenario})만 부르고 providerEmail을 넘기지 않는다. 26 화면에는 이메일 입력칸도 없다. 그래서 화면에서 '같은 이메일'을 고르면 항상 notFound('카카오가 돌려줄 이메일을 입력해 주세요(모의)')가 나온다. FR-103 예외 '동일 이메일 계정 존재 시 연동 여부 확인'(linkRequired에서 연결하기/연결하지 않기)은 UI로 한 번도 도달할 수 없다. 수용 기준 FR-103 미충족이다.",
+   "fix": "26에 모의 제공자 이메일 입력을 두고 socialFlow에서 providerEmail로 넘기거나, 연결 대상 결정 방식을 바꾼다. 화면 흐름(sameEmail → 확인 카드 → confirmLink)을 flows 수준 테스트로 확인한다."
+  },
+  {
+   "severity": "blocker",
+   "where": "src/screens/ProfileScreen.tsx 279·287행(intent 'link'), flows.ts socialFlow",
+   "issue": "17의 '카카오 연결/구글 연결'은 SocialConsent에 intent:'link'로 가지만 intent가 flows까지 전달되지 않는다. linkToAccountId도 넘기지 않는다. 기본값 sameEmail은 위 이유로 늘 실패한다. 사용자가 '정상'으로 바꾸면 social 'ok'가 새 '카카오여행자' 계정(다른 userId)을 만들고 completeAuth가 세션을 그 계정으로 바꾼다. 연결하려고 눌렀는데 로그인한 사람이 조용히 다른 계정으로 바뀌고 기존 여행방이 보이지 않게 된다. flows 주석의 '결과 계정이 지금 계정인지 다시 확인한다'는 구현되어 있지 않다.",
+   "fix": "intent가 'link'이면 socialFlow에 linkToAccountId(현재 session.accountId)를 넘긴다. 결과 accountId가 현재 계정과 다르면 applyAuth하지 않고 앰버 Notice로 거부한다. 연결 모드에서는 새 계정을 만드는 '정상' 경로를 막는다."
+  },
+  {
+   "severity": "major",
+   "where": "src/store/session.ts applyAuth(115~120행), src/services/auth/local.ts signUp(profile: {nickname, tags: []})",
+   "issue": "게스트 승격 때 applyAuth가 profile 전체를 계정 profile로 덮어쓴다. 가입 시 계정 profile은 tags []이고 이미지도 없다. 그래서 게스트가 17에서 저장한 성향 태그와 이미지 크기 정보가 승격 순간 사라진다. 화면(16·17)에 적힌 '이 기기 데이터 유지'와 어긋나고, FR-404 추천 입력도 비게 된다.",
+   "fix": "completeAuth에서 promoted이면 현재 로컬 profile(tags, imageUri/Bytes/Compressed)을 auth.updateProfile로 계정에 올린 뒤 applyAuth한다. 또는 applyAuth에 승격 시 로컬 profile 우선 옵션을 둔다. wp1-auth에 '승격 뒤 tags 유지' 테스트를 추가한다."
+  },
+  {
+   "severity": "major",
+   "where": "src/screens/HomeScreen.tsx 64~67행, src/store/session.ts touchSession",
+   "issue": "FR-105·FR-102의 '사용할 때마다 갱신'과 만료 폐기가 부팅 때와 홈 첫 마운트 때 한 번씩만 일어난다. 홈은 탭이라 계속 마운트된 상태로 남으므로, 실행 중에는 사실상 갱신되지 않는다. 여행 시뮬레이터로 시각을 30일 넘게 옮겨도 세션이 폐기되지 않고, 계정 세션의 '만료되면 재로그인 안내'도 다음 부팅 때까지 나오지 않는다. 시뮬레이터 시연 규칙상 이 경로를 보여 줄 수 없다.",
+   "fix": "useNow 변화(또는 앱 포그라운드, 주요 op 전송)에 맞춰 touchSession을 부르고 결과가 'expired'면 expiredNotice를 토스트로 띄운다. 30일 경계를 시뮬레이터 시각으로 넘기는 경우를 wp1-session 테스트에 추가한다."
+  },
+  {
+   "severity": "minor",
+   "where": "src/screens/HomeScreen.tsx 70~73행, src/core/session.ts sessionExpiryNotice",
+   "issue": "수용 기준은 '만료 3일 전에 앱 안 알림을 한 번'이다. 그런데 key가 userId:expiresAt이고 30분 쿨다운만 있다. 홈이 열려 있으면 useNow가 흐르는 동안 남은 3일 내내 30분마다 같은 경고 토스트가 다시 뜬다.",
+   "fix": "sessionExpiry는 같은 key에 대해 한 번만 띄우도록 log에 영구 기록을 둔다(recordNotify의 30분 정리와 분리). 또는 수용 기준을 '30분 1회 반복'으로 바꾸는 결정을 회의록에 남긴다."
+  },
+  {
+   "severity": "minor",
+   "where": "src/screens/OnboardingScreen.tsx 53행",
+   "issue": "온보딩에 '이메일·소셜 계정으로 승격하면 기기를 바꿔도 여행방을 이어 씁니다'라고 적혀 있다. 하지만 social()은 userId를 받지 않아 소셜 승격이 불가능하다. 개발 보고도 이를 범위 밖으로 요청했다. 소셜 로그인을 하면 게스트 세션이 새 계정으로 바뀌고 게스트 여행방은 보이지 않는다.",
+   "fix": "문구를 '이메일 계정으로 승격하면'으로 고치고 소셜 승격은 미지원이라고 적는다. 26에 게스트 세션이 있을 때 15와 같은 경고 Notice를 둔다."
+  },
+  {
+   "severity": "minor",
+   "where": "src/screens/LoginScreen.tsx 69~75행, flows.ts completeAuth",
+   "issue": "게스트가 다른 계정으로 로그인하면 applyAuth가 게스트 세션을 버린다. 게스트 userId는 어디에도 남지 않으므로 그 게스트와 여행방은 영구히 복구할 수 없다. 15 안내는 '보이지 않습니다'라고만 해서, 복구 불가라는 사실을 알리지 않는다(FR-105 예외 '복구 불가 안내'와 같은 성격).",
+   "fix": "안내 문구에 '이 게스트 세션은 복구할 수 없습니다'를 적거나, 로그인 전에 ConfirmSheet로 한 번 확인받는다."
+  },
+  {
+   "severity": "minor",
+   "where": "src/store/session.ts signOut, createGuest",
+   "issue": "로그아웃은 session만 지우고 profile(tags, imageUri/Bytes)은 남긴다. 그 뒤 만든 게스트는 닉네임만 바뀌고 직전 계정의 성향 태그와 이미지 정보를 그대로 물려받는다.",
+   "fix": "signOut에서 profile을 초기값으로 되돌린다. 계정으로 다시 로그인하면 applyAuth가 계정 profile을 복원한다."
+  },
+  {
+   "severity": "minor",
+   "where": "src/screens/SignupScreen.tsx 46행 canSubmit",
+   "issue": "클라이언트가 규칙을 모두 만족해야만 제출할 수 있어, AuthProvider가 돌려주는 weakPassword violations 경로는 16에서 한 번도 표시되지 않는다. 수용 기준은 'violations로 돌려주고 16에 보여준다'이다. 칩은 로컬 판정이라 실제 제공자와 규칙이 다르면 어긋난다.",
+   "fix": "제출은 허용하고 결과의 violations를 칩과 앰버 Notice에 반영하거나, 제공자 violations를 칩 상태의 기준으로 쓴다."
+  }
+ ],
+ "verdict": "반려. WP1 자체 테스트 3개가 실패해 작업 중 게이트(node scripts/gate-scope.mjs WP1)가 통과하지 않는다. 개발 보고의 '66개 통과·게이트 통과'는 현재 코드와 다르다. FR-103의 동일 이메일 연동 확인(linkRequired)은 UI에서 도달할 수 없다. 17의 소셜 연결은 연결 대신 로그인 계정을 다른 계정으로 바꿔 버린다. 게스트 승격 때 성향 태그와 이미지가 사라져 '이 기기 데이터 유지'도 지켜지지 않는다. 세션 갱신과 만료 폐기는 부팅과 홈 첫 마운트 때만 일어나 시뮬레이터로 시연할 수 없다. FR-101·FR-102·FR-104 판정 로직, 계정 탈퇴 초안, FR-203 홈, 18 설정 항목, 01 부팅 8단계, resetDemo 구성은 수용 기준과 맞는다. blocker 3건과 major 2건을 고치고 게이트를 다시 통과시킨 뒤 재검토한다."
+}

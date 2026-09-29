@@ -1,0 +1,83 @@
+{
+ "id": "WP4",
+ "summary": "WP4 is finished, picking up from the partly done earlier attempt without rewriting it. The files already written (planner, routes, schedule reducer, timeline, and 8 test files) matched the plan and contracts, including the replanForDelay signature change from A11. I added the four missing screens: 08 Planning, 09 Schedule (the old one was a stub), 10 ScheduleEdit and 12 LegTransport. I also added a pure helper module, features/schedule/edit.ts, and a new test file, tests/wp4-screens.test.ts. The new test caught two bugs, both now fixed. First, undo left some manual orders cleared, because schedule/setDate with null (clearing a date) also wiped the spot's manual order. Second, the 12 preview sentence said \"time unchanged\" when the minutes matched by coincidence even though different spots were placed. Checks: gate-scope WP4 passed (tsc shows 0 errors in WP4 files, all 9 wp4 test files pass with 62 cases, foundation checks scoped to WP4 pass), and the web export to /tmp/yt-export-wp4 succeeded. I re-checked the Kakao Mobility car directions docs with WebFetch and they match the adapter.",
+ "filesChanged": [
+  "/Users/handong-gwan/IT희망학교 여행계획 프로젝트/test/src/screens/PlanningScreen.tsx",
+  "/Users/handong-gwan/IT희망학교 여행계획 프로젝트/test/src/screens/ScheduleScreen.tsx",
+  "/Users/handong-gwan/IT희망학교 여행계획 프로젝트/test/src/screens/ScheduleEditScreen.tsx",
+  "/Users/handong-gwan/IT희망학교 여행계획 프로젝트/test/src/screens/LegTransportScreen.tsx",
+  "/Users/handong-gwan/IT희망학교 여행계획 프로젝트/test/src/features/schedule/edit.ts",
+  "/Users/handong-gwan/IT희망학교 여행계획 프로젝트/test/src/features/schedule/view.ts",
+  "/Users/handong-gwan/IT희망학교 여행계획 프로젝트/test/src/core/ops/schedule.ts",
+  "/Users/handong-gwan/IT희망학교 여행계획 프로젝트/test/tests/wp4-screens.test.ts"
+ ],
+ "features": [
+  {
+   "fr": "FR-403(계산)",
+   "status": "done",
+   "note": "Greedy placement plus a swap pass. The swap, insertion and pinned-never-dropped invariants are checked by 100 random-coordinate runs (wp4-invariants). Reason codes tooFar/dayFull/userRemoved/outOfPeriod only pick the sentence; they never change whether a spot is excluded. The golden 11 confirmed / 3 excluded, with the exact reasons and sentences, is reproduced (wp4-golden-plan)."
+  },
+  {
+   "fr": "FR-505",
+   "status": "done",
+   "note": "Straight-line clusters come first, and the route matrix is queried only for base rows/columns and within clusters. Spots overflow to the next day, fixedDate is treated as pinned, and each day's active hours and base are respected. A property test checks that spots on the same day are closer than spots on different days."
+  },
+  {
+   "fr": "FR-501",
+   "status": "done",
+   "note": "10 spots or fewer use Held-Karp ('exact'); it equals brute force in 100 runs, both with and without return to base. 11 or more use nearest-neighbour + 2-opt ('approx'). A manual order is kept as is ('manual'). If the route provider throws or returns null, the planner falls back to straight-line distance and sets estimated."
+  },
+  {
+   "fr": "FR-502",
+   "status": "done",
+   "note": "arrive/depart arithmetic, default stay per category, outsideHours notice, carryOver, and timelineRows as a pure function are all tested (wp4-timetable). Screen 09 has the 52px time column, leg rows, base departure/return rows, the date Seg and the '예시 데이터' chip."
+  },
+  {
+   "fr": "FR-205(계산)",
+   "status": "done",
+   "note": "Covered: 'inherit' base, first spot as base when no base is set (baseSource firstSpot), and returnMin 0 when there is no return."
+  },
+  {
+   "fr": "FR-503",
+   "status": "done",
+   "note": "Edits are stored only through patchSpot/patchDay, so they survive recomputes triggered by other ops; conflicts resolve by op.at last-write-wins. Screen 10: tapping a card selects it ('옮기는 중'), then move earlier/later, stay ±15 min, date, pin arrival time, and pin/unpin. A WarnCard shows the overflow and the adjustment options with numbers, applied with dispatchMany. Undo works from inverse ops built before each edit (removing a spot cannot be undone here). Results applied through the WP3 spot reducers are checked in integration-cross."
+  },
+  {
+   "fr": "FR-504(도보·자동차)",
+   "status": "done",
+   "note": "Whole-day (setDayTransport, which also clears that day's per-leg choices) and per-leg (setLegTransport) modes are supported. Screen 12 compares all modes with route(), shows delta chips (+min in warn), and runs previewOps for both 'this leg only' and 'whole day'. If driving fails, walking is used with a fallbackTransport notice. When a mode has no route, an alternative is suggested."
+  },
+  {
+   "fr": "FR-504(대중교통)",
+   "status": "done",
+   "note": "Mock model: walk to stop + half the headway + ride + transfer penalty, always marked estimated. A null entry in the scenario route table means no route. The transit row on screen 12 has the '2차' ScopeBadge."
+  },
+  {
+   "fr": "FR-603(재계산)",
+   "status": "done",
+   "note": "replanForDelay takes delayMin (per A11) and returns {adjustments}. Order of options: reorder, then drop spots that will be closed on arrival, then FR-403 order. Pinned spots are never dropped and rejecting changes nothing (wp4-replan)."
+  },
+  {
+   "fr": "NFR 성능·API 비용·선별 품질",
+   "status": "done",
+   "note": "The scenario's first calculation uses 100 route segments or fewer. With the 24-hour cache the second run uses 0, and after 24 h + 1 s it queries again; clearCache also forces a new query. A 14-spot recompute finishes within 3 s. Every excluded spot has a reason (wp4-budget, wp4-invariants)."
+  },
+  {
+   "fr": "실제 경로 제공자(카카오, 가정)",
+   "status": "done",
+   "note": "WebFetch confirmed the Kakao Mobility car directions docs match the adapter. Request format, conversion of the response to minutes/metres/polyline, and per-segment call counting are tested with fakeFetch. Walking and transit use the local model with estimated set. Whether a real key works and whether the web build hits CORS is not verified."
+  },
+  {
+   "fr": "화면 08·09·10·12",
+   "status": "done",
+   "note": "08 recomputes when opened and draws only the real onStep steps: step rows, a progress bar made of completed steps plus the real done/total of the current step, the full selection rules, the route query count, and an offline notice. 09, 10 and 12 are as described above. Rendering was not checked on screen; only tsc and the web export were verified."
+  }
+ ],
+ "sharedChangeRequests": [
+  "src/store/trips.ts (WP2): recompute calls buildPlan without clock, so every PlanStep.ms is 0 and screen 08 cannot show step times like '0.4초'. Please pass clock: systemClock (or appClock()) in the buildPlan deps, e.g. buildPlan(doc, { routes, now, onStep, clock: appClock() }).",
+  "../docs/FR-추적표.md (FOUNDATION): in the Kakao route provider row, record that the Kakao Mobility car directions docs were checked on 2026-09 (GET /v1/directions, KakaoAK header, lng,lat order, distance in metres and duration in seconds). A real key and web CORS remain unverified.",
+  "Not caused by WP4: tsc currently reports errors in src/screens/InviteAcceptScreen.tsx (TS7053, 2 errors) and src/store/trips.ts (no droppedJoins export in outbox). These are WP2 files still being worked on; I am reporting them only."
+ ],
+ "ownFilesTscClean": true,
+ "notes": "- **Screen 10 saves each edit immediately.** The mockup's \"저장하고 시간표로\" (save and go to schedule) button suggests a local draft that is saved at the end. I chose to dispatch each edit right away instead, so the store recomputes and group sync last-write-wins works per edit. The bottom button is therefore labelled \"시간표로\", and the screen text says changes are saved and recomputed straight away.\n- **Reducer change in schedule.ts.** schedule/setDate with date null (clearing the date) no longer clears the spot's manual order. It only clears it when the spot moves to a different date. Existing tests still pass, and the undo round-trip test in wp4-screens covers this.\n- **Screen 12 title avoids an arrow.** It reads \"불국사에서 석굴암까지\" because text arrows like → are banned by the design rules.\n- **No up/down icons.** The shared icon set has none, so screen 10 uses \"앞으로/뒤로\" buttons, with the drag icon shown only as a handle.\n- **Tests in wp4-screens.test.ts cover:** moving spots in the order, stay limits, restoring every field through undo, day-wide transport drafts, leg indexes and positions, picking the first day to show, screen 08 step rows and progress, delta chips, and the preview sentence.\n- **Kakao docs URL.** docs/navi-api/directions returned 404; the page that loaded is developers.kakaomobility.com/guide/navi-api/directions."
+}

@@ -1,0 +1,72 @@
+{
+  "role": "테크리드(아키텍처·품질)",
+  "verifiedAt": "2026-09-29",
+  "currentState": "지금 파일로 다시 돌린 결과: npx tsc --noEmit exit 0, npm test 585개 전부 통과(suites 63, 실패 0, todo 0). 과제 문구에 적힌 459개·실패 6·tsc 2건은 패키지 리뷰 반영(WPn-fix) 단계에서 이미 풀려 있었다. 웹 export 성공과 gate-scope WP1~WP6 통과는 final.json 기록을 따른다.",
+  "wentWell": [
+    "계약·소유권 기반 병렬 분할이 제대로 작동했다. ownership.json 파일 단위 소유, 공용 포트(core/ports.ts), 레지스트리(A5), 작업 중 게이트(gate-scope, A10) 덕분에 여섯 패키지가 한 트리에서 동시에 일해도 서로를 막지 않았다. 리뷰 반영 뒤 여섯 패키지 모두 게이트를 통과했고 openIssues도 비었다.",
+    "공유 변경은 패키지가 직접 고치지 않고 '요청'으로 넘겼다. 통합 담당이 계약 A12로 한 번에 받았다(LegOverride.at·cleared, DayPlan.returnLeg, AuthProvider linkToAccountId·providerEmail·getAccount, RecommendRequest.anchor·RecommendResult.source, share dismissed, ui 토큰·컴포넌트). 계약과 부딪힌 요청 두 건(onRoseLine 대비 목록, createGuest 순서 변경)은 근거를 적고 받지 않았다. 계약이 판단 기준으로 쓰였다는 뜻이다.",
+    "순수 core와 제공자 어댑터를 나눈 것이 테스트성을 지켰다. core/map이 ui를 import하던 것도 DAY_COLORS를 core/constants로 옮겨 끊었다. foundation-core-boundary 테스트가 경계를 강제하므로, 경로 예산 100 이하, 24시간 캐시, Held-Karp 최적성, 도착·지연 경계, 오프라인 큐 중복 같은 핵심 규칙이 전부 node 테스트로 잠겨 있다.",
+    "골든 시나리오(후보 14·확정 11·제외 3, 두 번 돌려도 같음)와 cross 단언을 기반 단계에서 todo로 먼저 박아 두고 통합 때 풀었다. 패키지 경계를 넘는 성질을 누가 책임지는지가 처음부터 분명했다.",
+    "리뷰가 세 관점(정확성·디자인·명세)으로 나뉘어 211건(WP1 29, WP2 39, WP3 36, WP4 35, WP5 42, WP6 30)을 찾았고, blocker·major는 모두 고쳤다. WP4 '이 구간만'이 재정렬로 사라지던 blocker, FR-205 null 기점 승계 버그처럼 리뷰가 없었으면 시연에서야 드러났을 결함을 잡았다.",
+    "확정 결정 되돌림 0건이다. qa-decisions가 자동 선별, 1단계 도보·자동차, 구글·react-native-maps import 0건을 테스트로 고정했다. CI(ci.yml)가 tsc·test·export·ttf 4개를 같은 명령으로 돈다."
+  ],
+  "wentWrong": [
+    "병렬 분할의 비용은 공유 파일에 몰렸다. ui/**, types.ts, ports.ts가 FOUNDATION 소유라 패키지가 필요한 토큰·prop을 만들지 못하고 임시 확장 타입(WP4 LegOverride 별칭)이나 우회(17 화면 빈 패치)를 먼저 썼다. 통합 담당이 파일 50개 넘게 한꺼번에 고쳤고, 화면 배치 변화 9곳은 눈으로 확인하지 못했다. 공유 요청을 통합 때 한꺼번에 받지 말고 차수 중간에 한 번 받는 창구가 필요했다.",
+    "소유권 경계가 테스트 쪽에서 새어 나갔다. QA가 새 파일을 만들 때마다 FOUNDATION 소유 ownership.json에 글롭(tests/qa-*.test.ts)을 더해야 했다. qa.testTargets에 있던 integration-account-delete.test.ts는 통합과 QA가 서로 상대 몫이라 여겨 릴리스 단계에서야 만들어졌다. 경계 파일마다 '누가 쓰는지'를 계획에 적어야 한다.",
+    "화면(.tsx)과 스토어가 자동 검증 밖에 있다. store/live.ts 845줄, store/trips.ts 685줄은 node에서 불러와지지 않아 직접 테스트가 없다(qa-integrate 기록: seedScenario 두 번 연속 검사를 못 함). 개발 서버를 띄우지 않는 규칙 때문에 390×844 렌더, 지도 렌더 2초, 네이티브 기기를 아무도 보지 못했다. 585개 테스트가 모두 로직 테스트라 '다 통과'가 화면 품질을 보장하지 않는다.",
+    "실제 제공자는 가짜 fetch로만 검증했다. 카카오 로컬·카카오모빌리티·AI 프록시 모두 실키가 없어 웹 CORS, 동시 요청 한도, 응답 지연을 모른다. 문서 링크와 확인 날짜를 주석에 남긴 것은 좋았지만 계약 테스트가 없다.",
+    "진행 기록이 실제 상태를 늦게 따라왔다. 사용량 한도로 여러 번 끊기면서 과제 문구의 숫자(459개, 실패 6, tsc 2)가 몇 단계 전 것으로 남았고, 각 단계가 '시작할 때 이미 풀려 있었다'를 다시 확인하느라 시간을 썼다. workflow-state 파일이 이어하기 근거로는 쓸 만했지만 상태 요약 한 곳(최신 수치)을 단계마다 갱신하지 않았다.",
+    "결정 31과 코드가 어긋난다. services/photos/device.ts가 image-picker quality 1 고정이라 네이티브에서도 사진이 줄지 않는다(FR-104·FR-701 부분). 결정을 계획에만 적고 소유 패키지 인수 조건으로 옮기지 않아 빠졌다."
+  ],
+  "techDebt": [
+    {"item": "스토어 비대화와 테스트 부재", "where": "src/store/live.ts(845줄), src/store/trips.ts(685줄)", "note": "로직을 core로 더 빼고, react-native 의존을 끊어 node에서 스토어를 불러오게 한다. 멤버십 판정(useCurrentTrip)과 세션 사진 비우기도 여기 있다."},
+    {"item": "카카오 경로 행렬이 구간마다 순차 GET", "where": "src/services/routes/kakao.ts matrix", "note": "예산 100구간을 차례로 기다리면 구간당 200ms만 잡아도 20초다. 동시성 제한 병렬(예: 4~6개), 429 재시도·지수 백오프, 일일 쿼터 소진 때 로컬 모델로 내려가는 처리와 estimated 표시가 필요하다."},
+    {"item": "HTTP 클라이언트 시간 초과·취소 없음", "where": "src/services/kakaoHttp.ts, src/services/aiProxy.ts", "note": "일기(diary/ai.ts)만 Promise.race 시간 초과가 있고 추출·추천·카카오 호출에는 없다. AbortController 기반 공통 시간 초과를 aiProxy·kakaoHttp에 넣는다. JSON.parse 실패도 오류 문장을 정리한다."},
+    {"item": "REST 키가 번들에 들어감", "where": "src/config.ts EXPO_PUBLIC_KAKAO_REST_KEY", "note": "시연 한정이라고 적혀 있다. 실서비스는 카카오 호출도 프록시 뒤로 옮긴다."},
+    {"item": "모의 지도", "where": "src/components/map/MapCanvas.tsx(화면 5곳이 씀), src/core/map/layout.ts", "note": "투영·클러스터는 core에 있고 그리기만 SVG라 교체 지점은 하나다. 지도 SDK 포트는 아직 없다."},
+    {"item": "인증 해시", "where": "src/services/auth/local.ts hashOf = sha256(salt:password)", "note": "느린 해시가 아니다. 서버 인증으로 옮길 때 로컬 구현은 모의로만 남긴다(추적표 비기능 부분)."},
+    {"item": "동기화 서버 메모리 전용", "where": "server/sync-server.mjs", "note": "재시작하면 로그가 사라지고, 인증 없이 CORS *이다. 네트워크 끊김 감지는 시연 토글뿐이다."},
+    {"item": "남은 TODO와 미룬 공유 요청", "where": "src/data/scenario-tuning.ts:52,103 TODO(WP4); WP3 재연결 재추출 훅, WP4 D6 12 미리보기 굵은 강조, WP6 21의 09 시간표 틀 공유, 기반 C13 테스트 전용 tsconfig", "note": "각각 작다. 다음 차수 첫 주에 소유자를 정해 치운다."},
+    {"item": "eslint-disable exhaustive-deps 3곳", "where": "ProposalSheet.tsx:42, LegTransportScreen.tsx:98, useLegGeometry.ts:59", "note": "의도는 주석으로 알 수 있으나 화면 테스트가 없어 회귀를 못 잡는다."},
+    {"item": "보관본 정리", "where": "/Users/handong-gwan/IT희망학교 여행계획 프로젝트/archive/legacy-v1", "note": "import 0건. git에 없는 유일한 사본이라 영구 삭제는 사람이 결정한다."}
+  ],
+  "realProviderMigration": {
+    "principle": "화면·스토어는 registry(src/services/registry.ts)에서만 제공자를 얻고, 선택은 config.ts 환경 변수 세 개로 끝난다. 어댑터 코드(places/kakao.ts, routes/kakao.ts, extraction·recommend·diary/ai.ts, sync/http.ts)는 이미 있다. 남은 일은 실키 검증, 운영 안전장치, 서버 쪽 구현이다.",
+    "kakaoPlaces": [
+      "실키로 키워드 2단계 검색(지역 반경 20km 상한 → 0건이면 반경 없이)과 카테고리 검색을 시나리오 14곳에 돌려 추출 재현율 95.7%·오탐 0%가 유지되는지 다시 잰다.",
+      "웹 CORS 허용 여부를 확인한다. 막히면 웹은 프록시 경유로 바꾼다(키 보호와 같은 작업).",
+      "응답 스냅샷 몇 개를 fixture로 저장해 parse 함수 계약 테스트를 만든다."
+    ],
+    "kakaoRoutes": [
+      "matrix를 동시성 제한 병렬로 바꾸고 429·5xx 재시도, 요청 시간 초과를 넣는다. 한도를 넘기면 TravelBook의 직선거리 대체와 estimated 표시가 그대로 작동하는지 확인한다.",
+      "일일 쿼터와 비용을 재서 예산 100구간 규칙이 충분한지 추적표에 적는다(명세 미결정: 경로 API 제공자와 예산).",
+      "24시간 캐시(routes/cache.ts)가 KV에 쌓이는 크기와 정리 정책을 정한다.",
+      "도보·대중교통은 결정대로 로컬 모델을 유지한다(대중교통은 2차)."
+    ],
+    "kakaoMap": [
+      "국내 지도 SDK를 먼저 고른다(미결정). MapCanvas 하나를 SDK 래퍼로 바꾸되, props(핀·선·클러스터·범례)는 그대로 둔다. core/map/layout.ts의 투영은 SDK가 맡고 클러스터 규칙만 남긴다.",
+      "웹과 네이티브에서 SDK 동작이 다르면 플랫폼별 파일로 나눈다. 지도 렌더 2초 비기능 요구를 기기에서 잰다."
+    ],
+    "aiProxy": [
+      "프록시 서버를 만든다. 규약은 이미 정해져 있다: POST /extract {text, region} → {phrases}, POST /recommend → {items, fallback}, POST /diary → {texts}. AI 키는 서버에만 둔다.",
+      "앱 쪽은 aiProxy.ts에 공통 시간 초과·취소를 넣고, 추출·추천에도 일기처럼 시간 초과 뒤 로컬 대체를 적용한다. 응답을 믿지 않고 원문으로 다시 맞추는 anchorPhrases 방식은 유지한다.",
+      "프록시 쪽에 호출 수 제한, 로그의 개인정보(채팅 원문) 보존 기한, 비용 상한을 둔다.",
+      "로컬 규칙 추출과 AI 추출 결과를 골든 채팅으로 나란히 재는 품질 테스트를 둔다."
+    ],
+    "sync": [
+      "server/sync-server.mjs를 영속 저장소가 있는 서버로 바꾸고, 기기 토큰 기반 인증과 CORS 제한을 넣는다. HTTP 폴링 규약(POST ops, GET ops?after=N, GET invites/:code)은 유지하고, 필요하면 나중에 WebSocket을 더한다.",
+      "여러 기기로 실제 동기화와 끊김 복구를 확인한다."
+    ],
+    "keySecurity": "EXPO_PUBLIC_ 변수는 번들에 들어간다. 실서비스 전에 카카오 REST 키도 프록시로 옮기고 앱에는 프록시 주소만 남긴다."
+  },
+  "nextActions": [
+    "화면 확인 담당을 정해 README '시연 순서'를 웹 미리보기로 한 번 돈다. 통합이 바꾼 배치 9곳(01·04·05·08·10·11·13·21·22)부터 본다. 다음 차수부터는 정적 export를 띄워 스크린샷 비교하는 단계를 규칙 안에 둔다.",
+    "스토어를 node에서 불러올 수 있게 react-native 의존을 끊고, live·trips 스토어의 핵심 흐름(시나리오 시드 두 번, 로그아웃·탈퇴 정리, 멤버십 판정) 테스트를 만든다.",
+    "실키 점검 하루를 잡는다: 카카오 로컬·모빌리티 CORS와 동시 요청 한도, 응답 fixture 저장, 결과를 추적표에 적는다.",
+    "kakaoHttp·aiProxy에 공통 시간 초과·재시도를 넣고 경로 행렬을 동시성 제한 병렬로 바꾼다(WP4·FOUNDATION 공동).",
+    "결정 31 사진 압축 방식을 정하고 photos/device.ts quality 1을 고친다. 결정을 적을 때 소유 패키지 인수 조건에도 같이 적는 규칙을 만든다.",
+    "공유 파일(ui, types, ports) 변경 요청 창구를 차수 중간에 한 번 연다. 경계 파일(ownership.json, integration 테스트)마다 작성자를 계획에 적는다.",
+    "workflow-state에 최신 수치 한 곳(tsc·test·export)을 두고 단계마다 갱신해 이어하기 때 과거 숫자가 과제 문구로 흘러들지 않게 한다.",
+    "결정 필요 안건 Q1(떠난 스팟 도착 취소·건너뜀 고치기), Q2(탈퇴 멤버 닉네임), Q3(넷째 날부터 선·점 색 충돌)과 명세 미결정 7건 중 경로 API 예산·지도 SDK 선정을 다음 설계 리뷰 첫 안건으로 올린다."
+  ]
+}

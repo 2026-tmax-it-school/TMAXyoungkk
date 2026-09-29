@@ -1,0 +1,98 @@
+{
+ "id": "WP2",
+ "summary": "I picked up from the files written before the interruption. The core ops, outbox, invite, join, lookup, trips store, loopback and HTTP transports, and the sync server were already complete and matched the contract. One test was failing, and the cause was a bug in the test helper, not in the code: op() only advanced its id counter when no `at` was given, so ops with explicit times got duplicate ids and were deduplicated. I fixed the helper. I then added what was missing: tests/wp2-invite.test.ts and tests/wp2-sync.test.ts (the sync tests start sync-server.mjs on port 0 through a real fetch and check CORS and OPTIONS), plus a server/sync-server.d.mts type declaration. I added a previewInvite action to the store and refactored acceptInvite. An already-joined user now gets already:true even when the invite has expired or the trip is full. I added effectiveBase and dayHours to core/trip/create.ts, the src/features/trip components (PickerBox, CalendarRange, TimeRange, BaseSearchSheet, RegionSheet) and actions.ts, and the four real screens: 02, 04, 14 and 25. The WP2 gate passes: 0 tsc errors in WP2 files, 75 tests pass across the 3 WP2 test files, and the YT_SCOPE=WP2 foundation tests pass. The /tmp/yt-export-wp2 web export succeeded. Across the full npm test run, 368 of 376 pass, 2 fail and 6 are todo. Both failures are in other packages' files.",
+ "filesChanged": [
+  "/Users/handong-gwan/IT희망학교 여행계획 프로젝트/test/tests/wp2-trip.test.ts",
+  "/Users/handong-gwan/IT희망학교 여행계획 프로젝트/test/tests/wp2-invite.test.ts",
+  "/Users/handong-gwan/IT희망학교 여행계획 프로젝트/test/tests/wp2-sync.test.ts",
+  "/Users/handong-gwan/IT희망학교 여행계획 프로젝트/test/server/sync-server.d.mts",
+  "/Users/handong-gwan/IT희망학교 여행계획 프로젝트/test/src/store/trips.ts",
+  "/Users/handong-gwan/IT희망학교 여행계획 프로젝트/test/src/core/trip/create.ts",
+  "/Users/handong-gwan/IT희망학교 여행계획 프로젝트/test/src/features/trip/actions.ts",
+  "/Users/handong-gwan/IT희망학교 여행계획 프로젝트/test/src/features/trip/components/PickerBox.tsx",
+  "/Users/handong-gwan/IT희망학교 여행계획 프로젝트/test/src/features/trip/components/CalendarRange.tsx",
+  "/Users/handong-gwan/IT희망학교 여행계획 프로젝트/test/src/features/trip/components/TimeRange.tsx",
+  "/Users/handong-gwan/IT희망학교 여행계획 프로젝트/test/src/features/trip/components/BaseSearchSheet.tsx",
+  "/Users/handong-gwan/IT희망학교 여행계획 프로젝트/test/src/features/trip/components/RegionSheet.tsx",
+  "/Users/handong-gwan/IT희망학교 여행계획 프로젝트/test/src/screens/CreateTripScreen.tsx",
+  "/Users/handong-gwan/IT희망학교 여행계획 프로젝트/test/src/screens/InviteAcceptScreen.tsx",
+  "/Users/handong-gwan/IT희망학교 여행계획 프로젝트/test/src/screens/MembersScreen.tsx",
+  "/Users/handong-gwan/IT희망학교 여행계획 프로젝트/test/src/screens/TripSettingsScreen.tsx"
+ ],
+ "features": [
+  {
+   "fr": "FR-201",
+   "status": "done",
+   "note": "Screen 04 is done and the judgement is covered by wp2-trip tests. Regions come only from REGIONS, picked in a sheet. Dates are picked on a calendar; tapRange makes end < start impossible and checkTripForm also rejects it. 15 days or more shows a ConfirmSheet and is allowed after confirming. The base (기점) is optional; 0 search results shows '결과 없음' and allows '기점 없이 만들기' with base null. A test checks that such a trip plans with baseSource firstSpot. The header shows '2 / 3 단계' and the next button replaces the screen with 14. The rendered screen was not visually checked; the web export was the only run."
+  },
+  {
+   "fr": "FR-205(입력)",
+   "status": "done",
+   "note": "Screen 25 has one card per day: set (place search), same as previous day ('inherit'), none (first spot, null), no-return toggle, and per-day activity hours. All of these send trip/setDay{date,patch}, and any member can send them. The reducer uses the shared patchDay. A test confirms setDayTransport's value survives a later setDay, and effectiveBase/dayHours have display tests."
+  },
+  {
+   "fr": "권한 validate",
+   "status": "done",
+   "note": "setDay: all members. update: host only (prototype assumption). delete: host only. setCanInvite: host only. issueInvite/revokeInvite: host or canInvite. Non-member and locked-trip rejections are covered by wp2-trip and wp2-invite tests."
+  },
+  {
+   "fr": "FR-204",
+   "status": "done",
+   "note": "In 25, the host deletes via quiet button + one ConfirmSheet → trip/delete → Home. useMyTrips hides deleted trips for other members too. A member leaves with one confirm. When the host tries to leave, validate rejects it with the '방장 위임 미결정' reason and the screen shows only a notice. Leaving and deleting still work after the trip has ended (lock exemption, tested)."
+  },
+  {
+   "fr": "FR-301",
+   "status": "done",
+   "note": "8-char Crockford base32 code from the injected Rng (tested with 1000 codes: no I/L/O/U, no duplicates), valid 7 days, capacity 6 (7th join rejected), reissue revokes the old code (log-based check), canInvite defaults to false. Screen 14 has copy (expo-clipboard) and share; when sharing fails it copies and shows a toast. It also shows expiry date and seats left, and reissue asks for confirmation once. On-device clipboard and share behavior was not checked."
+  },
+  {
+   "fr": "FR-302",
+   "status": "done",
+   "note": "Screen 02 opens with or without a session and shows a code input when opened without a code. Without a session, it takes a per-trip nickname (12-char counter), creates a guest session, then joins. The guest-limit notice sits above the join button. An existing member gets already:true with no duplicate member. The first join switches the trip from personal to group and keeps existing spots (tested). Expired, revoked, full, not-found and offline states show an amber notice and a 'different code' button. Joining as another person on the same device (demo) uses a new userId and actingAs; 14 has a button to switch back to yourself."
+  },
+  {
+   "fr": "FR-303",
+   "status": "done",
+   "note": "In 14, the host opens a row-right menu with the invite-permission toggle and remove (both with ScopeBadge '2차' and the '프로토타입 가정' label; remove confirms once). The host cannot remove themselves. When everyone except the host leaves, the trip returns to personal mode and chat and spots stay. Departed members remain as '나간 멤버'. Member rows show '후보 N곳' and a '대기' chip. All covered by tests."
+  },
+  {
+   "fr": "FR-304(전송·큐·순서)",
+   "status": "done",
+   "note": "The outbox is pure and tested: pending → sent in at order on reconnect, ack moves ops to the log, logs are refolded by seq, late low-seq ops are corrected, duplicates are applied once, dirty tracking and reconnectPlan. A chaos test (shuffle + duplicate, 5 fixed seeds) has two devices converge to the same doc after offline edits, with field LWW following op.at. The store behavior itself (setOnline(true) → flush → pull → recompute dirty trips) uses zustand, so node cannot load it; only the pure functions it calls are tested."
+  },
+  {
+   "fr": "개인↔그룹 전환",
+   "status": "done",
+   "note": "Uses the shared tripMode. First join → group; everyone else leaves → personal. Screens 14 and 25 show the current mode."
+  },
+  {
+   "fr": "NFR 오프라인",
+   "status": "done",
+   "note": "docs, plans, pending and dirty are persisted. While offline the store does not recompute and marks the trip dirty. 25 shows an offline notice and 02 shows offline guidance. The loopback transport rejects push/pull while offline (tested)."
+  },
+  {
+   "fr": "NFR 데이터 보존",
+   "status": "done",
+   "note": "25 shows the retention deadline (retentionUntil). purgeExpired runs at rehydration and in bootstrap; the ±1-second boundary is tested. The member/anonymize reducer (nickname '탈퇴한 멤버', anonymized, leftReason deleted, leftAt kept) keeps chat and proposal memberIds and is lock-exempt (tested)."
+  },
+  {
+   "fr": "동기화 전송·서버",
+   "status": "done",
+   "note": "The loopback transport (the default) keeps its state in KV across a reload, judges invites by folding received ops, and reset() clears the KV (tested). The HTTP polling transport is used only when EXPO_PUBLIC_SYNC_URL is set. sync-server.mjs uses only node:http and serves POST/GET /trips/:id/ops, GET /invites/:code, POST /reset, and OPTIONS with CORS headers. The test imports it with the explicit extension, starts it on port 0, then closes it."
+  },
+  {
+   "fr": "화면 02·04·14·25",
+   "status": "done",
+   "note": "Built only from ui components and tokens. No hex, fontWeight or textAlign center; the design-rules test passes for WP2 files. Rose is not used as a danger color. Verified only by tsc and the web export; there is no visual check at 390×844."
+  }
+ ],
+ "sharedChangeRequests": [
+  "src/core/planner/index.ts:317 and src/data/scenario-tuning.ts:73 (WP4): the '↔' character in comments violates the emoji rule in foundation-design-rules. This is one of the 2 failures in the full npm test run.",
+  "tests/wp3-candidates.test.ts:231 (WP3): TS2345 — the object literal passes 'message', which is not a property of Op. This is the only tsc error outside WP2.",
+  "Full npm test also has a second failure, '영업 종료: 지연이 커져 조정안이 여러 번(30분 간격) 나온다'. It looks like a WP5 live/delay test (not investigated). Not a WP2 file.",
+  "Integration: src/store/trips.ts now exports previewInvite(code, userId?) and the InvitePreview type, beyond contract A6. It is an addition only; existing signatures are unchanged.",
+  "Integration: the ui Header has no slot for a left-aligned step label, so 04's '2 / 3 단계' is placed in the right slot. A left slot would match the mockup exactly."
+ ],
+ "ownFilesTscClean": true,
+ "notes": "Verification: node scripts/gate-scope.mjs WP2 passes (tsc 0 errors in WP2 files; 75 tests pass across the 3 WP2 test files; YT_SCOPE=WP2 foundation tests pass), and npx expo export --platform web --output-dir /tmp/yt-export-wp2 succeeded. I did not start a dev server and made no git changes. The screens were not checked visually at 390×844. Clipboard and share on devices, and HTTP sync from a non-secure origin, were also not checked; these should go in the tracking table as screen checks. For the same-device demo join, after joining as another person the device acts as that member in that trip (actingAs), so the host loses its management menu there; 14 offers a '(나)로 돌아가기' button to switch back. The acceptInvite contract has no 'offline' reason, so offline shows up only through previewInvite; acceptInvite still returns notFound when offline."
+}

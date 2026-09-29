@@ -1,0 +1,84 @@
+{
+ "reviewer": "디자인 충실도 리뷰어 (WP5 화면 11·13·19, MapCanvas, features/live)",
+ "findings": [
+  {
+   "severity": "major",
+   "where": "src/screens/NavigateScreen.tsx:159-172 (13 하단 시트)",
+   "issue": "13은 루트 스택 화면이라 탭바가 없는데, 시트의 paddingBottom이 SP.xxl(16) 고정이고 insets.bottom을 더하지 않는다. Screen은 edges=['top']만 쓰므로 iOS 홈 인디케이터가 '지도 앱으로 열기'·'안내 시작' 버튼 줄과 겹친다. 같은 루트 화면은 Foot으로 insets.bottom을 더하는데 여기만 빠졌다.",
+   "fix": "시트 paddingBottom을 SP.xxl + useSafeAreaInsets().bottom으로 바꾼다. 가능하면 11·13이 손으로 짠 하단 패널(grabber 포함)을 한 컴포넌트로 묶어 인셋 처리를 한 곳에 둔다."
+  },
+  {
+   "severity": "major",
+   "where": "src/screens/NavigateScreen.tsx:200-214 (13 버튼 줄)",
+   "issue": "목업 13은 '지도 앱으로 열기'와 '안내 시작' 두 버튼만 한 줄에 둔다. 코드는 양옆에 34px IconBtn(이전·다음 구간)을 더해서 버튼 하나 폭이 390 폭에서 약 127px이다. btnSm 13px 굵은 글씨 '지도 앱으로 열기'와 좌우 패딩 28px를 더하면 그 폭을 거의 다 쓰고, 360·375 폭 기기에서는 넘쳐 38px 버튼 안에서 줄바꿈되거나 잘린다.",
+   "fix": "이전·다음 구간 이동을 버튼 줄 밖으로 뺀다(예: 구간 안내 목록 위 작은 줄이나 헤더 오른쪽). 버튼 줄은 목업처럼 quiet 하나와 primary 하나를 flex 1:1로 둔다."
+  },
+  {
+   "severity": "major",
+   "where": "src/screens/NavigateScreen.tsx:107-119, 171 (13 전체 배치)",
+   "issue": "목업 13은 헤더 없이 지도가 화면 대부분(약 470px)을 차지하고 그 위에 안내 카드가 뜬다. 코드는 뒤로 줄, eyebrow, ttlSm, sub로 된 Header(약 130px)에 SimBanner(약 50px)를 더하고 시트 maxHeight가 360이다. 그래서 844 높이에서 지도가 약 250px로 줄고, 안내 카드(top 14, 약 62px)가 그 4분의 1을 가린다. 목업의 지도 중심 구성이 무너진다.",
+   "fix": "Header를 뒤로 버튼과 ScopeBadge만 있는 한 줄로 줄이고, 목적지 이름과 출발지는 시트 첫 줄(이미 있다)에만 둔다. 시트 maxHeight를 낮추고(예: 구간 안내는 3줄만 보이고 나머지는 스크롤) 지도 높이를 목업 비율에 가깝게 되돌린다."
+  },
+  {
+   "severity": "major",
+   "where": "src/core/map/model.ts planMapModel('all') + src/components/map/MapCanvas.tsx:138-143 (11 '전체' 보기)",
+   "issue": "'전체' Seg를 고르면 날짜마다 순번이 1부터 다시 매겨지는데 핀은 모두 로즈다. 선은 로즈·초록·앰버로 갈리지만 '1' 핀이 세 개 뜨고 어느 날짜 핀인지 구별할 수 없다. 범례도 없고 시트에 '선 색은 1일 로즈, 2일 초록…'이라는 글만 있다. FR-802의 날짜 색 구분이 핀에서는 끊긴다.",
+   "fix": "'전체' 보기에서는 핀 면을 그날 선 색(mapC[dayColor])으로 칠한다. 로즈·초록·앰버·잉크 모두 흰 글씨 대비를 이미 통과했다. 시트 Seg 라벨 옆에 같은 색 점(선 스와치)을 둬서 글로 된 색 설명을 대신한다."
+  },
+  {
+   "severity": "minor",
+   "where": "src/components/map/MapCanvas.tsx:151-158 (현재 위치)",
+   "issue": "정확도 50m 초과면 G 전체에 opacity 0.5를 걸어서 로즈 점까지 흐려진다. #B3123F 50%를 mapC.bg 위에 합성하면 약 #D37E96이고 바탕과 대비가 약 2.5:1이라, 비텍스트 3:1(tokens.ts NON_TEXT_PAIRS 원칙)에 못 미친다. 게다가 정확도가 좋아도 radiusPx>9면 같은 로즈 틴트 원이 그려져, '흐린 원'이 50m 초과만의 신호로 읽히지 않는다.",
+   "fix": "점은 늘 불투명한 로즈 점에 흰 3px 테두리로 두고, faint일 때만 정확도 원(mapC.accuracy)을 그린다. 정확도가 좋을 때는 원을 그리지 않거나 선만 그린다. 흐림은 원에만 적용한다."
+  },
+  {
+   "severity": "minor",
+   "where": "src/components/map/MapCanvas.tsx:116-143 (핀 모양)",
+   "issue": "목업 11과 수치가 다르다. 순번 핀은 목업에 흰 테두리가 없는데 코드는 stroke 2를 넣었다. 순번 글자는 목업이 13px인데 SvgLabel 'pin'은 11px다. 기점은 목업이 r13 링에 r4.5 속 점인데 코드는 r12 링만 있다. 현재 위치 점은 목업 13이 r11인데 코드는 r7이다. 제외 핀 테두리는 목업 #C9B6BD 2.5 대신 faint #9C8B92 2다(토큰에 없는 색을 피한 것은 맞다).",
+   "fix": "SvgLabel에 pin 13px 변형을 두거나 pin을 13으로 올리고, 현재 위치 r를 목업 13에 맞춘다. 기점 속 점은 수용 기준('속 빈 링')과 목업 중 하나로 통일해 회의록에 남긴다. 흰 테두리는 겹침 가독성 때문이라면 그 이유를 주석에 적는다."
+  },
+  {
+   "severity": "minor",
+   "where": "src/screens/MapScreen.tsx:100-111 (11 상단 칩 줄)",
+   "issue": "목업 11의 날짜 칩은 흰 면·경계선에 기본 칩 글자(roseDeep 굵게)이고 그림자가 없다. 코드는 날짜 칩을 line 톤(muted SemiBold)으로 그리고, 날짜 칩과 목록 버튼에만 E.float을 걸었다. 같은 줄의 이동수단·'예시 데이터' 칩에는 그림자가 없어서 한 줄 안에서 떠 있는 요소와 아닌 요소가 섞인다.",
+   "fix": "날짜 칩은 roseDeep 글자 톤(흰 면 변형)으로 목업을 따르고, 그림자는 줄 전체에 걸거나 전부 뺀다. 목업은 그림자가 없다."
+  },
+  {
+   "severity": "minor",
+   "where": "src/components/map/MapCanvas.tsx:161-165 + src/screens/MapScreen.tsx:124",
+   "issue": "'전체 보기' 버튼이 지도 bottom 12에 떠 있는데 11의 하단 시트가 marginTop -16으로 지도를 덮는다. 그래서 버튼 아래쪽 약 4px가 시트 뒤로 가려진다.",
+   "fix": "MapCanvas에 bottomInset prop을 두고 11에서 R.sheet만큼 올린다. 또는 '전체 보기'를 상단 칩 줄 쪽으로 옮긴다."
+  },
+  {
+   "severity": "minor",
+   "where": "src/screens/NavigateScreen.tsx:115 vs src/screens/LiveTripScreen.tsx:99 (SimBanner 조건)",
+   "issue": "13은 useLive.mode==='sim'이면 띠를 띄우고, 19는 running && requested==='sim'이면 띄운다. 권한 거부 프리셋(mode가 manual로 바뀌는 경우)에서는 19에만 띠가 뜨고 13에는 없다. 반대로 다른 여행방이나 다른 날짜로 재생 중이면 13(liveHere 아님)에도 '재생 중' 띠가 뜬다.",
+   "fix": "두 화면 모두 'liveHere && requested === 'sim''처럼 같은 조건을 쓰는 selector 하나(store/live)를 둔다."
+  },
+  {
+   "severity": "minor",
+   "where": "src/features/live/components/SimControls.tsx:74",
+   "issue": "프리셋 설명 끝에 '(FR-601·602)' 같은 기능 ID를 사용자 화면에 그대로 붙인다. 목업은 기능 ID를 캔버스 캡션에만 두고 앱 화면 안에는 두지 않는다.",
+   "fix": "화면 문구에서 p.fr를 빼고, 필요하면 접근성 힌트나 개발용 로그에만 남긴다."
+  },
+  {
+   "severity": "minor",
+   "where": "src/features/live/components/ProposalSheet.tsx:44",
+   "issue": "Sheet onClose가 onKeep과 같아서, 바탕을 실수로 탭하거나 안드로이드 뒤로 가기를 눌러도 '원래대로'(거절)가 된다. 거절은 30분 알림 제한을 거므로, 제안 시트를 닫는 것과 거절하는 것이 구분되지 않는다.",
+   "fix": "바탕 탭은 시트만 접고 제안을 남긴다(19에 '조정안 보기' 칩으로 다시 열기). 거절은 '원래대로' 버튼으로만 한다."
+  },
+  {
+   "severity": "minor",
+   "where": "src/components/map/MapCanvas.tsx:125-150",
+   "issue": "핀과 클러스터가 누를 수 있는 G인데 accessibilityLabel/role이 없어 스크린리더에서 스팟 이름이나 '3곳 묶음'이 읽히지 않는다. 클러스터 숫자 글자는 c='onRose'를 잉크 면 위에 쓴다. 대비는 되지만 토큰 의미가 어긋나고, 잉크 원은 4일째 선 색(잉크)과도 겹친다.",
+   "fix": "마커 G에 title 기반 접근성 라벨을 준다(웹은 aria-label). 클러스터 글자용 토큰 키(예: onInk)를 textC에 추가해 대비 표에 넣는다. 클러스터 면은 4일째 선과 겹치지 않게 흰 면에 잉크 테두리로 바꾸는 것을 검토한다."
+  },
+  {
+   "severity": "minor",
+   "where": "src/screens/NavigateScreen.tsx:201-213",
+   "issue": "이전·다음 IconBtn이 끝 구간에서 색만 faint로 바뀌고 계속 눌린다. accessibilityState disabled도 없어서 보이는 상태와 동작이 다르다.",
+   "fix": "IconBtn에 disabled prop을 추가해 Btn처럼 accessibilityState와 disabled를 함께 넘긴다."
+  }
+ ],
+ "verdict": "조건부 반려(블로커 없음, major 4건 반영 필요). 토큰 위반은 없다. WP5 파일에 hex, fontWeight, 임의 그림자, 왼쪽 컬러 보더, 이모지, 텍스트 화살표가 없고, 색은 mapC·DAY_COLORS·surfaceC, SVG 글자는 SvgLabel만 쓴다. 앰버는 GPS 음영과 15분 이상 지연 칩에만 쓰고 13에 앰버 띠는 없다. 걸리는 것은 레이아웃 충실도다. 13은 목업보다 헤더와 시트가 커져서 지도가 절반 가까이 줄었다. 버튼 줄은 좁은 폭에서 넘치고, 하단 안전 영역이 빠져 iOS 홈 인디케이터와 겹친다. 11 '전체' 보기는 날짜별 핀이 모두 로즈라서 FR-802 색 구분이 핀에서 끊긴다. 19는 목업에 없는 화면이라 토큰 기준으로만 봤고 큰 문제는 없다. 핀·점 크기와 글자 크기는 목업 수치와 조금씩 다르다(minor)."
+}

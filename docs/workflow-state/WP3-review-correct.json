@@ -1,0 +1,84 @@
+{
+ "reviewer": "정확성 리뷰어 (WP3 대화 인식·후보·추천)",
+ "findings": [
+  {
+   "severity": "major",
+   "where": "src/data/places.ts:34-35 (기점 장소 별칭), src/core/extract/index.ts:88-141 extractForMessage, src/core/extract/manual.ts:27-51, src/services/places/local.ts:49-60 at",
+   "issue": "기점 장소(숙소 라한셀렉트, 신경주역)가 추출 어휘와 수동 등록·지도 선택 결과에 그대로 들어가서 확정 스팟 후보가 된다. 프로브로 확인했다. '라한호텔 체크인 먼저 하자'를 넣으면 created=['라한셀렉트 경주'], '신경주역에서 만나자'를 넣으면 created=['경주역']이 나온다. BASE_PLACE_IDS는 추천(services/recommend/local.ts)에서만 빠진다. 채팅에서 흔히 나오는 숙소·역 언급 한 줄로 플래너가 숙소를 관광 스팟으로 배치하고 수용량을 쓴다.",
+   "fix": "extractForMessage의 matchPhrase 결과에서 BASE_PLACE_IDS를 버린다. 강조는 남기고 후보는 만들지 않으려면 highlights만 넣는다. 지도 선택(places.at)에서도 기점을 건너뛴다. 수동 검색은 막지 않더라도 '기점 장소' 표시를 단다. wp3-extract에 '라한호텔 체크인 먼저 하자'가 후보 0건이라는 회귀 테스트를 더한다."
+  },
+  {
+   "severity": "major",
+   "where": "src/screens/RecommendScreen.tsx:53-78 load",
+   "issue": "추천 요청에 세대(stale) 가드가 없다. 태그를 빠르게 켜고 끄거나 '다시 추천 받기'를 누르면 여러 요청이 동시에 돈다. 늦게 끝난 옛 요청이 setResult로 새 결과를 덮는다. 그러면 화면에는 새 태그가 켜져 있는데 목록은 옛 태그 기준이고, '대체됨' 칩 판정(148행, 현재 tags로 계산)도 어긋난다. 먼저 끝난 요청이 setBusy(false)를 해서 나머지 요청이 도는 동안 버튼이 다시 켜진다. AI 프록시 제공자(네트워크 지연 있음)에서 재현된다.",
+   "fix": "useRef 카운터나 요청마다 로컬 토큰을 두고, 응답이 올 때 최신 요청인지 확인한 뒤에만 setResult/setFailed/setBusy를 한다. useEffect cleanup에서 alive=false로 해도 된다. 결과에 요청 당시 tags를 함께 저장해서 '대체됨' 칩은 그 tags로 계산한다."
+  },
+  {
+   "severity": "minor",
+   "where": "src/core/extract/text.ts:89-95 stripTail, 164-179 anchorPhrases",
+   "issue": "AI 추출 결과를 원문에 맞출 때 stripTail이 이름 끝의 도/로/만/이/가/야/의 같은 글자를 조사로 보고 잘라 낸다. 프로브에서 '울릉도'는 '울릉'으로, '첨성로'는 '첨성'으로, '영일만'은 '영일'로 잘렸다. 잘린 표현은 검색에서 어긋나거나 다른 곳과 붙는다. 규칙 경로는 어휘 일치가 먼저라 영향이 없고 ai 제공자 경로만 깨진다.",
+   "fix": "anchorPhrases에서는 원문 phrase 바로 뒤에 어절이 이어질 때만 조사를 떼거나, 조사를 뗀 형태와 원형을 모두 장소 제공자에 물어본다. 가장 간단한 방법은 AI 경로에서 stripTail을 빼고 '원문 부분 문자열인지'만 검사하는 것이다. '울릉도', '영일만' 테스트를 더한다."
+  },
+  {
+   "severity": "minor",
+   "where": "src/data/places.ts:33 ('월지' 별칭), src/core/extract/text.ts:17-22 TAILS",
+   "issue": "두 글자 별칭 '월지'와 한 글자 조사 '나'가 맞물려 '월지나 가볼까'가 동궁과 월지로 잡힌다(프로브 확인). TAILS에 '가', '이', '나', '야', '도'처럼 한 글자 조사가 많아서, 두 글자 별칭은 뒤에 일상어가 붙어도 통과한다. 지금 품질 테스트는 이 패턴을 부정 문장으로 두지 않았다.",
+   "fix": "두 글자 별칭은 어절 끝에서 끝나거나 두 글자 이상 조사가 붙을 때만 인정한다. 아니면 '월지' 별칭을 빼고 '동궁'만 둔다. 부정 문장에 '월지나', '동궁에'처럼 경계에 걸리는 예를 더한다."
+  },
+  {
+   "severity": "minor",
+   "where": "src/services/places/kakao.ts:120-137 search, tests/wp3-providers.test.ts:66",
+   "issue": "수용 기준은 fakeFetch 테스트로 요청의 '지역 중심·반경'을 검증하라고 한다. 그런데 키워드 검색은 radius를 일부러 보내지 않고, 테스트도 radius가 null인지 단언한다. 근거(카카오 상한 20km < 경주 반경 30km, 목적지 밖 확인 흐름 유지)는 타당하다. 다만 수용 문구와 반대이고, 추적표와 계약 메모에 합의가 없다. 실제 카카오를 쓰면 '안압지' 같은 별칭 검색에서 '안압지 주차장' 같은 이름 일치 결과만 related를 통과해서 잘못된 장소가 자동 등록될 여지도 있다(matchPhrase 59-63행).",
+   "fix": "통합 회의에 반경 생략을 합의 사항으로 올리고 추적표에 적는다. 카카오 결과에서 category '기타'(주차장 등)는 자동 추출 후보에서 뺀다."
+  },
+  {
+   "severity": "minor",
+   "where": "src/features/candidates/components/ManualAdd.tsx:39-43, 65-69",
+   "issue": "같은 틱 안에서 Modal 하나를 닫고 다른 Modal을 연다. 24 PlacePickSheet를 닫으면서 ConfirmSheet를 열고, 지도 Sheet를 닫으면서 선택 시트나 확인 시트를 연다. iOS 네이티브 RN은 한 Modal이 닫히는 애니메이션 도중에 다른 Modal을 띄우지 못해서, 목적지 밖 확인 창이 나타나지 않고 등록이 멈춘다. 웹 번들에서는 문제없다.",
+   "fix": "첫 Modal의 onDismiss 뒤에 두 번째를 열거나, 확인 단계를 같은 Sheet 안의 두 번째 화면으로 바꾼다. 최소한 setTimeout이나 InteractionManager로 한 프레임 미룬다."
+  },
+  {
+   "severity": "minor",
+   "where": "src/screens/CandidatesScreen.tsx:140-142",
+   "issue": "'!online || dirty'이면 '오프라인이라 재계산을 멈췄습니다'를 띄운다. 그런데 store/trips.ts:509-515에서는 온라인이어도 계산 중에 문서가 바뀌면 dirty가 남는다. 그러면 온라인 상태에서도 오프라인 안내가 뜬다.",
+   "fix": "오프라인 문구는 !online일 때만 띄운다. 온라인인데 dirty면 '다시 계산 대기 중' 같은 별도 문구를 쓴다."
+  },
+  {
+   "severity": "minor",
+   "where": "src/features/candidates/rows.ts:121, 130-135 headline",
+   "issue": "autoExcluded는 reasonCode가 userRemoved가 아니면 모두 센다. 그래서 tooFar(왕복 거리)와 outOfPeriod(지정 날짜가 기간 밖)도 '하루 수용량을 넘는 N곳만 자동으로 빠졌습니다'에 들어가 사유가 틀리게 적힌다.",
+   "fix": "dayFull만 수용량 초과로 세고, 나머지는 '거리·기간 때문에 M곳' 같은 문구로 나눈다. rows 테스트에 tooFar 사례를 더한다."
+  },
+  {
+   "severity": "minor",
+   "where": "src/screens/SpotDetailScreen.tsx:62-76, src/features/candidates/detail.ts:62-64",
+   "issue": "기점에서 오는 시간 셀에 세 가지 문제가 있다. 첫째, 경로 계산 effect의 deps에 이동수단(trip.transport, 날짜별 transport)이 없어서 이동수단을 바꿔도 값이 갱신되지 않는다. 둘째, 둘째 항목부터는 라벨이 at.item.legTransport(직전 지점에서 오는 구간의 수단)를 쓰는데, 값은 날짜 기본 수단으로 base→spot을 계산해서 라벨과 값이 어긋날 수 있다. 셋째, baseSource가 'firstSpot'이면 기점이 곧 그 스팟이라 '자동차 0분'이 나오는데, '정보 없는 행은 생략' 규칙에 어긋난다.",
+   "fix": "effect에서 쓰는 transport를 먼저 계산해 deps에 넣고, detail.ts의 라벨도 그 값을 쓴다. baseSource==='firstSpot'이고 첫 항목이면 셀을 생략한다."
+  },
+  {
+   "severity": "minor",
+   "where": "src/core/ops/spots.ts:134-162 reduceUndo, src/features/chat/components/ExtractionCardView.tsx:32-36",
+   "issue": "되돌리기는 확인 없이 한 번 누르면 실행된다. 그 메시지로 새로 생긴 후보를 다른 멤버가 이미 고정하거나 날짜를 지정했어도(수아가 교촌마을 한정식을 고정·날짜 지정한 시나리오 흐름), 다른 제안이 없으면 그 후보를 편집 내용째 지운다. 명세의 '생성분 삭제'와는 맞지만, 편집 흔적이 사라지는 것을 아무도 알 수 없다.",
+   "fix": "edited에 기록이 있거나 pinned·fixedDate인 생성 후보는 되돌리기 전에 ConfirmSheet로 알린다. 아니면 되돌리기 뒤 토스트로 지운 후보 이름을 알린다."
+  },
+  {
+   "severity": "minor",
+   "where": "src/services/recommend/ai.ts:44-49",
+   "issue": "AI 응답 항목을 placeId로 중복 제거하지 않는다. 기점 장소(BASE_PLACE_IDS)와 category '기타'도 거르지 않는다. 로컬 pickRecommendations의 규칙과 다르고, 중복이 오면 RecommendScreen 142행 key={place.placeId}가 겹친다.",
+   "fix": "응답 검증 뒤 pickRecommendations와 같은 필터(seen, skipPlaceIds, 기타 제외)를 공유 함수로 거친다."
+  },
+  {
+   "severity": "minor",
+   "where": "src/features/candidates/components/ManualAdd.tsx:30-37",
+   "issue": "같은 멤버가 이미 제안한 장소를 다시 담으면 addProposals가 중복을 거르므로 아무것도 바뀌지 않는다. 그런데 토스트는 '제안을 더했습니다'라고 알린다.",
+   "fix": "existingSpotId인 후보의 proposals에 같은 memberId·manual 제안이 이미 있으면 '이미 제안한 장소입니다'로 안내하고 dispatch하지 않는다."
+  },
+  {
+   "severity": "minor",
+   "where": "tests/wp3-extract-quality.test.ts:24-89",
+   "issue": "장소 문장 37개 중 35개가 로컬 사전의 이름·별칭을 그대로 쓴 문장이라 재현율이 사실상 사전 커버리지를 재는 값이 된다. 부정 문장도 STOPWORDS에 미리 넣은 말('근처카페', '예쁜카페', '회사', '감사')과 겹쳐서, 수치가 규칙 튜닝에 맞춰진 쪽이다. '월지나', '라한호텔 체크인', '여행사' 같은 경계 사례가 빠져서 위 두 오탐을 잡지 못했다.",
+   "fix": "사전을 만들지 않은 사람이 쓴 문장 묶음을 따로 두거나, 경계 사례(두 글자 별칭 뒤 일상어, 기점 장소 언급, 접미사 일상어)를 부정·기대 문장에 더한다."
+  }
+ ],
+ "verdict": "조건부 통과. WP3 소유 파일은 npx tsc --noEmit 오류가 0건이다. 지금 전체 tsc에는 다른 패키지 오류 3건(src/screens/InviteAcceptScreen.tsx 2건, src/store/trips.ts의 droppedJoins import 1건)이 있지만 WP3와는 무관하다. wp3-*.test.ts 46개는 모두 통과한다. 순수 로직(core/extract, core/recommend, ops/chat·spots, features/*/rows·detail·view)은 RN에 묶이지 않았다. 병합과 되돌리기 규칙(생성분 삭제, 병합분 제안 제거, restore→고정 LWW)은 코드상 맞다. 다만 major 2건은 다음 통합 전에 고쳐야 한다. (1) 숙소·역 같은 기점 장소가 채팅 추출과 수동·지도 등록에서 후보가 된다. 프로브로 재현했다. (2) 23 추천 화면에 요청 경합 가드가 없다. minor는 AI 경로의 조사 떼기 과잉, '월지' 오탐, 카카오 반경 생략이 수용 문구와 어긋나는 점, iOS 연속 Modal, 06 안내 문구 오류 등이다. 추적표에 적거나 다음 반복에서 처리하면 된다. 코드는 수정하지 않았고, 확인용 프로브 파일은 스크래치패드에만 만들었다."
+}

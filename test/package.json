@@ -1,0 +1,50 @@
+{
+  "name": "young-trip",
+  "version": "1.0.0",
+  "main": "index.ts",
+  "dependencies": {
+    "@expo-google-fonts/gothic-a1": "^0.4.1",
+    "@expo-google-fonts/hahmlet": "^0.4.1",
+    "@expo/metro-runtime": "~57.0.16",
+    "@react-native-async-storage/async-storage": "2.2.0",
+    "@react-navigation/bottom-tabs": "^7.19.2",
+    "@react-navigation/native": "^7.4.1",
+    "@react-navigation/native-stack": "^7.19.2",
+    "expo": "~57.0.24",
+    "expo-clipboard": "~57.0.2",
+    "expo-constants": "~57.0.20",
+    "expo-crypto": "~57.0.3",
+    "expo-font": "~57.0.4",
+    "expo-image-picker": "~57.0.19",
+    "expo-location": "~57.0.19",
+    "expo-status-bar": "~57.0.1",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "react-native": "0.86.3",
+    "react-native-maps": "1.27.2",
+    "react-native-safe-area-context": "~5.7.0",
+    "react-native-screens": "~4.26.0",
+    "react-native-svg": "15.15.4",
+    "react-native-web": "^0.21.2",
+    "zustand": "^5.0.15"
+  },
+  "devDependencies": {
+    "@types/google.maps": "^3.66.4",
+    "@types/node": "~24.13.6",
+    "@types/react": "~19.2.2",
+    "typescript": "~6.0.3"
+  },
+  "scripts": {
+    "start": "expo start --port ${RN_PORT:-8090}",
+    "start:8081": "expo start --port 8081",
+    "start:tunnel": "expo start --tunnel --port ${RN_PORT:-8090}",
+    "android": "expo start --android --port ${RN_PORT:-8090}",
+    "ios": "expo start --ios --port ${RN_PORT:-8090}",
+    "web": "expo start --web --port ${RN_PORT:-8090}",
+    "test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./tests/setup/resolve-ts.mjs --test \"tests/**/*.test.ts\"",
+    "gate:wp": "node scripts/gate-scope.mjs",
+    "typecheck": "tsc --noEmit",
+    "export:web": "expo export --platform web --output-dir /tmp/yt-export"
+  },
+  "private": true
+}

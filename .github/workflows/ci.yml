@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    # 앱이 레포 루트에 있으면 이 줄을 지운다
+    defaults:
+      run:
+        working-directory: test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # 로컬(node 24)과 같은 버전이어야 타입 제거(.ts 테스트)가 CI에서만 깨지는 일이 없다
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: test/package-lock.json
+
+      - name: 의존성 설치
+        run: npm ci
+
+      - name: 타입 검사
+        run: npx tsc --noEmit
+
+      - name: 테스트
+        run: npm test
+
+      - name: 웹 번들 빌드
+        run: npx expo export --platform web --output-dir /tmp/yt-export
+
+      - name: 웹 번들 폰트는 ttf 4개
+        run: test "$(find /tmp/yt-export -name '*.ttf' | wc -l | tr -d ' ')" = "4"

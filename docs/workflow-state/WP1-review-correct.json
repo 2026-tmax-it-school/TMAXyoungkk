@@ -1,0 +1,60 @@
+{
+ "reviewer": "정확성 리뷰어 (WP1 계정·세션·홈·설정)",
+ "findings": [
+  {
+   "severity": "blocker",
+   "where": "src/services/auth/local.ts:293-341 (9/26 18:35 수정), src/features/account/flows.ts:72-80, src/screens/SocialConsentScreen.tsx:36",
+   "issue": "local.social의 sameEmail 분기가 이제 input.providerEmail을 요구하고, 없으면 notFound('이메일을 입력해 주세요(모의)')를 돌려준다. 그런데 socialFlow(provider, scenario)는 providerEmail을 넘기지 않고, 26 화면에는 이메일 입력칸도 없다. 그래서 UI에서는 linkRequired → confirmLink 흐름(FR-103 핵심)에 절대 들어갈 수 없다. 실제로 돌려 보니 wp1-auth의 FR-103 테스트 3개가 실패한다(66개 중 63개 통과). node scripts/gate-scope.mjs WP1도 'own-tests=FAIL'로 떨어진다. 보고서의 '66개 전부 통과', '같은 이메일이면 이 기기에서 마지막으로 로그인한 계정에 연결'은 지금 코드와 맞지 않는다(lastByDevice는 load에서 버려진다).",
+   "fix": "한 가지 모델로 정한다. (a) providerEmail 방식을 유지하려면 26 화면에 '제공자가 돌려줄 이메일(모의)' 입력칸을 두고 socialFlow가 providerEmail을 넘기게 한 뒤 테스트 3개를 새 계약에 맞게 고친다. (b) 아니면 local.ts를 테스트가 기대하는 '마지막 로그인 계정' 방식으로 되돌린다. 어느 쪽이든 게이트를 다시 통과시키고 보고서를 고친다."
+  },
+  {
+   "severity": "blocker",
+   "where": "src/screens/ProfileScreen.tsx:279,287 → SocialConsentScreen.tsx:27,36 → flows.ts:77-78",
+   "issue": "17의 '카카오 연결/구글 연결'은 intent:'link'로 26을 여는데, socialFlow가 linkToAccountId를 넘기지 않는다. 기본 시나리오 sameEmail이면 위 이유로 항상 notFound가 난다. 사용자가 '정상'을 고르면 local.social이 연결 분기를 건너뛰고 kakao.user@kakao.example 계정을 새로 만들거나 기존 것을 돌려준다. 이어서 completeAuth → applyAuth가 세션을 그 다른 계정(다른 userId)으로 바꾼다. 결과적으로 '연결'을 눌렀는데 다른 계정으로 로그인되고, 홈에서 기존 여행방이 사라진다. local.ts 주석은 'flows가 결과 계정이 지금 계정인지 다시 확인한다'고 적지만 flows에는 그 확인이 없다.",
+   "fix": "socialFlow에 intent를 넘긴다. intent==='link'이면 linkToAccountId=session.accountId를 넣고, 결과 account.accountId가 지금 세션의 accountId와 다르면 applyAuth하지 않고 실패로 처리한다. link 모드에서는 applyAuth 대신 제공자 목록만 새로 읽는다."
+  },
+  {
+   "severity": "major",
+   "where": "src/demo/tools.ts:101-124, src/store/trips.ts findLocalInvite(290-310)",
+   "issue": "seedScenario는 부를 때마다 여행방을 새로 만들고 모두 같은 SCENARIO_INVITE_CODE를 발급한다. acceptInvite→findLocalInvite는 docs를 차례로 돌다가 그 코드를 가진 첫 방(이전 시드 방)을 돌려준다. 그래서 리셋 없이 두 번째로 시드하면(예: '방만' 다음 '13줄 전부', 18 화면에서 막지 않음) 준호·수아·지우가 이전 방에 합류한다. 새 방에서는 memberIdByKey와 채팅이 실패해 후보 14·확정 11·제외 3이 나오지 않는다. 합격 기준 'seedScenario 두 번 돌려도 같다'를 어긴다.",
+   "fix": "seedScenario 시작 시 이전 시드 방을 지우거나(removeLocal), 초대 코드를 방마다 다르게 하거나, 18에서 시드 전에 resetDemo 확인을 강제한다. acceptInvite 대신 tripId를 명시해 합류시키는 방법도 있다. 두 번 연속 시드하는 통합 테스트를 추가한다."
+  },
+  {
+   "severity": "major",
+   "where": "src/store/session.ts:104-109, src/services/auth/local.ts:207, flows.ts:36-42",
+   "issue": "게스트 승격 때 프로필이 사라진다. signUp은 계정 profile을 {nickname, tags: []}로 만들고, 인증 뒤 applyAuth가 세션 스토어 profile을 account.profile로 통째로 덮는다. 게스트 때 17에서 저장한 성향 태그와 이미지 크기·압축 여부가 승격하는 순간 비워진다. '이 기기 데이터 유지' 표시와 모순이고, 추천(FR-404)에 쓰이는 태그도 사라진다.",
+   "fix": "completeAuth에서 promoted이면 기존 로컬 profile(tags, imageUri, imageBytes, imageCompressed)을 auth.updateProfile(accountId, …)로 계정에 올린 뒤 applyAuth한다. 또는 applyAuth에 병합 옵션을 둔다. wp1-auth에 '승격 뒤 tags 유지' 테스트를 추가한다."
+  },
+  {
+   "severity": "major",
+   "where": "src/store/session.ts:102 signOut, src/features/account/flows.ts:128-129, src/store/session.ts:79-86 createGuest",
+   "issue": "signOut은 session만 지운다. profile(태그, imageUri)과 ui.currentTripId는 남는다. 로그아웃 뒤 같은 기기에서 게스트를 새로 시작하면 createGuest가 {...이전 profile, nickname}으로 이전 계정의 성향 태그와 이미지를 물려받는다. 18 더보기는 useCurrentTrip(멤버십 확인 없음)으로 이전 계정의 여행방 제목과 보관 기한을 보여주고, 멤버·채팅·설정 진입을 연다. 탈퇴 뒤에도 currentTripId가 남는다.",
+   "fix": "signOut에서 profile을 initial로 돌리고(탈퇴 흐름처럼), 로그아웃·탈퇴 흐름에서 useUi.setCurrentTrip(undefined)을 부른다. 순환 import가 문제면 flows에 signOutFlow를 두고 화면은 그것만 부르게 한다."
+  },
+  {
+   "severity": "minor",
+   "where": "src/screens/HomeScreen.tsx:65-73, src/core/session.ts:150, src/core/notify.ts:17-20",
+   "issue": "sessionExpiry 알림의 key는 userId:expiresAt이고 recordNotify는 30분이 지난 기록을 지운다. 홈은 now가 바뀔 때마다(30초 틱과 시계 변경) 판정한다. 그래서 만료 3일 창 안에서는 앱 시각으로 30분마다 토스트가 다시 뜬다. 여행 시뮬레이터로 시각을 가속하면 실제 몇 초 간격이 된다. 합격 기준은 '3일 전에 한 번'이다. 또 touchSession은 부팅과 홈 마운트 때만 불린다. 그래서 앱을 쓰는 중에는 세션이 늘어나지 않고, 시뮬레이터 시각이 expiresAt을 넘어도 세션이 폐기되지 않는다.",
+   "fix": "'한 번'을 보장하는 별도 표식(예: 세션 스토어의 expiryNotifiedFor=expiresAt)을 두고 notify 규칙과 AND로 건다. 홈의 now effect에서 touchOrExpire로 만료를 판정해 폐기하거나, 사용 시점(dispatch 등)에서 touchSession을 부른다."
+  },
+  {
+   "severity": "minor",
+   "where": "src/demo/tools.ts:63-156, src/screens/MoreScreen.tsx:308,343-346",
+   "issue": "seedScenario에 try/finally가 없다. playScenarioChat이나 acceptInvite가 던지면 setClockOverride(manualClock)이 그대로 남아 앱 시계가 멈춘다(MoreScreen은 토스트만 띄운다). 시드 중에도 '시연 리셋' 버튼이 막히지 않는다. 시드 도중 리셋하면 루프가 계속 돌고 끝에서 setClockOverride(offsetClock)와 setCurrentTrip(지워진 tripId)을 다시 써서 리셋을 되돌린다.",
+   "fix": "seedScenario 본문을 try/finally로 감싸 마지막에 offsetClock을 남기거나 원래 override를 복원한다. seeding 동안에는 리셋 버튼을 비활성으로 두거나, 세대 번호로 리셋 뒤의 시드 결과를 버린다."
+  },
+  {
+   "severity": "minor",
+   "where": "src/services/auth/local.ts:110-124 (load/save), 전 메서드",
+   "issue": "모든 메서드가 load → await(해시 등) → save로 KV blob 전체를 덮어쓴다. 동시 호출 두 개가 끼면 뒤에 저장한 쪽이 앞의 변경을 지운다. signIn을 병렬로 부르면 lock.fails와 기기 attempts가 서로 덮여 5회 잠금과 20회 제한을 우회할 수 있다. SignupScreen의 '인증하기'에는 busy 가드가 없고, ProviderChips는 포커스마다 updateProfile({})로 쓰기를 한다.",
+   "fix": "createLocalAuth 안에 Promise 체인 뮤텍스(let chain = Promise.resolve())를 두고 모든 메서드를 직렬화한다. ProviderChips는 쓰기 없는 조회를 쓴다(getAccount 요청 전까지는 outbox처럼 읽기 전용 경로를 만든다)."
+  },
+  {
+   "severity": "minor",
+   "where": "src/store/session.ts:79-86, 104-109",
+   "issue": "게스트 세션이 한 번 만료된 뒤 createGuest를 하면 session.deviceToken은 새 토큰이고 스토어 deviceToken은 옛 토큰으로 남는다. 로그인 시도 제한은 ensureDeviceToken(스토어 값)으로 세고, applyAuth와 18·17의 끝 4자리 표시는 session.deviceToken을 쓴다. 화면에 보이는 기기 토큰과 제한 기준 토큰이 서로 다르다.",
+   "fix": "createGuest가 issueGuest에 기존 스토어 deviceToken을 넘겨 재사용하게 하거나, 새 토큰으로 스토어 값도 갱신해 하나로 맞춘다."
+  }
+ ],
+ "verdict": "반려. 직접 확인한 결과는 다음과 같다. tsc에서 WP1 파일 오류는 0건이다(다른 패키지 파일 오류 3건은 보고만). tests/wp1-*는 66개 중 63개 통과, 3개 실패다. node scripts/gate-scope.mjs WP1은 own-tests=FAIL이다. 코어 순수성은 지켜졌다. core/session.ts, core/auth.ts, features/account/home·settings·messages·profile, demo/scenarioRunner·scenarioSteps가 RN을 import하지 않는다. 하지만 FR-103은 UI에서 동작하지 않는다. 같은 이메일 연결 흐름에 들어갈 수 없고, 17의 '연결'을 누르면 다른 계정으로 로그인된다. 보고서의 테스트 결과와 연결 대상 설명도 현재 코드와 다르다. 시드를 두 번 돌리면 결과가 달라지고, 승격 때 프로필이 사라지고, 로그아웃 뒤 이전 계정의 프로필과 현재 여행방이 남는다. 이 결함들을 고친 다음 게이트와 web export를 다시 돌려야 한다."
+}

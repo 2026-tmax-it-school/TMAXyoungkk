@@ -1,0 +1,60 @@
+{
+ "reviewer": "디자인 충실도 리뷰어 (WP6 기록·일기, 화면 20·21·22)",
+ "findings": [
+  {
+   "severity": "major",
+   "where": "src/core/journal/recordMap.ts:71-77 (22 화면 지도), MapCanvas 렌더 순서·두께(WP5 src/components/map/MapCanvas.tsx:99-113)",
+   "issue": "FR-804는 '실제 이동한 지점을 점으로 찍어 계획 루트와 겹쳐 보여준다'인데, 22에서는 실제 경로가 잉크 실선(3.4px)으로 계획 루트 선(3.4px) 위에 그려진다. 실제 경로 점은 r 2.4(지름 4.8px)라 같은 색 선에 묻힌다. 시뮬레이터 궤적(core/sim/track.ts)은 기점과 스팟 좌표를 lerp하고 ±8m만 흔들기 때문에, 340px 지도에서 잉크 선이 계획 선과 픽셀 단위로 겹쳐 계획 루트 색이 거의 보이지 않는다. 결국 화면에는 '점 + 계획 선'이 아니라 잉크 실선 한 줄만 남는다.",
+   "fix": "actual-* 실선 polyline을 빼고 점으로만 그리거나, 실선을 두려면 계획 선보다 훨씬 얇게 해야 한다. 어느 쪽이든 점은 흰 테두리를 두르고 r 3.5 안팎으로 키운다. 점 크기와 선 두께를 MapCanvas가 정하므로 WP5에 MapDotInput.size(또는 tone별 반경)와 polyline 두께 옵션을 공유 변경으로 요청한다. 범례에도 '실제 경로 점' 항목(잉크 점)을 넣는다."
+  },
+  {
+   "severity": "major",
+   "where": "src/core/journal/recordMap.ts:55-68, src/screens/RecordMapScreen.tsx:126-132",
+   "issue": "지도 핀 번호는 계획 순번(day.items 인덱스+1)인데, 아래 '도착 순서' 목록 번호는 실제 도착 순번이다. 기본 시뮬레이터 프리셋 '지나침(passBy)'을 돌리면 핀은 1 불국사, 2 석굴암인데 목록은 '1. 석굴암', '2. 교촌마을 한정식'이 되어 번호가 어긋난다. 목업 11의 설계 의도는 '핀에 방문 순번을 박아 지도와 목록이 같은 순서로 읽힌다'인데 22는 이를 깬다. 건너뛴 계획 스팟도 방문한 스팟과 똑같이 채운 로즈 핀으로 그려져 구분이 안 된다. 계획에 없던 도착은 번호 없는 핀인데 목록에는 번호가 붙는다.",
+   "fix": "목록 번호를 핀 번호와 같은 기준(계획 순번)으로 맞춘다. 계획에 없던 도착은 번호 대신 '계획 밖' 칩을 단다. 건너뛴 계획 스팟은 목록에 '지나침' 칩으로 남기고, 지도에서는 흰 핀(목업 11의 제외 핀 문법)이나 번호만 남긴 연한 핀으로 구분한다. 목록 행은 목업 11처럼 로즈 번호 열(20px), 이름, 오른쪽 시각(mt tight) 순서로 바꾼다."
+  },
+  {
+   "severity": "major",
+   "where": "src/screens/DiaryScreen.tsx:174 (편집 시트), src/ui/Field.tsx",
+   "issue": "일기 문단 편집(FR-703)에 쓰는 Field가 한 줄 TextInput이다(multiline 없음, minHeight 46). 최대 1000자짜리 문단을 한 줄 칸에서 고치게 되어 네이티브에서는 가로로 스크롤되고 문장 전체가 보이지 않는다. 21 화면의 핵심 동작인 '자동 생성된 문장을 고친다'가 사실상 쓸 수 없는 형태다.",
+   "fix": "ui/Field에 multiline과 minLines(또는 minHeight) 옵션을 더해 달라고 공유 변경으로 요청한다. 스타일은 목업 .field 토큰을 유지하고 textAlignVertical은 top으로 둔다. 21에서는 4~6줄 높이로 쓴다. ui 담당 반영 전까지는 WP6가 임의 TextInput을 만들지 않는다."
+  },
+  {
+   "severity": "minor",
+   "where": "src/screens/DiaryScreen.tsx:184-213 (BlockCard)",
+   "issue": "목업 09의 시간표 문법은 왼쪽 52px 시각 열과 축(점)이 카드 밖에 있고, 카드는 오른쪽에만 둔다. 21은 시각 열을 카드 안에 넣어서, 카드 폭 346에서 패딩과 시각 열을 빼면 본문 폭이 약 256px로 줄어든다. 같은 시간순 블록인데 09·19(DayTimeline)와 형태가 다르다. 블록을 눌러 편집한다는 표시도 빈 문장일 때만 보인다.",
+   "fix": "features/schedule/components/DayTimeline의 Axis와 시각 열 배치(카드 밖 시각 열, 축 점)를 따른다. 가능하면 WP4에 행 틀을 공유 컴포넌트로 빼 달라고 요청한다. 편집할 수 있는 블록에는 오른쪽 위에 작은 편집 아이콘(Icon, muted)이나 '고치기' 텍스트 버튼을 단다."
+  },
+  {
+   "severity": "minor",
+   "where": "src/screens/RecordMapScreen.tsx:156-172 (Legend)",
+   "issue": "범례가 실제 지도 표시와 맞지 않는다. (1) 기점 견본은 mapC.bg 채움과 테두리 2인데, MapCanvas 기점은 흰색(mapC.white) 채움과 stroke 3이다. (2) 실제 경로 '점'과 사진 위치 점(faint)이 범례에 없다. (3) 넷째 날부터는 계획 선 색(dayColor=ink)이 실제 경로 잉크와 같아 구분이 안 된다. (4) 점선 견본은 View의 borderTopWidth와 borderStyle 'dashed'라 iOS에서 한쪽 테두리 점선이 실선으로 그려질 수 있다.",
+   "fix": "범례 견본을 react-native-svg로 MapCanvas와 같은 값(Line strokeDasharray '6 5', Circle 흰 채움 stroke 3)으로 그린다. 잉크 점과 사진 점(faint) 항목을 더한다. 넷째 날부터의 계획 선 색 충돌은 recordMap에서 계획 선을 날짜 색으로 두고 실제 경로를 점 전용으로 바꾸면 함께 풀린다(첫 major 참고)."
+  },
+  {
+   "severity": "minor",
+   "where": "src/screens/RecordMapScreen.tsx:112-116, src/screens/DiaryScreen.tsx:110-115",
+   "issue": "'위치 기록 412점', '기록 없는 구간 3'(단위 없음), '템플릿 문장'/'AI 프록시 문장' 같은 칩은 여행자에게 의미가 없는 내부 통계이자 구현 용어다. HANDOFF '의미 없는 통계 타일 없음' 제약에 걸린다.",
+   "fix": "22에서는 '도착 n곳'만 남기고, 기록 없는 구간은 개수 대신 범례와 안내문으로 설명한다. 21에서는 작성기 종류 칩을 빼거나 AI일 때만 'AI가 쓴 문장' 한 개로 바꾼다. '프록시'라는 말은 화면에 쓰지 않는다."
+  },
+  {
+   "severity": "minor",
+   "where": "src/features/journal/components/PhotoTile.tsx:14-15, 31",
+   "issue": "모의 사진 타일이 의미 토큰을 장식용으로 돌려 쓴다. 초록 okBg 타일의 산 모양에 제외 스팟 경계색 excludedLine(분홍 계열)을 쓰고, off 타일에는 시트 손잡이 색 grabber를 쓴다. SvgLabel ink 글자는 이 TONE_FG 면 위에 올라가는데(y=s-9는 산 도형 안쪽), 이 조합은 tokens.ts TEXT_ON_SURFACE_PAIRS에 없다. 토큰 파일 규칙은 '새 조합을 쓰려면 여기에 먼저 넣는다'이다.",
+   "fix": "각 톤과 같은 계열의 면 토큰을 짝지어 쓴다(tint→tintLine, warnBg→warnLine, okBg→초록 계열 선이 없으면 moss 옅은 값 대신 off). 새 값이 필요하면 ui 담당에게 요청한다. 라벨 뒤에 card 면 띠를 깔거나, 조합을 TEXT_ON_SURFACE_PAIRS에 등록해 대비 테스트를 거치게 한다."
+  },
+  {
+   "severity": "minor",
+   "where": "src/screens/PhotosScreen.tsx:141-156",
+   "issue": "주 행동 '사진 올리기'가 스크롤 본문 맨 아래, 격자 뒤에 있다. 사진이 쌓이면 화면 밖으로 밀려난다. 목업과 21(Diary)은 주 버튼을 .foot(Foot)에 두는데 20만 다르다. 본문 끝에는 버튼 4개(주·유령·quiet 2)가 쌓여 있다.",
+   "fix": "'사진 올리기'와 '모의 사진 3장 올리기(시연)'를 Foot으로 옮긴다. 일기와 기록 지도 이동 버튼은 Header right나 본문 상단의 작은 quiet 버튼 한 줄로 올린다."
+  },
+  {
+   "severity": "minor",
+   "where": "src/screens/PhotosScreen.tsx:103, DiaryScreen.tsx:107, RecordMapScreen.tsx:87 (Header eyebrow)",
+   "issue": "정상 상태 헤더 eyebrow에 '20 · 기록' 같은 목업 화면 번호가 그대로 나온다. 목업 09·11의 eyebrow는 여행방 맥락('경주 2박 3일')이다. 09 ScheduleScreen은 정상 상태에서 trip.title을 eyebrow로 쓴다. 날짜 Seg도 목업 09처럼 헤더(.hd) 안이 아니라 본문에 있다.",
+   "fix": "정상 상태 eyebrow를 trip.title로 두고, sub는 '사진 n장'이나 날짜처럼 화면별 정보로 쓴다. 화면 번호 노출을 팀 공통 규칙으로 할지는 통합 회의에서 정해 한쪽으로 맞춘다. DateSeg는 Header 아래 붙은 영역으로 옮기는 것을 검토한다."
+  }
+ ],
+ "verdict": "수정 요청. 자동 규칙은 통과했다. 담당 파일에서 hex, fontWeight, fontFamily, 그림자, 16 초과 라운드, 이모지, 금지 용어는 0건이고, foundation-design-rules 20/20도 통과했다. 핑크 목업에는 20·21·22가 없어서(14화면까지) 비교 기준은 09 시간표와 11 지도 문법, HANDOFF 토큰이다. major는 3건이다. 첫째, FR-804의 '실제 경로 점 + 계획 루트 선'이 화면에서 잉크 실선 한 줄로 뭉개진다. 계획 선이 가려지고 점이 묻힌다. 둘째, 22에서 지도 핀 번호와 도착 목록 번호가 서로 다른 기준을 쓴다. 지나침 프리셋에서 번호가 어긋나 목업 11의 의도를 깬다. 셋째, 21의 문단 편집이 한 줄 입력칸이라 편집을 사실상 할 수 없다. 첫째와 셋째는 WP5 MapCanvas와 ui/Field 공유 변경이 필요하다. 코드는 수정하지 않았다."
+}

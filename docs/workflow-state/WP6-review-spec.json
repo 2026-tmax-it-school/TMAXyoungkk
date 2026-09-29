@@ -1,0 +1,66 @@
+{
+ "reviewer": "명세 준수 리뷰어 (WP6 기록·일기)",
+ "findings": [
+  {
+   "severity": "major",
+   "where": "src/core/journal/photo.ts buildPhoto (coord 결정 줄) + src/core/journal/track.ts buildDayTrack (photo 마크 수집)",
+   "issue": "EXIF에 촬영 시각만 있고 GPS가 없는 사진은 source가 'exif'인데, coord에는 시각으로 추정한 계획 스팟의 좌표가 들어간다. track.ts는 source==='exif' && coord인 사진을 '실제 경로' 점으로 넣는다. 그래서 계획 좌표가 22 화면에 실제 이동 지점으로 찍히고 실선으로 이어진다. FR-804의 '실제 이동한 지점'을 위반한다. 임시 테스트로 확인했다. 10/18 11:30 촬영, GPS 없음 → source 'exif', spotId 석굴암, coord는 석굴암 좌표, buildDayTrack marks=['photo']. 시뮬레이터를 돌리지 않고 20 화면에서 '모의 사진'을 누를 때도 같다. sim.ts는 pos가 없으면 takenAt만 넣기 때문이다.",
+   "fix": "Photo에 위치 출처를 따로 둔다(예: coordSource 'exif'|'estimated'). 아니면 EXIF에 GPS가 없을 때는 photo.coord를 비우고 spotId만 남긴다. track.ts는 EXIF GPS 좌표만 photo 마크로 쓴다. 'EXIF 시각만 있고 GPS가 없으면 실제 경로 점이 아니다'라는 회귀 테스트를 wp6-track에 추가한다."
+  },
+  {
+   "severity": "major",
+   "where": "src/core/journal/photo.ts buildPhoto(takenAt = ctx.now), spotAt / src/core/journal/diary.ts photosOn / DateSeg",
+   "issue": "여행이 끝난 뒤 EXIF 없는 사진을 올리면 takenAt이 업로드 시각(종료일 이후)이 된다. 웹 사진은 전부 EXIF가 없다. 그러면 spotAt이 계획 날짜를 못 찾아 spotId가 없고, 이 사진은 20 날짜 탭(기간 내 날짜만)에도 어느 날짜 일기에도 들어가지 않는다. diaryGenerated는 기간 밖 날짜를 거부하므로 일기로 만들 방법이 아예 없다. 임시 테스트로 확인했다. 종료 3일 뒤 업로드 → takenAt 10/22, spotId 없음, 여행 기간은 10/17~10/19. 수용 기준 '여행 종료 뒤에도 사진 추가'와 명세 '여행이 끝나면 사진을 날짜별 일기로 정리'가 가장 흔한 경로(여행 뒤 몰아서 올리기, 웹)에서 깨진다. 리포트는 이 경우를 다루지 않았다.",
+   "fix": "EXIF가 없고 업로드 시각이 여행 기간 밖이면 날짜를 고르게 한다(기본값: 마지막 날이나 사용자가 선택한 날). 아니면 '날짜 미상'으로 표시하고 20 사진 정보 시트에서 날짜·스팟을 지정하게 한다. 최소한 20·21에 '여행 기간 밖 사진 N장 · 일기에 들어가지 않음' 안내를 띄운다. 종료 뒤 EXIF 없는 업로드 테스트를 추가한다."
+  },
+  {
+   "severity": "major",
+   "where": "src/core/ops/journal.ts reduce 'journal/diaryGenerated' / core/journal/diary.ts mergeRegenerated",
+   "issue": "diaryGenerated는 op.at이나 generatedAt을 비교하지 않고 뒤에 접힌 쪽이 이긴다. foldOps는 확정 로그를 seq(서버 도착) 순으로 접는다. 오프라인에서 먼저 만든 오래된 일기가 늦게 동기화되면, 새 사진이 반영된 더 새 일기를 덮어쓴다. 임시 테스트로 확인했다. at 200(블록 1개) 뒤에 at 100(블록 0개)을 적용하면 블록이 0개가 되고 generatedAt은 1로 돌아간다. FR-703 예외 처리 '나중 저장 우선(FR-503과 같은 정책)'이 편집(diaryEdited)에만 적용되고 재생성에는 빠져 있다.",
+   "fix": "reduce에서 prev.generatedAt(또는 생성 op.at)보다 오래된 diaryGenerated는 무시한다(lww(prev.generatedAt, entry.generatedAt)). 사용자가 고친 문장은 지금처럼 mergeRegenerated로 보존한다. wp6-diary에 '재생성 순서가 뒤바뀌어도 새 쪽이 남는다' 테스트를 추가한다."
+  },
+  {
+   "severity": "minor",
+   "where": "src/core/ops/journal.ts validate 'journal/photoRemoved' + src/screens/PhotosScreen.tsx 삭제 버튼",
+   "issue": "이번에 추가된 '방장은 남의 사진을 지울 수 있다'는 명세 권한표에 없는 권한이다. 명세는 '탈퇴한 멤버의 사진 처리 정책 필요'로 미결정 상태다. 그런데 방장은 나간 멤버의 사진을 지울 수 있다. 20 사진 정보 시트에 '나간 멤버 · 정책 미결정' 칩과 방장용 삭제 버튼이 함께 보여, 미결정 정책을 코드가 사실상 결정해 버렸다. 명세에 없는 기능은 만들지 않는다는 고정 규칙에도 어긋난다.",
+   "fix": "journal/photoRemoved는 올린 본인만 허용한다(나간 뒤·탈퇴 포함). 방장 예외를 두려면 docs/FR-추적표와 미결정 사항에 결정으로 먼저 올린다. 최소한 나간 멤버의 사진에는 방장 삭제를 막아 '정책 미결정' 표시와 맞춘다."
+  },
+  {
+   "severity": "minor",
+   "where": "src/core/ops/journal.ts reduce 'journal/photoRemoved', core/journal/diary.ts mergeRegenerated",
+   "issue": "사진을 지우면 블록 photoIds에서만 빠진다. 템플릿 문장 '민지와 함께 … 사진 3장을 남겼다'는 그대로 남아 사실과 달라진다. 계정 탈퇴 때는 탈퇴 멤버의 닉네임도 일기 문장에 남는다(비기능 요구 '익명 처리'와 충돌). 사진만 있던 블록은 사진 0장, 방문 0건인 빈 블록('사진 속 장소')으로 남는다. 다시 만들면 그 블록이 사라지면서 사용자가 고친 문장도 조용히 없어진다(mergeRegenerated는 새 블록 id에 없는 편집을 버린다).",
+   "fix": "photoRemoved에서 사진·방문이 모두 없어진 블록은 제거하거나 '사진 삭제됨'으로 표시한다. 편집하지 않은(editedAt 없음) 블록의 자동 문장은 비워서 재생성 대상으로 만든다. mergeRegenerated는 사라지는 편집 블록이 있으면 버리지 말고 남기거나 경고한다."
+  },
+  {
+   "severity": "minor",
+   "where": "src/screens/PhotosScreen.tsx 칩·사진 정보 시트",
+   "issue": "EXIF에 시각만 있고 위치가 없어 스팟을 시각으로 추정한 사진도 '촬영 정보(EXIF)' ok 칩이 붙고 '추정' 칩은 없다. FR-701의 '추정' 표시가 위치 추정 경우에서 빠진다.",
+   "fix": "위치 출처(첫 번째 지적의 coordSource)를 기준으로 '장소 추정' 칩을 따로 단다."
+  },
+  {
+   "severity": "minor",
+   "where": "src/screens/DiaryScreen.tsx / features/journal/api.ts generateDiary",
+   "issue": "일기는 날짜마다 '일기 만들기'를 눌러야 생긴다. 만든 뒤 사진이나 도착 기록이 늘어도 기존 일기는 그대로이고, 오래됐다는 표시도 없다. 헤더 칩 '사진 N장'은 새로 계산한 pending 수라서 아래 블록 목록과 수가 맞지 않는다. 명세 FR-700 머리말 '여행이 끝나면 … 자동 정리'와 패키지 목표 '자동으로 정리'에 비해 약하다.",
+   "fix": "entry.generatedAt 뒤에 새로 추가된 사진·방문이 있으면 '새 기록 N건 · 다시 만들기' 안내를 띄운다. 종료 뒤 처음 열 때 일기가 없는 기록 날짜는 자동으로 composeDiary를 돌린다(작성기 실패 시 빈 일기)."
+  },
+  {
+   "severity": "minor",
+   "where": "src/screens/DiaryScreen.tsx save / core/ops/journal.ts diaryEdited",
+   "issue": "편집 시트에서 문장을 바꾸지 않고 '저장'만 눌러도 diaryEdited가 나가 editedAt이 찍힌다. 이 블록은 이후 재생성에서 사용자 편집으로 취급돼 자동 문장이 고정된다. 모든 문장을 지워도 status는 'auto'로 남는다.",
+   "fix": "draft.trim()이 기존 text와 같으면 dispatch하지 않는다. diaryEdited 뒤 모든 블록 text가 비면 status를 'empty'로 되돌린다."
+  },
+  {
+   "severity": "minor",
+   "where": "src/screens/RecordMapScreen.tsx permission / core/journal/recordMap.ts notices",
+   "issue": "권한 안내는 useLive.permission(마지막 여행 진행 세션의 전역 값)으로 정한다. 날짜나 여행방마다 다른 권한 상태를 반영하지 못한다. 1일차에 거부, 2일차에 허용으로 진행하면 1일차 지도에 '거부' 안내가 사라지고 '위치 기록이 없어'(noLog)로 바뀐다.",
+   "fix": "TrackPoint 기록이나 여행 진행 세션에 날짜별 권한 상태를 남겨 그 날짜 값으로 안내를 고른다. 아니면 문구를 권한과 무관한 '위치 기록 없음'으로 통일한다."
+  },
+  {
+   "severity": "minor",
+   "where": "src/services/photos/device.ts (bytes: a.fileSize ?? 0)",
+   "issue": "파일 크기를 받지 못하면 0으로 둔다. 그러면 10MB 압축 판정이 조용히 빠지고 사진 정보에 '크기 1KB'가 나온다(formatBytes 최소 1KB). FR-701 '장당 10MB 초과 시 압축' 판정이 크기 미상일 때 틀린 값을 보여 준다.",
+   "fix": "크기를 모르면 bytes를 undefined로 두고 '크기 알 수 없음'을 표시한다. 네이티브라면 FileSystem으로 크기를 조회한 뒤 판정한다."
+  }
+ ],
+ "verdict": "조건부 반려. 게이트(node scripts/gate-scope.mjs WP6)는 직접 돌려 통과를 확인했다. 용어 위반과 확정 결정 위반은 찾지 못했다. 막힌 곳은 명세 예외 처리 두 군데다. 첫째, FR-804 실제 경로에 계획 스팟 좌표가 실제 이동 지점으로 섞여 들어간다. EXIF에 시각만 있고 GPS가 없는 사진에서 생기고, 시뮬레이터를 돌리지 않고 모의 사진을 올려도 생긴다. 둘째, 여행이 끝난 뒤 EXIF 없이 올린 사진(웹 사진은 전부 해당)은 어느 날짜와 일기에도 들어가지 않는다. 여기에 diaryGenerated가 나중 저장 우선이 아니라서, 늦게 동기화된 오래된 재생성이 새 일기를 덮어쓴다. 이 세 건은 모두 임시 테스트로 재현했고, 임시 파일은 지웠다. major 세 건을 고치고 회귀 테스트를 더한 뒤 다시 리뷰받아야 한다. 방장이 남의 사진을 지울 수 있는 권한은 명세 미결정 정책을 앞질러 정한 것이므로, 본인 삭제만 남기거나 결정 문서에 먼저 올려야 한다."
+}
