@@ -1,0 +1,114 @@
+{
+ "reviewer": "명세 준수 리뷰어 (WP5 지도·실시간·여행 시뮬레이터)",
+ "findings": [
+  {
+   "severity": "major",
+   "where": "src/core/live/arrival.ts:66-72 (markArrived), :50-54 (isRemaining), :160-166 (nextIndex)",
+   "issue": "FR-602 예외 '도착 안 했지만 지나간 경우 건너뜀 처리'가 수동 취소한 스팟에는 적용되지 않는다. markArrived는 status가 null인 앞 스팟만 skipped로 바꾸고, 'cancelled'는 isRemaining이 참이라 그대로 남는다. 흐름: A 오탐 → 도착 취소 → 사용자가 A를 건너뛰고 B에 도착. 이때 A는 cancelled로 남고, nextIndex가 이미 지나온 A를 '다음 스팟'으로 돌려준다. 그 결과 19 화면의 다음 스팟, ETA, 지연 조정안이 사용자 뒤쪽의 A를 대상으로 계산된다.",
+   "fix": "markArrived 루프 조건을 statuses[id] == null || statuses[id] === 'cancelled'로 넓혀 앞선 취소 스팟도 skipped로 바꾸고 skipped 효과를 낸다. wp5-arrival에 '취소 → 다음 스팟 도착 → 앞 스팟 skipped, nextIndex는 B 다음' 테스트를 추가한다."
+  },
+  {
+   "severity": "major",
+   "where": "src/store/live.ts:407-413 (onTick), src/services/location/device.ts:36-48",
+   "issue": "기기 모드에서는 도착·지연 판정이 샘플이 들어올 때만 돈다. onTick의 시계 기반 판정은 manual 모드에만 있다. 도착은 반경 안에 들어온 뒤 3분 이상 지난 샘플이 하나 더 와야 성립하는데, 웹 watchPosition은 멈춰 있으면 콜백을 보내지 않을 수 있다(device.ts 주석도 간격을 보장하지 않는다고 적었다). 지원 환경 1순위가 모바일 웹이므로, 스팟에 서 있는 사용자의 도착이 끝내 잡히지 않을 수 있다. 한 자리에 묶여 있는 동안에는 지연 판정도 멈춘다.",
+   "fix": "device 모드의 onTick에서 마지막 정확한 샘플 좌표를 현재 시각으로 다시 넣어 ingestSample(또는 전용 dwell 판정)과 evaluateAt을 부른다. 단, 마지막 샘플이 일정 시간(예: 2분) 안인 경우로 제한한다. 순수 함수로 빼서 wp5-arrival에 '샘플이 끊겨도 3분 뒤 도착' 테스트를 둔다."
+  },
+  {
+   "severity": "major",
+   "where": "src/services/location/device.ts:37, src/core/live/throttle.ts:35-40",
+   "issue": "NFR 배터리의 '정지 상태에서는 갱신 중단'이 위치 로그 기록 중단으로만 구현됐다. 기기 watch는 Accuracy.High, distanceInterval 0으로 정지 중에도 계속 GPS를 켜 둔다. stationary 판정은 record만 false로 바꿀 뿐 센서 갱신을 줄이지 않는다. 명세의 배터리 요구 취지(위치 갱신 중단)와 다르고, 개발 보고와 19 화면 안내문('멈춰 있으면 기록을 쉽니다')도 이 차이를 추적표에 적지 않았다.",
+   "fix": "정지가 연속 N회로 판정되면 device 어댑터가 watch를 distanceInterval(예: STATIONARY_RADIUS_M)이나 낮은 정확도로 다시 구독하게 한다. 이 전환 판정은 throttle.ts의 순수 함수로 두고 테스트한다. 도착 dwell은 위 onTick 보강으로 유지한다. 당장 못 하면 FR-추적표에 '정지 시 로그만 중단, 센서 갱신은 유지(가정)'로 명시한다."
+  },
+  {
+   "severity": "major",
+   "where": "src/store/live.ts:513, :720-724, src/screens/LiveTripScreen.tsx:57-59",
+   "issue": "NFR 개인정보 '위치 이력은 여행 종료 후 90일 보관 뒤 삭제'에서 pruneTrack이 두 곳에서만 불린다: 19 화면을 열 때와 여행 진행을 시작할 때. 여행이 끝난 뒤 19를 다시 열지 않으면 persist 저장소(STORAGE_KEYS.live)의 track이 영구히 남는다. RecordMap(recordMap.ts:46-47)은 만료분을 표시에서만 뺄 뿐 지우지 않는다.",
+   "fix": "useLive persist의 onRehydrateStorage(또는 hydration 직후)에서 pruneTrack(appClock().now())를 한 번 부른다. trips 하이드레이션이 끝난 뒤여야 하므로 waitHydrated 이후에 연결한다. 앱 시작 시 90일 지난 트랙이 지워지는지 순수 테스트(pruneTracks)와 함께 추적표에 적는다."
+  },
+  {
+   "severity": "major",
+   "where": "src/core/live/engine.ts:67-69 (notifyKey), :127-143",
+   "issue": "지연 알림 키가 tripId:date:spotId라서, 다음 스팟이 바뀌면 30분 제한이 초기화된다. 실제 10/18 계획(7곳)에 '영업 종료' 프리셋을 재생해 확인했다: 17:13 국립경주박물관 조정안 뒤 16분 만인 17:29에 첨성대 조정안 시트가 다시 뜬다(15:52 뒤 21분 만에 16:13도 같다). NFR 알림은 '동일 유형 30분 1회', FR-600은 '동일 상황 알림 30분 1회'인데, 유형 기준으로 보면 위반이다.",
+   "fix": "delay 유형 키를 tripId:date로 바꿔 유형 단위로 30분 1회를 지킨다(freeTime도 같게). 공유 core/notify 주석의 예시 키 문구는 통합 담당에게 변경 요청한다. wp5-delay에 '다른 스팟이어도 30분 안에는 두 번째 조정안이 없다' 테스트를 추가한다."
+  },
+  {
+   "severity": "major",
+   "where": "src/core/sim/presets.ts:19, tests/wp5-sim.test.ts:132-141",
+   "issue": "FR-603 예외 '영업 종료로 방문 불가한 스팟이 제외 1순위'를 시연하겠다는 '영업 종료' 프리셋이 실제 시나리오에서 그 결과를 내지 않는다. 실제 10/18 계획에 이 프리셋을 재생하고 매 지연마다 replanForDelay를 불러 봤다. 조정안 17번 모두 첫 줄이 '월정교 빼기'(22:00까지 영업)나 체류 줄이기였고, 영업 종료로 빠지는 스팟이 1순위인 경우는 한 번도 없었다. 프리셋 설명문('영업시간이 지나는 스팟이 조정안 1순위가 됩니다')과 실제 동작이 다르고, 테스트는 지연 반복과 30분 간격만 본다.",
+   "fix": "프리셋을 영업시간이 실제로 걸리게 조정한다. 예를 들어 석굴암(17:30 마감)이나 박물관(18:00 마감)의 예정 도착이 마감 뒤로 밀리도록 extraStay와 대상 스팟을 바꾼다. 실제 계획(runScenario 결과) 기준으로 '첫 조정안이 영업 종료 스팟 exclude'를 단언하는 테스트를 wp5-sim에 둔다. 1순위 규칙 자체가 WP4에서 안 된다면 WP4에 보고한다."
+  },
+  {
+   "severity": "minor",
+   "where": "tests/wp5-sim.test.ts:30-50, :187-201",
+   "issue": "'10/18 종합' 수용 기준 테스트가 실제 buildPlan 결과(10/18은 7곳)가 아니라 손으로 만든 5곳 LiveDay로 돈다. 조정안을 적용했을 때의 경로(onTripsChange → generateTrack resume)와 importPhotos(createSimPhotoProvider) 연결도 검증하지 않는다. 내가 실제 계획으로 재생해 보니 도착 → 조정안(11:09, d15) → 빈 시간(13:16) → 사진 순서는 나왔다. 다만 첫 조정안이 '석굴암 체류 15분 줄이기' 하나뿐이라, 적용한 뒤에도 사슬이 이어지는지는 증명되지 않았다.",
+   "fix": "runScenario로 만든 실제 10/18 plan으로 full1018을 재생하는 테스트를 추가한다. 첫 조정안을 적용한 plan으로 resume 궤적을 만들어 빈 시간과 사진 이벤트가 이어지는지 단언한다."
+  },
+  {
+   "severity": "minor",
+   "where": "src/core/live/engine.ts:180-183, src/core/live/background.ts:33-36",
+   "issue": "백그라운드에서 돌아올 때 tracker.candidate(반경 진입 시각)를 지우지 않는다. 진입 직후 앱이 꺼졌다가 한참 뒤 돌아와 같은 반경에서 샘플 하나만 받아도 도착이 되고, arrivedAt은 앱이 꺼지기 전 시각이다. '앱이 꺼진 동안은 복원하지 않는다'는 NFR 백그라운드와 어긋난다.",
+   "fix": "engineAppPhase가 resumed이면 tracker.candidate를 undefined로 비운다. wp5-sim 백그라운드 테스트에 해당 케이스를 추가한다."
+  },
+  {
+   "severity": "minor",
+   "where": "src/store/live.ts:512, :553",
+   "issue": "EngineCtx.prefs가 시작할 때의 notifyPrefs 스냅숏이다. 여행 중 설정에서 지연·빈 시간 알림을 꺼도 다시 시작하기 전까지 조정안이 계속 뜬다. NFR '유형별로 끄기 가능'이 즉시 반영되지 않는다.",
+   "fix": "evaluateAt와 ingestSample 호출 직전에 useSession.getState().notifyPrefs로 ctx.prefs를 갱신하거나, useSession을 구독해 rt.ctx를 바꾼다."
+  },
+  {
+   "severity": "minor",
+   "where": "src/screens/LiveTripScreen.tsx:175-186, src/core/live/arrival.ts:109-112",
+   "issue": "오탐 수동 취소는 도착한 뒤 아직 반경을 벗어나지 않은 동안만 가능하다. 차가 신호 대기로 3분 서 있다가 지나간 전형적 오탐은 30초 뒤 left가 되면서 카드가 사라져 취소할 수 없다. skipped로 잘못 처리된 스팟도 되돌리거나 도착 처리할 방법이 없다('도착 처리'는 timing.spotId에만 있다).",
+   "fix": "타임라인이나 진행 기록에서 arrived·skipped 항목을 눌러 '도착 취소', '도착으로 기록'을 할 수 있게 한다. store에 status 전환 액션을 두고 journal/visit LWW로 남긴다."
+  },
+  {
+   "severity": "minor",
+   "where": "src/core/live/session.ts:149, src/screens/LiveTripScreen.tsx:196, src/screens/NavigateScreen.tsx:187",
+   "issue": "지연이 15분 이상이면 ETA 칩이 warn 톤(앰버)으로 '계획보다 N분 뒤'를 띄운다. 문구는 금지어가 아니지만, 명세의 '늦었습니다 식 경고 대신 조정안으로만 알린다'는 취지와 달리 시각적으로는 경고가 된다.",
+   "fix": "tone을 muted나 line으로 두고, 지연 안내는 조정안 시트 하나로만 한다."
+  },
+  {
+   "severity": "minor",
+   "where": "src/store/live.ts:176-208 (simClock 유지), src/services/location/device.ts:41",
+   "issue": "시뮬레이터를 한 번 쓰면 SimClock이 appClock으로 남는다(가상 10/18 등). 그 뒤 '기기 위치로 시작'을 누르면 LiveDay 날짜와 op·visit의 at은 가상 시각인데, 샘플 t는 실제 loc.timestamp다. minuteOfDay가 엉뚱한 값이 되어 ETA·지연·도착 시각이 모두 틀어진다.",
+   "fix": "device 모드 시작 시 appClock이 SimClock이면 시작을 막고 '시연 초기화 후 사용' 안내를 띄우거나, device 샘플의 t를 appClock 기준으로 다시 찍는다. 어느 쪽이든 추적표에 적는다."
+  },
+  {
+   "severity": "minor",
+   "where": "src/screens/MapScreen.tsx:99",
+   "issue": "FR-601 '지도 위에 사용자 현재 위치를 표시'가 13·19에만 있고, 11 지도는 여행 진행 중에도 user를 넘기지 않는다.",
+   "fix": "useLive의 last와 mode를 읽어, 진행 중인 여행방이면 MapCanvas에 user를 넘긴다."
+  },
+  {
+   "severity": "minor",
+   "where": "src/screens/NavigateScreen.tsx:115",
+   "issue": "13의 시뮬레이터 띠 조건이 liveMode === 'sim'이다. 권한 거부 프리셋이면 mode가 manual이 되어, 시뮬레이터 재생 중인데도 '실제 위치 아님' 띠가 빠진다(19는 requested 기준이라 뜬다).",
+   "fix": "useLive의 requested === 'sim' && mode !== 'off'로 조건을 바꾼다."
+  },
+  {
+   "severity": "minor",
+   "where": "src/components/map/useLegGeometry.ts:19-26",
+   "issue": "route() 실패를 null로 memo에 영구 저장한다. 일시 장애 한 번이면 이 세션 동안 그 구간이 계속 직선이다. FR-802 대체 표시는 실패한 동안에만 있어야 한다.",
+   "fix": "실패(null)는 memo에 넣지 않거나 짧은 TTL을 두고 다음 화면 진입 때 다시 부른다."
+  },
+  {
+   "severity": "minor",
+   "where": "src/store/live.ts:414, src/core/live/engine.ts:71-96",
+   "issue": "빈 시간 카드는 until(다음 일정 예정 도착)까지 남는다. 실제 10/18 재생에서는 13:16에 추천이 뜨고 13:20에 대릉원에 도착했는데도 카드가 14:03까지 '다음 일정까지 N분'을 보여준다.",
+   "fix": "다음 스팟(freeTime을 만든 spotId)의 arrived 효과가 오면 freeTime을 비운다."
+  },
+  {
+   "severity": "minor",
+   "where": "src/core/live/arrival.ts:89-91",
+   "issue": "정확도가 null인 샘플(웹)은 판정에서 빠지고 음영으로도 세지 않는다. 정확도를 주지 않는 브라우저에서는 도착이 영영 안 잡히는데 사용자에게 아무 안내도 없다. FR-601의 음영 안내 예외도 여기에는 걸리지 않는다.",
+   "fix": "null 샘플이 연속 N개면 '위치 정확도를 알 수 없어 도착은 버튼으로 기록해 주세요' 안내를 띄우고 도착 처리 버튼을 primary로 올린다."
+  },
+  {
+   "severity": "minor",
+   "where": "src/store/live.ts:343-345",
+   "issue": "명세 FR-600은 '알림은 조정안 제안 형태로만 보낸다'인데, 도착마다 '○○ 도착을 기록했어요' 토스트를 알림 유형 arrival로 띄운다. 명세 근거가 없는 알림이다.",
+   "fix": "도착 토스트를 빼고 진행 기록 줄과 타임라인 상태로만 보인다. 남긴다면 알림이 아니라 상태 표시라는 판단을 추적표에 적는다."
+  }
+ ],
+ "verdict": "수정 후 재검토. 게이트(node scripts/gate-scope.mjs WP5)는 다시 돌려 통과를 확인했다. 용어 위반, 금지 문구, 확정 결정 위반(react-native-maps 미사용, 지도 SDK 중립, 확정 버튼 없음)도 찾지 못했다. 그러나 '새로 고칠 곳이 없다'는 개발 보고는 사실과 다르다. 명세 예외와 NFR에서 major 6건이 나왔다. (1) 취소한 스팟을 지나쳐도 skipped가 되지 않아, 지나온 스팟이 다음 스팟으로 되돌아온다. (2) 기기 모드는 샘플 없이는 도착·지연을 판정하지 않아, 모바일 웹에서 멈춰 서면 도착이 안 잡힐 수 있다. (3) 배터리 NFR의 '정지 시 갱신 중단'이 로그 중단으로만 구현됐다. (4) 90일 위치 이력 삭제가 19 화면을 열 때만 돈다. (5) 지연 알림 키가 스팟별이라 '동일 유형 30분 1회'를 넘겨 16분 간격으로 조정안이 뜬다. (6) '영업 종료' 프리셋이 실제 10/18 계획에서 영업 종료 스팟 1순위 제외를 한 번도 보여주지 못한다. (5)와 (6)은 실제 runScenario 계획으로 재생해 확인했다. 확인용 스크립트는 scratchpad의 real1018.test.ts와 replan1018.test.ts다."
+}

@@ -1,0 +1,102 @@
+{
+ "id": "WP3",
+ "summary": "WP3 코드 리뷰 반영. 지적 36건(major 8, minor 28) 가운데 30건을 끝까지 고치고 6건(D1, D3, S3, S7, S8, D9)은 WP3 파일에서 할 수 있는 만큼 고친 뒤 나머지를 공유 변경 요청으로 넘겼다. 리뷰 뒤 반영 흔적은 없었다. 주요 수정: 카카오 키워드 검색 2단계(지역 반경 → 0건이면 반경 없이), 기점 장소(숙소·역)와 카카오 기타 결과를 자동 추출에서 제외, 23 추천 요청 번호 가드와 요청 당시 태그로 대체됨 판정, AI 추천 공용 필터(recommendable)와 결과 출처 표시, 05 한 줄 헤더·아바타 아래 정렬·시각 줄 축소·전송 아이콘 버튼·되돌리기 확인, 06 목록을 Seg 바로 아래에서 시작(수동 등록·추천은 목록 끝), 07 아바타 색을 멤버 등록 순으로, 기점에서 칸 수단 통일, 모든 후보에 지우기. 게이트 통과, WP3 테스트 54건 통과, 웹 export 성공.",
+ "filesChanged": [
+  "/Users/handong-gwan/IT희망학교 여행계획 프로젝트/test/src/services/places/kakao.ts",
+  "/Users/handong-gwan/IT희망학교 여행계획 프로젝트/test/src/core/extract/index.ts",
+  "/Users/handong-gwan/IT희망학교 여행계획 프로젝트/test/src/core/extract/text.ts",
+  "/Users/handong-gwan/IT희망학교 여행계획 프로젝트/test/src/core/extract/manual.ts",
+  "/Users/handong-gwan/IT희망학교 여행계획 프로젝트/test/src/core/recommend.ts",
+  "/Users/handong-gwan/IT희망학교 여행계획 프로젝트/test/src/services/recommend/ai.ts",
+  "/Users/handong-gwan/IT희망학교 여행계획 프로젝트/test/src/services/recommend/local.ts",
+  "/Users/handong-gwan/IT희망학교 여행계획 프로젝트/test/src/services/recommend/index.ts",
+  "/Users/handong-gwan/IT희망학교 여행계획 프로젝트/test/src/services/recommend/source.ts",
+  "/Users/handong-gwan/IT희망학교 여행계획 프로젝트/test/src/features/chat/send.ts",
+  "/Users/handong-gwan/IT희망학교 여행계획 프로젝트/test/src/features/chat/view.ts",
+  "/Users/handong-gwan/IT희망학교 여행계획 프로젝트/test/src/features/chat/components/Bubble.tsx",
+  "/Users/handong-gwan/IT희망학교 여행계획 프로젝트/test/src/features/chat/components/ExtractionCardView.tsx",
+  "/Users/handong-gwan/IT희망학교 여행계획 프로젝트/test/src/features/chat/components/SendButton.tsx",
+  "/Users/handong-gwan/IT희망학교 여행계획 프로젝트/test/src/features/candidates/actions.ts",
+  "/Users/handong-gwan/IT희망학교 여행계획 프로젝트/test/src/features/candidates/rows.ts",
+  "/Users/handong-gwan/IT희망학교 여행계획 프로젝트/test/src/features/candidates/detail.ts",
+  "/Users/handong-gwan/IT희망학교 여행계획 프로젝트/test/src/features/candidates/components/ManualAdd.tsx",
+  "/Users/handong-gwan/IT희망학교 여행계획 프로젝트/test/src/features/candidates/components/PlacePickSheet.tsx",
+  "/Users/handong-gwan/IT희망학교 여행계획 프로젝트/test/src/screens/ChatScreen.tsx",
+  "/Users/handong-gwan/IT희망학교 여행계획 프로젝트/test/src/screens/CandidatesScreen.tsx",
+  "/Users/handong-gwan/IT희망학교 여행계획 프로젝트/test/src/screens/SpotDetailScreen.tsx",
+  "/Users/handong-gwan/IT희망학교 여행계획 프로젝트/test/src/screens/RecommendScreen.tsx",
+  "/Users/handong-gwan/IT희망학교 여행계획 프로젝트/test/tests/wp3-providers.test.ts",
+  "/Users/handong-gwan/IT희망학교 여행계획 프로젝트/test/tests/wp3-extract.test.ts",
+  "/Users/handong-gwan/IT희망학교 여행계획 프로젝트/test/tests/wp3-extract-quality.test.ts",
+  "/Users/handong-gwan/IT희망학교 여행계획 프로젝트/test/tests/wp3-candidates.test.ts",
+  "/Users/handong-gwan/IT희망학교 여행계획 프로젝트/test/tests/wp3-recommend.test.ts",
+  "/Users/handong-gwan/IT희망학교 여행계획 프로젝트/docs/meetings/04-코드리뷰-WP3.md"
+ ],
+ "features": [
+  {
+   "fr": "FR-401",
+   "status": "done",
+   "note": "기점 장소·카카오 기타 결과 자동 추출 제외, 두 글자 별칭 뒤 동사 어미 한 글자(나·야·든·만·요) 제외, AI 맞추기의 조사 떼기를 보수적으로(울릉도·첨성로·영일만 보존), 접미사 일상어 STOPWORDS 보강. wp3-extract 회귀 테스트 4건 추가"
+  },
+  {
+   "fr": "NFR 추출 품질",
+   "status": "done",
+   "note": "표기 변형 6문장, 경계 부정 6문장 추가. 재현율 95.7%(45/47), 오탐율 0%(0/45). 카카오 최악 응답 fakeFetch 오탐 테스트 추가"
+  },
+  {
+   "fr": "실제 장소 제공자(카카오, 가정)",
+   "status": "done",
+   "note": "키워드 검색 1단계 지역 중심·반경 min(지역 반경, 20km), 0건이면 반경 없이 2단계. 테스트가 첫 요청의 radius·중심과 두 번째 요청을 단언. 여행사 업종이 관광지로 매핑되던 것 수정. 실키·CORS는 여전히 미확인"
+  },
+  {
+   "fr": "FR-402",
+   "status": "done",
+   "note": "되돌리기가 편집 기록(고정·날짜·체류)이 있는 생성 후보를 지우면 05가 먼저 확인(undoLosesEdits). stayMin 동결 단언 추가"
+  },
+  {
+   "fr": "FR-403(화면)",
+   "status": "done",
+   "note": "06 목록이 Seg 바로 아래에서 시작, 자동 제외 머리말을 수용량 초과와 거리·기간으로 나눔, WarnCard 제목 날짜 포함, 오프라인·재계산 대기 문구 분리, 되돌리기 글자 12 Bold"
+  },
+  {
+   "fr": "FR-202",
+   "status": "done",
+   "note": "이미 내가 제안한 곳은 dispatch 없이 안내, 직접 뺀 후보는 제외 스팟에 남는다고 안내, 거부 사유 표시, 기점 장소 칩, 지도 선택은 기점 건너뜀, iOS 연속 Modal 350ms 지연"
+  },
+  {
+   "fr": "FR-304(화면)",
+   "status": "partial",
+   "note": "05 한 줄 헤더, 아바타 아래 끝 정렬, 폭 70%, 시각은 전송 대기·마지막 메시지만, 전송 아이콘 버튼(H.field). 강조 글자 roseDeep. 강조 굵게·내 말풍선 면·라벨 없는 입력 칸은 공용 ui 토큰·Field 변형 대기"
+  },
+  {
+   "fr": "FR-803",
+   "status": "done",
+   "note": "07 기점에서 칸 수단을 그날 수단으로 통일(라벨과 경로 요청 같은 값, 효과 의존성에 수단·날짜), 기점이 첫 스팟이면 칸 생략, 아바타 색 memberIndex, 원문과 화자 분리, 제외 사유 중복 제거, 영업시간 보조 줄, 모든 후보에 지우기와 다른 멤버 제안 수 안내"
+  },
+  {
+   "fr": "FR-404",
+   "status": "done",
+   "note": "요청 번호 가드, 요청 당시 태그로 대체됨 판정, 로컬·AI 공용 recommendable(중복·기점·기타·지역 밖·여행 날짜 전부 휴무), 무게중심은 지역 안 후보만, 결과 출처로 예시 데이터 칩, 대체 안내 경고 아이콘 제거, 화면 번호 문구 제거"
+  }
+ ],
+ "findingsResolved": 30,
+ "findingsDeferred": [
+  "D1(major, 일부): 말풍선 강조 굵게(Bold 13.5)와 내 말풍선 강조 면(로즈 위 흰 22%)은 src/ui/tokens.ts에 토큰이 없고 ui 밖에서 굵기·hex를 쓸 수 없어 못 했다. 글자색 roseDeep만 반영. 공유 변경 요청 1.",
+  "D3(major, 일부): 라벨 없는 44 높이 입력 칸은 Field가 라벨을 필수 접근성 이름으로 써서 만들 수 없다. 중복 라벨 제거, 매직 넘버 제거, 같은 높이 전송 아이콘 버튼까지 반영. 공유 변경 요청 2.",
+  "S3(minor, 일부): 카카오 키가 있을 때 오프라인 메시지의 추출을 재연결 때 다시 하려면 스토어 재연결 시점이 필요하다(store/trips.ts는 WP2 소유). 주석만 실제 동작대로 고쳤다. 공유 변경 요청 4.",
+  "S7(minor, 일부): 추천 기준점을 확정 스팟으로 잡으려면 RecommendRequest(core/ports.ts)에 계획 정보가 필요하다. 지역 안 후보만 쓰도록 하고 휴무 요일 반영까지 했다. 공유 변경 요청 3.",
+  "S8(minor, 일부): RecommendResult.source 필드는 공용 포트 변경이라 WeakSet 표시(services/recommend/source.ts)로 대신했다. 공유 변경 요청 3.",
+  "D9(minor, 일부): 말풍선 여백 9·강조 라운드 4·강조 여백 3, 24 시트 maxHeight 360은 맞는 토큰이 없다. 07 정보 칸 11만 SP.l로 바꿨다. 공유 변경 요청 1."
+ ],
+ "sharedChangeRequests": [
+  "1. (기반/ui 소유) src/ui/tokens.ts: T.bubbleBold = { fontFamily: F.bold, fontSize: 13.5, lineHeight: 21 }, surfaceC.onRoseHl = '#C44669'(목업 rgba(255,255,255,.22)을 로즈 #B3123F 위에서 합성, 흰 글씨 4.74:1)와 TEXT_ON_SURFACE_PAIRS에 onRose/onRoseHl 추가. 말풍선 토큰 SP.bubbleV 9, 강조 R.hl 3·SP.hl 3, 시트 목록 최대 높이 H.sheetList 360. 들어오면 WP3가 Bubble.tsx(남의 말풍선 강조 bubbleBold+roseDeep, 내 말풍선 강조 onRoseHl 면+onRose 글씨)와 PlacePickSheet.tsx를 바꾼다.",
+  "2. (기반/ui 소유) src/ui/Field.tsx: 라벨을 화면에 숨기는 변형(예: hideLabel, 접근성 이름은 label 유지)과 높이 44(R.btn) 변형. 05 입력줄이 목업처럼 라벨 없는 한 줄이 된다.",
+  "3. (기반/계약) src/core/ports.ts: RecommendResult에 source?: 'ai' | 'local'(로컬 대체 여부), RecommendRequest에 anchor?: LatLng[](확정 스팟 좌표, 없으면 지역 안 기존 후보) 추가. 들어오면 services/recommend/source.ts를 지우고 23은 result.source로 예시 데이터 칩을 정한다.",
+  "4. (WP2 store/trips.ts 또는 통합) 재연결 때 추출을 다시 하는 훅: 카카오 키가 있을 때 장소 검색이 네트워크 오류로 실패한 메시지 id를 WP3가 넘기면, 재연결 시점에 features/chat/send.ts의 추출을 다시 부를 수 있게 online 전환 구독 지점이 필요하다.",
+  "5. (통합, docs/FR-추적표.md) FR-202·401·404 상태를 스텁에서 구현으로. 카카오 로컬 실키 동작과 웹 CORS 미확인, 문서 확인일 2026-09-26. 키워드 검색 2단계 반경 결정(04 회의록 K-1)과 그 한계(20km 안 동명이 있으면 20~30km의 찾던 곳이 안 나옴). 추천 기간 반영은 여행 날짜 전부 휴무 요일 제외만. 추출 품질 재현율 95.7%, 오탐율 0%.",
+  "6. (통합 회의, 팀 공통 규칙) 사용자에게 보이는 글에 내부 화면 번호(eyebrow '05 · ', 본문 '(17)' 등)를 쓰지 않는다. WP3 화면은 정리했다.",
+  "7. (계약 메모, 개발 보고에서 이어짐) features/chat/scenario.ts의 playScenarioChat은 Promise<number>(보낸 줄 수)를 돌려준다. void 기대 호출과 호환되므로 계약 문구만 갱신."
+ ],
+ "gateResult": "node scripts/gate-scope.mjs WP3 통과. [1/3] tsc WP3 파일 오류 0건, 다른 파일 오류 1건(보고만). [2/3] tests/wp3-*.test.ts 6개 파일 통과(54건). [3/3] YT_SCOPE=WP3 foundation 테스트 6개 통과.",
+ "notes": "검증: WP3 테스트 54건 통과(리뷰 시점 46건). 전체 npm test 491건 중 477 통과, 8 실패(wp4-edit, wp4-screens, wp4-transport, wp5-live, wp6-photo 2, wp6-track 2, 모두 다른 패키지 파일), todo 6. golden-e2e·integration-cross·integration-scenario-steps 통과. npx expo export --platform web --output-dir /tmp/yt-export-wp3 성공. tsc 오류 0건은 WP3 파일 기준이다(전체 기준 아님). 개발 서버·git 조작 없음. 화면 실측과 iOS 실기기 확인(연속 Modal 지연)은 하지 못했다. 회의록: docs/meetings/04-코드리뷰-WP3.md."
+}

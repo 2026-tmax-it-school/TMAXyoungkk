@@ -1,0 +1,74 @@
+{
+  "reviewer": "명세 준수 리뷰어 (WP4 일정·경로)",
+  "verdict": "조건부 통과. 게이트(gate-scope WP4)는 통과했다. 골든, 불변식, 정렬, 캐시와 예산 수용 기준은 코드와 테스트로 확인했다. 다만 major 5건이 남았다. 구간 수단 편집이 나중 저장 우선(LWW)이 아니고, 수동 순서를 바꾼 스팟이 자동 제외에서 빠지며, 복귀 구간 수단 표시와 대체 안내가 빠졌고, FR-503 시각 직접 편집이 없고, 10 화면에서 자동 제외가 알림 없이 일어난다. 이 5건을 고친 뒤 통합으로 넘긴다.",
+  "findings": [
+    {
+      "severity": "major",
+      "where": "test/src/core/ops/schedule.ts:66-70 (schedule/setLegTransport), test/src/types.ts:176-181 (LegOverride)",
+      "issue": "FR-503과 FR-504의 '그룹 동시 편집 시 나중 저장 우선' 예외가 구간별 수단에는 지켜지지 않는다. 수용 기준은 '리듀서는 patchSpot·patchDay만 쓰고 op.at이 늦은 쪽이 남는다'인데, setLegTransport는 op.at을 보지 않고 legs 배열을 덮어쓴다. 그래서 적용 순서가 이긴다. 확인 결과: at=+200 walk를 먼저, at=+100 transit을 나중에 적용하면 transit이 남는다. 같은 조건에서 setStay는 at이 늦은 100분이 남는다. LegOverride에는 시각 필드도 없다.",
+      "fix": "LegOverride에 at(마지막 편집 시각)을 두고, 해제(null)도 transport 없는 묘비 항목으로 남긴다. 리듀서는 기존 항목의 at이 op.at보다 크거나 같으면 무시한다. types.ts는 공유 파일이므로 FOUNDATION에 변경 요청을 낸다. wp4-edit에 '구간 수단 op 두 개를 at 역순으로 적용해도 늦은 쪽이 남는다' 테스트를 더한다."
+    },
+    {
+      "severity": "major",
+      "where": "test/src/core/planner/index.ts:80-89 (forcedDate, isForced), test/src/screens/ScheduleEditScreen.tsx:90-91, test/src/features/schedule/view.ts:70-76",
+      "issue": "명세상 자동 제외에서 빠지는 것은 고정(FR-403)과 날짜 직접 지정(FR-505) 둘뿐이다. 그런데 forcedDate가 manualOrder도 고정 취급한다. 10 화면의 '앞으로/뒤로'는 그날 스팟 전부에 manualOrder를 건다(moveInOrder(ids,…)). 그래서 한 번만 순서를 바꿔도 그날 모든 스팟이 '고정' 칩 없이 자동 제외 대상에서 빠진다. FR-603 reorder 조정안을 수락해도 같다. 확인 결과: 10/18 앞 두 곳을 바꾸고 모든 스팟 체류를 150분으로 올리면 overCapacity가 448분이고 자동 제외는 3곳 그대로다. 순서를 바꾸지 않은 같은 조작은 초과 없이 4곳을 더 자동 제외한다. 08의 선별 규칙 전문('고정한 곳과 날짜를 지정한 곳은 빠지지 않습니다')도 실제 동작과 다르다.",
+      "fix": "forcedDate에서 manualOrder 분기를 뺀다. 수동 순서는 그날에 남아 있는 스팟의 순서만 정하고 날짜와 제외 여부는 바꾸지 않는다. 빠진 스팟의 manualOrder는 계산에서 무시한다. 수동 순서도 보호하기로 팀이 정한다면 plan.json 결정에 적고, 08 규칙 문장과 06·09의 '고정' 표시를 같이 바꾼다. 어느 쪽이든 wp4-invariants에 수동 순서 사례를 더한다."
+    },
+    {
+      "severity": "major",
+      "where": "test/src/features/schedule/timeline.ts:85-93, test/src/core/planner/day.ts:284-292, test/src/screens/LegTransportScreen.tsx:100",
+      "issue": "FR-504 구간별 수단과 대체 안내가 복귀 구간에서 빠졌다. 09의 복귀 Leg 줄은 transport와 estimated를 마지막 도착 구간(last.legTransport, last.legEstimated)에서 가져온다. 확인 결과: 12에서 복귀 구간을 도보로 바꾸면 returnMin은 19분에서 17분으로 바뀌지만 줄은 여전히 transport 'car'다. evaluateDay는 복귀 구간에 legNotice를 만들지 않는다. 그래서 복귀 구간이 자동차 경로 없음이나 실패로 도보·직선거리 대체되면 fallbackTransport·noRoute 안내가 어디에도 없다. 12도 toId가 'base'면 fallbackNotice를 일부러 건너뛴다.",
+      "fix": "DayPlan에 returnTransport, returnEstimated, returnNotices(또는 복귀 구간 하나를 담는 필드)를 둔다. types.ts는 공유 파일이라 변경 요청을 낸다. evaluateDay에서 복귀 구간에도 legNotice를 계산한다. timelineRows 복귀 줄과 12 화면 안내는 이 값을 쓴다. wp4-timetable에 '복귀 구간 수단 지정과 대체 안내' 테스트를 더한다."
+    },
+    {
+      "severity": "major",
+      "where": "test/src/screens/ScheduleEditScreen.tsx:130-147",
+      "issue": "FR-503 기능 설명의 '스팟 순서, 시각, 체류 시간, 배정 날짜를 직접 바꾼다' 가운데 시각 편집이 사실상 없다. 10 화면에는 '지금 계산된 도착 시각으로 고정'과 '풀기'만 있다. 원하는 시각을 고를 방법이 없으니 setArrive op는 시간표를 바꾸지 못한다. 리듀서, 계산(arriveOverride 대기), overrideLate 안내는 있지만 화면에서 쓸 길이 없다.",
+      "fix": "선택한 카드 도구에 도착 시각 조절을 더한다. 체류처럼 15분 단위 앞당기기와 늦추기, 또는 HH:MM 선택으로 schedule/setArrive{arrive}를 보낸다. 되돌리기(inverseDrafts)는 이미 setArrive를 지원한다. wp4-screens에 시각 단계 조절 순수 함수 테스트를 더한다."
+    },
+    {
+      "severity": "major",
+      "where": "test/src/screens/ScheduleEditScreen.tsx:69-74, 227-237",
+      "issue": "비기능 요구사항 '선별 품질: 자동 제외는 이유와 함께 100% 표시, 조용한 제외는 없다'를 10 화면이 지키지 못한다. 고정도 수동 순서도 아닌 스팟은 체류 늘리기, 날짜 지정, 고정 풀기 같은 편집을 하면 즉시 저장된다. 그 뒤 재계산에서 초과분이 WarnCard가 아니라 FR-403 자동 제외로 처리된다. 이때 10 화면 목록에서는 스팟이 사라질 뿐 어느 스팟이 왜 빠졌는지 알림이 없다. 07처럼 미리보기를 하지도 않는다.",
+      "fix": "apply 직전의 plan.excluded를 기억해 둔다. 재계산 뒤 새로 제외된 스팟이 있으면 10 화면에 Notice를 띄운다. 문구는 'X가 제외 스팟이 됐습니다 · 사유'이고 되돌리기를 함께 둔다. 적용 전에 previewOps(diffPlans.newlyExcluded)로 알려도 된다. 문구 계산은 features/schedule/view.ts 순수 함수로 두고 테스트한다."
+    },
+    {
+      "severity": "minor",
+      "where": "test/src/core/planner/day.ts:36-47 (resolveBases)",
+      "issue": "FR-205 '해당 날짜 미지정 시 직전 날짜 기점 승계'와 어긋나는 경우가 있다. 어떤 날을 명시적으로 null(첫 스팟 기점)로 두면 prev가 갱신되지 않는다. 그래서 다음 날의 'inherit'가 직전 날짜가 아니라 그 전 날짜의 기점을 물려받는다.",
+      "fix": "null도 prev=null로 갱신해 다음 날이 firstSpot이 되게 한다. 지금 동작이 의도라면 plan.json 결정에 '마지막으로 지정한 기점 승계'라고 적는다. wp4-timetable에 set → null → inherit 사례를 더한다."
+    },
+    {
+      "severity": "minor",
+      "where": "test/src/core/planner/replan.ts:169-180",
+      "issue": "FR-603 출력은 '조정안(순서 변경 또는 스팟 제외)'인데, 명세에 없는 shortenStay(체류 줄이기) 조정안이 추가된다. 이 조정안은 troubled 판정과 상관없이 항상 나온다. 수용 기준은 reorder, exclude, 그리고 거절 시 무변경만 정한다.",
+      "fix": "shortenStay를 FR-603에 둘지 팀이 정해 plan.json에 기록한다. 두기로 하면 순서 변경·제외 뒤에 두고 troubled일 때만 낸다. 두지 않기로 하면 빼고, wp4-replan의 '체류 줄이기만 낸다' 테스트를 고친다."
+    },
+    {
+      "severity": "minor",
+      "where": "test/src/core/planner/travel.ts:55-69",
+      "issue": "명세 FR-504 '자동차 경로 실패 시 도보로 대체 계산'과 FR-501 '경로 API 실패 시 직선거리 기준'이 겹친다. 구현은 null(경로 없음)이면 도보로 대체하고 fallbackTransport를 달며, 던짐(API 실패)이면 자동차 직선거리 추정과 estimated를 쓴다. 테스트와 수용 기준에는 맞지만 이 해석이 문서 어디에도 없다.",
+      "fix": "FR-추적표의 FR-504·FR-501 행에 'null=경로 없음→도보 대체(FR-504), 요청 실패=직선거리 추정(FR-501)'이라고 적는다(FOUNDATION 소유 문서이므로 변경 요청)."
+    },
+    {
+      "severity": "minor",
+      "where": "test/src/features/schedule/view.ts:74, 143; test/src/screens/ScheduleScreen.tsx:117",
+      "issue": "용어 위반과 문구 불일치가 있다. 선별 규칙 전문 '제외된 곳에는 이유를 붙입니다'는 고정 용어 '제외 스팟'이 아니다. 미리보기 문장의 '고정한 곳만으로 활동시간을 넘깁니다'는 수동 순서나 날짜 지정 때문에 넘친 날에도 나온다. 09 Notice에는 '고정하거나 직접 편집한 곳'이라고 따로 적혀 있어 두 화면 문구가 다르다.",
+      "fix": "'제외 스팟에는 이유를 붙입니다'로 바꾼다. 초과 문구는 두 번째 finding 결정에 맞춰 한 문장으로 통일한다. 수동 순서를 보호하지 않기로 하면 '고정하거나 날짜를 지정한 곳만으로'로 쓴다."
+    }
+  ],
+  "checked": {
+    "gate": "node scripts/gate-scope.mjs WP4 통과 (WP4 파일 tsc 0건, wp4 테스트 9개 파일 통과, WP4 범위 foundation 테스트 6개 통과). 다른 파일 tsc 오류 2건은 WP2 소유로 보고만 한다.",
+    "probe": "tests/ 아래 임시 프로브 테스트를 한 번 돌려 finding 1(구간 LWW), 2(수동 순서 보호), 3(복귀 줄 수단)을 재현했다. 확인한 뒤 임시 파일은 지웠다. 코드는 고치지 않았다.",
+    "confirmedOk": [
+      "FR-403: 우선순위(제안자 적은 순, 등록 늦은 순), 고정 불가침, overCapacity, 사유 문장(tooFar, dayFull, '10/18 저녁이 꽉 차서')",
+      "FR-505: 군집, 근접 삽입, 이월, fixedDate 고정 취급, 날짜별 활동시간",
+      "FR-501: Held-Karp 10개 이하, NN+2-opt 11개 이상, manual, 직선거리 대체",
+      "FR-502: 등식, 영업시간 안내, carryOver, 52px 시각 열, Leg 줄, 기점 출발·복귀 행, 날짜 Seg, '예시 데이터' 칩",
+      "FR-504: 하루 전체와 구간, 12 비교, 차이 칩, previewOps 두 경우, 대중교통 ScopeBadge '2차'와 모의 모델, 경로 없음 대체 안내",
+      "NFR: 구간 100 이하, 24시간 캐시와 Clock 주입, clearCache",
+      "카카오 어댑터: 경도,위도 순서, KakaoAK, 구간 단위 호출. 구글 구현 없음",
+      "확정 버튼 없음. 환율 같은 명세 밖 기능 없음. 시나리오 전용 분기 없음"
+    ]
+  }
+}

@@ -1,0 +1,109 @@
+{
+ "id": "WP2",
+ "summary": "WP2 코드 리뷰 지적 39건(blocker 3, major 8, minor 28)을 처리했다. blocker와 major는 모두 고쳤다. droppedJoins를 구현하고 테스트했으며, 02 화면은 모든 합류 실패 사유를 JOIN_ERROR_TEXT로 안내한다. 방장 익명화는 수용 기준대로 바꿨다. 초대 권한이 없는 그룹원에게는 초대 링크를 보이지 않는다. 서버와 앱의 합류 판정을 맞췄다. 원격 경로에서도 이미 참여한 사람은 already로 들어간다. 스토어가 로그를 받아 appClock으로 다시 판정한다. 25 화면 TimeRange가 넘치던 문제는 값 상자와 시트로, 04 화면 대중교통 칸은 배지를 라벨 줄로 옮겨서, 02 화면 시연 버튼은 quiet sm 전체 폭으로 바꿔서 고쳤다. minor는 27건을 처리했고 1건(Header 단계 라벨)은 공유 변경 요청으로 넘겼다. WP2 게이트는 통과했다. WP2 테스트는 88건 모두 통과하고(13건 추가), /tmp/yt-export-wp2 웹 export도 성공했다.",
+ "filesChanged": [
+  "/Users/handong-gwan/IT희망학교 여행계획 프로젝트/test/src/store/trips.ts",
+  "/Users/handong-gwan/IT희망학교 여행계획 프로젝트/test/src/services/sync/http.ts",
+  "/Users/handong-gwan/IT희망학교 여행계획 프로젝트/test/src/core/trip/members.ts",
+  "/Users/handong-gwan/IT희망학교 여행계획 프로젝트/test/src/screens/InviteAcceptScreen.tsx",
+  "/Users/handong-gwan/IT희망학교 여행계획 프로젝트/test/src/screens/MembersScreen.tsx",
+  "/Users/handong-gwan/IT희망학교 여행계획 프로젝트/test/src/screens/TripSettingsScreen.tsx",
+  "/Users/handong-gwan/IT희망학교 여행계획 프로젝트/test/src/screens/CreateTripScreen.tsx",
+  "/Users/handong-gwan/IT희망학교 여행계획 프로젝트/test/src/features/trip/components/TimeRange.tsx",
+  "/Users/handong-gwan/IT희망학교 여행계획 프로젝트/test/src/features/trip/components/CalendarRange.tsx",
+  "/Users/handong-gwan/IT희망학교 여행계획 프로젝트/test/src/features/trip/components/BaseSearchSheet.tsx",
+  "/Users/handong-gwan/IT희망학교 여행계획 프로젝트/test/tests/wp2-invite.test.ts",
+  "/Users/handong-gwan/IT희망학교 여행계획 프로젝트/test/tests/wp2-sync.test.ts",
+  "/Users/handong-gwan/IT희망학교 여행계획 프로젝트/test/tests/wp2-trip.test.ts",
+  "/Users/handong-gwan/IT희망학교 여행계획 프로젝트/test/src/core/trip/outbox.ts (이전 반영 시도분 확인)",
+  "/Users/handong-gwan/IT희망학교 여행계획 프로젝트/test/src/core/trip/lookup.ts (이전 반영 시도분 확인)",
+  "/Users/handong-gwan/IT희망학교 여행계획 프로젝트/test/src/core/ops/members.ts (이전 반영 시도분 확인)",
+  "/Users/handong-gwan/IT희망학교 여행계획 프로젝트/test/src/core/ops/trip.ts (이전 반영 시도분 확인)",
+  "/Users/handong-gwan/IT희망학교 여행계획 프로젝트/test/src/services/sync/loopback.ts (이전 반영 시도분 확인)",
+  "/Users/handong-gwan/IT희망학교 여행계획 프로젝트/test/server/sync-server.mjs (이전 반영 시도분 확인)",
+  "/Users/handong-gwan/IT희망학교 여행계획 프로젝트/test/server/sync-server.d.mts (이전 반영 시도분 확인)",
+  "/Users/handong-gwan/IT희망학교 여행계획 프로젝트/docs/meetings/04-코드리뷰-WP2.md",
+  "/Users/handong-gwan/IT희망학교 여행계획 프로젝트/docs/workflow-state/WP2-fix.json"
+ ],
+ "features": [
+  {
+   "fr": "FR-304 동기화(droppedJoins)",
+   "status": "done",
+   "note": "outbox.droppedJoins 순수 함수, 스토어 onRemote·flush에서 안내 토스트. 동시 합류 정원 경합·직전 재발급 테스트"
+  },
+  {
+   "fr": "FR-302 합류 실패 안내",
+   "status": "done",
+   "note": "JOIN_ERROR_TEXT로 ended·offline 포함 전 사유 안내. 게스트 세션은 재확인 뒤 만들고 실패 시 signOut으로 되돌림"
+  },
+  {
+   "fr": "FR-302 원격 already",
+   "status": "done",
+   "note": "lookup이 에러에도 tripId를 싣고, 스토어 fetchRemoteInvite가 로그를 받아 appClock으로 재판정·already 확인. 미리보기 already && !local은 acceptInvite 경유"
+  },
+  {
+   "fr": "FR-301 권한(초대 링크 노출)",
+   "status": "done",
+   "note": "canInvite 없는 그룹원에게 링크·복사·공유·시연 합류 숨김"
+  },
+  {
+   "fr": "member/anonymize",
+   "status": "done",
+   "note": "방장도 leftReason deleted·leftAt. 회의 결정 D-1, 테스트 추가, 서버 판정 일치"
+  },
+  {
+   "fr": "서버 초대 판정",
+   "status": "done",
+   "note": "op.at 시점 유효·자리 있는 합류만 활성. 떨어진 합류 뒤 내보내기 → ok 테스트"
+  },
+  {
+   "fr": "trip/update 키 필터",
+   "status": "done",
+   "note": "이전 시도분 확인, 테스트 2건 추가(키 거르기, 기간 변경 시 days 맞춤)"
+  },
+  {
+   "fr": "NFR 오프라인 재연결",
+   "status": "done",
+   "note": "setOnline(true) 방별 flush→catchUp→재계산, HTTP 요청 시간 제한 10초"
+  },
+  {
+   "fr": "화면 25",
+   "status": "done",
+   "note": "TimeRange 값 상자+시트, 방장 나가기 안내만, 종료 잠금 읽기 전용, 삭제 문구 실제 동작에 맞춤, 선택지 라벨 축약+설명 줄에 수용 기준 용어"
+  },
+  {
+   "fr": "화면 04",
+   "status": "partial",
+   "note": "대중교통 배지 라벨 줄로, 두 번 누름 방지, 기점 분류 표시, 달력 월 제목 왼쪽. '2 / 3 단계' 왼쪽 배치는 ui Header 변경 대기"
+  },
+  {
+   "fr": "화면 02",
+   "status": "done",
+   "note": "시연 버튼 quiet sm 전체 폭(초대 거절 아래), 닉네임 없을 때 제목, 카드 제목 btnSm, 30일 강조"
+  },
+  {
+   "fr": "화면 14",
+   "status": "done",
+   "note": "'전송 대기' 칩과 보조 줄, 후보 0곳도 표시, 초대 가능은 보조 줄로, 글자 버튼 hitSlop. 목업 '링크 열람' 상태는 편차"
+  }
+ ],
+ "findingsResolved": 38,
+ "findingsDeferred": [
+  "D9(디자인 minor) 04 '2 / 3 단계'를 뒤로 버튼 옆 왼쪽에 두기: ui Header(기반 소유)에 왼쪽 단계 라벨 슬롯이 필요해 공유 변경 요청으로 넘김",
+  "S6/C7 일부: userId를 먼저 받아 합류 성공 뒤 게스트 세션을 확정하는 순서는 WP1 createGuest가 userId를 받아야 가능. 지금은 재확인 뒤 생성하고, 실패하면 signOut으로 되돌린다",
+  "S9 일부: 루프백 KV 저장분과 sync-server의 보관 기한 정리는 미룸. SyncTransport에 정리 연산이 없고 서버는 메모리 전용 시연용이다. 삭제 확인 문구는 실제 동작에 맞췄다",
+  "S10(3): 14 게스트 안내의 '방장과 본인에게 알립니다'는 방장 알림이 구현되지 않아 사실대로 '본인에게'로 둠(편차 기록 필요)",
+  "S7/D4 일부: 목업 14의 '대기(링크 열람 · 아직 합류 전)' 상태는 열람 기록이 op로 남지 않아 표현하지 못한다. 칩은 '전송 대기' 뜻으로 확정(회의 결정 D-5)",
+  "D13: 14 하단 탭바는 스택 화면이라 두지 않기로 결정(변경 없음, 회의 결정 D-4)",
+  "화면 실측: 개발 서버 금지로 390x844 렌더링 확인은 못 했고, 리뷰어 실측값과 스타일 값으로 계산해 확인함"
+ ],
+ "sharedChangeRequests": [
+  "src/ui/layout.tsx Header(기반 소유): 뒤로 버튼 바로 옆 왼쪽에 단계 라벨을 두는 prop(예: step?: string) 추가. 반영되면 CreateTripScreen의 right={<Txt v=\"mt\">2 / 3 단계</Txt>}를 step=\"2 / 3 단계\"로 옮긴다",
+  "src/store/session.ts·src/core/session.ts(WP1): createGuest(nickname, opts?: { userId?: string }) 또는 issueGuest가 userId를 받게 해 달라. InviteAcceptScreen이 userId를 먼저 발급해 acceptInvite 성공 뒤에만 게스트 세션을 확정하려고 한다",
+  "docs/plan.json 계약 A6(메인 책임): AcceptInviteResult.reason에 'ended'|'offline' 추가, previewInvite(code, userId?) => Promise<InvitePreview> 추가, 초대 조회 에러에 선택 tripId(04-코드리뷰-WP2 결정 D-2)",
+  "src/core/ports.ts(기반 소유, 선택): InviteLookup의 에러 형태에 tripId?: string을 추가하면 lookup.ts의 lookupTripId 캐스트가 필요 없어진다",
+  "docs/FR-추적표.md(메인 책임): 편차 4건 기록. (1) 14 '대기' 칩은 전송 대기 뜻, (2) 14는 탭바 없는 스택 화면, (3) 14 게스트 안내는 '본인에게', (4) 25 기점 선택지 라벨 축약(설명 줄에 수용 기준 용어)"
+ ],
+ "gateResult": "node scripts/gate-scope.mjs WP2: 통과 (tsc=ok WP2 파일 오류 0건, 다른 파일 오류 2건 보고만 / own-tests=ok wp2 3개 파일 88건 통과 / foundation-scoped=ok 6개)",
+ "notes": "리뷰 뒤 끊긴 반영 시도가 outbox.droppedJoins, lookup.ts(에러에 tripId), sync-server 판정, 루프백 구독자 try/catch, trip/update 키 거르기, 방장 익명화를 이미 넣어 두었다. 현재 파일을 읽고 확인한 뒤 테스트 3건의 기대값(에러에 tripId)을 새 동작에 맞췄다. 전체 npm test는 479건 중 470 통과, 3 실패(wp5-live 1, wp6-photo 2, 다른 패키지), todo 6이다. tsc 다른 파일 오류(SocialConsentScreen, HomeScreen)는 WP1 소유다. 웹 export /tmp/yt-export-wp2는 성공했다. 회의록은 docs/meetings/04-코드리뷰-WP2.md다."
+}

@@ -1,0 +1,72 @@
+{
+ "reviewer": "정확성 리뷰어 (WP5 지도·실시간·여행 시뮬레이터)",
+ "findings": [
+  {
+   "severity": "major",
+   "where": "src/core/live/arrival.ts:66-71 (markArrived), 연쇄로 nextIndex 160-167 · delay.ts evaluateTiming",
+   "issue": "앞 스팟이 'cancelled'이면 뒤 스팟에 도착해도 skipped로 바뀌지 않는다. 루프가 statuses[id] == null일 때만 건너뜀으로 바꾸기 때문이다. isRemaining은 cancelled를 남은 일정으로 보므로 nextIndex가 계속 앞 스팟을 가리킨다. 격리 스크립트로 확인한 순서: A 수동 도착 → A 취소 → B 도착. 결과는 statuses {a:'cancelled', b:'arrived'}, nextIndex 0이고, 12:40에 evaluateTiming이 A를 대상으로 delay 200분을 낸다. 그 뒤로는 19의 '다음 스팟' 카드와 '도착 처리' 버튼이 이미 지나온 A를 가리킨다. A 기준 지연 조정안도 30분마다, 또는 ack보다 15분 더 늘 때마다 다시 뜬다. 수동 모드에서 도착 처리를 잘못 누른 뒤 취소하고 다음으로 가는 흔한 흐름에서 생긴다. startLive가 statusesFromVisits로 이어받을 때도 그대로다.",
+   "fix": "markArrived의 건너뜀 조건을 statuses[id] == null || statuses[id] === 'cancelled'로 넓혀 skipped 이벤트를 내고(journal/visit에도 기록), suppressed가 그 스팟이면 풀어라. wp5-arrival에 '취소 → 다음 스팟 도착 → 앞 스팟 skipped, nextIndex는 다음 스팟 뒤' 테스트를 추가해라."
+  },
+  {
+   "severity": "major",
+   "where": "src/components/map/MapCanvas.tsx:145-146 (cluster onPress → setFocus(c.coords)), src/core/map/layout.ts:86 MIN_SPAN_DEG·82 DEFAULT_CLUSTER_PX",
+   "issue": "클러스터를 눌러 확대해도 최소 범위가 0.01도(약 1.1km)로 고정이고 clusterPx가 그대로라 가까운 마커가 끝내 풀리지 않는다. 실측 결과 높이 500 지도에서 60m 간격은 확대 뒤에도 클러스터 1개, 90m 간격부터 풀린다. compact(140px, clusterPx 18)에서는 200m 간격도 안 풀린다. 다시 눌러도 같은 coords로 setFocus라 변화가 없어서 무리 안 마커는 SpotDetail로 갈 수 없다. FR-801 '마커를 누르면 SpotDetail'이 깨진다. 실제 data/places에 황리단길–황남빵 77m, 교촌마을 한정식–교촌마을 35m, 교촌마을 한정식–교리김밥 29m 쌍이 있다.",
+   "fix": "focus 상태에서는 clusterPx: 0으로 layoutMap을 부르거나, layoutMap에 minSpanDeg 입력을 받아 focus일 때 줄여라. 무리 구성원이 최소 범위 안에서 여전히 겹치면 누를 때 구성원 목록(Sheet)을 띄워 SpotDetail로 가게 해라. layoutMap 순수 테스트로 'focus 뒤 클러스터 0개'를 단언해라."
+  },
+  {
+   "severity": "major",
+   "where": "src/store/live.ts:176-220 (teardown이 simClock을 override로 남김), 408-413 (manual 판정 조건 now !== run.lastTickT), 517 (notifyLog 이어받기), 426 (engineAppPhase appClock)",
+   "issue": "sim을 한 번 돌리고 끝내면('여행 진행 끝내기'), 또는 SimControls의 시각 점프를 누르면(jumpTo가 정지 상태 SimClock을 새로 만든다), 앱 시계가 멈춘 가상 시각으로 남는다. seedScenario의 manualClock도 마찬가지다. 이 상태에서 19의 '수동 진행'을 누르면 onTick의 now가 늘 같아 evaluateAt이 첫 번 뒤로 돌지 않는다. 그래서 수동 모드의 시계 기반 지연·빈 시간 판정이 죽고, 도착 처리 시각도 전부 같은 값이 된다. '기기 위치로 시작'은 샘플 t(실제 시각)와 appClock(가상 시각)을 섞는다. 백그라운드 gap, replanForDelay의 now, makeProposal의 로그 시각이 서로 다른 시간축이다. 또 sim이 persist한 notifyLog에 미래(10/18) 시각이 남는다. shouldNotify는 entry.at - l.at < 30분만 보므로 차이가 음수이면 계속 차단한다. 그러면 같은 키의 도착·지연·빈 시간 알림이 영구히 막힌다(recordNotify도 음수 차이 항목을 지우지 않는다).",
+   "fix": "requested가 sim이 아닐 때 쓸 시계를 정해라. 예를 들어 manual은 남은 SimClock을 1배로 play하고, device는 systemClock 기준으로 판정·gap·replan을 통일한다. 아니면 override가 살아 있으면 device/manual 시작을 막고 '시연 초기화 후 시작' 안내를 띄워라. startLive에서 notifyLog를 이어받을 때는 at > now인 항목을 버려라."
+  },
+  {
+   "severity": "major",
+   "where": "src/core/live/arrival.ts:115-140 (stepArrival의 가장 가까운 남은 스팟 선택)",
+   "issue": "순서와 상관없이 반경 100m 안의 '가장 가까운 남은 스팟'을 후보로 잡는다. X에 도착해 머무는 동안(X는 arrived라 후보에서 빠진다) 100m 안에 같은 날 스팟 Y가 있으면 Y가 곧바로 후보가 된다. 3분 뒤 Y가 도착으로 기록되고, 순서상 X와 Y 사이 스팟은 skipped가 된다. 도착 시각과 다음 스팟 ETA, 빈 시간 판정이 모두 틀어진다. 실제 장소 데이터에 35~77m 쌍이 여럿 있고, FR-604 추천(800m)이나 후보 추가로 같은 날에 들어갈 수 있다. 시나리오 10/18에는 해당 쌍이 없어 테스트로는 드러나지 않는다.",
+   "fix": "tracker.current가 아직 left가 아니고 샘플이 current 반경 안이면 다른 스팟 후보를 시작하지 마라. 또는 후보를 순서상 첫 남은 스팟으로 우선 제한하고, 순서를 건너뛴 도착은 current를 벗어난 뒤에만 인정해라. 30m 간격 두 스팟 테스트를 추가해라."
+  },
+  {
+   "severity": "minor",
+   "where": "src/core/live/delay.ts:20-22 (delayMinutes의 Math.round)",
+   "issue": "ETA는 분 단위 소수다(nowMin + remainingTravelMin). Math.round 때문에 실제 지연 14.5~14.99분이 15로 올라가 조정안이 뜬다. 수용 기준은 '15분 이상, 14분이면 없다'이고, 같은 파일의 gapMin은 Math.floor를 써서 경계 처리가 서로 다르다.",
+   "fix": "delayMinutes를 Math.floor(etaMin - plannedArriveMin)로 바꾸고(0 하한 유지), 14.9분이면 조정안이 없다는 테스트를 추가해라."
+  },
+  {
+   "severity": "minor",
+   "where": "src/store/live.ts:516,538 (sim 시작 시 statuses {}), 250-258 recordVisit",
+   "issue": "프리셋을 다시 재생하면 엔진은 빈 상태로 시작한다. 그런데 이전 재생이 남긴 journal/visit(source 'sim')은 문서에 그대로다. 새 재생이 아직 도달하지 않았거나 도달하지 않는 스팟(예: 정상 → 지나침, 정상 → 권한 거부)은 옛 'arrived'가 남는다. 그래서 stop 뒤 useVisitStatuses, WP6 기록 지도, 일기가 이전 재생 결과를 섞어 보여준다.",
+   "fix": "sim 시작 때 그 날짜의 source 'sim' 방문 기록에 대해 nextVisitAt으로 'cancelled'(또는 전용 초기화 op)를 한 번에 dispatchMany해라. 아니면 sim 방문을 문서 대신 useLive에만 두어라."
+  },
+  {
+   "severity": "minor",
+   "where": "src/store/live.ts:446-481 (onTripsChange)",
+   "issue": "조정안 적용 뒤 ctx.day는 바꾸지만 evaluateAt을 다시 부르지 않고 syncEngine만 한다. 그래서 19의 '다음 스팟'·예정·예상 도착이 새 계획을 반영하지 못하고 옛 timing으로 남는다. 다음 emit 샘플(가상 30초 뒤)까지 그렇고, 시계가 멈춘 수동 모드에서는 계속 그대로다. 제외 조정안으로 빠진 스팟이 다음 스팟으로 계속 보일 수 있다.",
+   "fix": "ctx.day를 바꾼 직후 evaluateAt(run.engine, appClock().now(), run.ctx, 마지막 정확 샘플 좌표)로 timing을 다시 계산하고 효과를 applyEffects로 넘겨라."
+  },
+  {
+   "severity": "minor",
+   "where": "src/store/live.ts:379-389 (importSimPhotos)",
+   "issue": "await run.photos.pick() 뒤에 rt === run을 확인하지 않는다. 사진 이벤트 도중 '여행 진행 끝내기'나 프리셋 변경을 해도 옛 재생의 사진이 importPhotos로 여행방에 올라간다. makeProposal과 lookFreeTime은 확인한다.",
+   "fix": "pick 뒤, photoImporter 호출 전에 if (rt !== run) return;을 넣어라."
+  },
+  {
+   "severity": "minor",
+   "where": "src/store/live.ts:553 (ctx.prefs를 시작 때 한 번만 읽음)",
+   "issue": "진행 중에 더보기에서 notifyPrefs.delay나 freeTime을 꺼도 엔진은 시작 때 복사한 prefs를 쓴다. 다시 시작하기 전까지 조정안과 빈 시간 추천이 계속 뜬다. 수용 기준은 'notifyPrefs.delay 꺼짐이면 없음'이다.",
+   "fix": "useSession.subscribe로 notifyPrefs가 바뀔 때 rt.ctx.prefs를 갱신하거나, ingestSample/evaluateAt 호출 직전에 useSession.getState().notifyPrefs를 넣어라."
+  },
+  {
+   "severity": "minor",
+   "where": "src/screens/NavigateScreen.tsx:115",
+   "issue": "13의 시뮬레이터 띠 조건이 liveMode === 'sim'이다. 권한 거부 프리셋(requested sim, mode manual)에서는 19에 띠가 있는데 13에는 없다. 반대로 다른 여행방·날짜의 재생 중에도 띠가 뜬다.",
+   "fix": "useLive의 requested === 'sim' && liveHere로 판정해라(19와 같은 기준)."
+  },
+  {
+   "severity": "minor",
+   "where": "src/core/map/model.ts:3",
+   "issue": "core 계층이 ../../ui/tokens(dayColor)를 import한다. tokens.ts가 RN 없는 순수 TS라 지금은 node --test에서 돌지만, 의존 방향이 core → ui로 거꾸로다. tokens에 RN이나 폰트 import가 들어오면 core/map 테스트와 순수성이 함께 깨진다.",
+   "fix": "날짜 순서 색 키 배열(rose/ok/warn/ink)을 core/constants로 옮기고 ui/tokens가 그것을 재수출하게 하거나, planMapModel이 색 선택 함수를 인자로 받게 해라."
+  }
+ ],
+ "verdict": "조건부 통과 불가. 아래 major 4건을 고친 뒤 재검토해야 한다.\n\ntsc 결과: npx tsc --noEmit에서 WP5 소유 파일 오류는 0건이다. 남은 3건은 WP2의 InviteAcceptScreen.tsx와 store/trips.ts다.\n\n테스트: tests/wp5-*.test.ts 6개 파일에서 68개가 통과했다. 보고서의 'wp5 74개'는 foundation 6개를 더한 수라 표기를 바로잡아야 한다.\n\n순수성: core/live·sim·map과 services/location/sim.ts는 RN을 import하지 않고 node에서 돈다. 다만 core/map/model이 ui/tokens에 기대어 의존 방향이 core → ui로 거꾸로다(minor).\n\n막는 결함 4건:\n1. 취소한 앞 스팟이 건너뜀으로 바뀌지 않아 nextIndex가 지나온 스팟에 묶이고, 그 스팟 기준 지연 조정안이 반복된다. 격리 스크립트로 재현했다.\n2. 클러스터를 눌러 확대해도 약 90m(compact는 200m 이상) 안의 마커가 풀리지 않아 SpotDetail로 갈 수 없다. 실제 장소 데이터에 35~77m 쌍이 있다.\n3. sim 종료나 시각 점프 뒤 멈춘 SimClock이 앱 시계로 남는다. 그래서 수동 모드는 시계 기반 판정이 죽고, 기기 모드는 실제 시각과 가상 시각이 섞인다. persist된 미래 시각 notifyLog가 알림을 영구히 막는다.\n4. 100m 안에 붙은 두 스팟 중 머무는 곳 옆 스팟이 자동으로 도착 처리된다.\n\nminor: 지연 경계 반올림(14.5분에 조정안), 재생을 다시 시작해도 남는 옛 sim 방문 기록, 조정안 적용 뒤 timing을 다시 계산하지 않음, 종료 뒤에도 올라가는 사진, 진행 중 알림 설정 변경 미반영, 13 띠 조건 불일치, core → ui 의존.\n\n코드는 고치지 않았다. 재현 스크립트는 scratchpad의 probe.mjs와 probe2.mjs에 있다."
+}

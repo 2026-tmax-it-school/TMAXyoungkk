@@ -1,0 +1,1285 @@
+<title>Young Trip 핑크 캔버스</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hahmlet:wght@500;600;700&family=Gothic+A1:wght@400;500;600;700;800&display=swap">
+<style>
+  :root {
+    --board: #F4EEF0;
+    --board-line: #E7DBE0;
+    --panel: #FFFFFF;
+    --ink: #1A1014;
+    --muted: #6B5A61;
+    --line: #EADCE1;
+    --rose: #B3123F;
+    --rose-deep: #8E0E32;
+    --tint: #FDEFF3;
+    --amber: #8A5A00;
+    --moss: #2F6B4F;
+    --shadow: 0 6px 18px rgba(26, 16, 20, .08);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --board: #171013;
+      --board-line: #2A1D22;
+      --panel: #201519;
+      --ink: #F6EDF0;
+      --muted: #BCA7AF;
+      --line: #392A30;
+      --rose: #FF7A9E;
+      --rose-deep: #FFA8C0;
+      --tint: #2C1A21;
+      --amber: #E0A93A;
+      --moss: #7FC29B;
+      --shadow: 0 6px 18px rgba(0, 0, 0, .45);
+    }
+  }
+  :root[data-theme="dark"] {
+    --board: #171013;
+    --board-line: #2A1D22;
+    --panel: #201519;
+    --ink: #F6EDF0;
+    --muted: #BCA7AF;
+    --line: #392A30;
+    --rose: #FF7A9E;
+    --rose-deep: #FFA8C0;
+    --tint: #2C1A21;
+    --amber: #E0A93A;
+    --moss: #7FC29B;
+    --shadow: 0 6px 18px rgba(0, 0, 0, .45);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--board);
+    color: var(--ink);
+    font-family: 'Gothic A1', system-ui, -apple-system, sans-serif;
+    font-size: 14px;
+  }
+  a { color: inherit; text-decoration: none; }
+  :focus-visible { outline: 2px solid var(--rose); outline-offset: 2px; }
+
+  /* ---------- page chrome ---------- */
+  .top {
+    position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20;
+    background: var(--board); border-bottom: 1px solid var(--board-line);
+  }
+  .top-in {
+    padding: 18px 24px 14px;
+    display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px 18px;
+  }
+  .wordmark {
+    font-family: 'Hahmlet', 'Gothic A1', serif;
+    font-size: 21px; font-weight: 700; letter-spacing: -.01em; color: var(--rose);
+  }
+  .top-in h1 {
+    margin: 0; font-family: 'Hahmlet', 'Gothic A1', serif;
+    font-size: 19px; font-weight: 600; letter-spacing: -.01em;
+  }
+  .top-meta { margin-left: auto; display: flex; gap: 16px; color: var(--muted); font-size: 12.5px; }
+  .top-meta b { font-weight: 700; color: var(--ink); font-variant-numeric: tabular-nums; }
+
+  .rail { display: flex; gap: 6px; overflow-x: auto; padding: 0 24px 12px; scrollbar-width: thin; }
+  .rail a {
+    flex: none; display: flex; align-items: center; gap: 6px;
+    padding: 6px 11px 6px 8px; border: 1px solid var(--line); border-radius: 8px;
+    background: var(--panel); font-size: 12.5px; color: var(--muted); white-space: nowrap;
+  }
+  .rail a b { font-variant-numeric: tabular-nums; color: var(--rose); font-weight: 700; }
+  .rail a:hover { border-color: var(--rose); color: var(--ink); }
+  .rail a.later { opacity: .72; }
+
+  .zoom { display: flex; align-items: center; gap: 8px; padding: 0 24px 14px; }
+  .zoom span { font-size: 11.5px; letter-spacing: .06em; font-weight: 700; color: var(--muted); }
+  .zoom button {
+    font: inherit; font-size: 12.5px; font-weight: 600;
+    padding: 5px 10px; border: 1px solid var(--line); border-radius: 7px;
+    background: var(--panel); color: var(--muted); cursor: pointer;
+    font-variant-numeric: tabular-nums;
+  }
+  .zoom button[aria-pressed="true"] { background: var(--rose); border-color: var(--rose); color: #FFFFFF; }
+
+  /* ---------- canvas ---------- */
+  .stage { overflow-x: auto; padding: 32px 24px 72px; }
+  .board {
+    transform-origin: top left;
+    display: grid; grid-template-columns: repeat(4, 390px);
+    column-gap: 80px; row-gap: 88px;
+    background-image: radial-gradient(circle, var(--board-line) 1px, transparent 1px);
+    background-size: 26px 26px; background-position: -13px -13px;
+    padding: 26px; width: max-content;
+  }
+  @media (max-width: 1400px) { .board { grid-template-columns: repeat(2, 390px); } }
+  @media (max-width: 900px) { .board { grid-template-columns: 390px; } .zoom { display: none; } }
+
+  .art { width: 390px; }
+  .art-cap { display: flex; align-items: baseline; gap: 9px; margin-bottom: 10px; }
+  .art-no {
+    font-family: 'Hahmlet', serif; font-size: 22px; font-weight: 700;
+    color: var(--rose); font-variant-numeric: tabular-nums; line-height: 1;
+  }
+  .art-cap h2 { margin: 0; font-size: 15px; font-weight: 700; letter-spacing: -.01em; }
+  .art-fr { margin-left: auto; font-size: 11px; font-weight: 600; letter-spacing: .04em; color: var(--muted); }
+  .art-fr.later { color: var(--amber); }
+  .frame {
+    width: 390px; height: 844px; overflow: hidden;
+    border: 1px solid var(--line); border-radius: 18px; box-shadow: var(--shadow);
+  }
+  .art-note {
+    margin: 12px 0 0; font-size: 12.5px; line-height: 1.7; color: var(--muted);
+  }
+  .art-note b { color: var(--ink); font-weight: 600; }
+
+  /* ---------- phone screen (app light theme, painted explicitly) ---------- */
+  .scr {
+    width: 390px; height: 844px; display: flex; flex-direction: column;
+    background: #FBF6F7; color: #1A1014;
+    font-family: 'Gothic A1', system-ui, sans-serif; font-size: 14px; line-height: 1.5;
+  }
+  .scr svg { display: block; }
+  .sb { height: 44px; flex: none; display: flex; align-items: center; justify-content: space-between; padding: 0 22px; }
+  .sb time { font-size: 12.5px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .sb-r { display: flex; align-items: flex-end; gap: 3px; height: 10px; }
+  .sb-r i { display: block; width: 3px; background: #1A1014; border-radius: 1px; }
+  .sb-r i:nth-child(1) { height: 4px; }
+  .sb-r i:nth-child(2) { height: 6px; }
+  .sb-r i:nth-child(3) { height: 8px; }
+  .sb-r i:nth-child(4) { height: 10px; }
+  .sb-r u { display: block; width: 20px; height: 10px; margin-left: 4px; border: 1px solid #1A1014; border-radius: 2px; position: relative; }
+  .sb-r u::after { content: ""; position: absolute; inset: 1.5px; width: 12px; background: #1A1014; border-radius: 1px; }
+
+  .hd { flex: none; padding: 6px 22px 14px; display: flex; flex-direction: column; gap: 12px; }
+  .hd-row { display: flex; align-items: center; gap: 10px; }
+  .hd-row .grow { flex: 1; min-width: 0; }
+  .ttl { margin: 0; font-family: 'Hahmlet', serif; font-size: 25px; font-weight: 700; letter-spacing: -.02em; line-height: 1.22; }
+  .ttl.sm { font-size: 20px; }
+  .eyebrow { font-size: 11px; font-weight: 700; letter-spacing: .08em; color: #B3123F; }
+  .sub { font-size: 13px; color: #6B5A61; }
+  .body { flex: 1; min-height: 0; padding: 0 22px; display: flex; flex-direction: column; gap: 12px; overflow: hidden; }
+  .body.flush { padding: 0; }
+  .foot { flex: none; padding: 14px 22px 22px; display: flex; flex-direction: column; gap: 9px; background: #FBF6F7; }
+
+  .iconbtn {
+    flex: none; width: 34px; height: 34px; display: flex; align-items: center; justify-content: center;
+    border: 1px solid #EFE2E6; border-radius: 9px; background: #FFFFFF; color: #6B5A61;
+  }
+  .avat {
+    width: 27px; height: 27px; border-radius: 999px; display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 700; color: #FFFFFF; background: #B3123F; border: 2px solid #FBF6F7;
+  }
+  .avat.b { background: #8A5A00; }
+  .avat.c { background: #2F6B4F; }
+  .avat.d { background: #FFFFFF; color: #6B5A61; border-color: #EFE2E6; }
+  .stack { display: flex; }
+  .stack .avat + .avat { margin-left: -8px; }
+
+  .card { background: #FFFFFF; border: 1px solid #EFE2E6; border-radius: 12px; padding: 14px; }
+  .card.tinted { background: #FDEFF3; border-color: #F6D9E2; }
+  .card.flat { background: transparent; border: 0; padding: 0; }
+  .row { display: flex; align-items: center; gap: 10px; }
+  .row.top { align-items: flex-start; }
+  .col { display: flex; flex-direction: column; }
+  .gap4 { gap: 4px; } .gap6 { gap: 6px; } .gap8 { gap: 8px; } .gap10 { gap: 10px; } .gap12 { gap: 12px; }
+  .grow { flex: 1; min-width: 0; }
+  .nm { font-size: 15px; font-weight: 700; letter-spacing: -.01em; }
+  .nm.lg { font-size: 17px; }
+  .mt { font-size: 12.5px; color: #6B5A61; }
+  .mt.tight { font-size: 11.5px; }
+  .num { font-variant-numeric: tabular-nums; }
+  .trunc { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  .chip {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 4px 9px; border-radius: 999px; background: #FDEFF3; color: #8E0E32;
+    font-size: 11.5px; font-weight: 700; white-space: nowrap;
+  }
+  .chip.line { background: #FFFFFF; border: 1px solid #EFE2E6; color: #6B5A61; font-weight: 600; }
+  .chip.warn { background: #FBF0DC; color: #8A5A00; }
+  .chip.ok { background: #E4F0E9; color: #2F6B4F; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+
+  .btn {
+    display: flex; align-items: center; justify-content: center; gap: 7px;
+    height: 50px; border-radius: 11px; background: #B3123F; color: #FFFFFF;
+    font-size: 15px; font-weight: 700; letter-spacing: -.01em; border: 0;
+  }
+  .btn.ghost { background: #FFFFFF; border: 1px solid #B3123F; color: #B3123F; }
+  .btn.quiet { background: #FFFFFF; border: 1px solid #EFE2E6; color: #6B5A61; }
+  .btn.sm { height: 38px; font-size: 13px; border-radius: 9px; }
+  .btn.off { background: #F1E6EA; color: #8D7B82; }
+
+  .seg { display: flex; gap: 0; border-bottom: 1px solid #EFE2E6; }
+  .seg span { padding: 9px 0 11px; margin-right: 20px; font-size: 14px; font-weight: 600; color: #8D7B82; }
+  .seg span.on { color: #1A1014; border-bottom: 2px solid #B3123F; }
+
+  .field { display: flex; flex-direction: column; gap: 6px; }
+  .field label { font-size: 11.5px; font-weight: 700; letter-spacing: .05em; color: #6B5A61; }
+  .field .box {
+    display: flex; align-items: center; gap: 9px; min-height: 46px;
+    padding: 0 13px; border: 1px solid #EFE2E6; border-radius: 10px; background: #FFFFFF; font-size: 14.5px;
+  }
+  .field .box.on { border-color: #B3123F; box-shadow: inset 0 0 0 1px #B3123F; }
+  .field .box .ph { color: #9C8B92; }
+
+  .tabbar {
+    flex: none; height: 74px; display: flex; align-items: flex-start; justify-content: space-between;
+    padding: 9px 20px 0; border-top: 1px solid #EFE2E6; background: #FFFFFF;
+  }
+  .tabbar a { display: flex; flex-direction: column; align-items: center; gap: 4px; width: 60px; color: #9C8B92; }
+  .tabbar a span { font-size: 10.5px; font-weight: 600; letter-spacing: -.01em; }
+  .tabbar a.on { color: #B3123F; }
+
+  .line-h { height: 1px; background: #EFE2E6; }
+  .bar { height: 6px; border-radius: 999px; background: #F1E0E6; overflow: hidden; }
+  .bar i { display: block; height: 100%; background: #B3123F; border-radius: 999px; }
+
+  /* timeline */
+  .tl { display: flex; flex-direction: column; }
+  .tl-item { display: grid; grid-template-columns: 52px 18px 1fr; column-gap: 8px; }
+  .tl-item .t { font-size: 12px; font-weight: 700; color: #6B5A61; padding-top: 14px; font-variant-numeric: tabular-nums; }
+  .tl-item .ax { position: relative; display: flex; justify-content: center; }
+  .tl-item .ax::before { content: ""; position: absolute; top: 0; bottom: 0; width: 1px; background: #EFE2E6; }
+  .tl-item .dot { position: relative; margin-top: 17px; width: 9px; height: 9px; border-radius: 999px; background: #B3123F; }
+  .tl-item .dot.hollow { background: #FFFFFF; border: 2px solid #B3123F; }
+  .tl-item .c { padding: 8px 0; }
+  .leg { display: grid; grid-template-columns: 52px 18px 1fr; column-gap: 8px; }
+  .leg .ax { position: relative; display: flex; justify-content: center; }
+  .leg .ax::before { content: ""; position: absolute; top: 0; bottom: 0; width: 1px; background: #EFE2E6; }
+  .leg .c { padding: 3px 0; display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: #6B5A61; font-weight: 600; }
+
+  /* chat */
+  .msg { display: flex; gap: 8px; align-items: flex-end; }
+  .msg .bub {
+    max-width: 236px; padding: 9px 12px; border-radius: 12px; background: #FFFFFF;
+    border: 1px solid #EFE2E6; font-size: 13.5px; line-height: 1.55;
+  }
+  .msg.me { flex-direction: row-reverse; }
+  .msg.me .bub { background: #B3123F; color: #FFFFFF; border-color: #B3123F; }
+  .msg .who { font-size: 11px; color: #6B5A61; font-weight: 600; margin-bottom: 3px; }
+  .msg .hl { background: #FDEFF3; color: #8E0E32; padding: 0 3px; border-radius: 3px; font-weight: 700; }
+  .msg.me .hl { background: rgba(255,255,255,.22); color: #FFFFFF; }
+
+  .empty { padding: 26px 16px; text-align: center; color: #6B5A61; font-size: 13px; }
+  .sheet { background: #FFFFFF; border-top: 1px solid #EFE2E6; border-radius: 16px 16px 0 0; padding: 12px 22px 0; }
+  .grabber { width: 38px; height: 4px; border-radius: 999px; background: #E6D4DA; margin: 0 auto 12px; }
+
+  .menu-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
+  .menu-cell {
+    display: flex; flex-direction: column; gap: 9px; padding: 13px;
+    background: #FFFFFF; border: 1px solid #EFE2E6; border-radius: 12px; min-height: 92px;
+  }
+  .menu-cell .k { font-size: 14px; font-weight: 700; letter-spacing: -.01em; }
+  .menu-cell.mute { background: #F5EDEF; border-color: #EBDDE1; color: #6B5A61; }
+  .menu-cell .ic { color: #B3123F; }
+  .menu-cell.mute .ic { color: #8D7B82; }
+
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+
+<svg width="0" height="0" aria-hidden="true" style="position:absolute">
+  <defs>
+    <g id="ic-home"><path d="M3.5 10.2 12 3.5l8.5 6.7V20a.8.8 0 0 1-.8.8h-4.4V14h-6.6v6.8H4.3a.8.8 0 0 1-.8-.8z"/></g>
+    <g id="ic-list"><path d="M8 6h12M8 12h12M8 18h12M3.6 6h.01M3.6 12h.01M3.6 18h.01"/></g>
+    <g id="ic-cal"><rect x="3.5" y="5" width="17" height="15.5" rx="2"/><path d="M3.5 10h17M8 3.2v3.6M16 3.2v3.6"/></g>
+    <g id="ic-map"><path d="M9.2 4.2 3.5 6.6v13.2l5.7-2.4 5.6 2.4 5.7-2.4V4.2l-5.7 2.4z"/><path d="M9.2 4.2v13.2M14.8 6.6v13.2"/></g>
+    <g id="ic-dots"><path d="M6 12h.01M12 12h.01M18 12h.01"/></g>
+    <g id="ic-chat"><path d="M20.5 12.6c0 4-3.8 7.2-8.5 7.2a9.9 9.9 0 0 1-2.7-.37L4.2 21l1.2-3.6a6.9 6.9 0 0 1-2.4-5.1c0-4 3.8-7.2 8.5-7.2s9 3.2 9 7.5z"/></g>
+    <g id="ic-plus"><path d="M12 5v14M5 12h14"/></g>
+    <g id="ic-pin"><path d="M12 21c4.2-4.6 6.3-8 6.3-10.4A6.3 6.3 0 0 0 5.7 10.6C5.7 13 7.8 16.4 12 21z"/><circle cx="12" cy="10.4" r="2.4"/></g>
+    <g id="ic-car"><path d="M4 16.5v2.3a.7.7 0 0 1-.7.7H2.2v-3M20 16.5v3h-1.1a.7.7 0 0 1-.7-.7v-2.3"/><path d="M3 16.5v-4l2-5.2a1.4 1.4 0 0 1 1.3-.8h11.4a1.4 1.4 0 0 1 1.3.8l2 5.2v4z"/><path d="M6.4 13h.01M17.6 13h.01M4.6 11.5h14.8"/></g>
+    <g id="ic-walk"><circle cx="13.2" cy="4.6" r="1.9"/><path d="M11 21l1.7-5.4-2.4-2.6.8-4.3 3.4 1.5 1.1 2.6 2.6.9M10.1 9.3 7.3 11l-.9 3.2M12.7 15.6 8.9 21"/></g>
+    <g id="ic-clock"><circle cx="12" cy="12" r="8.4"/><path d="M12 7.2V12l3.2 2"/></g>
+    <g id="ic-users"><circle cx="9.4" cy="8.2" r="3.4"/><path d="M3.4 20c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5M16.2 5.2a3.4 3.4 0 0 1 0 6.3M17.6 14.9c2 .7 3.4 2.4 3.4 4.6"/></g>
+    <g id="ic-link"><path d="M10.2 13.8a3.9 3.9 0 0 0 5.6 0l2.9-3a4 4 0 0 0-5.6-5.6l-1.4 1.5"/><path d="M13.8 10.2a3.9 3.9 0 0 0-5.6 0l-2.9 3a4 4 0 0 0 5.6 5.6l1.4-1.5"/></g>
+    <g id="ic-check"><path d="M4.8 12.6 9.6 17.4 19.2 6.6"/></g>
+    <g id="ic-x"><path d="M6 6l12 12M18 6 6 18"/></g>
+    <g id="ic-back"><path d="M14.5 5 7.5 12l7 7"/></g>
+    <g id="ic-right"><path d="M9.5 5l7 7-7 7"/></g>
+    <g id="ic-drag"><path d="M5 9h14M5 15h14"/></g>
+    <g id="ic-alert"><path d="M12 4.2 21 19.2H3z"/><path d="M12 10v4M12 17h.01"/></g>
+    <g id="ic-nav"><path d="M12 3.2 20 20.8 12 16.6 4 20.8z"/></g>
+    <g id="ic-search"><circle cx="11" cy="11" r="6.6"/><path d="M15.8 15.8 20.5 20.5"/></g>
+    <g id="ic-pinlock"><rect x="5.2" y="10.4" width="13.6" height="9.4" rx="2"/><path d="M8.4 10.4V7.8a3.6 3.6 0 0 1 7.2 0v2.6"/></g>
+    <g id="ic-undo"><path d="M4 9.5h9.5a5.5 5.5 0 0 1 0 11H8"/><path d="M7.5 5.5 4 9.5 7.5 13.5"/></g>
+  </defs>
+</svg>
+
+<div class="top">
+  <div class="top-in">
+    <span class="wordmark">Young Trip</span>
+    <h1>핑크 UI 캔버스 · 화면 14개</h1>
+    <div class="top-meta">
+      <span>390 × 844</span>
+      <span>확정 <b>11</b> · 제외 <b>3</b></span>
+      <span>경주 10/17–19</span>
+    </div>
+  </div>
+  <nav class="rail" aria-label="화면 목록">
+    <a href="#s01"><b>01</b> 스플래시 · 로딩</a>
+    <a href="#s02"><b>02</b> 초대 수락</a>
+    <a href="#s03"><b>03</b> 홈 · 메인 메뉴</a>
+    <a href="#s04"><b>04</b> 여행방 만들기</a>
+    <a href="#s05"><b>05</b> 그룹 채팅</a>
+    <a href="#s06"><b>06</b> 후보 · 자동 선별</a>
+    <a href="#s07"><b>07</b> 스팟 상세</a>
+    <a href="#s08"><b>08</b> 루트 계산 중</a>
+    <a href="#s09"><b>09</b> 날짜별 시간표</a>
+    <a href="#s10"><b>10</b> 일정 편집</a>
+    <a href="#s11"><b>11</b> 지도 · 루트</a>
+    <a href="#s12"><b>12</b> 이동수단 비교</a>
+    <a class="later" href="#s13"><b>13</b> 길찾기 · 2차</a>
+    <a href="#s14"><b>14</b> 멤버 초대</a>
+  </nav>
+  <div class="zoom">
+    <span>ZOOM</span>
+    <button type="button" data-z="fit" aria-pressed="true">맞춤</button>
+    <button type="button" data-z="0.5" aria-pressed="false">50%</button>
+    <button type="button" data-z="0.75" aria-pressed="false">75%</button>
+    <button type="button" data-z="1" aria-pressed="false">100%</button>
+  </div>
+</div>
+
+<div class="stage" id="stage">
+<div class="board" id="board">
+
+<!-- ================= 01 ================= -->
+<section class="art" id="s01">
+  <header class="art-cap"><span class="art-no">01</span><h2>스플래시 · 로딩</h2><span class="art-fr">앱 진입</span></header>
+  <div class="frame"><div class="scr" style="background:#B3123F;color:#FFFFFF">
+    <div class="sb" style="color:#FFFFFF">
+      <time>09:24</time>
+      <div class="sb-r" style="filter:invert(1)"><i></i><i></i><i></i><i></i><u></u></div>
+    </div>
+    <div class="body" style="justify-content:center;gap:0">
+      <div style="font-family:'Hahmlet',serif;font-size:52px;font-weight:700;letter-spacing:-.03em;line-height:1.02;text-align:center">Young<br>Trip</div>
+      <div style="width:44px;height:2px;background:rgba(255,255,255,.55);margin:20px 0 18px"></div>
+      <div style="font-size:15px;font-weight:600;line-height:1.7;color:#FDEFF3">모여서 말하면<br>일정이 만들어진다</div>
+    </div>
+    <div class="foot" style="background:transparent;gap:12px;padding-bottom:40px">
+      <div class="bar" style="background:rgba(255,255,255,.28)"><i style="width:62%;background:#FFFFFF"></i></div>
+      <div class="row" style="justify-content:space-between">
+        <span style="font-size:12px;color:#FDEFF3">여행방 불러오는 중 · 경주 2박 3일</span>
+        <span class="num" style="font-size:12px;font-weight:700;color:#FFFFFF">62%</span>
+      </div>
+    </div>
+  </div></div>
+  <p class="art-note">주색 면을 이 화면에서만 가득 쓴다. 뒤 화면들은 흰 바탕에 핑크를 <b>강조로만</b> 써서 눈이 피로하지 않게 한다. 진행률 아래에 무엇을 불러오는지 적어 빈 대기감을 없앤다.</p>
+</section>
+
+<!-- ================= 02 ================= -->
+<section class="art" id="s02">
+  <header class="art-cap"><span class="art-no">02</span><h2>초대 수락 · 게스트 합류</h2><span class="art-fr">FR-105 · FR-302</span></header>
+  <div class="frame"><div class="scr">
+    <div class="sb"><time>09:24</time><div class="sb-r"><i></i><i></i><i></i><i></i><u></u></div></div>
+    <div class="hd">
+      <span class="eyebrow">초대 링크로 들어옴</span>
+      <h2 class="ttl">민지님이 지우님을<br>여행방에 초대했어요</h2>
+    </div>
+    <div class="body">
+      <div class="card">
+        <div class="row top">
+          <div class="col gap4 grow">
+            <span class="nm lg">경주 2박 3일</span>
+            <span class="mt num">10월 17일(금) – 19일(일) · 자동차</span>
+          </div>
+          <div class="stack">
+            <span class="avat">민</span><span class="avat b">준</span><span class="avat c">수</span>
+          </div>
+        </div>
+        <div class="line-h" style="margin:13px 0"></div>
+        <div class="row gap8">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6B5A61" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><use href="#ic-pin"/></svg>
+          <span class="mt">기점 숙소 · 라한셀렉트 경주</span>
+        </div>
+      </div>
+      <div class="field">
+        <label for="f02-nick">이 여행방에서 쓸 이름</label>
+        <div class="box on"><span>지우</span><span class="grow"></span><span class="mt num">2 / 12</span></div>
+        <input id="f02-nick" type="text" value="지우" hidden>
+      </div>
+      <div class="card tinted">
+        <div class="row top gap8">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#8E0E32" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="margin-top:1px"><use href="#ic-pinlock"/></svg>
+          <div class="col gap4">
+            <span style="font-size:13px;font-weight:700;color:#8E0E32">게스트로 바로 참여합니다</span>
+            <span class="mt tight" style="color:#8E0E32;line-height:1.6">가입 없이 이 기기에서 <b>30일</b> 유지됩니다. 기기를 바꾸거나 30일이 지나면 다시 초대를 받아야 합니다.</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="foot">
+      <button class="btn" type="button">게스트로 합류하기</button>
+      <button class="btn quiet sm" type="button">초대 거절</button>
+    </div>
+  </div></div>
+  <p class="art-note">게스트 세션의 한계를 수락 <b>전에</b> 보여준다. 30일·기기 한정을 나중에 알게 되면 일정을 다 짜고 잃는 사고가 난다. 닉네임은 방마다 따로 둔다.</p>
+</section>
+
+<!-- ================= 03 ================= -->
+<section class="art" id="s03">
+  <header class="art-cap"><span class="art-no">03</span><h2>홈 · 메인 메뉴</h2><span class="art-fr">FR-203</span></header>
+  <div class="frame"><div class="scr">
+    <div class="sb"><time>09:24</time><div class="sb-r"><i></i><i></i><i></i><i></i><u></u></div></div>
+    <div class="hd">
+      <div class="hd-row">
+        <div class="col gap4 grow">
+          <span class="eyebrow">게스트 · 민지</span>
+          <h2 class="ttl">내 여행</h2>
+        </div>
+        <span class="iconbtn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><use href="#ic-search"/></svg></span>
+        <span class="iconbtn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><use href="#ic-users"/></svg></span>
+      </div>
+      <div class="seg"><span class="on">진행중 1</span><span>예정 1</span><span>완료 4</span></div>
+    </div>
+    <div class="body gap12">
+      <a class="card" href="#s09" style="display:block">
+        <div class="row top">
+          <div class="col gap4 grow">
+            <span class="chip">여행 2일 전</span>
+            <span class="nm lg" style="margin-top:2px">경주 2박 3일</span>
+            <span class="mt num">10월 17일 – 19일 · 자동차</span>
+          </div>
+          <div class="stack"><span class="avat">민</span><span class="avat b">준</span><span class="avat c">수</span><span class="avat d">지</span></div>
+        </div>
+        <div class="line-h" style="margin:12px 0"></div>
+        <div class="row" style="justify-content:space-between">
+          <span class="mt">후보 14곳 · 확정 11 · 제외 3</span>
+          <span class="row gap4" style="font-size:12.5px;font-weight:700;color:#B3123F">시간표 보기
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><use href="#ic-right"/></svg>
+          </span>
+        </div>
+      </a>
+      <span class="eyebrow" style="margin-top:2px">메인 메뉴</span>
+      <div class="menu-grid">
+        <a class="menu-cell" href="#s04">
+          <span class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><use href="#ic-plus"/></svg></span>
+          <span class="col gap4"><span class="k">여행방 만들기</span><span class="mt tight">날짜와 기점부터</span></span>
+        </a>
+        <a class="menu-cell" href="#s05">
+          <span class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><use href="#ic-chat"/></svg></span>
+          <span class="col gap4"><span class="k">그룹 채팅</span><span class="mt tight">새 메시지 12</span></span>
+        </a>
+        <a class="menu-cell" href="#s06">
+          <span class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><use href="#ic-list"/></svg></span>
+          <span class="col gap4"><span class="k">후보</span><span class="mt tight">14곳 · 제외 3</span></span>
+        </a>
+        <a class="menu-cell" href="#s11">
+          <span class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><use href="#ic-map"/></svg></span>
+          <span class="col gap4"><span class="k">지도 · 루트</span><span class="mt tight">하루 단위로</span></span>
+        </a>
+        <a class="menu-cell" href="#s14">
+          <span class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><use href="#ic-link"/></svg></span>
+          <span class="col gap4"><span class="k">멤버 초대</span><span class="mt tight">링크 공유</span></span>
+        </a>
+        <a class="menu-cell mute" href="#s13">
+          <span class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><use href="#ic-nav"/></svg></span>
+          <span class="col gap4"><span class="k">길찾기</span><span class="mt tight">2차 범위</span></span>
+        </a>
+      </div>
+    </div>
+    <nav class="tabbar">
+      <a class="on" href="#s03"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><use href="#ic-home"/></svg><span>홈</span></a>
+      <a href="#s06"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><use href="#ic-list"/></svg><span>후보</span></a>
+      <a href="#s09"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><use href="#ic-cal"/></svg><span>시간표</span></a>
+      <a href="#s11"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><use href="#ic-map"/></svg><span>지도</span></a>
+      <a href="#s14"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><use href="#ic-dots"/></svg><span>더보기</span></a>
+    </nav>
+  </div></div>
+  <p class="art-note">요청대로 <b>메인 메뉴를 화면에 드러냈다</b>. 진행중인 방 카드가 먼저, 메뉴 6칸이 뒤. 2차 기능인 길찾기는 회색 칸으로 남겨 위치만 예약한다. 하단 탭은 5개 고정.</p>
+</section>
+
+<!-- ================= 04 ================= -->
+<section class="art" id="s04">
+  <header class="art-cap"><span class="art-no">04</span><h2>여행방 만들기</h2><span class="art-fr">FR-201 · 205 · 504</span></header>
+  <div class="frame"><div class="scr">
+    <div class="sb"><time>09:24</time><div class="sb-r"><i></i><i></i><i></i><i></i><u></u></div></div>
+    <div class="hd">
+      <div class="hd-row">
+        <span class="iconbtn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><use href="#ic-back"/></svg></span>
+        <span class="mt grow">2 / 3 단계</span>
+      </div>
+      <h2 class="ttl">여행방 만들기</h2>
+    </div>
+    <div class="body gap12">
+      <div class="field">
+        <label>여행방 이름</label>
+        <div class="box"><span>경주 2박 3일</span></div>
+      </div>
+      <div class="field">
+        <label>지역</label>
+        <div class="box">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6B5A61" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><use href="#ic-pin"/></svg>
+          <span>경상북도 경주시</span>
+        </div>
+      </div>
+      <div class="field">
+        <label>날짜</label>
+        <div class="box num">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6B5A61" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><use href="#ic-cal"/></svg>
+          <span>10월 17일 (금) – 19일 (일)</span><span class="grow"></span><span class="chip line">2박 3일</span>
+        </div>
+      </div>
+      <div class="field">
+        <label>기점</label>
+        <div class="box"><span>라한셀렉트 경주</span><span class="grow"></span><span class="mt">숙소</span></div>
+        <span class="mt tight">모든 날의 출발과 도착을 이 기점으로 계산합니다.</span>
+      </div>
+      <div class="field">
+        <label>주 이동수단</label>
+        <div class="row gap8">
+          <span class="btn sm" style="flex:1;background:#B3123F;color:#FFFFFF">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><use href="#ic-car"/></svg>자동차</span>
+          <span class="btn sm quiet" style="flex:1">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><use href="#ic-walk"/></svg>도보</span>
+          <span class="btn sm off" style="flex:1;font-size:12px">대중교통 2차</span>
+        </div>
+      </div>
+      <div class="field">
+        <label>하루 활동시간</label>
+        <div class="box num"><span>09:00 – 21:00</span><span class="grow"></span><span class="mt">하루 12시간</span></div>
+      </div>
+    </div>
+    <div class="foot">
+      <button class="btn" type="button">다음 · 멤버 초대</button>
+    </div>
+  </div></div>
+  <p class="art-note">기점과 활동시간이 <b>수용량 계산의 입력값</b>이라 만들기 단계에서 반드시 받는다. 대중교통 칸은 비활성으로 두되 지우지 않아 1단계 범위를 화면이 스스로 설명한다.</p>
+</section>
+
+<!-- ================= 05 ================= -->
+<section class="art" id="s05">
+  <header class="art-cap"><span class="art-no">05</span><h2>그룹 채팅 · 장소 자동 추출</h2><span class="art-fr">FR-304 · 401</span></header>
+  <div class="frame"><div class="scr">
+    <div class="sb"><time>09:24</time><div class="sb-r"><i></i><i></i><i></i><i></i><u></u></div></div>
+    <div class="hd" style="padding-bottom:10px">
+      <div class="hd-row">
+        <span class="iconbtn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><use href="#ic-back"/></svg></span>
+        <div class="col grow" style="gap:2px">
+          <span class="nm">경주 2박 3일</span>
+          <span class="mt tight">멤버 4명 · 모두 접속중</span>
+        </div>
+        <span class="iconbtn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><use href="#ic-dots"/></svg></span>
+      </div>
+    </div>
+    <div class="body gap10" style="justify-content:flex-end;padding-bottom:10px">
+      <div class="msg">
+        <span class="avat b" style="border-color:#FBF6F7">준</span>
+        <div><div class="who">준호</div><div class="bub">둘째 날 오전은 <span class="hl">불국사</span> 갔다가 <span class="hl">석굴암</span> 올라가자</div></div>
+      </div>
+      <div class="msg">
+        <span class="avat c" style="border-color:#FBF6F7">수</span>
+        <div><div class="who">수아</div><div class="bub">점심은 <span class="hl">교촌마을 한정식</span> 예약해뒀어. 여긴 시간 못 바꿔</div></div>
+      </div>
+      <div class="msg me">
+        <div><div class="bub">좋다. 첫날 저녁은 <span class="hl">황리단길</span> 어때?</div></div>
+      </div>
+      <div class="card" style="padding:12px">
+        <div class="row" style="justify-content:space-between;margin-bottom:9px">
+          <span class="row gap6" style="font-size:12.5px;font-weight:700;color:#B3123F">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><use href="#ic-pin"/></svg>
+            대화에서 장소 4곳을 찾았습니다</span>
+          <span class="mt tight">되돌리기</span>
+        </div>
+        <div class="col gap6">
+          <div class="row gap8">
+            <span class="grow nm" style="font-size:13.5px">황리단길 <span class="mt tight" style="font-weight:500">· 거리</span></span>
+            <span class="chip">제안자 4</span>
+            <span class="chip ok">후보 추가됨</span>
+          </div>
+          <div class="row gap8">
+            <span class="grow nm" style="font-size:13.5px">교촌마을 한정식 <span class="mt tight" style="font-weight:500">· 식당</span></span>
+            <span class="chip"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><use href="#ic-pinlock"/></svg>고정</span>
+          </div>
+          <div class="row gap8">
+            <span class="grow nm" style="font-size:13.5px">불국사 <span class="mt tight" style="font-weight:500">· 관광지</span></span>
+            <span class="chip">제안자 3</span>
+            <span class="chip ok">후보 추가됨</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="foot" style="padding-top:10px">
+      <div class="row gap8">
+        <span class="iconbtn" style="width:44px;height:44px;border-radius:11px"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><use href="#ic-plus"/></svg></span>
+        <span class="box grow" style="display:flex;align-items:center;height:44px;padding:0 14px;border:1px solid #EFE2E6;border-radius:11px;background:#FFFFFF;color:#9C8B92">메시지 입력</span>
+      </div>
+    </div>
+  </div></div>
+  <p class="art-note">추출은 <b>말풍선 안에 밑줄 대신 연한 면</b>으로 표시해 원문을 해치지 않는다. 추출 결과는 카드 하나로 묶어 대화 흐름을 끊지 않고, 잘못 잡았을 때를 위해 되돌리기를 같은 줄에 둔다.</p>
+</section>
+
+<!-- ================= 06 ================= -->
+<section class="art" id="s06">
+  <header class="art-cap"><span class="art-no">06</span><h2>후보 · 자동 선별</h2><span class="art-fr">FR-402 · 403</span></header>
+  <div class="frame"><div class="scr">
+    <div class="sb"><time>09:24</time><div class="sb-r"><i></i><i></i><i></i><i></i><u></u></div></div>
+    <div class="hd">
+      <div class="hd-row">
+        <span class="iconbtn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><use href="#ic-back"/></svg></span>
+        <span class="grow"></span>
+        <span class="chip line">확정 버튼 없음</span>
+      </div>
+      <div class="col gap4">
+        <h2 class="ttl sm">후보 14곳</h2>
+        <span class="mt">하루 수용량을 넘는 3곳만 자동으로 빠졌습니다.</span>
+      </div>
+      <div class="seg"><span class="on">확정 스팟 11</span><span>제외 스팟 3</span></div>
+    </div>
+    <div class="body gap8">
+      <div class="card">
+        <div class="row top">
+          <div class="col gap4 grow">
+            <span class="nm">황리단길</span>
+            <span class="mt tight">거리 · 체류 60분 · 10/17 저녁</span>
+          </div>
+          <span class="chip">제안자 4</span>
+        </div>
+      </div>
+      <div class="card">
+        <div class="row top">
+          <div class="col gap4 grow">
+            <span class="nm">불국사</span>
+            <span class="mt tight">관광지 · 체류 90분 · 10/18 오전</span>
+          </div>
+          <span class="chip">제안자 3</span>
+        </div>
+      </div>
+      <div class="card">
+        <div class="row top">
+          <div class="col gap4 grow">
+            <span class="nm">교촌마을 한정식</span>
+            <span class="mt tight">식당 · 체류 60분 · 10/18 12:57</span>
+          </div>
+          <span class="chip"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><use href="#ic-pinlock"/></svg>고정</span>
+        </div>
+      </div>
+      <div class="card">
+        <div class="row top">
+          <div class="col gap4 grow">
+            <span class="nm">석굴암</span>
+            <span class="mt tight">관광지 · 체류 90분 · 10/18 오전</span>
+          </div>
+          <span class="chip">제안자 2</span>
+        </div>
+      </div>
+      <span class="eyebrow" style="margin-top:4px">제외 스팟 3 · 되돌릴 수 있음</span>
+      <div class="card" style="background:#F5EDEF;border-color:#EBDDE1">
+        <div class="row top">
+          <div class="col gap4 grow">
+            <span class="nm" style="color:#6B5A61">동궁과 월지</span>
+            <span class="mt tight">10/18 저녁 수용량 초과 · 제안자 1</span>
+          </div>
+          <span class="row gap4" style="font-size:12px;font-weight:700;color:#B3123F">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><use href="#ic-undo"/></svg>되돌리기</span>
+        </div>
+      </div>
+      <div class="card" style="background:#F5EDEF;border-color:#EBDDE1">
+        <div class="row top">
+          <div class="col gap4 grow">
+            <span class="nm" style="color:#6B5A61">감은사지 삼층석탑</span>
+            <span class="mt tight">왕복 1시간 10분 · 제안자 1</span>
+          </div>
+          <span class="row gap4" style="font-size:12px;font-weight:700;color:#B3123F">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><use href="#ic-undo"/></svg>되돌리기</span>
+        </div>
+      </div>
+    </div>
+    <nav class="tabbar">
+      <a href="#s03"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><use href="#ic-home"/></svg><span>홈</span></a>
+      <a class="on" href="#s06"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><use href="#ic-list"/></svg><span>후보</span></a>
+      <a href="#s09"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><use href="#ic-cal"/></svg><span>시간표</span></a>
+      <a href="#s11"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><use href="#ic-map"/></svg><span>지도</span></a>
+      <a href="#s14"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><use href="#ic-dots"/></svg><span>더보기</span></a>
+    </nav>
+  </div></div>
+  <p class="art-note">FR-403 확정대로 <b>확정 버튼이 없다</b>. 머리말에 그 사실을 적어 "왜 누를 게 없지"를 막는다. 제외 스팟은 삭제가 아니라 이유와 되돌리기를 달고 같은 목록 아래에 남는다.</p>
+</section>
+
+<!-- ================= 07 ================= -->
+<section class="art" id="s07">
+  <header class="art-cap"><span class="art-no">07</span><h2>스팟 상세</h2><span class="art-fr">FR-803</span></header>
+  <div class="frame"><div class="scr">
+    <div class="sb"><time>09:24</time><div class="sb-r"><i></i><i></i><i></i><i></i><u></u></div></div>
+    <div class="hd">
+      <div class="hd-row">
+        <span class="iconbtn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><use href="#ic-back"/></svg></span>
+        <span class="grow"></span>
+        <span class="iconbtn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><use href="#ic-pinlock"/></svg></span>
+      </div>
+      <div class="col gap6">
+        <span class="eyebrow">확정 스팟 · 10/18 둘째 날</span>
+        <h2 class="ttl">불국사</h2>
+        <span class="mt">관광지 · 경주시 진현동 15-1</span>
+      </div>
+    </div>
+    <div class="body gap10">
+      <div class="card flat" style="height:126px;border-radius:12px;overflow:hidden;border:1px solid #EFE2E6">
+        <svg width="346" height="126" viewBox="0 0 346 126" role="img" aria-label="불국사 위치 미리보기">
+          <rect width="346" height="126" fill="#F7EFF2"/>
+          <path d="M-10 92 L120 62 L210 86 L356 46" stroke="#EADCE1" stroke-width="12" fill="none"/>
+          <path d="M60 130 L92 60 L120 -6" stroke="#EADCE1" stroke-width="8" fill="none"/>
+          <path d="M240 130 L252 70 L300 30" stroke="#EADCE1" stroke-width="8" fill="none"/>
+          <circle cx="173" cy="63" r="17" fill="#B3123F"/>
+          <path d="M173 56v14M166 63h14" stroke="#FFFFFF" stroke-width="2.4" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <div class="row gap8">
+        <div class="card grow" style="padding:11px 12px">
+          <div class="col gap4"><span class="mt tight">기본 체류</span><span class="nm num">90분</span></div>
+        </div>
+        <div class="card grow" style="padding:11px 12px">
+          <div class="col gap4"><span class="mt tight">기점에서</span><span class="nm num">자동차 25분</span></div>
+        </div>
+        <div class="card grow" style="padding:11px 12px">
+          <div class="col gap4"><span class="mt tight">배치 시각</span><span class="nm num">09:25</span></div>
+        </div>
+      </div>
+      <div class="card">
+        <span class="eyebrow">제안자 3명</span>
+        <div class="row gap8" style="margin-top:9px">
+          <span class="stack"><span class="avat b">준</span><span class="avat">민</span><span class="avat c">수</span></span>
+          <span class="mt grow">준호 · 민지 · 수아</span>
+        </div>
+        <div class="line-h" style="margin:12px 0"></div>
+        <div class="col gap6">
+          <span class="mt tight">채팅에서 가져온 말</span>
+          <span style="font-size:13px;line-height:1.6">“둘째 날 오전은 불국사 갔다가 석굴암 올라가자”<span class="mt tight"> — 준호</span></span>
+        </div>
+      </div>
+      <div class="card tinted">
+        <div class="row gap8">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8E0E32" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><use href="#ic-clock"/></svg>
+          <span class="mt tight" style="color:#8E0E32">체류를 120분으로 늘리면 석굴암이 제외 스팟이 됩니다.</span>
+        </div>
+      </div>
+    </div>
+    <div class="foot">
+      <div class="row gap8">
+        <button class="btn quiet grow" type="button" style="flex:1">고정하기</button>
+        <button class="btn grow" type="button" style="flex:1">체류 시간 바꾸기</button>
+      </div>
+    </div>
+  </div></div>
+  <p class="art-note">이 스팟이 왜 들어왔는지를 <b>제안자와 채팅 원문</b>으로 되짚는다. 체류를 늘리면 무엇이 밀려나는지 미리 알려, 편집 후 놀라는 일을 없앤다.</p>
+</section>
+
+<!-- ================= 08 ================= -->
+<section class="art" id="s08">
+  <header class="art-cap"><span class="art-no">08</span><h2>루트 계산 중</h2><span class="art-fr">FR-505 · 501</span></header>
+  <div class="frame"><div class="scr">
+    <div class="sb"><time>09:24</time><div class="sb-r"><i></i><i></i><i></i><i></i><u></u></div></div>
+    <div class="hd">
+      <span class="eyebrow">10월 18일 · 둘째 날</span>
+      <h2 class="ttl">루트를 맞추는 중</h2>
+    </div>
+    <div class="body gap12">
+      <div class="card">
+        <div class="col gap10">
+          <div class="row gap10">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2F6B4F" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><use href="#ic-check"/></svg>
+            <span class="grow" style="font-size:13.5px;font-weight:600">후보 14곳 위치 확인</span>
+            <span class="mt tight num">0.4초</span>
+          </div>
+          <div class="row gap10">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2F6B4F" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><use href="#ic-check"/></svg>
+            <span class="grow" style="font-size:13.5px;font-weight:600">기점에서 이동시간 조회</span>
+            <span class="mt tight num">1.1초</span>
+          </div>
+          <div class="row gap10">
+            <span style="width:18px;height:18px;border-radius:999px;border:2px solid #B3123F;border-right-color:transparent;display:block"></span>
+            <span class="grow" style="font-size:13.5px;font-weight:700;color:#B3123F">하루 수용량에 맞춰 배치</span>
+            <span class="mt tight num" style="color:#B3123F">11 / 14</span>
+          </div>
+          <div class="row gap10">
+            <span style="width:18px;height:18px;border-radius:999px;border:2px solid #EFE2E6;display:block"></span>
+            <span class="grow" style="font-size:13.5px;font-weight:600;color:#9C8B92">제외 사유 정리</span>
+          </div>
+        </div>
+      </div>
+      <div class="bar"><i style="width:74%"></i></div>
+      <div class="card tinted">
+        <div class="col gap6">
+          <span class="eyebrow" style="color:#8E0E32">지금 적용중인 규칙</span>
+          <span class="mt tight" style="color:#8E0E32;line-height:1.7">
+            수용량을 넘으면 <b>제안자가 적은 곳</b>부터 뺍니다. 같으면 늦게 등록된 곳을 뺍니다. 고정한 곳은 빠지지 않습니다.
+          </span>
+        </div>
+      </div>
+      <div class="col gap6">
+        <span class="mt tight">경로 조회 12건 · 자동차 기준</span>
+        <span class="mt tight">기점 라한셀렉트 경주 · 활동시간 09:00–21:00</span>
+      </div>
+    </div>
+    <div class="foot">
+      <button class="btn quiet sm" type="button">계산 멈추고 후보로 돌아가기</button>
+    </div>
+  </div></div>
+  <p class="art-note">대기 화면에 <b>선별 규칙 전문</b>을 띄운다. 결과를 본 뒤 규칙을 찾는 것보다, 기다리는 동안 읽게 하는 편이 납득이 빠르다. 경로 조회 건수를 노출해 API 호출 비용도 눈에 보이게 한다.</p>
+</section>
+
+<!-- ================= 09 ================= -->
+<section class="art" id="s09">
+  <header class="art-cap"><span class="art-no">09</span><h2>날짜별 시간표</h2><span class="art-fr">FR-505 · 502</span></header>
+  <div class="frame"><div class="scr">
+    <div class="sb"><time>09:24</time><div class="sb-r"><i></i><i></i><i></i><i></i><u></u></div></div>
+    <div class="hd">
+      <div class="hd-row">
+        <div class="col gap4 grow">
+          <span class="eyebrow">경주 2박 3일</span>
+          <h2 class="ttl sm">10월 18일 (토)</h2>
+        </div>
+        <a class="iconbtn" href="#s10"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><use href="#ic-drag"/></svg></a>
+      </div>
+      <div class="seg"><span>10/17 금</span><span class="on">10/18 토</span><span>10/19 일</span></div>
+    </div>
+    <div class="body flush" style="padding:0 22px">
+      <div class="tl">
+        <div class="tl-item">
+          <span class="t">09:00</span>
+          <span class="ax"><span class="dot hollow"></span></span>
+          <div class="c"><div class="col gap4">
+            <span class="nm" style="font-size:14px">라한셀렉트 경주</span>
+            <span class="mt tight">기점 · 출발</span>
+          </div></div>
+        </div>
+        <div class="leg"><span></span><span class="ax"></span><div class="c">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6B5A61" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><use href="#ic-car"/></svg>자동차 25분</div></div>
+        <div class="tl-item">
+          <span class="t">09:25</span>
+          <span class="ax"><span class="dot"></span></span>
+          <div class="c"><a class="card" href="#s07" style="display:block;padding:12px">
+            <div class="row top">
+              <div class="col gap4 grow">
+                <span class="nm">불국사</span>
+                <span class="mt tight num">09:25 – 10:55 · 90분</span>
+              </div>
+              <span class="chip">제안자 3</span>
+            </div>
+          </a></div>
+        </div>
+        <div class="leg"><span></span><span class="ax"></span><div class="c">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6B5A61" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><use href="#ic-car"/></svg>자동차 12분</div></div>
+        <div class="tl-item">
+          <span class="t">11:07</span>
+          <span class="ax"><span class="dot"></span></span>
+          <div class="c"><div class="card" style="padding:12px">
+            <div class="row top">
+              <div class="col gap4 grow">
+                <span class="nm">석굴암</span>
+                <span class="mt tight num">11:07 – 12:37 · 90분</span>
+              </div>
+              <span class="chip">제안자 2</span>
+            </div>
+          </div></div>
+        </div>
+        <div class="leg"><span></span><span class="ax"></span><div class="c">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6B5A61" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><use href="#ic-car"/></svg>자동차 20분</div></div>
+        <div class="tl-item">
+          <span class="t">12:57</span>
+          <span class="ax"><span class="dot"></span></span>
+          <div class="c"><div class="card" style="padding:12px">
+            <div class="row top">
+              <div class="col gap4 grow">
+                <span class="nm">교촌마을 한정식</span>
+                <span class="mt tight num">12:57 – 13:57 · 60분</span>
+              </div>
+              <span class="chip"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><use href="#ic-pinlock"/></svg>고정</span>
+            </div>
+          </div></div>
+        </div>
+        <div class="leg"><span></span><span class="ax"></span><div class="c" style="color:#9C8B92">이후 4곳 · 21:00 종료</div></div>
+      </div>
+    </div>
+    <nav class="tabbar">
+      <a href="#s03"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><use href="#ic-home"/></svg><span>홈</span></a>
+      <a href="#s06"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><use href="#ic-list"/></svg><span>후보</span></a>
+      <a class="on" href="#s09"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><use href="#ic-cal"/></svg><span>시간표</span></a>
+      <a href="#s11"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><use href="#ic-map"/></svg><span>지도</span></a>
+      <a href="#s14"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><use href="#ic-dots"/></svg><span>더보기</span></a>
+    </nav>
+  </div></div>
+  <p class="art-note">시각은 왼쪽 <b>고정 폭 열</b>에 고정 간격 숫자로 세워 세로로 읽힌다. 이동 구간은 카드가 아니라 얇은 줄로 처리해, 머무는 곳과 움직이는 시간이 형태부터 다르게 보인다.</p>
+</section>
+
+<!-- ================= 10 ================= -->
+<section class="art" id="s10">
+  <header class="art-cap"><span class="art-no">10</span><h2>일정 편집</h2><span class="art-fr">FR-503</span></header>
+  <div class="frame"><div class="scr">
+    <div class="sb"><time>09:24</time><div class="sb-r"><i></i><i></i><i></i><i></i><u></u></div></div>
+    <div class="hd">
+      <div class="hd-row">
+        <span class="iconbtn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><use href="#ic-x"/></svg></span>
+        <div class="col grow" style="gap:2px">
+          <span class="nm">일정 편집</span>
+          <span class="mt tight num">10월 18일 (토) · 7곳</span>
+        </div>
+        <span style="font-size:13px;font-weight:700;color:#B3123F">되돌리기</span>
+      </div>
+    </div>
+    <div class="body gap8">
+      <div class="card" style="border-color:#B3123F;box-shadow:inset 0 0 0 1px #B3123F">
+        <div class="row gap10">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#B3123F" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><use href="#ic-drag"/></svg>
+          <div class="col gap4 grow">
+            <span class="nm">석굴암</span>
+            <span class="mt tight num">11:07 – 12:37 · 이동 12분</span>
+          </div>
+          <span class="chip">옮기는 중</span>
+        </div>
+      </div>
+      <div class="card">
+        <div class="row gap10">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#9C8B92" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><use href="#ic-drag"/></svg>
+          <div class="col gap4 grow">
+            <span class="nm">교촌마을 한정식</span>
+            <span class="mt tight num">12:57 – 13:57</span>
+          </div>
+          <span class="chip"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><use href="#ic-pinlock"/></svg>고정</span>
+        </div>
+      </div>
+      <div class="card">
+        <div class="row gap10">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#9C8B92" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><use href="#ic-drag"/></svg>
+          <div class="col gap4 grow">
+            <span class="nm">대릉원</span>
+            <span class="mt tight num">14:20 – 15:50</span>
+          </div>
+          <span class="chip line">90분</span>
+        </div>
+      </div>
+      <div class="card" style="background:#FBF0DC;border-color:#F0DFBB">
+        <div class="row top gap8">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#8A5A00" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="margin-top:1px"><use href="#ic-alert"/></svg>
+          <div class="col gap6 grow">
+            <span style="font-size:13px;font-weight:700;color:#8A5A00">10/18 수용량을 42분 넘겼습니다</span>
+            <span class="mt tight" style="color:#8A5A00;line-height:1.6">이대로 두면 마지막 스팟이 21:42에 끝납니다.</span>
+            <div class="col gap6" style="margin-top:2px">
+              <div class="row gap8" style="padding:9px 10px;background:#FFFFFF;border:1px solid #F0DFBB;border-radius:9px">
+                <span class="grow" style="font-size:12.5px;font-weight:600">조정안 1 · 대릉원 체류를 60분으로</span>
+                <span class="chip warn">-30분</span>
+              </div>
+              <div class="row gap8" style="padding:9px 10px;background:#FFFFFF;border:1px solid #F0DFBB;border-radius:9px">
+                <span class="grow" style="font-size:12.5px;font-weight:600">조정안 2 · 석굴암을 10/19로 옮김</span>
+                <span class="chip warn">-102분</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="row gap8">
+        <span class="mt tight grow">고정한 곳은 시간이 밀리지 않습니다.</span>
+        <span class="mt tight num">7곳 · 12시간 42분</span>
+      </div>
+    </div>
+    <div class="foot">
+      <button class="btn" type="button">저장하고 시간표로</button>
+    </div>
+  </div></div>
+  <p class="art-note">수용량 초과는 <b>막지 않고 경고한다</b>. 대신 조정안을 숫자와 함께 제시해 한 번에 해결된다. 경고는 주색이 아니라 별도 경고색이라, 핑크가 위험 신호로 오해되지 않는다.</p>
+</section>
+
+<!-- ================= 11 ================= -->
+<section class="art" id="s11">
+  <header class="art-cap"><span class="art-no">11</span><h2>지도 · 루트</h2><span class="art-fr">FR-801 ~ 803</span></header>
+  <div class="frame"><div class="scr">
+    <div class="sb"><time>09:24</time><div class="sb-r"><i></i><i></i><i></i><i></i><u></u></div></div>
+    <div style="flex:1;min-height:0;position:relative">
+      <svg width="390" height="100%" viewBox="0 0 390 560" preserveAspectRatio="xMidYMid slice" role="img" aria-label="10월 18일 루트 지도">
+        <rect width="390" height="560" fill="#F3EBEE"/>
+        <path d="M-20 420 L110 372 L214 410 L400 330" stroke="#E6D7DD" stroke-width="16" fill="none"/>
+        <path d="M-20 150 L120 120 L230 176 L400 120" stroke="#E6D7DD" stroke-width="12" fill="none"/>
+        <path d="M96 -20 L120 200 L92 420 L120 580" stroke="#E6D7DD" stroke-width="12" fill="none"/>
+        <path d="M296 -20 L276 180 L300 400 L268 580" stroke="#E6D7DD" stroke-width="10" fill="none"/>
+        <path d="M-20 280 L390 262" stroke="#EDE1E6" stroke-width="8" fill="none"/>
+        <path d="M120 470 L120 200 L232 168 L286 290" stroke="#B3123F" stroke-width="3.4" fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="1 0"/>
+        <circle cx="120" cy="470" r="13" fill="#FFFFFF" stroke="#B3123F" stroke-width="3"/>
+        <circle cx="120" cy="470" r="4.5" fill="#B3123F"/>
+        <g><circle cx="120" cy="200" r="15" fill="#B3123F"/><text x="120" y="205" text-anchor="middle" fill="#FFFFFF" font-family="Gothic A1, sans-serif" font-size="13" font-weight="700">1</text></g>
+        <g><circle cx="232" cy="168" r="15" fill="#B3123F"/><text x="232" y="173" text-anchor="middle" fill="#FFFFFF" font-family="Gothic A1, sans-serif" font-size="13" font-weight="700">2</text></g>
+        <g><circle cx="286" cy="290" r="15" fill="#B3123F"/><text x="286" y="295" text-anchor="middle" fill="#FFFFFF" font-family="Gothic A1, sans-serif" font-size="13" font-weight="700">3</text></g>
+        <g><circle cx="196" cy="368" r="13" fill="#FFFFFF" stroke="#C9B6BD" stroke-width="2.5"/><text x="196" y="373" text-anchor="middle" fill="#8D7B82" font-family="Gothic A1, sans-serif" font-size="11" font-weight="700">제외</text></g>
+      </svg>
+      <div style="position:absolute;top:14px;left:22px;right:22px;display:flex;gap:8px">
+        <span class="chip" style="background:#FFFFFF;border:1px solid #EFE2E6">10/18 토</span>
+        <span class="chip line">자동차</span>
+        <span class="grow"></span>
+        <span class="iconbtn" style="background:#FFFFFF"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><use href="#ic-list"/></svg></span>
+      </div>
+    </div>
+    <div class="sheet">
+      <div class="grabber"></div>
+      <div class="row" style="justify-content:space-between;margin-bottom:10px">
+        <span class="nm">둘째 날 루트</span>
+        <span class="mt num">이동 57분 · 체류 4시간</span>
+      </div>
+      <div class="col gap8" style="padding-bottom:12px">
+        <div class="row gap10">
+          <span class="num" style="width:20px;font-size:12px;font-weight:700;color:#B3123F">1</span>
+          <span class="grow nm" style="font-size:13.5px">불국사</span>
+          <span class="mt tight num">09:25</span>
+        </div>
+        <div class="row gap10">
+          <span class="num" style="width:20px;font-size:12px;font-weight:700;color:#B3123F">2</span>
+          <span class="grow nm" style="font-size:13.5px">석굴암</span>
+          <span class="mt tight num">11:07</span>
+        </div>
+        <div class="row gap10">
+          <span class="num" style="width:20px;font-size:12px;font-weight:700;color:#B3123F">3</span>
+          <span class="grow nm" style="font-size:13.5px">교촌마을 한정식</span>
+          <span class="mt tight num">12:57</span>
+        </div>
+      </div>
+    </div>
+    <nav class="tabbar">
+      <a href="#s03"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><use href="#ic-home"/></svg><span>홈</span></a>
+      <a href="#s06"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><use href="#ic-list"/></svg><span>후보</span></a>
+      <a href="#s09"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><use href="#ic-cal"/></svg><span>시간표</span></a>
+      <a class="on" href="#s11"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><use href="#ic-map"/></svg><span>지도</span></a>
+      <a href="#s14"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><use href="#ic-dots"/></svg><span>더보기</span></a>
+    </nav>
+  </div></div>
+  <p class="art-note">핀에 <b>방문 순번</b>을 박아 지도와 시간표가 같은 순서로 읽힌다. 제외 스팟은 흰 핀으로 남겨 "왜 저기는 안 가지"에 지도 위에서 답한다. 지도 SDK는 1종만 붙이고 인터페이스로 감싼다.</p>
+</section>
+
+<!-- ================= 12 ================= -->
+<section class="art" id="s12">
+  <header class="art-cap"><span class="art-no">12</span><h2>이동수단 · 경로 비교</h2><span class="art-fr">FR-504</span></header>
+  <div class="frame"><div class="scr">
+    <div class="sb"><time>09:24</time><div class="sb-r"><i></i><i></i><i></i><i></i><u></u></div></div>
+    <div class="hd">
+      <div class="hd-row">
+        <span class="iconbtn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><use href="#ic-back"/></svg></span>
+        <span class="mt grow">구간 2 / 6</span>
+      </div>
+      <div class="col gap6">
+        <span class="eyebrow">10/18 · 구간 이동수단</span>
+        <h2 class="ttl sm">불국사 → 석굴암</h2>
+      </div>
+    </div>
+    <div class="body gap10">
+      <div class="card" style="border-color:#B3123F;box-shadow:inset 0 0 0 1px #B3123F">
+        <div class="row top gap10">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#B3123F" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><use href="#ic-car"/></svg>
+          <div class="col gap4 grow">
+            <span class="nm">자동차</span>
+            <span class="mt tight num">3.1km · 주차 도보 4분 포함</span>
+          </div>
+          <div class="col gap4" style="align-items:flex-end">
+            <span class="nm num">12분</span>
+            <span class="chip">적용중</span>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="row top gap10">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#6B5A61" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><use href="#ic-walk"/></svg>
+          <div class="col gap4 grow">
+            <span class="nm">도보</span>
+            <span class="mt tight num">2.4km · 오르막 산길</span>
+          </div>
+          <div class="col gap4" style="align-items:flex-end">
+            <span class="nm num">1시간 10분</span>
+            <span class="chip warn">+58분</span>
+          </div>
+        </div>
+      </div>
+      <div class="card" style="background:#F5EDEF;border-color:#EBDDE1">
+        <div class="row top gap10">
+          <span style="width:22px;height:22px;display:block"></span>
+          <div class="col gap4 grow">
+            <span class="nm" style="color:#6B5A61">대중교통</span>
+            <span class="mt tight">2차 범위 · 1단계에서는 계산하지 않습니다</span>
+          </div>
+        </div>
+      </div>
+      <div class="line-h"></div>
+      <div class="col gap8">
+        <span class="eyebrow">바꾸면 이렇게 됩니다</span>
+        <div class="card tinted">
+          <div class="col gap6">
+            <span class="mt tight" style="color:#8E0E32;line-height:1.7">도보로 바꾸면 10/18이 <b>58분</b> 늘어나 21:00을 넘깁니다. 교촌마을 한정식은 고정이라 밀리지 않고, <b>대릉원</b>이 제외 스팟이 됩니다.</span>
+          </div>
+        </div>
+      </div>
+      <div class="row gap8">
+        <span class="mt tight grow">이 구간만 바꿀지, 하루 전체에 적용할지 고를 수 있습니다.</span>
+      </div>
+    </div>
+    <div class="foot">
+      <div class="row gap8">
+        <button class="btn quiet grow" type="button" style="flex:1">이 구간만</button>
+        <button class="btn grow" type="button" style="flex:1">하루 전체 적용</button>
+      </div>
+    </div>
+  </div></div>
+  <p class="art-note">이동수단 선택은 <b>결과를 먼저 보여주고</b> 고르게 한다. 1단계는 도보·자동차 2종뿐이라 비교가 단순하고, 대중교통 칸은 자리만 지켜 2차에 그대로 채운다.</p>
+</section>
+
+<!-- ================= 13 ================= -->
+<section class="art" id="s13">
+  <header class="art-cap"><span class="art-no">13</span><h2>길찾기 · 구간 내비</h2><span class="art-fr later">FR-601 ~ 603 · 2차</span></header>
+  <div class="frame"><div class="scr">
+    <div class="sb"><time>09:24</time><div class="sb-r"><i></i><i></i><i></i><i></i><u></u></div></div>
+    <div style="flex:none;padding:6px 22px 12px">
+      <div class="row gap8" style="padding:9px 12px;background:#FBF0DC;border:1px solid #F0DFBB;border-radius:10px">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8A5A00" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><use href="#ic-alert"/></svg>
+        <span style="font-size:12.5px;font-weight:700;color:#8A5A00">2차 범위 · 1단계에 포함되지 않습니다</span>
+      </div>
+    </div>
+    <div style="flex:1;min-height:0;position:relative">
+      <svg width="390" height="100%" viewBox="0 0 390 470" preserveAspectRatio="xMidYMid slice" role="img" aria-label="구간 내비 미리보기">
+        <rect width="390" height="470" fill="#F3EBEE"/>
+        <path d="M-20 330 L130 296 L240 336 L400 262" stroke="#E6D7DD" stroke-width="16" fill="none"/>
+        <path d="M110 -20 L134 180 L106 470" stroke="#E6D7DD" stroke-width="12" fill="none"/>
+        <path d="M300 -20 L282 200 L306 470" stroke="#E6D7DD" stroke-width="10" fill="none"/>
+        <path d="M134 400 L134 180 L282 150" stroke="#B3123F" stroke-width="5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="134" cy="400" r="11" fill="#B3123F" stroke="#FFFFFF" stroke-width="3"/>
+        <circle cx="282" cy="150" r="13" fill="#FFFFFF" stroke="#B3123F" stroke-width="3"/>
+      </svg>
+      <div style="position:absolute;left:22px;right:22px;top:14px">
+        <div class="card" style="padding:13px">
+          <div class="row gap10">
+            <span style="width:34px;height:34px;border-radius:9px;background:#B3123F;color:#FFFFFF;display:flex;align-items:center;justify-content:center">
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="#ic-nav"/></svg>
+            </span>
+            <div class="col gap4 grow">
+              <span class="nm num">400m 앞 우회전</span>
+              <span class="mt tight">불국로 → 석굴암로</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="sheet" style="padding-bottom:16px">
+      <div class="grabber"></div>
+      <div class="row" style="justify-content:space-between;margin-bottom:12px">
+        <div class="col gap4">
+          <span class="nm">석굴암</span>
+          <span class="mt tight num">3.1km · 도착 11:07</span>
+        </div>
+        <span class="nm num" style="color:#B3123F">12분</span>
+      </div>
+      <div class="row gap8">
+        <button class="btn quiet sm grow" type="button" style="flex:1">지도 앱으로 열기</button>
+        <button class="btn sm grow" type="button" style="flex:1;flex-basis:0">안내 시작</button>
+      </div>
+    </div>
+  </div></div>
+  <p class="art-note">2차 기능이라 <b>맨 위 띠로 범위 밖임을 먼저 밝힌다</b>. 1단계에서는 이 화면 대신 "지도 앱으로 열기"만 살려두면 되므로, 버튼 두 개를 같은 줄에 둬 교체 지점을 분명히 했다.</p>
+</section>
+
+<!-- ================= 14 ================= -->
+<section class="art" id="s14">
+  <header class="art-cap"><span class="art-no">14</span><h2>멤버 초대 · 링크 공유</h2><span class="art-fr">FR-301 · 303</span></header>
+  <div class="frame"><div class="scr">
+    <div class="sb"><time>09:24</time><div class="sb-r"><i></i><i></i><i></i><i></i><u></u></div></div>
+    <div class="hd">
+      <div class="hd-row">
+        <span class="iconbtn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><use href="#ic-back"/></svg></span>
+        <span class="grow"></span>
+      </div>
+      <div class="col gap6">
+        <h2 class="ttl sm">멤버 초대</h2>
+        <span class="mt">링크를 받은 사람은 가입 없이 게스트로 들어옵니다.</span>
+      </div>
+    </div>
+    <div class="body gap12">
+      <div class="card">
+        <div class="col gap9" style="gap:9px">
+          <span class="eyebrow">초대 링크</span>
+          <div class="row gap8" style="padding:11px 12px;background:#FBF6F7;border:1px solid #EFE2E6;border-radius:9px">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6B5A61" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><use href="#ic-link"/></svg>
+            <span class="grow trunc num" style="font-size:13px">yeojeong.app/j/7K2D-9M</span>
+            <span style="font-size:12.5px;font-weight:700;color:#B3123F">복사</span>
+          </div>
+          <div class="row" style="justify-content:space-between">
+            <span class="mt tight num">10월 22일 만료 · 남은 자리 2</span>
+            <span class="mt tight">새 링크 만들기</span>
+          </div>
+        </div>
+      </div>
+      <button class="btn" type="button">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><use href="#ic-link"/></svg>
+        링크 공유하기
+      </button>
+      <span class="eyebrow">멤버 4명</span>
+      <div class="col gap8">
+        <div class="row gap10">
+          <span class="avat" style="border-color:#FBF6F7">민</span>
+          <div class="col gap4 grow"><span class="nm" style="font-size:14px">민지</span><span class="mt tight">방장 · 이 기기</span></div>
+        </div>
+        <div class="row gap10">
+          <span class="avat b" style="border-color:#FBF6F7">준</span>
+          <div class="col gap4 grow"><span class="nm" style="font-size:14px">준호</span><span class="mt tight">게스트 · 10월 9일 합류</span></div>
+          <span class="chip line">후보 5곳</span>
+        </div>
+        <div class="row gap10">
+          <span class="avat c" style="border-color:#FBF6F7">수</span>
+          <div class="col gap4 grow"><span class="nm" style="font-size:14px">수아</span><span class="mt tight">게스트 · 10월 9일 합류</span></div>
+          <span class="chip line">후보 4곳</span>
+        </div>
+        <div class="row gap10">
+          <span class="avat d" style="border-color:#FBF6F7">지</span>
+          <div class="col gap4 grow"><span class="nm" style="font-size:14px">지우</span><span class="mt tight">링크 열람 · 아직 합류 전</span></div>
+          <span class="chip warn">대기</span>
+        </div>
+      </div>
+      <div class="card tinted">
+        <span class="mt tight" style="color:#8E0E32;line-height:1.7">게스트 세션은 <b>30일</b> 뒤 끊깁니다. 만료 3일 전에 방장과 본인에게 알립니다.</span>
+      </div>
+    </div>
+    <nav class="tabbar">
+      <a href="#s03"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><use href="#ic-home"/></svg><span>홈</span></a>
+      <a href="#s06"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><use href="#ic-list"/></svg><span>후보</span></a>
+      <a href="#s09"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><use href="#ic-cal"/></svg><span>시간표</span></a>
+      <a href="#s11"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><use href="#ic-map"/></svg><span>지도</span></a>
+      <a class="on" href="#s14"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><use href="#ic-dots"/></svg><span>더보기</span></a>
+    </nav>
+  </div></div>
+  <p class="art-note">멤버마다 <b>후보를 몇 곳 냈는지</b> 붙여 제안자 수 규칙과 연결한다. 링크 만료와 남은 자리를 같은 줄에 둬, 방장 승인 단계를 넣을지 정하기 전에도 통제 수단이 하나 있다.</p>
+</section>
+
+</div>
+</div>
+
+<script>
+(function () {
+  var stage = document.getElementById('stage');
+  var board = document.getElementById('board');
+  var buttons = Array.prototype.slice.call(document.querySelectorAll('.zoom button'));
+  var natural = { w: 0, h: 0 };
+  var mode = 'fit';
+
+  function measure() {
+    board.style.transform = 'none';
+    natural.w = board.offsetWidth;
+    natural.h = board.offsetHeight;
+  }
+
+  function apply() {
+    if (window.matchMedia('(max-width: 900px)').matches) {
+      board.style.transform = 'none';
+      board.style.marginBottom = '';
+      return;
+    }
+    var avail = stage.clientWidth - 48;
+    var z = mode === 'fit' ? Math.min(1, avail / natural.w) : parseFloat(mode);
+    board.style.transform = 'scale(' + z + ')';
+    board.style.marginBottom = (natural.h * z - natural.h) + 'px';
+  }
+
+  buttons.forEach(function (b) {
+    b.addEventListener('click', function () {
+      mode = b.dataset.z;
+      buttons.forEach(function (o) { o.setAttribute('aria-pressed', String(o === b)); });
+      measure();
+      apply();
+    });
+  });
+
+  window.addEventListener('resize', function () { measure(); apply(); });
+  measure();
+  apply();
+  if (document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(function () { measure(); apply(); });
+  }
+})();
+</script>

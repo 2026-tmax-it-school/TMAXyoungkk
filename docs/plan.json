@@ -1,0 +1,1748 @@
+{
+  "minutesPath": "/Users/handong-gwan/IT희망학교 여행계획 프로젝트/docs/meetings/02-설계리뷰.md",
+  "decisions": [
+    {
+      "topic": "사실 검증",
+      "decision": "01 킥오프의 사실 확인(시나리오 6줄 자동차 후보 7·제외 0, 동궁과 월지·안압지 0건, phrase 오류, 기점→불국사 19분, routeCalls 0, 도보 감은사지 '왕복 12시간 14분', 되돌리기·수동 순서·UTC 날짜·추측 가능 토큰 결함, 대비 수치)은 그대로 유효하다. 02에서 리뷰어 주장을 다시 확인했다. react-native-maps는 웹 구현이 없다(main src/index.ts, browser 필드 없음). react-native-web Share는 navigator.share가 없으면 reject한다. node 24는 .tsx를 불러오지 못한다(ERR_UNKNOWN_FILE_EXTENSION). @types/node 26.6.2는 전이 의존이다. 폰트 패키지는 gothic-a1 21.48MB, hahmlet 14.75MB이고 굵기별 서브패스 폴더가 있으며 ttf는 각 약 2.29MB다.",
+      "rationale": "계획은 검증된 사실 위에서만 세운다. 구글 경로 API가 국내 자동차·도보 경로를 주지 않는다는 점은 키가 없어 재현하지 못해 보조 근거로만 쓴다."
+    },
+    {
+      "topic": "리뷰 처리 결과",
+      "decision": "지적 45건(blocker 4, major 18, minor 23) 가운데 수용 40, 부분 수용 4(구글 제거 방식, tripMode 위치, registry 조립·구글 헬퍼, replan deps), 기각 1(react-native-maps .native 분리, 대상 소멸)이다. blocker와 major는 전부 계획에 반영했다. 지적별 처리와 이유는 02 회의록 4절 표에 있다.",
+      "rationale": "착수 전에 병렬 작업을 막는 구조 문제(게이트, RN 모듈, 이름 충돌)와 명세 위반(국내 전용, 데이터 보존)을 먼저 없앤다."
+    },
+    {
+      "topic": "진행 순서",
+      "decision": "기반 작업 F(20단계)를 순차로 끝낸 뒤 03 기반 작업 검수 회의에서 WP1~WP6 동시 착수를 선언한다. 골든 테스트는 F에서 todo로 만들고 WP3(추출)·WP4(계획)가 통과시키며, 통합 게이트에서 todo를 푼다. 골든 미통과는 병합 불가다.",
+      "rationale": "01 결정을 유지한다. 골든 수치는 WP4 planner 재작성의 결과라 착수 전에 요구하면 전 패키지가 직렬로 선다."
+    },
+    {
+      "topic": "스프린트 구조",
+      "decision": "기능 영역별 6개 패키지를 병렬로 돌리고, 각 패키지 안에서 MVP → 2차 → 3차 순서로 일한다.",
+      "rationale": "01 결정 유지. 단계별 스프린트는 planner·지도·스토어를 단계마다 다시 열어 소유권이 겹친다."
+    },
+    {
+      "topic": "검증 게이트 분리",
+      "decision": "작업 중 게이트는 node scripts/gate-scope.mjs WPn이다. 이 스크립트는 npx tsc --noEmit 결과에서 자기 파일 오류만 세고, node --test로 자기 테스트(tests/wpn-*.test.ts)를 돌리고, YT_SCOPE=WPn으로 foundation 테스트를 돌려 자기 파일 위반만 실패로 친다. 웹 export는 완료 보고 직전에 /tmp/yt-export-wpn으로 한 번 뽑고, 남의 파일이 원인이면 보고만 한다. 통합 게이트(전체 tsc, npm test, /tmp/yt-export, grep 0건, legacy import 0건, ttf 4개, golden todo 해제)는 통합 담당만 순차로 돌린다. 소유권은 tests/setup/ownership.json 하나로 정한다.",
+      "rationale": "병렬 리뷰어 blocker 수용. git 브랜치 없이 같은 트리에서 여섯 패키지가 전역 게이트를 동시에 돌리면 서로 막히거나 남의 파일을 고치게 된다. 공유 계약은 동결했으므로 남의 파일을 깨뜨리는 변경은 자기 파일의 tsc 오류로 드러난다. 통합 담당이 완료 보고마다 전체 게이트를 돌려 늦은 발견을 막는다."
+    },
+    {
+      "topic": "테스트 가능 구조",
+      "decision": "순수 영역은 src/core/**, src/data/**, src/demo/scenarioRunner.ts, 계약 A5의 순수 서비스 파일이다. 여기서는 RN 계열(react, react-native, expo-*, async-storage, zustand, react-native-svg, @expo-google-fonts/*), src/store/**, 비순수 공유 서비스, config.ts를 import하지 않는다. store·services 테스트 대상은 팩토리로 만든다: createLoopbackTransport({clock,kv,chaos}), createRouteCache({clock,kv}), createLocalAuth({clock,rng,hasher,kv}), createSimPhotoProvider({clock,getPosition,seed}). 오프라인 큐는 core/trip/outbox.ts 순수 모듈이다. 테스트 대상 로직은 .ts에만 둔다. tests/setup/resolve-ts.mjs는 .tsx 후보를 찾지 않고 RN 계열 import에 이유를 담은 오류를 던진다. 경계 테스트 범위를 순수 영역 전체로 넓힌다.",
+      "rationale": "병렬 리뷰어와 기술 리뷰어 blocker 수용. node --test는 RN 모듈과 .tsx를 불러오지 못한다. 공유 훅을 패키지가 몰래 고치는 경로를 처음부터 막는다."
+    },
+    {
+      "topic": "레거시 정리",
+      "decision": "기반 작업이 현행 src를 legacy-v1/src로 복사한 뒤 이름이 겹치거나 폐기되는 파일을 지운다: src/core/extract.ts, src/core/planner.ts, src/services/google.ts, src/services/local.ts, src/services/maps.ts, src/store/useTrip.ts, src/ui.tsx, src/screens/MapScreen.web.tsx. util.ts, constants.ts, types.ts, config.ts, services/index.ts는 같은 자리에서 새로 쓴다. legacy-v1은 tsconfig exclude와 디자인 테스트 제외 대상이고, 통합 때 지운다.",
+      "rationale": "병렬 리뷰어 blocker 수용. 확장자 없는 import는 파일(extract.ts)을 폴더(extract/index.ts)보다 먼저 고른다. 기존 useTrip.ts는 새 types.ts로 tsc를 깨뜨린다."
+    },
+    {
+      "topic": "상태 모델",
+      "decision": "여행방 문서 + op 로그를 유지한다. OpBody 유니온 전체는 types.ts에만 두고 동결한다. doc는 언제나 foldOps(확정 로그 seq 순 + pending at 순)의 결과이고, 확인 응답이나 늦게 온 낮은 seq op가 오면 로그 전체를 다시 접는다. 중복은 foldOps와 outbox가 op.id로 거르며, seq를 달고 다시 온 같은 id는 확인 응답으로 본다. applyOp는 op 하나를 적용하는 순수 함수다. chat/send 리듀서는 op.seq 유무로 status('sent'/'pending')를 정한다. lastSeq는 applyOp가 max로 올린다. 수동 편집은 spot과 day에 저장하고, 필드별 LWW는 공유 patchSpot·patchDay가 op.at으로 판정한다. plan은 동기화하지 않고 기기마다 다시 계산한다.",
+      "rationale": "병렬 리뷰어 major 수용(pending/seq 주체, OpBody 위치). 오프라인 편집이 늦게 도착해도 저장 시점 기준 LWW가 지켜지고, WP2 스토어와 WP3 리듀서가 서로의 구현을 기다리지 않는다."
+    },
+    {
+      "topic": "그룹 동기화",
+      "decision": "LoopbackTransport가 기본이다. KV에 저장해 새로고침 뒤에도 유지하고, 받은 op를 접어 lookupInvite를 판정하며, reset()이 KV를 비운다. 네트워크 끊기 토글과 chaos(순서 뒤섞기·중복 주입, 시드 고정)를 둔다. 오프라인 중 편집된 방은 dirty로 표시하고 setOnline(true) 때 큐를 비운 뒤 재계산한다. HttpPollingTransport와 server/sync-server.mjs(node:http만, CORS 헤더와 OPTIONS 응답)는 WP2의 마지막 순위이고 EXPO_PUBLIC_SYNC_URL이 있을 때만 켠다. 서버는 테스트에서 확장자를 적어 import하고 포트 0으로 띄웠다가 닫는다. WebSocket은 쓰지 않는다.",
+      "rationale": "01 결정에 reset 계약, 재연결 재계산, CORS를 더했다. 시연 리셋 뒤 옛 op가 되살아나는 문제와 오프라인 편집 뒤 재계산 누락을 막는다."
+    },
+    {
+      "topic": "중립 인터페이스와 실제 제공자",
+      "decision": "포트는 src/core/ports.ts에 둔다: Clock, IdGen, Rng, Hasher, KV, FetchLike, PlaceProvider, RouteProvider(clearCache 포함), ExtractionProvider, RecommendProvider, DiaryWriter, AuthProvider(deleteAccount 포함), SyncTransport(reset 포함), LocationProvider, PhotoProvider. ProviderId는 local·kakao·naver이고 구글은 없다. 실제 장소·경로 제공자는 카카오 1종이다(장소 카카오 로컬 키워드 검색, 경로 카카오모빌리티 자동차 길찾기, 도보·대중교통은 로컬 모델 estimated). EXPO_PUBLIC_KAKAO_REST_KEY가 있을 때만 켜지며 '프로토타입 가정 · 국내 SDK 선정 미결정 · 키가 번들에 들어가므로 시연 한정'을 18 화면과 .env.example, 추적표에 적는다. 네이버 어댑터는 만들지 않는다. AI는 EXPO_PUBLIC_AI_PROXY_URL 프록시만 쓴다. 조립은 패키지 팩토리(services/<영역>/index.ts)가 맡고 registry는 팩토리만 부른다. registry에 resetServices()를 둔다.",
+      "rationale": "명세 리뷰어 major 부분 수용. 명세는 국내 전용, 지도 SDK 1종, 두 벌 금지이고 구글은 해외 로드맵이다. 그러나 '스텁만'은 고정 규칙 '키가 있으면 실제 제공자로 바뀌는 구조'를 채우지 못해 기각하고 국내 어댑터 1종을 둔다. 인터페이스가 중립이라 파일 하나로 되돌릴 수 있어 미결정 원칙과 충돌하지 않는다. AI 키는 단가가 크고 브라우저 직접 호출이 불가해 프록시 기준을 유지한다."
+    },
+    {
+      "topic": "지도",
+      "decision": "react-native-svg로 그리는 MapCanvas 한 벌을 모든 플랫폼의 지도로 쓴다. react-native-maps는 package.json에서 제거하고 MapScreen.web.tsx를 지운다. 실제 지도 SDK 뷰는 나중에 MapCanvas props를 그대로 받는 어댑터로 붙이고, 네이티브 전용이면 *.native.tsx 안에서만 import한다. 투영·클러스터·마커 분류·선 계산은 core/map/layout.ts 순수 함수이고, 14곳·3일·위치 점 300개에서 100ms 이내를 단언한다(지도 초기 로딩 2초 예산의 순수 계산분). 날짜별 색은 로즈, 초록, 앰버, 잉크 순서다. 07, 11, 13, 19, 22가 같은 컴포넌트를 쓴다.",
+      "rationale": "명세 리뷰어 major(두 벌 금지, 지도 2초) 수용. 기술 리뷰어의 .native 분리 지적은 라이브러리 제거로 대상이 없어 기각하고 규칙만 남긴다. 렌더를 포함한 2초는 화면 확인 사유로 추적표에 적는다."
+    },
+    {
+      "topic": "저장 키",
+      "decision": "새 키 young-trip/*(v2)로 바꾸고 구 키 yeojeong-proto-v1은 첫 실행 때 지운다. 데이터는 옮기지 않고 bootstrap notices로 한 번 안내한다.",
+      "rationale": "01 결정 유지. 실사용자가 없고 구 토큰은 추측 가능해 옮기면 보안 요구를 어긴다."
+    },
+    {
+      "topic": "골든 수치 기준과 데이터 소유",
+      "decision": "정확 일치 항목은 01과 같다(후보 14·확정 11·제외 3, 제외 3곳 이름·사유 코드·문장, 10/18 앞 세 곳 시각, 10/18 7곳 21:00 안, 제안자 4/3/2). 시나리오 14곳과 기점의 placeId·이름·좌표·카테고리·영업시간·체류는 동결 파일 data/scenario.ts의 SCENARIO_PLACES로 옮긴다. data/places.ts(WP3)는 그것을 가져다 쓰고 별칭·주변 장소·동명·호미곶·태그·인기도만 더한다. tests/helpers/fixtures.scenarioTrip()은 SCENARIO_DAYS를 data/scenario-tuning.ts(WP4)에서 import한다. 골든 계획 테스트는 WP4의 로컬 RouteProvider(시나리오 구간표 우선)를 쓴다. 튜닝 손잡이는 scenario-tuning.ts에만 둔다.",
+      "rationale": "병렬 리뷰어 major 수용. WP3가 별칭이나 영업시간을 다듬을 때 WP4 골든이 말없이 깨지는 경로와, 날짜 설정이 두 곳에 있어 공유 픽스처를 고쳐야 하는 경로를 없앤다. 시연과 테스트가 같은 숫자를 본다."
+    },
+    {
+      "topic": "교촌마을 한정식 고정",
+      "decision": "추출 규칙에 고정 추론을 넣지 않는다. 시나리오가 수아의 사용자 조작(spot/pin, schedule/setDate 10/18)으로 재현한다.",
+      "rationale": "01 결정 유지. FR-401 출력에 고정이 없고 명세에서 고정은 사용자 조작이다."
+    },
+    {
+      "topic": "FR-403 선별 해석",
+      "decision": "제외 여부는 수용량과 FR-403 순서(제안자 수 적은 순, 동점이면 등록 늦은 순)만으로 정한다. 탐욕 배치 뒤 교환 보정을 둔다. 불변식은 셋이다. 교환 불변식: 제외 스팟보다 우선순위가 낮은 비고정 확정 스팟과 바꿔 넣어 수용량 안에 드는 교환이 없어야 한다. 삽입 불변식: 사용자가 빼지 않은 제외 스팟은 어느 날에도 그대로 끼워 넣을 수 없어야 한다(기점 왕복 60분 이상이어도 자리가 남으면 확정). 고정 불가침: pinned와 기간 안 fixedDate 스팟은 자동 제외하지 않고, 넘치면 overCapacity에 날짜와 초과분을 낸다. 사유 코드는 제외가 정해진 뒤 문장을 고르는 규칙이다: 기점 왕복 60분 이상이면 tooFar('왕복 N시간 M분'), 아니면 dayFull(시간대는 활동시간이 두 시간대 이상일 때만), 사용자 조작은 userRemoved, 기간 밖 날짜는 outOfPeriod.",
+      "rationale": "명세 리뷰어 major(tooFar 모호) 수용. tooFar를 별도 제외 규칙으로 두면 '수용량을 넘는 만큼만 뺀다'를 어긴다. 골든의 감은사지는 제안자 1명·등록 13번째라 수용량으로 빠지고 문장만 tooFar가 된다."
+    },
+    {
+      "topic": "FR-501 정렬",
+      "decision": "하루 스팟 10개 이하는 Held-Karp 동적계획법으로 정확해를 구하고(기점 출발, 복귀 있음은 순환, 복귀 없음은 경로), 11개 이상은 최근접 이웃 + 2-opt 근사로 간다. 수동 순서가 있는 날은 정렬하지 않는다. DayPlan.orderMethod에 'exact'·'approx'·'manual'을 남긴다. 경로 실패 시 직선거리와 estimated.",
+      "rationale": "명세 리뷰어 major 수용. 명세 예외 '10개 초과 시 근사 정렬'은 10개 이하는 근사가 아님을 뜻한다. 10개 Held-Karp는 약 10만 연산으로 3초 예산에 영향이 없다."
+    },
+    {
+      "topic": "FR-505 근접도와 호출 예산",
+      "decision": "직선거리 군집을 먼저 잡고 경로 행렬은 기점 행·열과 군집 안에서만 조회한다. 호출 수는 캐시에서 나오지 않은 구간 수로 센다. 시나리오 첫 계산은 100구간 이하, 두 번째는 캐시로 0구간이다. 캐시는 createRouteCache({clock,kv})로 24시간 유지한다.",
+      "rationale": "01 결정 유지. 14곳 전체 행렬은 210구간이라 예산 100을 넘는다. 캐시를 KV 주입으로 바꿔 node 테스트가 가능하다."
+    },
+    {
+      "topic": "목적지 밖 기준",
+      "decision": "src/data/regions.ts의 지역 중심과 반경으로 판정한다. 경주는 35.8562, 129.2247에 반경 30km다. 자동 추출은 밖을 버리고, 수동 등록은 확인 후 등록한다.",
+      "rationale": "01 결정 유지."
+    },
+    {
+      "topic": "여행방 생성",
+      "decision": "종료일<시작일은 거부, 14일 초과(15일 이상)는 확인 창 뒤 허용, 지역은 국내 목록에서만, 날짜는 의존성 없는 달력 범위 선택이다. 기점은 선택 입력이다. 검색 0건이면 '결과 없음'을 알리고 기점 없이(base null) 만들 수 있으며, 그날 첫 스팟이 기점이 된다(baseSource firstSpot).",
+      "rationale": "명세 리뷰어 major 수용. FR-201 입력은 제목·지역·날짜뿐이고 FR-205 예외는 '미지정 시 첫 스팟'이다. 기점 필수화는 명세에 없는 차단 사유였다."
+    },
+    {
+      "topic": "권한 규칙",
+      "decision": "trip/setDay는 전 멤버, trip/update(제목·지역·날짜·수단·활동시간)는 방장만(프로토타입 가정), trip/delete는 방장, trip/issueInvite·revokeInvite는 방장 또는 canInvite, member/remove는 방장만이고 본인 불가, member/setCanInvite는 방장, member/leave는 본인이며 방장은 거부(위임 미결정 안내), spot/*·schedule/*·journal/*는 전 멤버다. canInvite 기본값은 false이고 켜는 것은 2차 FR-303 가정 기능이다. FR-303 권한 조정은 초대 권한 토글로 한정하고 '프로토타입 가정'을 표시한다.",
+      "rationale": "명세 리뷰어 minor 수용. 권한표는 기점 등록·변경을 그룹원 O, 멤버 초대를 그룹원 X로 적는다. 제목·날짜 변경은 권한표에 없어 가정으로 둔다."
+    },
+    {
+      "topic": "개인·그룹 모드와 종료 잠금",
+      "decision": "모드는 저장하지 않고 공유 core/group.ts의 tripMode(활성 멤버 2명 이상이면 group)로 계산한다. 개인 모드에서는 채팅과 추출이 비활성이다. 방장 외 전원이 나가면 개인 모드로 돌아가고 채팅과 스팟은 유지한다. 종료일이 지나면 편집 op를 거부한다. 예외(LOCK_EXEMPT)는 journal/*, member/leave, member/anonymize, trip/delete다.",
+      "rationale": "명세 상태도와 '그룹 전용 기능은 채팅과 대화 인식뿐'을 따른다. 계정 탈퇴는 종료 뒤에도 되어야 하므로 member/anonymize를 예외에 더했다."
+    },
+    {
+      "topic": "데이터 보존과 계정 탈퇴",
+      "decision": "계정 탈퇴를 2차 계정 기능으로 넣는다(정식 계정만). 17 화면에서 quiet 버튼과 ConfirmSheet 1회 뒤, 참여한 모든 방에 본인 사진 journal/photoRemoved와 member/anonymize(닉네임 '탈퇴한 멤버', anonymized, leftReason 'deleted')를 보내고 AuthProvider.deleteAccount를 부른다. 채팅과 제안 이력은 memberId를 유지해 남는다. 초안 목록은 core/auth.ts planAccountDeletion(trips,userId)이 만든다. 1년 보관은 공유 tripStatus.ts의 retentionUntil·isRetentionExpired(종료일 다음 날 00:00 KST + 365일)로 판정하고, WP2가 부팅 때 purgeExpired(now)로 지난 방을 로컬에서 지우며, 25 화면에 보관 기한을 보여준다.",
+      "rationale": "명세 리뷰어 major 수용. 비기능 데이터 보존이 탈퇴 처리와 1년 보관을 요구한다. 01에서 '명세에 없음'으로 뺀 근거가 틀렸다."
+    },
+    {
+      "topic": "여행 시뮬레이터",
+      "decision": "src/core/sim에 SimClock(1·10·60·300배, 일시정지, 점프)과 결정적 generateTrack(30초 샘플, 정확도 포함)을 두고, src/core/live에 도착·지연·빈 시간 감지 순수 리듀서와 30초 스로틀·정지 판정(throttle.ts), 백그라운드 판정을 둔다. 시뮬레이터가 켜지면 SimClock이 appClock이 된다. 프리셋은 9종(정상, 지연25, 영업 종료, GPS 음영, 지나침, 옆 건물 오탐, 권한 거부, 빈 시간, 10/18 종합)이다. AppState가 background가 되면 위치 감시와 재생을 멈추고 그 사이 경로를 채우지 않는다.",
+      "rationale": "01 결정에 명세 리뷰어 minor(백그라운드 NFR)와 기술 리뷰어 minor(웹 watchPosition 간격 미보장)를 더했다."
+    },
+    {
+      "topic": "탭, 화면 번호, 라우트 등록",
+      "decision": "하단 탭은 홈/후보/시간표/지도/더보기로 고정하고 채팅은 스택 화면이다. 화면 번호 15~26은 01과 같다. InviteAccept, Login, Signup, SocialConsent는 세션 유무와 상관없이 등록하고, Onboarding은 세션이 없을 때만, Main과 나머지 스택은 세션이 있을 때만 등록한다. linking j/:code는 언제나 InviteAccept로 간다. InviteAccept를 코드 없이 열면 코드 입력 칸을 보여준다(정적 웹 export의 /j/ 경로 폴백 대신).",
+      "rationale": "병렬 리뷰어 major와 기술 리뷰어 minor 수용. 세션이 있을 때 등록되지 않으면 게스트 승격과 '이미 참여' 딥링크가 막힌다."
+    },
+    {
+      "topic": "부팅과 스플래시",
+      "decision": "App.tsx는 WP1 소유 src/features/account/bootstrap.ts의 bootstrap(onProgress)만 부른다. bootstrap은 ui/fonts.ts의 폰트 4개를 Font.loadAsync로 차례로 불러오고 스토어 4개의 waitHydrated()를 기다린 뒤 touchSession을 부른다. 진행률은 단계 수(8단계) 기준이고 단계 이름을 문구로 낸다. 만료 세션 폐기 안내와 구 키 삭제 안내는 notices로 돌려준다. 기반 작업은 폰트와 복원 대기까지 하는 최소 bootstrap을 만든다.",
+      "rationale": "병렬 리뷰어 minor와 기술 리뷰어 minor 수용. useFonts는 boolean만 돌려주고, 만료·구 키 안내를 WP1이 끼울 자리가 공유 App.tsx뿐이었다."
+    },
+    {
+      "topic": "디자인 시스템",
+      "decision": "01 디자이너 안을 유지한다(textC/surfaceC/lineC/mapC 분리, faint 글자 금지, danger 톤 없음, ScopeBadge, 조정안 표현). 폰트는 Hahmlet 700과 Gothic A1 400·600·700이고 src/ui/fonts.ts 한 곳에서 서브패스로만 import하며 웹 자산은 약 8.0MB다. SVG 글자는 src/ui/SvgLabel만 쓴다. 디자인 규칙 테스트 허용 목록에 SplashScreen.tsx(로즈 전체면·가운데 정렬), components/map/**(textAnchor만), ui/**를 미리 넣는다. 14의 내보내기·초대 권한 토글과 12의 대중교통 행에 ScopeBadge '2차'를 단다. 02의 시각 기준은 WP2 소유이고 WP1 온보딩은 같은 ui 컴포넌트로만 만든다.",
+      "rationale": "병렬 리뷰어 major(허용 목록), 기술 리뷰어 major(폰트 서브패스), 명세 리뷰어 minor(02·14·12) 수용. 루트 import는 18개 ttf를 번들에 넣는다."
+    },
+    {
+      "topic": "테스트 하네스",
+      "decision": "tests/setup/resolve-ts.mjs(registerHooks, .ts와 /index.ts만 해석, .tsx·RN 계열 import는 오류)와 tests/wpN-*.test.ts(TypeScript, tsc 검사 포함)를 쓴다. npm test는 node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./tests/setup/resolve-ts.mjs --test 'tests/**/*.test.ts'다. 기반 테스트는 여섯 벌이다: foundation-core-boundary, foundation-design-rules, foundation-contrast, foundation-ops, foundation-core, foundation-ownership. 여기에 golden-e2e(todo)가 더해진다. 공유 파일 로직(tripStatus UTC 회귀, isEditLocked·LOCK_EXEMPT, lww·patchSpot·patchDay, notify 4종, sha256, base32, group, chatOrder)은 foundation 테스트가 검증하고, 패키지 테스트는 자기 모듈만 본다. tsconfig에 verbatimModuleSyntax와 erasableSyntaxOnly를 켠다.",
+      "rationale": "병렬 리뷰어 minor(공유 로직 테스트 위치) 수용. 패키지가 고칠 권한이 없는 파일의 테스트를 떠안지 않게 한다."
+    },
+    {
+      "topic": "CI와 개발 의존성",
+      "decision": "ci.yml을 node 24로 올리고 npm test와 웹 export 단계를 더한다. devDependencies에 @types/node ~24를 명시한다.",
+      "rationale": "기술 리뷰어 minor 수용. 지금은 전이 의존 26.x가 우연히 호이스팅돼 통과할 뿐이고, 26.x 타입은 node 24보다 앞선 API도 허용한다."
+    },
+    {
+      "topic": "보안 난수, 해시, 모의 인증",
+      "decision": "난수는 expo-crypto getRandomBytes만 쓴다. 해시는 순수 TS SHA-256(src/core/sha256.ts)을 Hasher 기본 구현으로 쓴다. 기기 토큰은 16바이트 base64url, 초대 코드는 Crockford base32 8자(XXXX-XXXX)다. 비밀번호는 salt+SHA-256으로만 단말에 저장한다. 계정 기준 5회 실패 10분 잠금과 기기 토큰 기준 10분 20회 제한을 병행한다(서버가 없어 IP 대신 기기 토큰, 프로토타입 가정). 계정 세션은 30일, 사용할 때마다 갱신, 만료 시 재로그인 안내와 여행방 유지(가정)다. 토큰은 끝 4자리만 보인다.",
+      "rationale": "기술 리뷰어 major(웹 digest는 보안 출처 전용) 수용. LAN http로 모바일 웹 시연을 열면 가입·로그인이 전부 실패한다. 명세 리뷰어 minor(IP 대체 이유, 토큰 만료 관리)도 반영했다."
+    },
+    {
+      "topic": "알림 제한",
+      "decision": "알림 제한은 공유 src/core/notify.ts의 shouldNotify(log, entry, prefs)와 recordNotify(log, entry, now) 하나로 한다. 동일 유형·같은 키 30분 1회, 유형별 끄기다. NotifyKind 4종(delay, freeTime, arrival, sessionExpiry) 전부 foundation-core가 검사한다. WP5는 delay·freeTime·arrival에, WP1은 sessionExpiry(만료 3일 전, 가정)에 쓴다.",
+      "rationale": "명세 리뷰어 minor 수용. 알림 NFR은 유형 전체에 걸리는데 테스트가 delay에만 있었다."
+    },
+    {
+      "topic": "사진 저장 규칙",
+      "decision": "Photo.uri는 선택 필드이고 기기 파일 경로만 넣는다. blob:·data: uri는 journal/photoAdded validate가 거부한다. 웹 기기 사진은 메모리 맵에만 두고 sessionOnly와 '이 세션에서만 보임'을 표시한다. 모의 사진은 Photo.sim{label,tone} 메타로 SVG 타일을 그리고 번들 이미지를 쓰지 않는다. 웹 압축은 판정·표시만 하고 실제 압축은 네이티브 image-picker quality로 한다.",
+      "rationale": "기술 리뷰어 major 수용. blob URL은 새로고침 뒤 깨지고 data URL은 localStorage 한도를 넘겨 여행방 저장까지 실패시킨다."
+    },
+    {
+      "topic": "공유 동작",
+      "decision": "공유는 src/services/share.ts의 shareText({title?,text})를 쓴다. Share.share가 reject되면 expo-clipboard로 복사하고 'shared'·'copied'·'failed'를 돌려준다. WP2(초대 링크)와 WP6(일기)가 같은 헬퍼를 쓴다.",
+      "rationale": "기술 리뷰어 minor 수용. navigator.share가 없는 브라우저에서 공유 버튼이 오류로 끝난다."
+    },
+    {
+      "topic": "미결정 사항",
+      "decision": "결정하지 않고 되돌릴 수 있는 최소 동작만 넣는다. 경로 API 제공자·예산과 국내 SDK 선정은 카카오 어댑터를 가정으로만 두고 호출 수를 08에 노출한다. 승격은 userId를 유지해 데이터를 그대로 둔다. 방장 위임은 '미결정' 안내만 하고 방장 나가기를 막는다. 승인 단계는 없다. 위치 공유는 만들지 않고 '꺼짐 · 미결정'을 표시한다. 강퇴·탈퇴 멤버의 제안·채팅·사진은 남기고 '나간 멤버·정책 미결정'으로 표시한다. 사진 저장은 단말만이다.",
+      "rationale": "01 결정 유지. 카카오 가정은 인터페이스 뒤에 있어 파일 하나로 되돌릴 수 있다."
+    },
+    {
+      "topic": "범위 밖",
+      "decision": "환율, 예산·정산, 해외 지원과 구글 제공자, 네이버 어댑터(두 벌 금지), 백그라운드 상시 추적, 초 단위 궤적, 그룹원 위치 공유, 방장 승인, 방장 위임, 발화 고정 추론, 푸시 알림, 실제 지도 SDK 뷰(선정 미결정)는 만들지 않는다. 계정 탈퇴는 범위 밖에서 뺐다.",
+      "rationale": "명세서가 범위의 유일한 기준이다. 계정 탈퇴는 비기능 데이터 보존에 근거가 있어 포함한다."
+    },
+    {
+      "topic": "FR 추적표",
+      "decision": "../docs/FR-추적표.md를 기반 작업에서 만들고 회의마다 갱신한다. 열은 FR, 단계, 패키지, 파일, 모의 제공자, 실제 제공자, 시연 단계, 테스트, 상태다. NFR 행을 차수별로 나누고 백그라운드·지원 환경(웹 export 검증, 네이티브는 화면 확인)·데이터 보존 행을 더한다. 비보안 출처 한계(expo-location 웹 HTTPS, 클립보드), 카카오 실키 미확인, IP 대신 기기 토큰, 지도 렌더 2초 화면 확인을 적는다. 테스트 없는 AC는 '화면 확인' 사유를 적는다. 사진 위치 마커 담당은 역할분담.md를 따라 최윤재다.",
+      "rationale": "명세 리뷰어 minor(NFR 분류) 수용. 35개 FR과 NFR 전부를 한 곳에서 추적한다."
+    },
+    {
+      "topic": "계약 변경 절차",
+      "decision": "공유 파일은 기반 작업과 통합 담당만 고친다. OpBody 유니온은 types.ts에 동결했다. 패키지는 새 필드가 필요하면 기존 필드 안에서 표현하고, 안 되면 자기 파일 안에서 임시로 우회하며 최종 보고의 변경 요청 목록에 적는다. 통합 때 한 번에 반영한다.",
+      "rationale": "병렬 리뷰어 major(OpBody 위치) 수용. 필드 하나 때문에 통합을 기다리거나 공유 유니온이 흔들리지 않게 한다."
+    },
+    {
+      "topic": "03 기반 작업 리뷰",
+      "decision": "계약 리뷰 major 5건과 디자인 리뷰 major 2건을 기반 작업에서 고쳤다. 시나리오 순서표를 demo/scenarioSteps.ts 하나로 모으고(playScenarioChat은 chat 단계만), 시각을 줄×60초로 찍고, 패키지 사이 단언을 integration 테스트로 옮기고 지연 계산을 WP5 delay.ts로 모으고, op.at을 stampAt으로 앞으로만 찍고, 시연을 SCENARIO_T0 시계에서 돌린다. 디자인은 스플래시 트랙 onRoseTrack과 Txt style 축소·규칙 테스트 추가다. 계약 추가분은 A11이다. 지적별 처리는 03 회의록에 있다.",
+      "rationale": "병렬 착수 전에 게이트를 막거나 골든을 우연에 맡기는 구조 문제를 없앤다. 시그니처 동결은 유지하고 replanForDelay 입력에 delayMin을 더한 것만 바꿨다(호출처 없음)."
+    },
+    {
+      "topic": "통합 반영",
+      "decision": "패키지 공유 변경 요청을 계약 A12로 반영했다(타입·포트·ui 추가만, 동결 시그니처는 그대로). 충돌은 계약 기준으로 정리했다: onRoseLine은 장식선이라 비텍스트 대비 목록에 넣지 않고(2.89:1), createGuest(userId) 순서 변경은 스토어의 멤버 판정과 부딪혀 받지 않았다. 패키지 코드 리뷰 결정 W4-1~W4-6(수동 순서는 고정 취급 아님, 이 구간만은 순서를 굳힘, FR-603 조정안은 순서 변경 → 제외 → 체류 줄이기 하나, 10 즉시 저장과 시간표로 버튼, 구간 LWW와 해제 묘비, returnLeg)과 W5-1~W5-7(기점은 속 빈 링, 지연·빈 시간 알림 키는 여행방·날짜, 가상 시각이면 기기 모드 차단, 정지 뒤 20m 재구독, 5분 안 마지막 샘플로 머묾 판정, 영업 종료 프리셋 여유+40분, 도착 토스트 유지), K-1(카카오 키워드 2단계 반경), 04-WP2 D-1~D-5를 확정 결정으로 옮긴다. 사용자 화면 문구에 내부 화면 번호를 쓰지 않는다(18 시연 도구 목록만 예외). golden-e2e와 integration-cross의 todo를 풀었다. legacy-v1은 import 0건을 확인하고 ../archive/legacy-v1로 옮겼다(영구 삭제 대신).",
+      "rationale": "계약 변경 절차(결정 35)대로 공유 파일은 통합 때 한 번에 고친다. 요청끼리 부딪히거나 규칙 테스트(대비, 멤버 판정)와 맞지 않으면 계약과 테스트를 기준으로 삼는다. legacy-v1은 git에 없는 유일한 사본이라 되돌릴 수 없는 삭제를 피했다."
+    }
+  ],
+  "scope": [
+    {
+      "fr": "FR-105",
+      "name": "게스트 세션",
+      "tier": "MVP",
+      "status": "보강 필요",
+      "approach": "core/session.ts 순수 함수. Rng 주입 128비트 base64url 토큰, 30일 만료, touch 연장, 만료 폐기와 복구 불가 안내(bootstrap notices), KV 주입 재부팅 복원. 끝 4자리만 표시. 온보딩은 ui 컴포넌트로 02와 같은 틀",
+      "wp": "WP1"
+    },
+    {
+      "fr": "FR-101",
+      "name": "이메일 회원가입",
+      "tier": "2차",
+      "status": "신규",
+      "approach": "createLocalAuth({clock,rng,hasher,kv}) 모의(salt+순수 SHA-256). 중복 거부, 비밀번호 규칙 위반 항목, 모의 메일함 인증, 재발송 시 이전 토큰 무효. 화면 16",
+      "wp": "WP1"
+    },
+    {
+      "fr": "FR-102",
+      "name": "로그인·로그아웃",
+      "tier": "2차",
+      "status": "신규",
+      "approach": "계정 5회 10분 잠금 + 기기 토큰 10분 20회 제한(IP 대체 가정 표시), 미인증 차단, 계정 세션 30일 갱신·만료 재로그인, 로그아웃 뒤 로그인으로 여행방 이어 쓰기. 화면 15",
+      "wp": "WP1"
+    },
+    {
+      "fr": "FR-103",
+      "name": "소셜 로그인",
+      "tier": "2차",
+      "status": "신규",
+      "approach": "모의 카카오·구글 동의 화면 26(로고 없이 텍스트와 선). 동일 이메일은 linkRequired 뒤 확인해야 연결. 제공자 실패 시 재시도 안내",
+      "wp": "WP1"
+    },
+    {
+      "fr": "FR-104",
+      "name": "프로필 관리",
+      "tier": "2차",
+      "status": "신규",
+      "approach": "닉네임 중복 거부, 이미지 5MB 초과 압축 판정과 전후 크기 표시, 성향 태그 저장 → FR-404 입력. 화면 17",
+      "wp": "WP1"
+    },
+    {
+      "fr": "2단계-승격",
+      "name": "게스트 → 정식 계정 승격",
+      "tier": "2차",
+      "status": "신규",
+      "approach": "userId 유지, 참여한 모든 방에 member/accountLinked. '이관 범위 미결정 · 이 기기 데이터 유지' 표시",
+      "wp": "WP1"
+    },
+    {
+      "fr": "NFR-데이터 보존",
+      "name": "1년 보관, 계정 탈퇴 시 사진 삭제·이력 익명화",
+      "tier": "2차",
+      "status": "신규",
+      "approach": "retentionUntil·isRetentionExpired(공유 tripStatus), 부팅 purgeExpired(WP2), 25 보관 기한 표시(WP2). 탈퇴는 planAccountDeletion → journal/photoRemoved(WP6 리듀서) + member/anonymize(WP2 리듀서), AuthProvider.deleteAccount(WP1)",
+      "wp": "WP1+WP2+WP6"
+    },
+    {
+      "fr": "FR-201",
+      "name": "여행방 생성",
+      "tier": "MVP",
+      "status": "보강 필요",
+      "approach": "04 화면. 국내 지역 목록, 달력 범위, 종료<시작 거부, 15일 이상 확인 뒤 허용, 기점 선택 입력(0건이면 base null로 생성). trip/create op",
+      "wp": "WP2"
+    },
+    {
+      "fr": "FR-202",
+      "name": "스팟 수동 등록",
+      "tier": "MVP",
+      "status": "보강 필요",
+      "approach": "06 헤더 검색. 결과 없음 안내, 동명 선택 시트 24, 목적지 밖 확인 후 등록(outsideRegion), 지도에서 선택(MapCanvas onPressMap → places.at). spot/add",
+      "wp": "WP3"
+    },
+    {
+      "fr": "FR-203",
+      "name": "여행방 목록",
+      "tier": "MVP",
+      "status": "보강 필요",
+      "approach": "03 홈. 공유 tripStatus(KST, appClock, 시뮬레이터 반영)로 예정·진행중·완료 세그먼트, 0개면 생성 유도 Empty, 메뉴 6칸",
+      "wp": "WP1"
+    },
+    {
+      "fr": "FR-204",
+      "name": "여행방 삭제·나가기",
+      "tier": "MVP",
+      "status": "신규",
+      "approach": "25 화면. trip/delete(방장, ConfirmSheet 1회), member/leave(그룹원). 방장 나가기는 '위임 미결정' 안내만",
+      "wp": "WP2"
+    },
+    {
+      "fr": "FR-205",
+      "name": "기점 등록",
+      "tier": "MVP",
+      "status": "보강 필요",
+      "approach": "25 화면 입력 trip/setDay{date,patch}(기점, 'inherit', null, 복귀 없음, 활동시간, 전 멤버). 계산(baseSource, returnMin 0, 승계)은 planner",
+      "wp": "WP2+WP4"
+    },
+    {
+      "fr": "FR-301",
+      "name": "초대 링크 발급",
+      "tier": "MVP",
+      "status": "보강 필요",
+      "approach": "CSPRNG 8자 Crockford 코드, 7일, 정원 6, 재발급 시 이전 코드 revoked, youngtrip.app/j/코드 복사·공유(services/share 대체 동작), 방장 또는 canInvite(기본 false). 화면 14",
+      "wp": "WP2"
+    },
+    {
+      "fr": "FR-302",
+      "name": "초대 수락 및 그룹 전환",
+      "tier": "MVP",
+      "status": "보강 필요",
+      "approach": "02 화면(세션 유무와 상관없이 등록). 세션 없음 → 닉네임 후 게스트 합류, 이미 참여 → already, 첫 합류 시 그룹 전환과 스팟 승계, 만료·무효·정원 안내, '다른 사람으로 합류(시연)', 코드 입력 칸",
+      "wp": "WP2"
+    },
+    {
+      "fr": "FR-303",
+      "name": "멤버 관리",
+      "tier": "2차",
+      "status": "보강 필요",
+      "approach": "방장만 내보내기, 본인 불가, 초대 권한 토글(가정, ScopeBadge 2차), 전원 탈퇴 시 개인 모드, 나간 멤버의 제안·채팅은 '나간 멤버'로 유지",
+      "wp": "WP2"
+    },
+    {
+      "fr": "FR-304",
+      "name": "그룹 채팅",
+      "tier": "MVP",
+      "status": "보강 필요",
+      "approach": "op 로그 + SyncTransport. 순수 core/trip/outbox.ts(오프라인 pending, 재연결 재전송, 확인 응답, seq 재접기, 중복 제거, dirty 재계산). 05 화면은 WP3(pending 표시, 개인 모드 비활성, 공유 orderedMessages)",
+      "wp": "WP2+WP3"
+    },
+    {
+      "fr": "FR-401",
+      "name": "채팅 장소 추출",
+      "tier": "MVP",
+      "status": "보강 필요",
+      "approach": "ExtractionProvider(rules 기본, ai 프록시) + PlaceProvider 매칭. 별칭·조사 결합형, 원문 부분 문자열 phrase, 지시 표현 제외, 실패 시 표시 없음, 동명 다수 사용자 선택, 지역 반경 밖 제외. 골든셋 재현율 80%·오탐 10%",
+      "wp": "WP3"
+    },
+    {
+      "fr": "FR-402",
+      "name": "후보 목록",
+      "tier": "MVP",
+      "status": "보강 필요",
+      "approach": "06 화면. proposals 누적 병합, 되돌리기는 그 메시지로 생긴 후보와 그 메시지 제안만 제거(회귀 테스트), 제외 구역과 되돌리기(→고정)",
+      "wp": "WP3"
+    },
+    {
+      "fr": "FR-403",
+      "name": "후보 자동 선별",
+      "tier": "MVP",
+      "status": "보강 필요",
+      "approach": "planner. 우선순위 탐욕 배치 + 교환 보정, 교환·삽입·고정 불가침 불변식, 고정 초과 overCapacity, 사유 코드는 문장 선택 규칙(tooFar/dayFull/userRemoved/outOfPeriod). 06 화면 표시는 WP3",
+      "wp": "WP4+WP3"
+    },
+    {
+      "fr": "FR-404",
+      "name": "여행지 추천",
+      "tier": "2차",
+      "status": "신규",
+      "approach": "RecommendProvider 로컬(태그 겹침 + 근접도 + 인기도). 3~5곳, 기존 후보 제외, 지역 안, 태그 부족 시 인기 대체 표시, 추천 이유 한 줄, 후보에 담기, 오프라인 비활성. 화면 23",
+      "wp": "WP3"
+    },
+    {
+      "fr": "FR-505",
+      "name": "스팟 날짜 배분",
+      "tier": "MVP",
+      "status": "보강 필요",
+      "approach": "직선거리 군집 → 군집 안 행렬, 근접도 삽입, 이월, fixedDate 고정 취급, 날짜별 활동시간·기점 반영",
+      "wp": "WP4"
+    },
+    {
+      "fr": "FR-501",
+      "name": "루트 순서 최적화",
+      "tier": "MVP",
+      "status": "보강 필요",
+      "approach": "10개 이하 Held-Karp 정확해, 11개 이상 NN+2-opt 근사, 수동 순서 존중(orderMethod manual), 경로 실패 시 직선과 estimated. RouteProvider 주입",
+      "wp": "WP4"
+    },
+    {
+      "fr": "FR-502",
+      "name": "시간표 생성",
+      "tier": "MVP",
+      "status": "보강 필요",
+      "approach": "도착·체류·출발 등식, 카테고리 기본 체류, 날짜별 시작 시각, 영업시간 밖 notice, 활동시간 초과 시 carryOver, arriveOverride. 화면 09, 행 계산은 features/schedule/timeline.ts",
+      "wp": "WP4"
+    },
+    {
+      "fr": "FR-503",
+      "name": "일정 수동 편집",
+      "tier": "MVP",
+      "status": "보강 필요",
+      "approach": "schedule/* op가 공유 patchSpot·patchDay로 저장해 재계산 뒤에도 유지(회귀 테스트), 필드별 op.at LWW, 편집 뒤 자동 재계산(오프라인이면 재연결 때). 10 화면 WarnCard와 조정안",
+      "wp": "WP4"
+    },
+    {
+      "fr": "FR-504",
+      "name": "이동수단 선택(도보·자동차)",
+      "tier": "MVP",
+      "status": "보강 필요",
+      "approach": "하루 전체(schedule/setDayTransport)·구간별(setLegTransport). 12 화면 비교와 previewOps. 경로 없음 대체 수단 안내, 자동차 실패 시 도보 대체 계산",
+      "wp": "WP4"
+    },
+    {
+      "fr": "FR-504-대중교통",
+      "name": "이동수단 대중교통 확장",
+      "tier": "2차",
+      "status": "신규",
+      "approach": "Transport 'transit'. 모의 모델(도보 접근 + 배차 간격 절반 대기 + 승차 + 환승 벌점), 구간표 null이면 경로 없음 안내. 12 대중교통 행 ScopeBadge 2차",
+      "wp": "WP4"
+    },
+    {
+      "fr": "FR-601",
+      "name": "현재 위치 표시",
+      "tier": "2차",
+      "status": "신규",
+      "approach": "LocationProvider(sim 시연, device는 expo-location + JS 30초 스로틀). 정확도 원, 권한 거부 시 수동 진행 모드, 연속 3샘플 음영 안내. 화면 19와 11",
+      "wp": "WP5"
+    },
+    {
+      "fr": "FR-602",
+      "name": "도착 감지",
+      "tier": "2차",
+      "status": "신규",
+      "approach": "core/live/arrival.ts 순수 리듀서. 50m 이하 샘플만, 100m 안 3분 이상, 수동 취소, 지나침은 skipped. journal/visit op",
+      "wp": "WP5"
+    },
+    {
+      "fr": "FR-603",
+      "name": "지연 감지 및 일정 재계산",
+      "tier": "2차",
+      "status": "신규",
+      "approach": "ETA 지연 15분 이상 → WP4 replanForDelay 조정안(순서 변경 우선, 그다음 영업 종료 1순위, FR-403 순서, 고정 제외 안 함), 적용·원래대로, 공유 notify 30분 1회·끄기, 경고 문구 금지",
+      "wp": "WP5+WP4"
+    },
+    {
+      "fr": "FR-604",
+      "name": "빈 시간 추천",
+      "tier": "3차",
+      "status": "신규",
+      "approach": "다음 일정까지 30분 이상이면 PlaceProvider.nearby(WALKABLE_RADIUS_M 800, 가정)로 2~3곳, 29분이면 없음, 결과 없으면 생략",
+      "wp": "WP5"
+    },
+    {
+      "fr": "FR-701",
+      "name": "사진 업로드",
+      "tier": "3차",
+      "status": "신규",
+      "approach": "PhotoProvider(createSimPhotoProvider 합성 EXIF / device image-picker). EXIF 없으면 업로드 시각과 그 시각 계획 스팟으로 추정, 10MB 초과 압축 판정, blob·data uri 저장 금지, 웹 기기 사진 sessionOnly. 화면 20",
+      "wp": "WP6"
+    },
+    {
+      "fr": "FR-702",
+      "name": "자동 일기 생성",
+      "tier": "3차",
+      "status": "신규",
+      "approach": "사진·방문·장소를 시간순 블록으로 묶고 DiaryWriter(template 기본, ai 프록시)로 설명문. 사진 0장이면 방문만, 실패 시 빈 일기. 화면 21",
+      "wp": "WP6"
+    },
+    {
+      "fr": "FR-703",
+      "name": "일기 편집·공유",
+      "tier": "3차",
+      "status": "신규",
+      "approach": "journal/diaryEdited 필드 LWW(공유 lww), 공유(services/share + diaryShared), 나간 멤버 사진 유지와 '정책 미결정' 표시",
+      "wp": "WP6"
+    },
+    {
+      "fr": "FR-704",
+      "name": "이동 경로 기록",
+      "tier": "3차",
+      "status": "신규",
+      "approach": "도착 기록 + useLive 위치 로그 → 날짜별 경로(core/journal/track.ts), 권한 거부 시 도착 지점만 연결, 90일 판정은 공유 isTrackExpired",
+      "wp": "WP6+WP5"
+    },
+    {
+      "fr": "FR-801",
+      "name": "스팟 마커 표시",
+      "tier": "MVP",
+      "status": "보강 필요",
+      "approach": "MapCanvas SVG 한 벌. 순번 박힌 원형 핀, 기점 속 빈 링, 제외 흰 핀, 밀집 클러스터(core/map), 글자는 SvgLabel",
+      "wp": "WP5"
+    },
+    {
+      "fr": "FR-802",
+      "name": "루트 라인 표시",
+      "tier": "MVP",
+      "status": "보강 필요",
+      "approach": "날짜별 색(로즈, 초록, 앰버, 잉크), 경로 polyline, estimated면 직선",
+      "wp": "WP5"
+    },
+    {
+      "fr": "FR-803",
+      "name": "스팟 상세",
+      "tier": "MVP",
+      "status": "보강 필요",
+      "approach": "07 화면. 이름, 주소, 예정 시각, 제안자 아바타, 채팅 원문, MapCanvas compact 미리보기, previewOps 예고, 정보 없는 행 생략",
+      "wp": "WP3"
+    },
+    {
+      "fr": "FR-804",
+      "name": "실제 이동 경로 표시",
+      "tier": "3차",
+      "status": "신규",
+      "approach": "22 화면. 실제 점(ink) + 계획 선 + 기록 없는 구간 점선(core/journal/track.ts 순수 함수)",
+      "wp": "WP6"
+    },
+    {
+      "fr": "NFR-추출 품질",
+      "name": "재현율 80% 이상, 오탐율 10% 이하",
+      "tier": "MVP",
+      "status": "신규",
+      "approach": "tests/wp3-extract-quality.test.ts. 장소 문장 30개 이상, 무장소 20개 이상으로 수치 단언",
+      "wp": "WP3"
+    },
+    {
+      "fr": "NFR-선별 품질",
+      "name": "제외 이유 100% 표시",
+      "tier": "MVP",
+      "status": "보강 필요",
+      "approach": "불변식 속성 테스트(모든 제외에 사유), 06·07·11·19에서 사유와 되돌리기 표시",
+      "wp": "WP4+WP3"
+    },
+    {
+      "fr": "NFR-성능",
+      "name": "루트 재계산 3초, 지도 초기 로딩 2초",
+      "tier": "MVP",
+      "status": "보강 필요",
+      "approach": "RECOMPUTE_MS 3000 측정 테스트(WP4), core/map/layout 순수 계산 100ms 측정(WP5), 렌더 포함 2초는 화면 확인",
+      "wp": "WP4+WP5"
+    },
+    {
+      "fr": "NFR-외부 API 비용",
+      "name": "재계산 1회 경로 호출 100 이하, 24시간 캐시",
+      "tier": "MVP",
+      "status": "보강 필요",
+      "approach": "구간 단위 호출 수, createRouteCache({clock,kv}) 24시간, 두 번째 계산 0구간",
+      "wp": "WP4"
+    },
+    {
+      "fr": "NFR-보안(1단계)",
+      "name": "추측 불가 기기 토큰, 난수 초대 링크",
+      "tier": "MVP",
+      "status": "보강 필요",
+      "approach": "expo-crypto getRandomBytes Rng, 128비트 토큰(WP1), 40비트 초대 코드(WP2), 토큰 끝 4자리 표시",
+      "wp": "WP1+WP2"
+    },
+    {
+      "fr": "NFR-보안(2단계)",
+      "name": "비밀번호 해시, 토큰 만료 관리, 이중 로그인 시도 제한",
+      "tier": "2차",
+      "status": "신규",
+      "approach": "salt+순수 SHA-256, 계정 세션 30일 만료, 계정 5회·기기 20회 제한(IP 대체 가정)",
+      "wp": "WP1"
+    },
+    {
+      "fr": "NFR-오프라인",
+      "name": "확정 일정·좌표 오프라인 열람, 재계산·추천은 온라인",
+      "tier": "MVP",
+      "status": "보강 필요",
+      "approach": "docs·plans persist, 오프라인 시 재계산 멈춤과 dirty 표시, 재연결 때 재계산, 추천 비활성",
+      "wp": "WP2"
+    },
+    {
+      "fr": "NFR-서비스 지역",
+      "name": "국내 전용, 지도 SDK 1종, 중립 인터페이스",
+      "tier": "MVP",
+      "status": "보강 필요",
+      "approach": "ports.ts, registry, 구글 제거, 카카오 어댑터 1종(가정), MapCanvas 한 벌, regions.ts 국내 목록",
+      "wp": "FOUNDATION"
+    },
+    {
+      "fr": "NFR-위치 정확도·배터리",
+      "name": "50m 샘플, 100m 반경, 30초 간격, 정지 시 중단",
+      "tier": "2차",
+      "status": "신규",
+      "approach": "constants, core/live/throttle.ts, device 어댑터 JS 스로틀",
+      "wp": "WP5"
+    },
+    {
+      "fr": "NFR-백그라운드",
+      "name": "상시 추적 없음, 꺼진 동안 경로 복원 안 함",
+      "tier": "2차",
+      "status": "신규",
+      "approach": "AppState background면 watch·시뮬레이터 정지, 복귀 뒤 빈 구간은 채우지 않고 FR-804 점선으로 남음",
+      "wp": "WP5"
+    },
+    {
+      "fr": "NFR-알림",
+      "name": "동일 유형 30분 1회, 유형별 끄기",
+      "tier": "2차",
+      "status": "신규",
+      "approach": "공유 core/notify.ts(4종 테스트), notifyPrefs 설정(WP1), delay·freeTime·arrival 사용(WP5), sessionExpiry 사용(WP1)",
+      "wp": "FOUNDATION+WP1+WP5"
+    },
+    {
+      "fr": "NFR-개인정보",
+      "name": "위치 이력 90일, 위치 공유 기본 꺼짐",
+      "tier": "3차",
+      "status": "신규",
+      "approach": "공유 isTrackExpired, pruneTrack(WP5), 기록 화면 판정(WP6), 18 설정 '위치 공유 꺼짐 · 미결정'(WP1)",
+      "wp": "WP5+WP6+WP1"
+    },
+    {
+      "fr": "NFR-지원 환경",
+      "name": "모바일 웹 우선, iOS·안드로이드 최신 2개 버전",
+      "tier": "MVP",
+      "status": "보강 필요",
+      "approach": "웹 export와 390×844 기준 검증, 네이티브는 화면 확인 사유로 추적표 기록, 비보안 출처 한계 기록",
+      "wp": "FOUNDATION"
+    }
+  ],
+  "dependencies": [
+    "react-native-svg",
+    "expo-font",
+    "@expo-google-fonts/hahmlet",
+    "@expo-google-fonts/gothic-a1",
+    "expo-crypto",
+    "expo-clipboard",
+    "expo-location",
+    "expo-image-picker"
+  ],
+  "foundation": {
+    "tasks": [
+      "1. 현행 src/를 legacy-v1/src/로 복사한다. 그다음 src/core/extract.ts, src/core/planner.ts, src/services/google.ts, src/services/local.ts, src/services/maps.ts, src/store/useTrip.ts, src/ui.tsx, src/screens/MapScreen.web.tsx를 지운다. util.ts, constants.ts, types.ts, config.ts, services/index.ts는 같은 자리에서 새로 쓴다. legacy-v1은 tsconfig exclude이고 import를 금지한다.",
+      "2. 의존성을 정리한다. npx expo install로 8개(react-native-svg, expo-font, @expo-google-fonts/hahmlet, @expo-google-fonts/gothic-a1, expo-crypto, expo-clipboard, expo-location, expo-image-picker)를 넣는다. npm uninstall react-native-maps, npm install -D @types/node@~24를 한다. 설치 전에 https://docs.expo.dev/versions/v57.0.0/ 에서 expo-font, expo-crypto, expo-clipboard, expo-location, expo-image-picker, react-native-svg 문서와 권한 config plugin 키를 WebFetch로 확인한다. 폰트 서브패스 import(@expo-google-fonts/gothic-a1/400Regular 등)가 해석되는지 확인한다.",
+      "3. 브랜드와 설정을 바꾼다. app.config.js의 name 'Young Trip', slug 'young-trip', bundleIdentifier·package 'app.youngtrip.proto'로 하고, 구글 지도 키 설정을 지우고, 위치·사진 권한 한국어 문구 plugin을 넣는다. src/config.ts에는 KAKAO_REST_KEY, HAS_KAKAO_KEY, AI_PROXY_URL, SYNC_URL을 둔다. .env.example에 EXPO_PUBLIC_KAKAO_REST_KEY(시연 한정·번들 포함 경고), EXPO_PUBLIC_AI_PROXY_URL, EXPO_PUBLIC_SYNC_URL을 적는다. README 제목, 초대 도메인 youngtrip.app/j/, persist 키 young-trip/* v2, 구 키 yeojeong-proto-v1 삭제를 반영한다.",
+      "4. 하네스를 만든다. tsconfig에 verbatimModuleSyntax, erasableSyntaxOnly, exclude legacy-v1을 넣는다. package.json 스크립트: test(node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./tests/setup/resolve-ts.mjs --test 'tests/**/*.test.ts'), gate:wp(node scripts/gate-scope.mjs). tests/setup/resolve-ts.mjs는 registerHooks로 확장자 없는 import와 /index.ts를 찾고, .tsx는 찾지 않으며, react-native·expo-*·@react-native-async-storage/*·zustand·react-native-svg·@expo-google-fonts/* import에 '테스트에서 RN 모듈을 불러왔다: 이름 — 팩토리나 core로 분리할 것' 오류를 던진다. tests/setup/ownership.json(FOUNDATION·WP1~WP6 glob)과 scripts/gate-scope.mjs(tsc 출력 필터, 자기 테스트 실행, YT_SCOPE foundation 테스트 실행)를 만든다.",
+      "5. 동결 계약을 구현한다. src/types.ts(OpBody 유니온 전체 포함), src/core/ports.ts, src/core/constants.ts(명세 수치 전부와 02 추가분), src/core/util.ts, src/core/spotUtil.ts, src/core/tripStatus.ts(isTrackExpired, retentionUntil, isRetentionExpired 포함), src/core/group.ts, src/core/chatOrder.ts, src/core/notify.ts, src/core/sha256.ts(순수 SHA-256), src/core/kv.ts(memoryKV)를 완성한다.",
+      "6. src/core/ops/index.ts(applyOp 라우팅, lastSeq, validateOp의 잠금 → 기능 validate 순서, foldOps의 seq 정렬·pending 뒤붙임·id 중복 제거, isEditLocked, LOCK_EXEMPT, OP_OWNER)와 src/core/ops/lww.ts(lww, patchSpot, patchDay)를 완성한다.",
+      "7. 기능 리듀서 6개(ops/trip, members, chat, spots, schedule, journal)를 reduce/validate 시그니처로 만든다. trip/create, member/join, chat/send(status는 op.seq 유무)는 최소 구현하고 나머지는 문서를 그대로 돌려주는 스텁이다. 권한 validate(계약 A3)는 각 패키지가 채운다.",
+      "8. 진입점 스텁을 만든다. planner/index.ts buildPlan(빈 날짜 plan, orderMethod 포함), preview.ts, replan.ts, extract/index.ts(빈 결과), core/recommend.ts, core/trip/invite.ts, core/trip/outbox.ts, core/map/layout.ts, features/schedule/timeline.ts, DayTimeline, MapCanvas(자리표시 사각형), features/journal/api.ts, features/account/bootstrap.ts(폰트 4개 차례 로드, 스토어 waitHydrated, 단계 진행률), demo/tools.ts, demo/scenarioRunner.ts, features/chat/scenario.ts.",
+      "9. 공유 서비스를 완성한다. src/services/clock.ts(systemClock, appClock, setClockOverride, useNow), random.ts(secureRng = expo-crypto getRandomBytes, ids, hasher = core/sha256), kv.ts(asyncStorageKV(prefix)), share.ts(shareText, 실패 시 expo-clipboard 복사), kakaoHttp.ts(createKakaoClient, 순수), aiProxy.ts(createAiProxyClient, 순수), registry.ts(getServices, overrideServices, describeServices, resetServices, 패키지 팩토리만 호출), index.ts.",
+      "10. 패키지 서비스 팩토리 스텁을 만든다. 인터페이스를 만족하는 결정적 스텁이며 순수 파일은 RN을 import하지 않는다: services/places/{index,local,kakao}.ts, routes/{index,local,kakao,cache,transit}.ts, extraction/{index,rules,ai}.ts, recommend/{index,local,ai}.ts, diary/{index,template,ai}.ts, auth/{index,local}.ts, sync/{index,loopback,http}.ts, location/{index,sim,device}.ts, photos/{index,sim,device}.ts.",
+      "11. 데이터를 만든다. src/data/regions.ts(국내 시·군 20여 곳, 경주 35.8562/129.2247 반경 30km, isInRegion). src/data/scenario.ts(동결): SCENARIO_PLACES(14곳과 기점 라한셀렉트 경주·경주역의 placeId, 이름, 좌표, 카테고리, kind, 예시 영업시간, 기본 체류), SCENARIO_TRIP_INPUT, SCENARIO_MEMBERS, SCENARIO_CHAT 13줄, SCENARIO_USER_ACTIONS, SCENARIO_LATE_JOIN, SCENARIO_EXPECTED. src/data/places.ts 초안(SCENARIO_PLACES를 가져다 쓰고 별칭, 주변 POI, 동명 황남빵 2곳, 호미곶, 태그, 인기도; WP3로 넘김). src/data/scenario-tuning.ts 초안(SCENARIO_DAYS, SCENARIO_ROUTE_TABLE, SCENARIO_TRANSIT, SCENARIO_EXTRA_ACTIONS; WP4로 넘김).",
+      "12. 스토어를 만든다. src/store/ui.ts는 완성한다. session.ts, trips.ts, live.ts는 계약 A6의 상태 필드와 액션을 전부 타입까지 갖춘 기본값·no-op으로 export한다. session은 createGuest·touchSession·reset, trips는 dispatch → validateOp → outbox → foldOps → persist → 150ms 디바운스 recompute·createTrip·훅·reset을 최소 동작으로 둔다. 모든 스토어에 waitHydrated()를 둔다.",
+      "13. src/ui/를 만든다: tokens.ts(textC, surfaceC, lineC, mapC, F, T, SP, R, H, E, DAY_COLORS, TEXT_ON_SURFACE_PAIRS), fonts.ts(서브패스 4개, FONT_ASSETS), SvgLabel, Txt, Screen/Header/Body/Foot/Row/Col, Card, Btn/IconBtn, Chip/ScopeBadge, Seg, Field/Choice/Tag, Notice/WarnCard/Empty, Avatar/AvatarStack, Sheet/ConfirmSheet, ProgressBar, TabBar, Placeholder, Toast, Icon(목업 23개 + bus, locate, play, pause, camera, book, user, bell, gear, share, trash, mail), index.ts.",
+      "14. src/navigation/routes.ts와 App.tsx를 만든다. App은 bootstrap(onProgress)만 부르고 그동안 SplashScreen({progress,label})을 그린다. RootStack과 MainTabs(커스텀 TabBar)를 두고 계약 A8 등록 규칙을 따른다. linking은 youngtrip://, https://youngtrip.app, InviteAccept='j/:code'다.",
+      "15. 기존 화면 9개(MapScreen 포함)를 Placeholder(번호·화면명·FR 표시)로 바꾸고, 신규 화면 파일 17개도 Placeholder로 만든다.",
+      "16. 테스트 헬퍼를 만든다. tests/helpers/fakes.ts(fixedClock, seqIds, seededRng, fakeHasher, memoryKV 재노출, tableRoutes, fakePlaces, fakeFetch)와 tests/helpers/fixtures.ts(scenarioTrip(): SCENARIO_PLACES와 SCENARIO_EXPECTED 제안자로 만든 Trip, 날짜 설정은 SCENARIO_DAYS에서 import; fixturePlan1018()).",
+      "17. foundation 테스트를 만든다. foundation-core-boundary(순수 영역 전체의 금지 import, Date.now/Math.random/인자 없는 new Date 0건, 테스트 도달 모듈에 .tsx 없음), foundation-design-rules(이모지, 그라디언트·블러, borderLeft, ui 밖 hex·fontWeight·fontFamily·그림자, 라운드 16 초과, 가운데 정렬 허용 목록, SvgLabel 외 SVG Text, @expo-google-fonts 루트 import, react-native-maps import, '여정'·'yeojeong', 지연 금지 문구, 용어 오기; YT_SCOPE 지원; legacy-v1 제외), foundation-contrast, foundation-ops, foundation-core, foundation-ownership, golden-e2e(todo).",
+      "18. 문서와 CI를 만든다. ../docs/FR-추적표.md 초안(FR·NFR 전부, 차수 분리, 실제 제공자 열, 화면 확인 사유, 비보안 출처 한계, 카카오 실키 미확인). ../.github/workflows/ci.yml을 node 24, npm test, 웹 export로 고친다. README 구조와 실행법(서버 없이 검증, 정적 서버 SPA 폴백 또는 앱 안 코드 입력)을 갱신한다.",
+      "19. 통합 게이트를 통과시킨다. npx tsc --noEmit, npm test, npx expo export --platform web --output-dir /tmp/yt-export. '여정'·'yeojeong' grep 0건(src, App.tsx, app.config.js, README.md), src에서 legacy-v1·삭제 경로 import 0건, export 자산 ttf 정확히 4개를 확인한다.",
+      "20. 여섯 패키지 각각에 대해 node scripts/gate-scope.mjs WPn을 스텁 상태에서 시험 실행해 통과하는지 확인하고, 결과를 03 기반 작업 검수 회의에 보고한다."
+    ],
+    "sharedFiles": [
+      "App.tsx",
+      "index.ts",
+      "app.config.js",
+      "app.json",
+      "package.json",
+      "package-lock.json",
+      "tsconfig.json",
+      "README.md",
+      ".env.example",
+      "scripts/**",
+      "src/types.ts",
+      "src/config.ts",
+      "src/core/ports.ts",
+      "src/core/constants.ts",
+      "src/core/util.ts",
+      "src/core/spotUtil.ts",
+      "src/core/tripStatus.ts",
+      "src/core/group.ts",
+      "src/core/chatOrder.ts",
+      "src/core/notify.ts",
+      "src/core/sha256.ts",
+      "src/core/kv.ts",
+      "src/core/ops/index.ts",
+      "src/core/ops/lww.ts",
+      "src/navigation/**",
+      "src/ui/**",
+      "src/store/ui.ts",
+      "src/services/registry.ts",
+      "src/services/index.ts",
+      "src/services/clock.ts",
+      "src/services/random.ts",
+      "src/services/aiProxy.ts",
+      "src/services/kv.ts",
+      "src/services/share.ts",
+      "src/services/kakaoHttp.ts",
+      "src/data/regions.ts",
+      "src/data/scenario.ts",
+      "tests/setup/**",
+      "tests/helpers/**",
+      "tests/foundation-*.test.ts",
+      "tests/golden-e2e.test.ts",
+      "tests/integration-*.test.ts",
+      "../docs/FR-추적표.md",
+      "../docs/plan.json",
+      "../docs/meetings/**",
+      "../.github/workflows/ci.yml"
+    ],
+    "contracts": "전문은 이 절이다. 02 설계 리뷰에서 01 부록 A를 고쳐 다시 동결했다. 이 절만으로 병렬 작업이 가능해야 한다.\n\n[A1 공통 규칙]\n- import는 확장자 없이 쓴다. 타입만 가져올 때는 import type을 쓴다.\n- 순수 영역: src/core/**, src/data/**, src/demo/scenarioRunner.ts, A5의 순수 서비스 파일. 여기서는 react, react-native, expo-*, zustand, @react-native-async-storage/*, react-native-svg, @expo-google-fonts/*, src/store/**, src/services/{registry,index,clock,random,kv,share}.ts, src/config.ts를 import하지 않는다. JSX, enum, namespace, 매개변수 프로퍼티를 쓰지 않는다. Date.now(), Math.random(), 인자 없는 new Date()를 쓰지 않는다. 시각·난수·ID·제공자·KV·fetch는 인자(deps)로 받는다.\n- 테스트가 불러오는 모듈은 전부 .ts다. 투영, 클러스터, 타임라인 행 계산, 큐, 감지 판정 같은 테스트 대상 로직을 .tsx에 두지 않는다.\n- 화면·feature·components 파일에는 hex 색, fontWeight, fontFamily, 16 초과 라운드, 그림자를 쓰지 않는다. 전부 src/ui를 거친다. SVG 글자는 src/ui/SvgLabel만 쓴다. 폰트 패키지는 src/ui/fonts.ts 한 곳에서 서브패스로만 import한다. react-native-maps는 설치하지 않는다. 나중에 네이티브 지도 SDK를 붙이면 *.native.tsx 안에서만 import한다.\n- 모든 스토어는 reset()과 waitHydrated():Promise<void>를 가진다.\n- 시각은 appClock().now() ms다. 날짜는 KST 'YYYY-MM-DD', 시각은 'HH:MM'이다.\n- 테스트는 tests/wpN-*.test.ts이고 node:test와 node:assert/strict를 쓴다. 외부 의존은 tests/helpers/fakes를 쓴다.\n\n[A2 src/types.ts]\n- Category='식당'|'카페'|'관광지'|'쇼핑'|'공원'|'기타'; Transport='car'|'walk'|'transit'; LatLng{latitude,longitude}; RegionId=string\n- OpeningHours{open,close,closedWeekdays?:number[]}\n- Place{placeId,name,coord,category,kind?,address?,hours?,tags?,popularity?}\n- Proposal{memberId,source:'chat'|'manual',messageId?,at}\n- SpotField='pinned'|'stayMin'|'fixedDate'|'manualOrder'|'arriveOverride'|'removedByUser'\n- Spot{id,placeId,name,category,kind?,coord,address?,hours?,proposals,pinned,stayMin,createdAt,sourceText?,sourceMessageId?,fixedDate?,removedByUser?,removedReason?:'user'|'delay',outsideRegion?,manualOrder?:{date,index},arriveOverride?,edited:Partial<Record<SpotField,number>>}\n- Role='host'|'member'; Member{id,userId,nickname,role,isGuest,canInvite(기본 false),joinedAt,leftAt?,leftReason?:'left'|'removed'|'deleted',anonymized?:boolean}\n- AmbiguousPick{phrase,options:Place[],resolved?:string|'dismissed'}\n- ChatMessage{id,memberId,text,sentAt,seq?,status:'pending'|'sent',extraction?:{createdSpotIds,mergedSpotIds,ambiguous,highlights:{start,end,placeId}[]}}\n- DayBase{name,coord,placeId?}; DayField='base'|'noReturn'|'dayStart'|'dayEnd'|'transport'\n- DaySetting{date,base:DayBase|null|'inherit',noReturn,dayStart?,dayEnd?,transport?,edited?:Partial<Record<DayField,number>>}. base null이면 그날 첫 스팟을 기점으로, 'inherit'이면 직전 날짜 승계(첫날의 'inherit'는 null과 같다)\n- LegOverride{date,fromId,toId,transport}. fromId/toId는 spotId 또는 'base'\n- Invite{code,issuedAt,expiresAt,capacity,revokedAt?}\n- Photo{id,memberId,uri?,sim?:{label,tone:number},sessionOnly?,bytes,originalBytes,compressed,takenAt,coord?,source:'exif'|'estimated',spotId?,uploadedAt}. uri에는 기기 파일 경로만 넣고 blob:·data:는 넣지 않는다\n- Visit{id,spotId,date,memberId,arrivedAt?,status:'arrived'|'skipped'|'cancelled',source:'gps'|'manual'|'sim',at}\n- DiaryBlock{id,time,spotId?,placeName,photoIds,text,editedAt?,editedBy?}; DiaryEntry{date,status:'auto'|'empty',blocks,generatedAt,sharedAt?}\n- Trip{id,title,region,startDate,endDate,transport,dayStart,dayEnd,days,legs,members,spots,messages,invite?,photos,visits,diaries,createdAt,createdBy,deletedAt?,lastSeq}\n- ItemNotice{kind:'outsideHours'|'estimated'|'fallbackTransport'|'noRoute'|'overrideLate',text}\n- TimetableItem{spotId,name,travelMin,legTransport,legEstimated,arrive,depart,stayMin,pinned,proposerCount,manual,notices}\n- DayPlan{date,base:DayBase|null,baseSource:'set'|'inherited'|'firstSpot',noReturn,startMin,endLimitMin,items,returnMin,usedMin,capacityMin,overMin,carryOver:string[],orderMethod:'exact'|'approx'|'manual'}\n- ExcludeReasonCode='dayFull'|'tooFar'|'userRemoved'|'outOfPeriod'; ExcludedSpot{spotId,name,reasonCode,reason,nearestDate?,proposerCount}\n- PlanStep{key:'locate'|'matrix'|'allocate'|'reasons',label,done,total,ms}\n- Plan{tripId,days,excluded,overCapacity:{date,overMin}[],computedAt,routeCalls,cacheHits,estimated,steps}\n- Adjustment{id,kind:'reorder'|'shortenStay'|'moveToDate'|'exclude',label,savedMin,ops:OpDraft[]}\n- PlanDiff{newlyExcluded,newlyConfirmed,dayDelta:{date,usedMinDelta,overMin}[]}\n- NotifyKind='delay'|'freeTime'|'arrival'|'sessionExpiry'; NotifyPrefs=Record<NotifyKind,boolean>; NotifyLogEntry{kind,key,at}\n- GpsSample{t,coord,accuracyM:number|null}; TrackPoint=GpsSample&{source:'sim'|'device'}\n- SimPresetId='normal'|'delay25'|'closed'|'gpsShadow'|'passBy'|'nextDoor'|'denied'|'freeTime'|'full1018'\n- ArrivalState{spotId?,enteredAt?,visitId?}; LiveProposal{id,createdAt,delayMin,adjustments:Adjustment[]}; FreeTime{until,places:Place[]}\n- Session{userId,deviceToken,nickname,kind:'guest'|'account',accountId?,email?,issuedAt,expiresAt}. 게스트와 계정 모두 30일, 사용 시 갱신\n선별과 사유 규칙:\n- 제외 여부는 수용량과 FR-403 순서(제안자 수 적은 순, 동점이면 등록 늦은 순)만으로 정한다. pinned와 기간 안 fixedDate 스팟은 자동 제외하지 않고, 넘치면 overCapacity에 날짜와 초과분을 낸다.\n- 사유 코드는 제외가 정해진 뒤 문장을 고르는 규칙이다. 기점 왕복이 FAR_ROUNDTRIP_MIN(60) 이상이면 tooFar, 문장 '왕복 '+humanMin(왕복). 아니면 dayFull, nearestDate는 가장 적은 초과로 들어갈 수 있던 날, 문장 dayShort + (그날 활동시간이 두 시간대 이상이면 ' 오전'/' 오후'/' 저녁', 경계 12:00·18:00) + josa('이/가') + ' 꽉 차서'. userRemoved는 '사용자가 직접 뺌' 또는 '지연 조정안으로 뺌'. outOfPeriod는 '지정한 날짜 M/D가 여행 기간 밖이라'.\n\n[A3 Op]\n- Op={id,tripId,actorId(그 방의 memberId),at,seq?}&OpBody. OpDraft=OpBody(나머지는 스토어가 채운다). OpType=Op['type']. OpBody 유니온 전체는 types.ts에만 있고 동결한다.\nops/trip.ts(WP2):\n- trip/create{trip:Omit<Trip,'lastSeq'>}(방장 멤버 포함)\n- trip/update{patch:Partial<Pick<Trip,'title'|'region'|'startDate'|'endDate'|'transport'|'dayStart'|'dayEnd'>>} 방장만(프로토타입 가정)\n- trip/setDay{date,patch:Partial<Pick<DaySetting,'base'|'noReturn'|'dayStart'|'dayEnd'>>} 전 멤버. transport는 넣지 않는다\n- trip/delete{} 방장만\n- trip/issueInvite{invite:Invite}, trip/revokeInvite{} 방장 또는 canInvite\nops/members.ts(WP2):\n- member/join{member,inviteCode}\n- member/leave{memberId} 본인만. 방장은 거부하고 '방장 위임 미결정' 사유를 돌려준다\n- member/remove{memberId} 방장만, 본인 불가\n- member/setCanInvite{memberId,canInvite} 방장만\n- member/rename{memberId,nickname} 본인\n- member/accountLinked{userId}\n- member/anonymize{memberId} 계정 탈퇴. nickname '탈퇴한 멤버', anonymized true, leftReason 'deleted', leftAt\nops/chat.ts(WP3):\n- chat/send{message:{id,text}} 그룹 모드에서만. 리듀서는 message.seq=op.seq, status=op.seq가 있으면 'sent' 없으면 'pending'\nops/spots.ts(WP3), 전 멤버:\n- spot/extracted{messageId,created:Spot[],mergedSpotIds,ambiguous,highlights}\n- spot/resolveAmbiguous{messageId,phrase,spot:Spot|null,mergeIntoSpotId?}\n- spot/add{spot}(같은 placeId는 제안자 병합, 목적지 밖은 spot.outsideRegion)\n- spot/undoExtraction{messageId}\n- spot/pin{spotId,pinned}, spot/remove{spotId,reason?:'user'|'delay'}, spot/restore{spotId}(→고정), spot/delete{spotId}\nops/schedule.ts(WP4), 전 멤버:\n- schedule/reorder{date,spotIds}, schedule/setStay{spotId,stayMin}, schedule/setArrive{spotId,arrive:string|null}, schedule/setDate{spotId,date:string|null}\n- schedule/setDayTransport{date,transport:Transport|null}, schedule/setLegTransport{date,fromId,toId,transport:Transport|null}\nops/journal.ts(WP6), 전 멤버:\n- journal/photoAdded{photo}(blob:·data: uri 거부), journal/photoRemoved{photoId}(일기 블록 photoIds에서도 뺀다)\n- journal/visit{visit}(같은 id는 at 늦은 쪽), journal/diaryGenerated{entry}, journal/diaryEdited{date,blockId,text}, journal/diaryShared{date}\n적용 규칙:\n1. doc는 언제나 foldOps(확정 로그 seq 순 + pending at 순)의 결과다. 확인 응답(seq 부여)이나 늦게 온 낮은 seq op가 오면 WP2가 로그 전체를 다시 접는다. 증분 적용은 최적화로만 쓰고 결과가 같아야 한다.\n2. 중복은 foldOps와 outbox가 op.id로 거른다. 같은 id가 seq를 달고 다시 오면 확인 응답으로 보고 pending에서 로그로 옮긴다. applyOp는 op 하나를 적용하는 순수 함수이고 중복을 모른다.\n3. lastSeq는 applyOp가 max(doc.lastSeq, op.seq ?? 0)로 올린다.\n4. 필드 LWW는 ops/lww.ts의 lww(prevAt|undefined, at):boolean(at>=prevAt이면 적용)이다. patchSpot(spot,patch,at):Spot과 patchDay(trip,date,patch,at):Trip이 edited 맵을 갱신한다. schedule/*, spot/pin·remove·restore, trip/setDay, schedule/setDayTransport는 이 둘만 쓴다. journal/diaryEdited도 lww를 쓴다.\n5. 잠금: isEditLocked(doc,at)=kstDate(at)>endDate. LOCK_EXEMPT=journal/*, member/leave, member/anonymize, trip/delete.\n기능 파일은 reduce(doc:Trip,op:Op):Trip와 validate(doc:Trip,op:Op):string|null(null이면 허용)을 export한다. trip.ts는 reduceCreate(op):Trip도 둔다.\nops/index.ts(기반): applyOp(doc|undefined,op):Trip|undefined, validateOp(doc,op):{ok:true}|{ok:false,reason}(잠금 검사 뒤 기능 validate), foldOps(ops):Trip|undefined, isEditLocked, LOCK_EXEMPT, OP_OWNER(type → 리듀서 파일).\n\n[A4 src/core/ports.ts]\n- Clock{now()}; IdGen{next(prefix)}; Rng{bytes(n):Uint8Array}; Hasher{sha256(text):Promise<string>}\n- KV{get(key):Promise<string|null>; set(key,value):Promise<void>; remove(key):Promise<void>}\n- FetchLike=(url:string,init?:{method?,headers?,body?})=>Promise<{ok:boolean,status:number,text():Promise<string>}>\n- ProviderId='local'|'kakao'|'naver'; Region{id,name,label,center,radiusKm}\n- PlaceProvider{id; search(query,region,bias?):Promise<Place[]>(동명 여러 건 그대로); nearby(coord,radiusM,opts?:{excludePlaceIds?,limit?}):Promise<Place[]>; at(coord,radiusM):Promise<Place|null>}\n- TravelMatrix{minutes:(number|null)[][](null이면 그 수단 경로 없음),calls(캐시에서 나오지 않은 구간 수),cacheHits,estimated}\n- RouteLeg{transport,minutes,meters,polyline,steps:{text,meters}[],note?,estimated}\n- RouteProvider{id; matrix(origins,destinations,transport):Promise<TravelMatrix>; route(a,b,transport):Promise<RouteLeg|null>; clearCache():Promise<void>}\n- ExtractionProvider{id:'rules'|'ai'; phrases(text,{region}):Promise<{phrase,start,end}[]>}\n- RecommendProvider{id:'local'|'ai'; recommend({region,dates,tags,existing:Place[],limit}):Promise<{items:{place,reason}[],fallback:boolean}>}\n- DiaryWriter{id:'template'|'ai'; write({date,blocks:{time,placeName,category?,photoCount,memberNames}[]}):Promise<string[]>}\n- Profile{nickname,imageUri?,imageBytes?,imageCompressed?,tags}\n- AccountPublic{accountId,userId,email,nickname,verified,providers:('email'|'kakao'|'google')[],profile}\n- AuthFail='duplicateEmail'|'weakPassword'|'locked'|'deviceLimited'|'unverified'|'badCredentials'|'providerFailed'|'linkRequired'|'nicknameTaken'|'invalidToken'|'notFound'\n- AuthResult={ok:true,account}|{ok:false,code:AuthFail,detail?,retryAt?,linkToken?,violations?}\n- MockMail{id,to,subject,token,sentAt,invalidated}\n- AuthProvider{signUp({email,password,nickname,userId?}); resendVerification(email); verifyEmail(token); signIn({email,password,deviceToken}); social({provider,deviceToken,scenario:'ok'|'fail'|'sameEmail'}); confirmLink({linkToken,accept}); isNicknameTaken(n,exceptAccountId?); updateProfile(accountId,p); deleteAccount(accountId):Promise<{ok:true}|{ok:false,code:AuthFail}>; outbox():Promise<MockMail[]>; reset():Promise<void>}. 전부 Promise\n- SyncTransport{id:'loopback'|'http'; push(ops):Promise<{opId,seq}[]>; pull(tripId,afterSeq):Promise<Op[]>; subscribe(tripId,onOps):()=>void; online():boolean; setOnline(v):void; lookupInvite(code):Promise<{trip}|{error:'notFound'|'expired'|'revoked'|'full'}>; reset():Promise<void>}\n- LocationProvider{id:'sim'|'device'; permission():Promise<'granted'|'denied'|'undetermined'>; request():Promise<'granted'|'denied'>; watch(onSample,{intervalMs}):()=>void}\n- PickedPhoto{uri,bytes,width,height,exif?:{takenAt?,coord?},sessionOnly?}; PhotoProvider{id:'sim'|'device'; pick({multiple}):Promise<PickedPhoto[]>}\n\n[A5 서비스]\nsrc/services/registry.ts(기반):\n- getServices():{places,routes,extraction,recommend,diary,auth,sync,location,photos,clock,ids,rng,hasher,kv}\n- overrideServices(partial):()=>void(되돌리기 반환), describeServices():{key,label,mode:'mock'|'real',note?}[], resetServices():Promise<void>(sync.reset, routes.clearCache, auth.reset, override 해제)\n선택 규칙:\n- EXPO_PUBLIC_KAKAO_REST_KEY가 있으면 places=kakao, routes=kakao(자동차만 실제, 도보·대중교통은 로컬 모델 estimated). 없으면 local. 구글은 없다. note에 '프로토타입 가정 · 국내 SDK 선정 미결정'\n- EXPO_PUBLIC_AI_PROXY_URL이 있으면 extraction/recommend/diary는 ai, 없으면 rules/local/template\n- EXPO_PUBLIC_SYNC_URL이 있으면 sync는 http, 없으면 loopback\n- location/photos 기본은 device, 시뮬레이터가 sim으로 덮는다\n패키지 팩토리(registry는 이것만 부른다):\n- WP3 services/places/index.ts createPlaceProvider({kakaoKey?,fetch}); services/extraction/index.ts createExtractionProvider({aiProxyUrl?,fetch}); services/recommend/index.ts createRecommendProvider({aiProxyUrl?,fetch,places})\n- WP4 services/routes/index.ts createRouteProvider({kakaoKey?,fetch,clock,kv}) = createRouteCache({clock,kv}) 위에 transit 모델, 그 아래 kakao 또는 local\n- WP6 services/diary/index.ts createDiaryWriter({aiProxyUrl?,fetch}); services/photos/index.ts createDevicePhotoProvider(); services/photos/sim.ts createSimPhotoProvider({clock,getPosition:()=>LatLng|undefined,seed})\n- WP1 services/auth/index.ts createAuthProvider({clock,rng,hasher,kv}) → local.ts createLocalAuth\n- WP2 services/sync/index.ts createSyncTransport({syncUrl?,fetch,clock,kv,chaos?:{shuffle,duplicate,seed}}) → loopback.ts createLoopbackTransport 또는 http.ts createHttpTransport\n- WP5 services/location/index.ts createDeviceLocation(); services/location/sim.ts createSimLocation({clock,samples:GpsSample[]})\n순수 서비스 파일(A1 순수 영역, node --test에서 import 가능): places/{index,local,kakao}, routes/{index,local,kakao,cache,transit}, extraction/{index,rules,ai}, recommend/{index,local,ai}, diary/{index,template,ai}, auth/{index,local}, sync/{index,loopback,http}, location/sim, photos/sim, 그리고 공유 kakaoHttp.ts, aiProxy.ts. location/{index,device}와 photos/{index,device}만 expo-*를 쓴다.\n기반 공유 서비스:\n- clock.ts: systemClock, appClock(), setClockOverride(c|null), useNow(tickMs?)\n- random.ts: secureRng(expo-crypto getRandomBytes), ids(makeIdGen(secureRng)), hasher(core/sha256 순수 구현, digestStringAsync 쓰지 않음)\n- kv.ts: asyncStorageKV(prefix):KV\n- share.ts: shareText({title?,text}):Promise<'shared'|'copied'|'failed'>. Share.share가 실패하면 expo-clipboard 복사\n- kakaoHttp.ts: createKakaoClient({key,fetch}):{get(url,params):Promise<unknown>, lastError():string}\n- aiProxy.ts: createAiProxyClient({url,fetch}):{call<T>(path,body):Promise<T>}\n- config.ts: KAKAO_REST_KEY, HAS_KAKAO_KEY, AI_PROXY_URL, SYNC_URL\n\n[A6 스토어] 기반 스텁은 아래 필드·액션을 전부 타입까지 갖춰 기본값이나 no-op으로 export한다. 최소 동작은 구현 깊이만 뜻한다.\nuseUi(src/store/ui.ts, 기반 완성):\n- 상태: currentTripId?, actingAs:Record<tripId,memberId>, toast?:{id,text,tone:'tint'|'warn'}\n- 액션: setCurrentTrip(id?), setActingAs(tripId,memberId), showToast(text,tone?), clearToast(), reset(), waitHydrated()\n- 키: 'young-trip/ui'\nuseSession(src/store/session.ts, WP1):\n- 상태: session?:Session, profile:Profile, notifyPrefs:NotifyPrefs, notifyLog:NotifyLogEntry[], useDeviceLocation:boolean, legacyNoticeShown:boolean\n- 액션: createGuest(nickname):Session, touchSession():'ok'|'expired'|'none', signOut(), applyAuth(account), setProfile(p), setNotifyPref(kind,on), setUseDeviceLocation(on), deleteAccount():Promise<{ok:true}|{ok:false,reason}>, reset(), waitHydrated()\n- export: getUserId():string|undefined\n- 키: 'young-trip/session' v2\nuseTrips(src/store/trips.ts, WP2):\n- 상태: docs:Record<tripId,Trip>, log:Record<tripId,Op[]>, pending:Op[], plans:Record<tripId,Plan>, planning:Record<tripId,{busy,steps,error?}>, online:boolean, dirty:Record<tripId,true>\n- dispatch(tripId,draft,opts?:{actorId?}):{ok:true,op}|{ok:false,reason}; dispatchMany(tripId,drafts,opts?)\n- createTrip({title,region,startDate,endDate,transport,dayStart,dayEnd,days,hostNickname}):string (days의 base는 null 가능)\n- acceptInvite(code,{userId,nickname,isGuest}):Promise<{ok:true,tripId,memberId,already}|{ok:false,reason:'notFound'|'expired'|'revoked'|'full'}>\n- recompute(tripId):Promise<Plan|undefined>, setOnline(v)(true면 pending flush 뒤 dirty 방 재계산), removeLocal(tripId), purgeExpired(now), reset(), waitHydrated()\n- 훅: useTripDoc(id?), useCurrentTrip(), usePlan(id?), usePlanning(id?), useMyTrips()\n- 함수: myMemberId(trip)(actingAs 우선)\n- 재계산: spot/*, schedule/*, trip/create|update|setDay, member/* 뒤 150ms 디바운스로 buildPlan(trip,{routes,now,onStep}). 오프라인이면 재계산하지 않고 dirty로 표시한다\n- 키: 'young-trip/trips' v2\ncore/trip/outbox.ts(WP2, 순수): OutboxState{log:Op[],pending:Op[]}; enqueue(s,op); ack(s,acks:{opId,seq}[]); receive(s,ops):{state,changed:boolean}; flushable(s):Op[](at 순); docOf(s):Trip|undefined = foldOps([...log,...pending])\nuseLive(src/store/live.ts, WP5):\n- 상태: permission:'granted'|'denied'|'undetermined', mode:'off'|'sim'|'device'|'manual', sim:{preset:SimPresetId,speed:1|10|60|300,playing,virtualNow?}, last?:GpsSample, arrival:ArrivalState, proposals:LiveProposal[], freeTime?:FreeTime, notifyLog:NotifyLogEntry[], track:Record<tripId,Record<date,TrackPoint[]>>\n- 액션: start(tripId,date,mode), stop(), setPreset, setSpeed, play, pause, jumpTo(t), acceptProposal(id), rejectProposal(id), markArrived(spotId), cancelArrival(visitId), pruneTrack(now), reset(), waitHydrated()\n- AppState가 background가 되면 watch와 재생을 멈추고 그 사이 경로를 채우지 않는다\n\n[A7 패키지 사이 API]\n기반(공유 core):\n- core/spotUtil.ts: proposerIds, proposerCount, activeSpots, priorityCompare\n- core/tripStatus.ts: tripStatus(trip,now):'upcoming'|'ongoing'|'done', daysUntil, isEnded, isTrackExpired(trip,now)(종료일 다음 날 00:00 KST + 90일 이후), retentionUntil(trip)(종료일 다음 날 00:00 KST + 365일), isRetentionExpired(trip,now)\n- core/util.ts: kstDate, kstHHMM, atKst, toMin, toHHMM, humanMin, dayLabel, dayShort, dateRange, addDays, haversineKm, josa, makeIdGen(rng), base32, base64url\n- core/group.ts: tripMode(trip):'personal'|'group', activeMembers(trip), isHost(trip,memberId), memberById(trip,id), canIssueInvite(trip,memberId)\n- core/chatOrder.ts: orderedMessages(trip):ChatMessage[](seq 순, pending은 sentAt 순으로 뒤)\n- core/notify.ts: shouldNotify(log,entry,prefs):boolean(같은 kind·key 30분 1회, prefs 꺼짐이면 false), recordNotify(log,entry,now):NotifyLogEntry[](30분 지난 항목 정리)\n- core/sha256.ts: sha256Hex(text):string; core/kv.ts: memoryKV():KV\n- data/regions.ts: REGIONS, regionById, isInRegion\n- data/scenario.ts: SCENARIO_PLACES, SCENARIO_TRIP_INPUT, SCENARIO_MEMBERS, SCENARIO_CHAT, SCENARIO_USER_ACTIONS, SCENARIO_LATE_JOIN, SCENARIO_EXPECTED\nWP1:\n- features/account/bootstrap.ts: bootstrap(onProgress:(p:{done,total,label})=>void):Promise<{sessionState:'ok'|'expired'|'none',notices:string[]}>\n- core/auth.ts: planAccountDeletion(trips:Trip[],userId):{tripId,drafts:OpDraft[]}[]\n- demo/tools.ts: resetDemo()(resetServices, 모든 스토어 reset, setClockOverride(null)), seedScenario(until:'trip'|'members'|'chat'|'all'):Promise<tripId>\n- demo/scenarioSteps.ts: 순수 scenarioSteps(t0):ScenarioStep[], stepsUntil(steps,until). 시나리오 순서표 하나(create → issueInvite → 준호·수아 join → 줄마다 chat, 줄 뒤 USER_ACTIONS·EXTRA_ACTIONS, 11줄 뒤 지우 join). 시각은 chat = t0 + 줄×60초, 줄 뒤 단계 = 그 줄 시각 + 순서(초), 채팅 전 단계 = t0 + 순서(초)\n- demo/scenarioRunner.ts: 순수 runScenario({ids,clock,places,extraction,routes}):Promise<{trip,ops,plan}>. clock.now()를 t0로 한 번만 읽고 scenarioSteps의 시각을 op.at으로 쓴다. trip/issueInvite(SCENARIO_INVITE_CODE)를 먼저 넣고 같은 코드로 member/join한다. validateOp 거부는 이유와 함께 던진다. e2e 테스트가 쓴다\n- demo/tools.ts seedScenario: 시작 전에 manualClock(SCENARIO_T0)을 setClockOverride하고 단계마다 그 단계 시각으로 맞춘다(실제 날짜와 무관, 10/20 이후 시연도 잠금 없음). 끝나면 offsetClock(마지막 시각+1초, systemClock)을 남긴다. 같은 scenarioSteps를 돌고 chat 단계만 playScenarioChat에 맡긴다\nWP2:\n- core/trip/invite.ts: makeInviteCode(rng):string(XXXX-XXXX), inviteStatus(trip,code,now):'ok'|'expired'|'revoked'|'full'|'notFound'\n- core/trip/outbox.ts(A6)\nWP3:\n- core/extract/index.ts: extractForMessage(trip,{id,text,memberId},{extraction,places,region,ids,at}):Promise<{created:Spot[],mergedSpotIds,ambiguous,highlights}>. 한 메시지에서 새로 만든 스팟의 createdAt은 at + 원문 등장 순서(ms)다(FR-403 동점이 id 비교로 가지 않게)\n- features/chat/scenario.ts: playScenarioChat(tripId,opts?:{fromLine?,toLine?}):Promise<void>. fromLine~toLine 줄의 chat/send와 추출(spot/extracted)만 한다. 사용자 조작·추가 조작·합류는 하지 않는다(03 결정)\n- data/places.ts: PLACES(Place&{aliases?,region}), SCENARIO_PLACES를 포함\nWP4:\n- core/planner/index.ts: buildPlan(trip,deps:PlanDeps):Promise<Plan>. PlanDeps={routes:RouteProvider,now:number,onStep?:(s:PlanStep)=>void}\n- core/planner/preview.ts: previewOps(trip,base:Plan,drafts:OpDraft[],deps):Promise<PlanDiff>(doc를 바꾸지 않는다)\n- core/planner/replan.ts: replanForDelay({trip,plan,date,now,position,visitedSpotIds,skippedSpotIds,delayMin},deps:PlanDeps):Promise<{adjustments}>. 받은 delayMin으로 조정안만 만든다(ETA 지연 계산과 15분 경계는 WP5 core/live/delay.ts, 03 결정). 영업시간은 spot.hours. 조정안 순서는 reorder(순서만으로 흡수될 때) → 영업 종료 스팟 exclude → FR-403 순서, 고정은 빼지 않는다\n- features/schedule/timeline.ts: timelineRows(day:DayPlan,visitStatus?):Row[](순수)\n- features/schedule/components/DayTimeline.tsx: DayTimeline({trip,day,activeSpotId?,visitStatus?:Record<string,Visit['status']>,onPressItem?})\n- data/scenario-tuning.ts: SCENARIO_DAYS, SCENARIO_ROUTE_TABLE, SCENARIO_TRANSIT, SCENARIO_EXTRA_ACTIONS\nWP5:\n- core/map/layout.ts: layoutMap({markers,polylines,dots?,user?,size,fitTo?}):{projected,clusters,lines}(순수, 성능 측정 대상)\n- components/map/MapCanvas.tsx: MapCanvas({markers:{id,coord,kind:'spot'|'excluded'|'base',label?,title}[], polylines:{id,coords,color:'rose'|'ok'|'warn'|'ink',dashed?}[], dots?:{id,coord,tone:'ink'|'faint'}[], user?:{coord,accuracyM}, fitTo?, compact?, height?, onMarkerPress?, onPressMap?}). 클러스터링은 layoutMap이 한다\nWP6:\n- features/journal/api.ts: importPhotos(tripId,picked):Promise<Photo[]>, generateDiary(tripId,date):Promise<DiaryEntry>\n- services/photos/sim.ts: createSimPhotoProvider(A5). 3장 중 1장은 EXIF 없음, 시드 고정\n- core/journal/track.ts: buildDayTrack(trip,plan,date,points):{actual:LatLng[],planned:LatLng[],gaps:LatLng[][]}\n\n[A8 라우트 src/navigation/routes.ts]\nRootStackParamList:\n- Onboarding:undefined; InviteAccept:{code?}; Login; Signup; SocialConsent:{provider:'kakao'|'google',intent:'login'|'link'}\n- Main:NavigatorScreenParams<MainTabParamList>\n- CreateTrip; TripSettings:{tripId}; Members:{tripId}; Chat:{tripId}; SpotDetail:{tripId,spotId}; Recommend:{tripId}\n- Planning:{tripId,date?}; ScheduleEdit:{tripId,date}; LegTransport:{tripId,date,legIndex}(0이면 기점→첫 스팟); Navigate:{tripId,date,legIndex}; LiveTrip:{tripId,date?}\n- Photos:{tripId}; Diary:{tripId,date?}; RecordMap:{tripId,date?}; Profile\nMainTabParamList: Home, Candidates, Schedule:{date?}, Map:{date?}, More.\n- 화면 파일은 src/screens/<라우트>Screen.tsx다.\n- InviteAccept, Login, Signup, SocialConsent는 세션 유무와 상관없이 등록한다. Onboarding은 세션이 없을 때만, Main과 나머지 스택은 세션이 있을 때만 등록한다.\n- linking은 prefixes youngtrip://, https://youngtrip.app이고 InviteAccept='j/:code'는 두 경우 모두 간다. code 없이 열면 코드 입력 칸을 보여준다.\n- 01 스플래시는 라우트가 아니다. App이 bootstrap 동안 SplashScreen({progress,label})을 그린다.\n- 탭 화면은 useUi.currentTripId를 보여주고, 없으면 Empty와 여행방 만들기를 보여준다.\n\n[A9 ui 컴포넌트 API src/ui]\n- Txt{v:'display'|'ttl'|'ttlSm'|'nm'|'nmLg'|'body'|'bubble'|'mt'|'mtTight'|'eyebrow'|'chip'|'btn'|'btnSm'|'label'|'seg'|'tab'|'time', c?:TextColorKey, numberOfLines?}\n- Screen, Header{back?,close?,eyebrow?,title,size?:'lg'|'sm',sub?,right?}, Body{scroll?,flush?}, Foot, Row, Col{gap?}\n- Card{variant:'default'|'tinted'|'flat'|'excluded'|'warn'|'selected',onPress?}\n- Btn{title,onPress,variant:'primary'|'ghost'|'quiet'|'off',size?:'lg'|'sm',icon?,disabled?}, IconBtn{icon,onPress,label}\n- Chip{text,tone:'tint'|'line'|'warn'|'ok',icon?}, ScopeBadge{phase:'2차'|'3차'}\n- Seg{items:{key,label,count?}[],value,onChange}\n- Field{label,value,onChangeText,placeholder?,maxLength?,help?,error?,secure?,keyboardType?}, Choice{options:{key,label,icon?,badge?,disabled?}[],value,onChange}, Tag{label,on,onPress}\n- Notice{icon?,title?,text,tone?:'line'|'warn'}, WarnCard{title,text?,items?:{label,value,onPress}[]}, Empty{title,text?,action?}\n- Avatar{name,index}, AvatarStack{names}\n- Sheet, ConfirmSheet{visible,title,text,confirmLabel,onConfirm,onCancel}\n- ProgressBar{value}, TabBar, Placeholder{no,title,fr}, Toast, Icon{name:IconName,size?,color?}\n- SvgLabel{x,y,text,v:'pin'|'pinSm'|'cluster'|'tile',c:TextColorKey,anchor?:'middle'|'start'}(react-native-svg Text, 폰트·색 토큰 내장)\n- fonts.ts: FONT_ASSETS(Hahmlet_700Bold, GothicA1_400Regular, GothicA1_600SemiBold, GothicA1_700Bold, 서브패스 import)\n- tokens: textC, surfaceC, lineC, mapC, F, T, SP, R, H, E, DAY_COLORS, TEXT_ON_SURFACE_PAIRS\n\n[A10 게이트와 소유권]\n- 소유권은 tests/setup/ownership.json 하나로 정한다. foundation-ownership 테스트가 겹침 0과 모든 src·tests·server 파일의 소유자가 정확히 하나인지 본다.\n- 작업 중 게이트: node scripts/gate-scope.mjs WPn. (1) npx tsc --noEmit 결과 중 WPn 소유 파일 오류 0 (2) node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./tests/setup/resolve-ts.mjs --test 'tests/wpn-*.test.ts' 통과 (3) YT_SCOPE=WPn으로 foundation 테스트를 돌려 WPn 파일 위반 0. 완료 보고 직전 npx expo export --platform web --output-dir /tmp/yt-export-wpn 1회. 다른 패키지 파일이 원인인 실패는 보고만 한다.\n- 통합 게이트(통합 담당만, 순차): npx tsc --noEmit, npm test, npx expo export --platform web --output-dir /tmp/yt-export, '여정'·'yeojeong' grep 0건, src에서 legacy-v1·삭제 경로 import 0건, export 자산 ttf 4개, golden-e2e todo 해제 후 통과.\n- 개발 서버를 띄우지 않는다. git 커밋·푸시·브랜치 조작을 하지 않는다.\n\n[A11 03 기반 작업 리뷰 반영(추가 계약, 시그니처 동결 유지)]\n시각\n- op.at 도장: 스토어 dispatch는 op.at = stampAt(appClock().now(), lastOpAt(그 방 log+pending))로 찍는다(core/ops/index.ts). 한 방의 op.at은 뒤로 가지 않는다. 잠금 판정도 이 op.at으로 한다. 10/20 점프 뒤 되돌리려면 시연 리셋을 쓴다.\n- 시계 단조: 시뮬레이터 stop·pause는 가상 시각을 멈춘 채 override를 유지한다. setClockOverride(null)은 resetDemo만 부른다.\n- 순수 시계 도우미: core/util.ts offsetClock(startAt,base), manualClock(t0){now,set,advance}.\n- 시나리오 상수: data/scenario.ts SCENARIO_T0(2026-10-01 10:00 KST), SCENARIO_LINE_MS(60초), SCENARIO_INVITE_CODE('SCNR-2026'). tests/helpers/fixtures는 SCENARIO_T0를 재노출한다.\nop 의미(A3 보강)\n- validate는 op와 doc만 본다. 현재 시각이 필요하면 op.at을 쓴다.\n- member/join: inviteStatus(doc, op.inviteCode, op.at)==='ok'일 때 허용. 정원은 활성 멤버 수(방장 포함) < invite.capacity. 이미 같은 userId 활성 멤버가 있으면 거부(already는 acceptInvite가 op 전에 판정).\n- member/accountLinked{userId}: actor 멤버의 isGuest=false, userId=op.userId.\n- member/anonymize: 본인만. 이미 나간 멤버(leftAt 있음) 본인도 허용한다.\n- 계정 탈퇴 적용: WP1은 dispatchMany(tripId, drafts, {actorId: 그 방에서 userId가 같은 멤버 id(나간 멤버 포함)})로 보낸다. actingAs를 따르지 않는다.\n- createTrip의 방장 isGuest는 세션 kind로 정한다(account면 false).\n서비스\n- 서비스 KV: registry가 영역마다 접두사 KV('young-trip/svc/routes/', 'svc/auth/', 'svc/sync/', 'svc/app/')를 넘긴다(core/constants SERVICE_KV_PREFIX). 스토어 persist 키와 겹치지 않는다. KV에는 키 나열이 없으므로 여러 키를 쓰는 영역은 색인 키 하나('index')에 키 목록이나 전체 blob을 둔다. reset·clearCache는 그 색인으로 지운다.\n- kakaoHttp: createKakaoClient에 post(url, body)를 더했다(JSON 본문). WP4가 다중 목적지 API를 쓰면 이것을 쓴다.\n- 시나리오 구간표(SCENARIO_ROUTE_TABLE)는 placeId 키다. 로컬 RouteProvider는 SCENARIO_PLACES 좌표를 coordKey(위도·경도 소수 4자리)로 색인해 좌표 → placeId로 찾는다. 테스트 가짜 tableRoutes는 좌표 키다.\n- 지도 경로 형상: Plan에는 polyline이 없다. 지도(WP5)는 getServices().routes.route()를 구간마다 부른다(24시간 캐시). 이 호출은 buildPlan의 routeCalls와 08 수치에 넣지 않는다.\n- chaos(순서 뒤섞기·중복 주입)는 테스트 주입 전용이다. 시연은 setOnline 토글만 쓴다.\n지연(FR-603) 경계\n- WP5 core/live/delay.ts(순수): delayMinutes(plannedArriveMin, etaMin), isDelayed(delayMin)(DELAY_THRESHOLD_MIN 15 이상), proposeForDelay(delayMin, make:(delayMin)=>Promise<Adjustment[]>):Promise<Adjustment[]|null>. 앱은 make에 replanForDelay를 넣고, wp5 테스트는 가짜를 넣는다.\n테스트 경계\n- 다른 패키지의 동작이 있어야 참이 되는 단언은 tests/integration-*.test.ts(기반·통합 소유)에 둔다. 패키지 테스트는 공유 patchSpot·patchDay 직접 호출이나 주입 가짜로 자기 몫만 본다. 옮긴 목록은 tests/integration-cross.test.ts(todo)에 있다.\n- tests/integration-scenario-steps.test.ts는 순서표의 시각 증가, 조작·합류 위치, 잠금 없음을 검사한다.\n- foundation-core-boundary: src에서 Buffer, process(src/config.ts 제외), node 내장 모듈 사용 0건.\nui(A9 보강)\n- Txt style은 배치 속성(TxtLayoutStyle: flex·margin·padding·alignSelf·width 계열)만 받는다. 크기·행간·자간·색은 v와 c로만.\n- T 추가: chipLine(SemiBold 11.5, line 칩), sub(13, 헤더 보조 줄), field(14.5, 입력 글자). display는 자간 -1.56, 행간 53.\n- surfaceC.onRoseTrack '#C85475'(로즈 위 흰 .28 합성). NON_TEXT_PAIRS(진행 막대 채움·트랙 3:1)를 foundation-contrast가 검사한다.\n- Toast는 그림자 없이 테두리만. E.float는 FLOAT_ALLOWED(ui/tokens, components/map/**, features/live/**, Map·Navigate·LiveTrip·RecordMap 화면)에서만 참조한다.\n- 디자인 규칙 테스트 추가: ui 밖 fontSize·lineHeight·letterSpacing, ui 밖 react-native Text·TextInput import, SplashScreen 밖 Screen bg='rose', E.float 허용 목록, 텍스트 화살표(U+2190~21FF 등), ui 밖 이름 색, SVG rx·ry 16 초과, 999는 토큰 R.chip으로만.\n\n\n[A12 통합 반영(패키지 공유 변경 요청, 시그니처는 추가만)]\n타입(A2 보강)\n- LegOverride에 at?(구간 마지막 편집 op.at, LWW)과 cleared?(해제 묘비)를 더했다. cleared면 transport는 해제 전 값이고 계산에 쓰지 않는다. 읽는 쪽은 core/ops/schedule liveLegs()를 쓴다. LegEntry는 LegOverride의 별칭이다(W4-5).\n- DayPlan에 returnLeg?: ReturnLeg{transport,estimated,notices}를 더했다(복귀 구간 수단·추정·안내, W4-6). DayPlanWithReturn은 DayPlan 별칭, returnLegOf(day)=day.returnLeg.\n포트(A4 보강)\n- AuthProvider.social 입력에 linkToAccountId?(17 연결: 지금 계정에만 붙인다)와 providerEmail?(sameEmail 대상 이메일)을 더했다. 실제 제공자가 무시할 수 있으므로 flows.judgeSocial이 결과 계정을 다시 확인한다.\n- AuthProvider.getAccount(accountId):Promise<AuthResult>를 더했다(17 연결된 제공자 표시. updateProfile 빈 패치 우회 제거).\n- 게스트의 소셜 로그인 승격은 범위 밖이다. 게스트 승격은 이메일 가입만 하고, 게스트가 소셜로 로그인하면 복구 불가를 경고한다.\n- InviteLookup 에러에 tripId?를 더했다(찾았지만 합류할 수 없는 코드. 이미 참여한 사람을 already로 보내는 근거, 04-WP2 D-2).\n- RecommendRequest에 anchor?:LatLng[](확정 스팟 좌표. 없으면 지역 안 기존 후보 무게중심), RecommendResult에 source?:'ai'|'local'(AI 실패 로컬 대체 표시, 23 '예시 데이터' 칩)을 더했다. services/recommend/source.ts(WeakSet)는 지웠고 resultSource(r)=r.source??'ai'로 남긴다.\n서비스(A5 보강)\n- share.ts ShareOutcome에 'dismissed'를 더했다(iOS dismissedAction, 웹 navigator.share AbortError). 이때는 복사로 넘어가지 않고 부르는 쪽은 공유 기록(journal/diaryShared)을 남기지 않는다.\n스토어(A6 보강, 실제 코드 기준으로 문구를 맞춘다)\n- useTrips.dispatch·dispatchMany opts는 {actorId?, quiet?}다. quiet는 거부 사유 토스트를 띄우지 않는다(화면이 직접 안내할 때, store/live의 journal/visit).\n- acceptInvite 실패 사유는 'notFound'|'expired'|'revoked'|'full'|'ended'|'offline'이다(JoinFail). previewInvite(code,userId?):Promise<InvitePreview>를 더했다.\n- recompute는 buildPlan deps에 clock: systemClock을 넘긴다(08 단계 시간은 실제 걸린 시간).\n- useCurrentTrip은 삭제됐거나 이 기기의 사람(session.userId 또는 actingAs 멤버)이 활성 멤버가 아닌 방이면 undefined다.\n- useLive는 acceptProposal(id, adjustmentId?), dismissFreeTime(), accuracyUnknown과 19 화면용 상태(statuses, timing, shadow, background, log, proposalInfo, simWindow, tripId, date, requested)를 더 갖는다. useSimBanner(tripId,date) 훅이 13·19 띠 기준이다.\n- signOutFlow(로그아웃·탈퇴)와 resetDemo는 features/journal/api clearSessionPhotos()로 이 세션 사진 원본을 비운다.\n- useSession.createGuest(nickname)는 그대로 둔다. InviteAccept가 userId를 먼저 받아 합류 뒤에 세션을 만드는 순서는 쓰지 않는다: 스토어의 releaseCurrentIfGone·shouldFollow가 session userId로 멤버를 판정해서, 세션 없이 합류하면 루프백 수신 때 지금 여행방 선택이 풀릴 수 있다. 지금처럼 재확인 뒤 만들고 실패하면 signOut으로 되돌린다.\n패키지 사이 API(A7 보강)\n- features/chat/scenario.ts playScenarioChat은 Promise<number>(보낸 줄 수)다. void를 기대하는 호출과 호환된다.\n- core/constants에 RouteColor, DAY_COLORS, dayColor를 두고 ui/tokens가 다시 내보낸다(순수 영역 core/map이 ui를 import하지 않는다).\n- core/map/layout MapDotInput에 size?:'sm'|'md'(md는 반경 3.5·흰 테두리 1.5, 22 실제 이동 지점)를 더했다.\n- core/notify key 예: 지연·빈 시간은 'tripId:date', 도착은 'tripId:date:spotId', 세션 만료는 'userId:expiresAt'.\nui(A9 보강)\n- Header에 step?:string(뒤로 버튼 옆 왼쪽 단계 라벨, 04 '2 / 3 단계').\n- Field에 hideLabel?(접근성 이름은 label 유지), size?:'md'|'sm'(sm은 H.fieldSm 44), multiline?·minLines?(기본 3), onSubmitEditing?.\n- IconBtn에 disabled?(누름 막기, accessibilityState.disabled, 아이콘 faint).\n- Chip tone에 'card'(흰 면·경계선·roseDeep 굵은 글자, 11 지도 날짜 칩)를 더했다.\n- SvgLabel v에 'pinLg'(13px 순번 핀)를 더했다. 클러스터 숫자는 textC.onInk다.\n- WarnCard: 설명 문장은 mtLoose·warn, 조정안 행은 warnLine 테두리·R.btnSm, 라벨 mtSemi, 값은 Chip tone warn.\n- tokens: textC.onInk; surfaceC.onRoseLine(#DD94A9, 01 구분선, 장식선이라 NON_TEXT_PAIRS에 넣지 않는다. 로즈 위 2.89:1), surfaceC.onRoseHl(#C44669, 05 내 말풍선 강조 면), surfaceC.ink; T.tagline, mtSm, bubbleBold, step, stepOn, note, noteStrong, nmSm, mtSemi, mtLoose; TABULAR_NUMS(['time'], Txt가 fontVariant tabular-nums를 더한다); SP.bubbleV·SP.hl, R.hl, H.fieldSm·H.sheetList. TEXT_ON_SURFACE_PAIRS에 onRose/onRoseHl, onInk/ink를 더했다.\n- ui/Placeholder는 쓰는 화면이 없어 지웠다(자리표시 화면 0개).\n표기\n- 사용자에게 보이는 글에 내부 화면 번호('13 · ', '(23)')를 쓰지 않는다. 예외는 18 시연 도구의 화면 목록(목업 번호와 맞춰 여는 발표자용 목록)이다.\n레거시\n- legacy-v1은 import 0건을 확인한 뒤 앱 트리(test/)에서 뺐다. git에 없는 유일한 사본이라 지우지 않고 ../archive/legacy-v1로 옮겼다. tsconfig exclude와 ownership에서 뺐다. 영구 삭제는 사람이 정한다.",
+    "stubs": [
+      {
+        "path": "src/screens/SplashScreen.tsx",
+        "purpose": "01 스플래시. props {progress,label}",
+        "wp": "WP1"
+      },
+      {
+        "path": "src/screens/OnboardingScreen.tsx",
+        "purpose": "온보딩(02 틀, ui 컴포넌트만). 자리표시로 교체",
+        "wp": "WP1"
+      },
+      {
+        "path": "src/screens/HomeScreen.tsx",
+        "purpose": "03 홈·메인 메뉴 탭. 자리표시로 교체",
+        "wp": "WP1"
+      },
+      {
+        "path": "src/screens/LoginScreen.tsx",
+        "purpose": "15 로그인·소셜 로그인",
+        "wp": "WP1"
+      },
+      {
+        "path": "src/screens/SignupScreen.tsx",
+        "purpose": "16 회원가입·이메일 인증·모의 메일함",
+        "wp": "WP1"
+      },
+      {
+        "path": "src/screens/ProfileScreen.tsx",
+        "purpose": "17 프로필·성향 태그·게스트 승격·계정 탈퇴",
+        "wp": "WP1"
+      },
+      {
+        "path": "src/screens/MoreScreen.tsx",
+        "purpose": "18 더보기 탭·설정·시연 도구",
+        "wp": "WP1"
+      },
+      {
+        "path": "src/screens/SocialConsentScreen.tsx",
+        "purpose": "26 모의 소셜 동의",
+        "wp": "WP1"
+      },
+      {
+        "path": "src/store/session.ts",
+        "purpose": "useSession 전 필드·액션 타입 완성, createGuest·touchSession·reset 최소 동작",
+        "wp": "WP1"
+      },
+      {
+        "path": "src/core/session.ts",
+        "purpose": "FR-105 순수 함수(issueGuest, touch, isExpired)",
+        "wp": "WP1"
+      },
+      {
+        "path": "src/core/auth.ts",
+        "purpose": "FR-101~104 순수 판정, planAccountDeletion",
+        "wp": "WP1"
+      },
+      {
+        "path": "src/services/auth/index.ts",
+        "purpose": "createAuthProvider 팩토리",
+        "wp": "WP1"
+      },
+      {
+        "path": "src/services/auth/local.ts",
+        "purpose": "createLocalAuth({clock,rng,hasher,kv}) 모의 구현",
+        "wp": "WP1"
+      },
+      {
+        "path": "src/features/account/bootstrap.ts",
+        "purpose": "bootstrap(onProgress). 폰트 차례 로드와 waitHydrated까지 최소 구현",
+        "wp": "WP1"
+      },
+      {
+        "path": "src/demo/tools.ts",
+        "purpose": "resetDemo, seedScenario",
+        "wp": "WP1"
+      },
+      {
+        "path": "src/demo/scenarioRunner.ts",
+        "purpose": "순수 runScenario(e2e 테스트용)",
+        "wp": "WP1"
+      },
+      {
+        "path": "src/screens/CreateTripScreen.tsx",
+        "purpose": "04 여행방 만들기. 자리표시로 교체",
+        "wp": "WP2"
+      },
+      {
+        "path": "src/screens/InviteAcceptScreen.tsx",
+        "purpose": "02 초대 수락·게스트 합류·코드 입력",
+        "wp": "WP2"
+      },
+      {
+        "path": "src/screens/MembersScreen.tsx",
+        "purpose": "14 멤버 초대·링크 공유. 자리표시로 교체",
+        "wp": "WP2"
+      },
+      {
+        "path": "src/screens/TripSettingsScreen.tsx",
+        "purpose": "25 여행방 설정·날짜별 기점·삭제·나가기·보관 기한",
+        "wp": "WP2"
+      },
+      {
+        "path": "src/store/trips.ts",
+        "purpose": "useTrips 전 필드·액션 타입 완성, dispatch·createTrip·recompute·훅·reset 최소 동작",
+        "wp": "WP2"
+      },
+      {
+        "path": "src/core/ops/trip.ts",
+        "purpose": "trip/* 리듀서. create 최소 구현",
+        "wp": "WP2"
+      },
+      {
+        "path": "src/core/ops/members.ts",
+        "purpose": "member/* 리듀서. join 최소 구현",
+        "wp": "WP2"
+      },
+      {
+        "path": "src/core/trip/invite.ts",
+        "purpose": "makeInviteCode(rng), inviteStatus",
+        "wp": "WP2"
+      },
+      {
+        "path": "src/core/trip/outbox.ts",
+        "purpose": "순수 outbox(enqueue, ack, receive, flushable, docOf)",
+        "wp": "WP2"
+      },
+      {
+        "path": "src/services/sync/index.ts",
+        "purpose": "createSyncTransport 팩토리",
+        "wp": "WP2"
+      },
+      {
+        "path": "src/services/sync/loopback.ts",
+        "purpose": "createLoopbackTransport({clock,kv,chaos}) 즉시 seq",
+        "wp": "WP2"
+      },
+      {
+        "path": "src/services/sync/http.ts",
+        "purpose": "createHttpTransport 스텁",
+        "wp": "WP2"
+      },
+      {
+        "path": "server/sync-server.mjs",
+        "purpose": "node:http 동기화 서버 스텁(CORS 포함 예정)",
+        "wp": "WP2"
+      },
+      {
+        "path": "src/screens/ChatScreen.tsx",
+        "purpose": "05 그룹 채팅. 자리표시로 교체",
+        "wp": "WP3"
+      },
+      {
+        "path": "src/screens/CandidatesScreen.tsx",
+        "purpose": "06 후보 탭. 자리표시로 교체",
+        "wp": "WP3"
+      },
+      {
+        "path": "src/screens/SpotDetailScreen.tsx",
+        "purpose": "07 스팟 상세. 자리표시로 교체",
+        "wp": "WP3"
+      },
+      {
+        "path": "src/screens/RecommendScreen.tsx",
+        "purpose": "23 여행지 추천",
+        "wp": "WP3"
+      },
+      {
+        "path": "src/core/extract/index.ts",
+        "purpose": "extractForMessage 시그니처(빈 결과)",
+        "wp": "WP3"
+      },
+      {
+        "path": "src/core/recommend.ts",
+        "purpose": "추천 점수·대체 규칙 순수 함수",
+        "wp": "WP3"
+      },
+      {
+        "path": "src/core/ops/chat.ts",
+        "purpose": "chat/* 리듀서. send 최소 구현(status는 op.seq 유무)",
+        "wp": "WP3"
+      },
+      {
+        "path": "src/core/ops/spots.ts",
+        "purpose": "spot/* 리듀서",
+        "wp": "WP3"
+      },
+      {
+        "path": "src/services/extraction/index.ts",
+        "purpose": "createExtractionProvider 팩토리",
+        "wp": "WP3"
+      },
+      {
+        "path": "src/services/extraction/rules.ts",
+        "purpose": "규칙 기반 ExtractionProvider",
+        "wp": "WP3"
+      },
+      {
+        "path": "src/services/extraction/ai.ts",
+        "purpose": "AI 프록시 ExtractionProvider(fetch 주입)",
+        "wp": "WP3"
+      },
+      {
+        "path": "src/services/recommend/index.ts",
+        "purpose": "createRecommendProvider 팩토리",
+        "wp": "WP3"
+      },
+      {
+        "path": "src/services/recommend/local.ts",
+        "purpose": "로컬 RecommendProvider",
+        "wp": "WP3"
+      },
+      {
+        "path": "src/services/recommend/ai.ts",
+        "purpose": "AI 프록시 RecommendProvider(fetch 주입)",
+        "wp": "WP3"
+      },
+      {
+        "path": "src/services/places/index.ts",
+        "purpose": "createPlaceProvider 팩토리",
+        "wp": "WP3"
+      },
+      {
+        "path": "src/services/places/local.ts",
+        "purpose": "사전 기반 PlaceProvider(search, nearby, at)",
+        "wp": "WP3"
+      },
+      {
+        "path": "src/services/places/kakao.ts",
+        "purpose": "카카오 로컬 키워드 검색 어댑터(가정)",
+        "wp": "WP3"
+      },
+      {
+        "path": "src/data/places.ts",
+        "purpose": "장소 사전 초안(SCENARIO_PLACES 사용, 기반이 채움)",
+        "wp": "WP3"
+      },
+      {
+        "path": "src/features/chat/scenario.ts",
+        "purpose": "playScenarioChat",
+        "wp": "WP3"
+      },
+      {
+        "path": "src/screens/PlanningScreen.tsx",
+        "purpose": "08 루트 계산 중",
+        "wp": "WP4"
+      },
+      {
+        "path": "src/screens/ScheduleScreen.tsx",
+        "purpose": "09 시간표 탭. 자리표시로 교체",
+        "wp": "WP4"
+      },
+      {
+        "path": "src/screens/ScheduleEditScreen.tsx",
+        "purpose": "10 일정 편집",
+        "wp": "WP4"
+      },
+      {
+        "path": "src/screens/LegTransportScreen.tsx",
+        "purpose": "12 이동수단·경로 비교",
+        "wp": "WP4"
+      },
+      {
+        "path": "src/core/planner/index.ts",
+        "purpose": "buildPlan 시그니처(빈 날짜 plan, orderMethod)",
+        "wp": "WP4"
+      },
+      {
+        "path": "src/core/planner/preview.ts",
+        "purpose": "previewOps 시그니처",
+        "wp": "WP4"
+      },
+      {
+        "path": "src/core/planner/replan.ts",
+        "purpose": "replanForDelay 시그니처",
+        "wp": "WP4"
+      },
+      {
+        "path": "src/core/ops/schedule.ts",
+        "purpose": "schedule/* 리듀서",
+        "wp": "WP4"
+      },
+      {
+        "path": "src/services/routes/index.ts",
+        "purpose": "createRouteProvider 팩토리",
+        "wp": "WP4"
+      },
+      {
+        "path": "src/services/routes/local.ts",
+        "purpose": "로컬 RouteProvider(구간표 우선, 직선 추정)",
+        "wp": "WP4"
+      },
+      {
+        "path": "src/services/routes/kakao.ts",
+        "purpose": "카카오모빌리티 자동차 길찾기 어댑터(가정)",
+        "wp": "WP4"
+      },
+      {
+        "path": "src/services/routes/cache.ts",
+        "purpose": "createRouteCache({clock,kv}) 24시간",
+        "wp": "WP4"
+      },
+      {
+        "path": "src/services/routes/transit.ts",
+        "purpose": "대중교통 모의 모델",
+        "wp": "WP4"
+      },
+      {
+        "path": "src/data/scenario-tuning.ts",
+        "purpose": "SCENARIO_DAYS·구간표·대중교통·추가 조작 초안",
+        "wp": "WP4"
+      },
+      {
+        "path": "src/features/schedule/timeline.ts",
+        "purpose": "timelineRows 순수 함수",
+        "wp": "WP4"
+      },
+      {
+        "path": "src/features/schedule/components/DayTimeline.tsx",
+        "purpose": "DayTimeline 컴포넌트 시그니처",
+        "wp": "WP4"
+      },
+      {
+        "path": "src/screens/MapScreen.tsx",
+        "purpose": "11 지도 탭. 자리표시로 교체",
+        "wp": "WP5"
+      },
+      {
+        "path": "src/screens/NavigateScreen.tsx",
+        "purpose": "13 길찾기·구간 내비",
+        "wp": "WP5"
+      },
+      {
+        "path": "src/screens/LiveTripScreen.tsx",
+        "purpose": "19 여행 진행·시뮬레이터",
+        "wp": "WP5"
+      },
+      {
+        "path": "src/components/map/MapCanvas.tsx",
+        "purpose": "MapCanvas props 계약. 자리표시 사각형",
+        "wp": "WP5"
+      },
+      {
+        "path": "src/core/map/layout.ts",
+        "purpose": "layoutMap 시그니처(투영·클러스터·선)",
+        "wp": "WP5"
+      },
+      {
+        "path": "src/store/live.ts",
+        "purpose": "useLive 전 필드·액션 타입 완성, reset",
+        "wp": "WP5"
+      },
+      {
+        "path": "src/services/location/index.ts",
+        "purpose": "createDeviceLocation",
+        "wp": "WP5"
+      },
+      {
+        "path": "src/services/location/sim.ts",
+        "purpose": "createSimLocation 스텁(순수)",
+        "wp": "WP5"
+      },
+      {
+        "path": "src/services/location/device.ts",
+        "purpose": "expo-location 어댑터 스텁",
+        "wp": "WP5"
+      },
+      {
+        "path": "src/core/sim/clock.ts",
+        "purpose": "SimClock 스텁(Clock 구현)",
+        "wp": "WP5"
+      },
+      {
+        "path": "src/screens/PhotosScreen.tsx",
+        "purpose": "20 사진",
+        "wp": "WP6"
+      },
+      {
+        "path": "src/screens/DiaryScreen.tsx",
+        "purpose": "21 일기·편집·공유",
+        "wp": "WP6"
+      },
+      {
+        "path": "src/screens/RecordMapScreen.tsx",
+        "purpose": "22 기록 지도·실제 경로",
+        "wp": "WP6"
+      },
+      {
+        "path": "src/core/ops/journal.ts",
+        "purpose": "journal/* 리듀서",
+        "wp": "WP6"
+      },
+      {
+        "path": "src/services/photos/index.ts",
+        "purpose": "createDevicePhotoProvider",
+        "wp": "WP6"
+      },
+      {
+        "path": "src/services/photos/sim.ts",
+        "purpose": "createSimPhotoProvider 스텁(순수)",
+        "wp": "WP6"
+      },
+      {
+        "path": "src/services/photos/device.ts",
+        "purpose": "expo-image-picker 어댑터 스텁",
+        "wp": "WP6"
+      },
+      {
+        "path": "src/services/diary/index.ts",
+        "purpose": "createDiaryWriter 팩토리",
+        "wp": "WP6"
+      },
+      {
+        "path": "src/services/diary/template.ts",
+        "purpose": "템플릿 DiaryWriter",
+        "wp": "WP6"
+      },
+      {
+        "path": "src/services/diary/ai.ts",
+        "purpose": "AI 프록시 DiaryWriter(fetch 주입)",
+        "wp": "WP6"
+      },
+      {
+        "path": "src/features/journal/api.ts",
+        "purpose": "importPhotos, generateDiary 시그니처",
+        "wp": "WP6"
+      },
+      {
+        "path": "tests/golden-e2e.test.ts",
+        "purpose": "채팅부터 계획까지 골든(todo). 통합 때 해제",
+        "wp": "FOUNDATION"
+      },
+      {
+        "path": "src/demo/scenarioSteps.ts",
+        "purpose": "시나리오 순서표(순수). seedScenario·runScenario 공용",
+        "wp": "WP1"
+      },
+      {
+        "path": "src/core/live/delay.ts",
+        "purpose": "ETA 지연·15분 경계·조정안 주입(순수)",
+        "wp": "WP5"
+      }
+    ]
+  },
+  "workPackages": [
+    {
+      "id": "WP1",
+      "name": "계정·세션·홈·설정",
+      "features": [
+        "FR-105",
+        "FR-101",
+        "FR-102",
+        "FR-103",
+        "FR-104",
+        "FR-203",
+        "게스트 승격",
+        "계정 탈퇴(NFR 데이터 보존)",
+        "NFR 보안(계정)",
+        "NFR 알림 설정·sessionExpiry",
+        "부팅(bootstrap)",
+        "화면 01",
+        "온보딩",
+        "화면 03",
+        "화면 15",
+        "화면 16",
+        "화면 17",
+        "화면 18",
+        "화면 26",
+        "시연 리셋"
+      ],
+      "goal": "게스트 세션부터 정식 계정, 프로필, 계정 탈퇴, 홈 목록, 더보기·설정, 부팅과 시연 도구까지 사용자 진입과 계정 흐름 전부를 모의 인증 위에서 끝까지 동작하게 만든다.",
+      "ownsFiles": [
+        "src/screens/SplashScreen.tsx",
+        "src/screens/OnboardingScreen.tsx",
+        "src/screens/HomeScreen.tsx",
+        "src/screens/LoginScreen.tsx",
+        "src/screens/SignupScreen.tsx",
+        "src/screens/ProfileScreen.tsx",
+        "src/screens/MoreScreen.tsx",
+        "src/screens/SocialConsentScreen.tsx",
+        "src/features/account/**",
+        "src/store/session.ts",
+        "src/core/session.ts",
+        "src/core/auth.ts",
+        "src/services/auth/**",
+        "src/demo/**",
+        "tests/wp1-*.test.ts"
+      ],
+      "mayRead": [
+        "../여행계획-앱-기능명세서-v0.2.md",
+        "../HANDOFF.md",
+        "../여행계획-앱-핑크-캔버스.html",
+        "../docs/meetings/01-킥오프.md",
+        "../docs/meetings/02-설계리뷰.md",
+        "../docs/meetings/03-기반작업-리뷰.md",
+        "../docs/plan.json",
+        "legacy-v1/src/**",
+        "src/types.ts",
+        "src/core/ports.ts",
+        "src/core/constants.ts",
+        "src/core/util.ts",
+        "src/core/tripStatus.ts",
+        "src/core/group.ts",
+        "src/core/notify.ts",
+        "src/core/sha256.ts",
+        "src/core/kv.ts",
+        "src/core/ops/index.ts",
+        "src/ui/**",
+        "src/navigation/**",
+        "src/services/registry.ts",
+        "src/services/clock.ts",
+        "src/services/random.ts",
+        "src/services/kv.ts",
+        "src/store/trips.ts",
+        "src/store/live.ts",
+        "src/store/ui.ts",
+        "src/data/scenario.ts",
+        "src/data/scenario-tuning.ts",
+        "src/core/extract/index.ts",
+        "src/core/planner/index.ts",
+        "src/features/chat/scenario.ts",
+        "src/services/places/index.ts",
+        "src/services/extraction/index.ts",
+        "src/services/routes/index.ts",
+        "tests/helpers/**",
+        "tests/setup/ownership.json"
+      ],
+      "consumes": "types(Session, Profile, NotifyKind, NotifyPrefs, NotifyLogEntry, Trip, OpDraft), ports(AuthProvider, AccountPublic, AuthResult, MockMail, Rng, Hasher, Clock, KV), core(tripStatus·daysUntil·isRetentionExpired, group.tripMode, notify.shouldNotify·recordNotify, sha256, kv.memoryKV), registry(getServices, describeServices, resetServices), clock(appClock, useNow, setClockOverride), useTrips(useMyTrips, dispatchMany, reset, waitHydrated), useLive(reset, permission, waitHydrated), useUi(setCurrentTrip, showToast), ui(fonts.FONT_ASSETS, 컴포넌트), WP3 extractForMessage·playScenarioChat, WP4 buildPlan, 팩토리 createPlaceProvider·createExtractionProvider·createRouteProvider(runScenario용), data/scenario·scenario-tuning, 라우트 Onboarding/Login/Signup/SocialConsent/Profile/Main.Home/Main.More, SplashScreen props 계약",
+      "acceptance": [
+        "FR-105(wp1-session): 주입 Rng로 128비트 base64url 토큰을 만든다. 만료는 발급+30일이고 touch마다 now+30일로 늘어난다. now>expiresAt이면 세션을 폐기하고 bootstrap notices로 '복구 불가' 안내를 낸다. memoryKV로 같은 저장 상태를 다시 읽으면 복원된다. 토큰은 끝 4자리만 보인다",
+        "FR-101(wp1-auth): 중복 이메일을 거부한다. 비밀번호 규칙(8자 이상, 영문과 숫자 포함) 위반 항목을 violations로 돌려주고 16에 보여준다. 재발송하면 이전 인증 토큰이 무효가 된다. 모의 메일함에서 인증할 수 있다",
+        "FR-102(wp1-auth): 계정 5회 연속 실패 시 10분 잠금이고 10분 1초 뒤 해제된다(Clock 주입). 기기 토큰 기준 10분 20회 제한을 별도로 둔다. 15에 '서버가 없어 IP 대신 기기 토큰 · 프로토타입 가정'을 적는다. 미인증 계정 로그인을 거부한다. 계정 세션은 30일이고 사용할 때마다 갱신되며, 만료되면 재로그인 안내를 하고 여행방은 유지된다. 로그아웃 뒤 계정 로그인으로 기존 여행방을 이어 쓴다",
+        "FR-103: 모의 동의 화면 26(로고 없이 텍스트와 선)을 둔다. 동일 이메일이면 linkRequired를 거쳐 확인한 뒤에만 연결하고 자동 병합하지 않는다. scenario 'fail'이면 앰버 Notice와 재시도를 보여준다",
+        "FR-104: 닉네임 중복을 거부한다. 5MB를 넘는 이미지는 압축 대상으로 판정하고 압축 전후 크기를 표시한다. 성향 태그(맛집, 자연, 액티비티, 휴식, 역사, 카페)를 profile.tags에 저장한다",
+        "게스트 승격: userId를 유지하고 참여한 모든 방에 member/accountLinked를 보낸다. '이관 범위 미결정 · 이 기기 데이터 유지'를 표시한다",
+        "계정 탈퇴: 17에서 quiet 버튼과 ConfirmSheet 1회로 시작한다. planAccountDeletion(trips,userId)은 방마다 본인이 올린 사진의 journal/photoRemoved와 본인 멤버의 member/anonymize를 만든다(wp1-auth에서 초안 목록 검증). 초안은 dispatchMany(tripId, drafts, {actorId: 그 방에서 userId가 같은 본인 멤버 id, 나간 방 포함})로 보내고 actingAs를 따르지 않는다. 이어서 AuthProvider.deleteAccount와 signOut을 한다. 게스트에게는 탈퇴 메뉴가 없다. 적용 결과(사진 삭제, 채팅·제안 유지, '탈퇴한 멤버' 표시)는 통합 테스트가 확인한다",
+        "FR-203(wp1-home): 공유 tripStatus로 예정·진행중·완료 세그먼트와 개수를 보여준다. appClock을 따라 시뮬레이터 시각이 반영된다. 여행방이 0개면 생성 유도 Empty를 보여준다. UTC 회귀 판정 자체는 foundation-core가 검사한다",
+        "03 홈: 진행중 방 카드(D-일, 아바타, 후보·확정·제외 수) 다음에 메뉴 6칸을 둔다. tripMode가 personal이면 채팅 칸을 비활성으로 두고 이유를 적는다. 길찾기 칸은 활성에 ScopeBadge '2차'를 단다",
+        "18 더보기: 멤버·기록·여행 진행·추천·계정 진입점을 둔다. 설정에는 알림 유형별 끄기(notifyPrefs), 위치 권한 상태, 제공자 상태(describeServices, 카카오 키 유무와 '국내 SDK 선정 미결정' 표시), 게스트 세션 만료와 끝 4자리, 데이터 보존 안내(종료 후 1년), 그룹원 위치 공유 '꺼짐 · 미결정'을 둔다. 시연 도구에는 시연 리셋, 시나리오 채우기, 네트워크 끊기 토글을 둔다",
+        "sessionExpiry 알림: 게스트 세션 만료 3일 전에 앱 안 알림을 한 번 띄운다. 공유 core/notify의 30분 1회와 끄기 규칙을 따른다",
+        "01 스플래시와 bootstrap: 폰트 4개(Font.loadAsync 차례 호출)와 스토어 4개 waitHydrated를 단계 수(8단계) 기준 진행률과 단계 이름으로 보여준다. 바이트 진행률은 약속하지 않는다. 로즈 전체면은 이 화면에서만 쓴다. 구 키(1단계 persist 키) 삭제 안내는 notices로 한 번만 낸다. 배치는 목업 01 기준이다: 워드마크 두 줄 사이 간격, 44×2 구분선, 태그라인 15px SemiBold, 진행 문구 왼쪽·퍼센트 오른쪽 한 줄",
+        "resetDemo는 resetServices, 모든 스토어 reset, setClockOverride(null)를 부른다. resetDemo 뒤 seedScenario('all')를 두 번 돌려도 후보 14·확정 11·제외 3이 같다(통합 e2e로 확인)",
+        "시연 시각(03 결정): seedScenario는 manualClock(SCENARIO_T0)을 setClockOverride하고 단계마다 scenarioSteps 시각으로 맞춘다. 실제 날짜와 무관하게 편집 잠금에 걸리지 않는다. 끝나면 offsetClock(마지막 시각+1초)을 남긴다. setClockOverride(null)은 resetDemo만 부른다. seedScenario와 runScenario는 같은 scenarioSteps를 돌고 chat 단계만 playScenarioChat(WP3)에 맡긴다",
+        "모의 인증은 createLocalAuth({clock,rng,hasher,kv})이고 salt+SHA-256(core/sha256 순수 구현)으로만 저장하며 원문 비밀번호를 두지 않는다. node --test에서 memoryKV로 돈다. 화면에 '프로토타입 · 단말 저장' 한계를 표시한다",
+        "runScenario는 순수 함수이고 RN 모듈을 import하지 않는다(foundation-core-boundary)",
+        "작업 중 게이트 node scripts/gate-scope.mjs WP1을 통과하고, 완료 보고 전 /tmp/yt-export-wp1 웹 export를 한 번 돌린다"
+      ]
+    },
+    {
+      "id": "WP2",
+      "name": "여행방·그룹·동기화",
+      "features": [
+        "FR-201",
+        "FR-204",
+        "FR-205(입력)",
+        "FR-301",
+        "FR-302",
+        "FR-303",
+        "FR-304(전송·큐·순서)",
+        "개인↔그룹 전환",
+        "권한 validate",
+        "NFR 오프라인",
+        "NFR 데이터 보존(1년 보관, member/anonymize)",
+        "화면 02",
+        "화면 04",
+        "화면 14",
+        "화면 25"
+      ],
+      "goal": "여행방 생성부터 초대, 합류, 멤버 관리, 삭제·나가기, 날짜별 기점, 보관 기한까지를 op 로그와 동기화 전송 위에서 동작하게 만든다. 오프라인 큐와 순서 보정을 순수 outbox로 만들어 한 기기에서 시연하고 node로 검증한다.",
+      "ownsFiles": [
+        "src/screens/CreateTripScreen.tsx",
+        "src/screens/InviteAcceptScreen.tsx",
+        "src/screens/MembersScreen.tsx",
+        "src/screens/TripSettingsScreen.tsx",
+        "src/features/trip/**",
+        "src/store/trips.ts",
+        "src/core/ops/trip.ts",
+        "src/core/ops/members.ts",
+        "src/core/trip/**",
+        "src/services/sync/**",
+        "server/**",
+        "tests/wp2-*.test.ts"
+      ],
+      "mayRead": [
+        "../여행계획-앱-기능명세서-v0.2.md",
+        "../HANDOFF.md",
+        "../여행계획-앱-핑크-캔버스.html",
+        "../docs/meetings/01-킥오프.md",
+        "../docs/meetings/02-설계리뷰.md",
+        "../docs/meetings/03-기반작업-리뷰.md",
+        "../docs/plan.json",
+        "legacy-v1/src/**",
+        "src/types.ts",
+        "src/core/ports.ts",
+        "src/core/constants.ts",
+        "src/core/util.ts",
+        "src/core/spotUtil.ts",
+        "src/core/tripStatus.ts",
+        "src/core/group.ts",
+        "src/core/kv.ts",
+        "src/core/ops/index.ts",
+        "src/core/ops/lww.ts",
+        "src/ui/**",
+        "src/navigation/**",
+        "src/services/registry.ts",
+        "src/services/clock.ts",
+        "src/services/random.ts",
+        "src/services/kv.ts",
+        "src/services/share.ts",
+        "src/store/session.ts",
+        "src/store/ui.ts",
+        "src/data/regions.ts",
+        "src/core/planner/index.ts",
+        "src/services/places/index.ts",
+        "tests/helpers/**",
+        "tests/setup/ownership.json"
+      ],
+      "consumes": "types(Trip, Member, Invite, DaySetting, DayField, Op, OpDraft, Plan, PlanStep), ops/index(applyOp, validateOp, foldOps, isEditLocked, LOCK_EXEMPT), lww(patchDay), core(group.tripMode·isHost·canIssueInvite, tripStatus.retentionUntil·isRetentionExpired, kv.memoryKV), ports(SyncTransport, PlaceProvider, Rng, IdGen, Clock, KV, FetchLike, Region), registry(sync, places, routes, ids, rng, clock, kv), services/share.shareText, WP4 buildPlan(trip,{routes,now,onStep}), useSession(session, getUserId, createGuest), useUi(actingAs, setActingAs, setCurrentTrip, showToast), data/regions, ui(ConfirmSheet, Field, Choice, Card, Btn, ScopeBadge 등), 라우트 CreateTrip/InviteAccept/Members/TripSettings, linking j/:code",
+      "acceptance": [
+        "FR-201(wp2-trip): 종료일<시작일이면 거부한다. 15일 이상이면 확인 창을 띄우고 확인 뒤 허용한다. 지역은 REGIONS 목록에서만 고른다. 날짜는 달력 범위 선택이고 텍스트 입력은 없다. 기점은 선택 입력이다. 검색 0건이면 '결과 없음'을 알리고 기점 없이(base null) 만들 수 있으며, 그 방의 plan은 baseSource firstSpot이 된다. 04는 '2 / 3 단계', 다음 버튼은 14로 간다",
+        "FR-205 입력: 25에서 날짜별 기점(장소 검색), '직전 날짜와 같음'('inherit'), '기점 없음(첫 스팟 사용)'(null), '복귀 없음', 날짜별 활동시간을 trip/setDay{date,patch}로 저장한다. transport는 건드리지 않는다. 리듀서는 공유 patchDay로 필드별 lww를 적용한다(wp2-trip: setDay 리듀서가 patch에 없는 transport·edited.transport를 건드리지 않음을 공유 patchDay 직접 호출로 확인한다. schedule/setDayTransport 리듀서(WP4)와의 공존은 tests/integration-cross가 본다)",
+        "권한 validate(wp2-trip): trip/setDay는 전 멤버, trip/update는 방장만(프로토타입 가정), trip/delete는 방장만, member/setCanInvite는 방장만이다. 방장이 아닌 삭제와 그룹원의 trip/update를 거부한다",
+        "op 의미(03 결정): validate는 op.at만 쓴다. member/join은 inviteStatus(doc, inviteCode, op.at)==='ok'일 때 허용하고 정원은 활성 멤버 수(방장 포함) < capacity다. member/accountLinked는 actor 멤버의 isGuest=false, userId=op.userId다. createTrip 방장 isGuest는 세션 kind를 따른다(기반이 반영). foldOps는 거부 op를 건너뛰므로 runScenario가 넣는 초대·합류가 통과하는지 wp2-invite에서 확인한다",
+        "FR-204: 방장 삭제는 ConfirmSheet 1회 뒤 trip/delete이고, 다른 멤버 목록에서도 사라진다. 그룹원은 나가기다. 방장 나가기는 validate가 '방장 위임 미결정' 사유로 거부하고 화면은 안내만 한다",
+        "FR-301(wp2-invite): makeInviteCode는 주입 Rng로 Crockford base32 8자(XXXX-XXXX)를 만든다. 7일 뒤 '만료', 7번째 합류는 '정원 초과', 재발급하면 이전 코드는 revoked다. canInvite 기본값은 false이고, 기본 그룹원의 발급을 거부한다. youngtrip.app/j/코드 복사(expo-clipboard)와 공유(services/share, 웹에서 공유가 안 되면 복사로 대체하고 토스트), 만료일·남은 자리를 표시한다",
+        "FR-302(wp2-invite): 세션이 없으면 닉네임(방마다, 12자 카운터)을 받아 게스트로 합류한다. 이미 참여한 userId는 중복 멤버 없이 already:true로 방에 들어간다. 첫 합류 때 개인→그룹으로 바뀌고 기존 스팟은 유지된다. 같은 기기 '다른 사람으로 합류(시연)'를 지원한다. 게스트 한계 안내는 합류 버튼 앞에 둔다. InviteAccept는 세션 유무와 상관없이 열리고, 코드 없이 열면 코드 입력 칸을 보여준다. 02 화면의 시각 기준은 WP2 소유다",
+        "FR-303(wp2-invite): 방장만 내보낼 수 있고 방장 본인은 불가다. 권한 조정은 초대 권한 토글이고 '프로토타입 가정'을 표시한다. 14의 내보내기와 초대 권한 토글에 ScopeBadge '2차'를 단다. 방장 외 전원이 나가면 tripMode가 personal로 돌아가고 채팅·스팟은 유지된다. 나간 멤버의 제안·채팅은 '나간 멤버'로 남는다",
+        "member/anonymize 리듀서: validate는 본인만이고 이미 나간 멤버 본인도 허용한다. nickname '탈퇴한 멤버', anonymized true, leftReason 'deleted', leftAt을 둔다. 채팅과 제안의 memberId는 그대로다. 종료된 방에서도 적용된다(LOCK_EXEMPT)",
+        "FR-304(wp2-sync): core/trip/outbox.ts는 순수 함수다. 오프라인 중 op는 pending으로 남고, 재연결 때 at 순으로 push된다. 확인 응답이 오면 pending에서 로그로 옮기고 seq 순으로 다시 접는다. 같은 op 중복 수신은 1회만 반영된다. chaos(순서 뒤섞기·중복 주입, 시드 고정) 주입 테스트를 둔다. 오프라인 중 편집된 방은 dirty가 되고, setOnline(true) 때 flush 뒤 재계산 대상이 된다",
+        "종료 잠금: 종료일이 지난 방에서 편집 op가 거부되면 화면에 안내를 띄운다. 판정 자체는 foundation-ops가 검사한다",
+        "오프라인이면 docs와 plans 캐시로 열람하고 재계산은 멈춘다. 25에 보관 기한(retentionUntil)을 표시한다. 부팅 때 purgeExpired(now)가 isRetentionExpired인 방을 로컬에서 지운다(wp2-trip: 경계 전후)",
+        "LoopbackTransport(createLoopbackTransport({clock,kv,chaos}))가 기본이다. KV에 저장해 새로고침 뒤에도 유지되고, 받은 op를 접어 lookupInvite를 판정하며, reset()이 KV를 비운다. HttpPollingTransport는 EXPO_PUBLIC_SYNC_URL이 있을 때만 쓴다. server/sync-server.mjs는 node:http만 쓰고 POST /trips/:id/ops, GET /trips/:id/ops?after=, GET /invites/:code와 CORS 헤더·OPTIONS 응답을 둔다. 테스트는 '../server/sync-server.mjs'를 확장자까지 적어 import하고 포트 0으로 띄웠다가 닫는다",
+        "14 화면: 멤버 행에 '후보 N곳', 대기 상태 칩, 내보내기는 행 오른쪽 메뉴에 둔다. 로즈를 위험 신호로 쓰지 않는다",
+        "작업 중 게이트 node scripts/gate-scope.mjs WP2를 통과하고, 완료 보고 전 /tmp/yt-export-wp2 웹 export를 한 번 돌린다"
+      ]
+    },
+    {
+      "id": "WP3",
+      "name": "대화 인식·후보·추천",
+      "features": [
+        "FR-202",
+        "FR-304(화면)",
+        "FR-401",
+        "FR-402",
+        "FR-403(화면)",
+        "FR-404",
+        "FR-803",
+        "NFR 추출 품질",
+        "실제 장소 제공자(카카오, 가정)",
+        "화면 05",
+        "화면 06",
+        "화면 07",
+        "화면 23",
+        "화면 24"
+      ],
+      "goal": "채팅 발화에서 장소를 정확히 뽑아 후보로 쌓고, 후보·자동 선별 결과·스팟 상세·수동 등록·추천을 목업대로 보여준다. 추출 골든과 품질 수치를 테스트로 증명한다.",
+      "ownsFiles": [
+        "src/screens/ChatScreen.tsx",
+        "src/screens/CandidatesScreen.tsx",
+        "src/screens/SpotDetailScreen.tsx",
+        "src/screens/RecommendScreen.tsx",
+        "src/features/chat/**",
+        "src/features/candidates/**",
+        "src/core/extract/**",
+        "src/core/recommend.ts",
+        "src/core/ops/chat.ts",
+        "src/core/ops/spots.ts",
+        "src/services/extraction/**",
+        "src/services/recommend/**",
+        "src/services/places/**",
+        "src/data/places.ts",
+        "tests/wp3-*.test.ts"
+      ],
+      "mayRead": [
+        "../여행계획-앱-기능명세서-v0.2.md",
+        "../HANDOFF.md",
+        "../여행계획-앱-핑크-캔버스.html",
+        "../docs/meetings/01-킥오프.md",
+        "../docs/meetings/02-설계리뷰.md",
+        "../docs/meetings/03-기반작업-리뷰.md",
+        "../docs/plan.json",
+        "legacy-v1/src/**",
+        "src/types.ts",
+        "src/core/ports.ts",
+        "src/core/constants.ts",
+        "src/core/util.ts",
+        "src/core/spotUtil.ts",
+        "src/core/group.ts",
+        "src/core/chatOrder.ts",
+        "src/core/ops/index.ts",
+        "src/core/ops/lww.ts",
+        "src/ui/**",
+        "src/navigation/**",
+        "src/services/registry.ts",
+        "src/services/aiProxy.ts",
+        "src/services/kakaoHttp.ts",
+        "src/store/trips.ts",
+        "src/store/session.ts",
+        "src/store/ui.ts",
+        "src/data/regions.ts",
+        "src/data/scenario.ts",
+        "src/core/planner/preview.ts",
+        "src/components/map/MapCanvas.tsx",
+        "tests/helpers/**",
+        "tests/setup/ownership.json",
+        "src/demo/scenarioSteps.ts",
+        "src/data/scenario-tuning.ts"
+      ],
+      "consumes": "types(Spot, Proposal, ChatMessage, AmbiguousPick, Place, Plan, ExcludedSpot, PlanDiff), ops(chat/*, spot/*), lww(patchSpot), ports(ExtractionProvider, PlaceProvider, RecommendProvider, Region, IdGen, FetchLike), registry, createAiProxyClient, createKakaoClient, core(group.tripMode, chatOrder.orderedMessages, spotUtil), useTrips(dispatch, usePlan, useCurrentTrip, online, myMemberId), useSession.profile.tags, useUi(actingAs, setActingAs), WP4 previewOps, WP5 MapCanvas(compact, onPressMap), data/regions·scenario(SCENARIO_PLACES, SCENARIO_CHAT, SCENARIO_USER_ACTIONS, SCENARIO_EXPECTED), 라우트 Chat/SpotDetail/Recommend/Main.Candidates",
+      "acceptance": [
+        "FR-401(wp3-extract): '동궁과 월지 야경 유명하대', '안압지 가자', '동궁 야경'은 모두 동궁과 월지로 추출된다. '교촌마을을'이 들어간 문장의 phrase는 원문 부분 문자열이고 조사를 넣지 않는다. '거기 그 카페'는 0건이다. 인식 실패 시 후보도 안내도 없다(현행 '장소를 찾지 못했습니다' 제거). 동명 다수면 자동 등록하지 않고 추출 카드 안에서 고르게 한다. 지역 반경 밖은 버린다. 오인식은 spot/delete로 지운다",
+        "playScenarioChat은 fromLine~toLine의 chat/send와 추출(spot/extracted)만 한다. 사용자 조작·추가 조작·지우 합류는 하지 않는다(seedScenario가 scenarioSteps로 적용). 한 메시지에서 새로 만든 스팟의 createdAt은 at + 원문 등장 순서(ms)다",
+        "품질(wp3-extract-quality): 명시적 장소 문장 30개 이상과 장소 없는 문장 20개 이상을 둔다. 재현율 80% 이상, 오탐율(틀린 추출/전체 추출) 10% 이하를 수치로 단언하고 미달이면 실패시킨다",
+        "시나리오 골든(wp3-golden-extract): scenarioSteps(SCENARIO_T0)의 join·chat 단계를 순서대로 적용하면(action 단계는 후보·제안자를 바꾸지 않으므로 건너뛰어도 된다) 후보 14곳의 이름·카테고리·제안자가 부록 B 표와 정확히 일치한다(황리단길 4, 불국사 3, 석굴암 2)",
+        "data/places.ts는 동결된 SCENARIO_PLACES를 가져다 쓰고 별칭, 주변 POI, 동명 황남빵 2곳, 호미곶, 태그, 인기도만 더한다. 14곳과 기점의 placeId·좌표·카테고리·영업시간·체류를 바꾸지 않는다(wp3 테스트가 SCENARIO_PLACES와 동일함을 단언)",
+        "FR-402(wp3-candidates): 같은 placeId는 하나로 합치고 proposals를 중복 없이 누적한다. 되돌리기는 그 메시지로 새로 생긴 후보만 지우고, 병합된 기존 후보에서는 그 메시지의 제안만 뺀다(회귀 테스트). restore는 고정으로 되돌린다",
+        "chat/send 리듀서는 기반 최소 구현(status는 op.seq 유무, seq 기록)을 유지한다. 그룹 모드가 아니면 validate가 거부한다",
+        "06: '확정 버튼 없음' 칩, 확정/제외 Seg와 개수, 확정 행에 제안자 수와 배치 날짜·시간대를 둔다. 제외 카드는 excluded 면에 사유, 제안자, 되돌리기(spot/restore → 고정)를 둔다. overCapacity는 WarnCard에 날짜와 초과분을 적는다. 로컬 제공자면 '예시 데이터' 칩을 단다",
+        "FR-202: 검색 0건 안내, 동명 여러 곳 선택 시트 24, 목적지 밖 확인 뒤 등록(spot.outsideRegion 표시), 지도에서 선택(MapCanvas onPressMap → places.at)을 지원한다",
+        "05: 말풍선 안 장소는 연핑크 면으로 강조하고 밑줄을 쓰지 않는다. 추출 결과는 묶음 카드 하나에 담고 같은 줄에 되돌리기를 둔다. orderedMessages 순서로 그리고 pending 메시지는 전송 대기로 표시한다. 보내는 사람 전환과 시나리오 재생은 헤더 메뉴에 둔다. tripMode가 personal이면 입력을 비활성으로 두고 이유를 적는다",
+        "07/FR-803: MapCanvas compact 미리보기, 정보 칸 3개(체류, 기점에서, 배치 시각), 제안자 아바타와 채팅 원문을 둔다. previewOps로 '체류를 N분으로 늘리면 X가 제외 스팟이 됩니다'를 예고한다. 정보가 없는 행은 생략한다. 고정, 체류, 날짜 지정, 직접 빼기(quiet + 확인)를 둔다",
+        "FR-404(wp3-recommend): 3~5곳을 추천한다. 기존 후보와 겹치지 않고 지역 안이다. 태그가 없거나 부족하면 인기 장소로 대체하고 '대체됨'을 표시한다. 곳마다 추천 이유 한 줄과 '후보에 담기'(spot/add)를 둔다. 오프라인이면 비활성이다",
+        "실제 장소 제공자: services/places/kakao.ts는 구현 전에 카카오 로컬 키워드 검색 문서(developers.kakao.com)를 WebFetch로 확인해 만든다. fakeFetch 주입 테스트로 요청(헤더, 검색어, 지역 중심·반경)과 응답 변환(동명 여러 건 유지, 카테고리 매핑)을 검증한다. 실키 동작과 웹 CORS 여부는 추적표에 적는다. 구글 구현은 두지 않는다",
+        "services 파일은 전부 팩토리이고 순수다(createPlaceProvider, createExtractionProvider, createRecommendProvider). ExtractionProvider는 rules(기본)와 ai(프록시, createAiProxyClient) 두 구현이다. 키를 번들에 넣지 않는다. 반짝이·별 아이콘을 쓰지 않는다",
+        "작업 중 게이트 node scripts/gate-scope.mjs WP3를 통과하고, 완료 보고 전 /tmp/yt-export-wp3 웹 export를 한 번 돌린다"
+      ]
+    },
+    {
+      "id": "WP4",
+      "name": "일정·경로",
+      "features": [
+        "FR-403(계산)",
+        "FR-505",
+        "FR-501",
+        "FR-502",
+        "FR-503",
+        "FR-504(도보·자동차)",
+        "FR-504(대중교통)",
+        "FR-205(계산)",
+        "FR-603(재계산)",
+        "NFR 성능(재계산)·API 비용·선별 품질",
+        "실제 경로 제공자(카카오, 가정)",
+        "화면 08",
+        "화면 09",
+        "화면 10",
+        "화면 12"
+      ],
+      "goal": "후보를 날짜별 확정·제외로 나누고 순서와 시간표를 만든다. 수동 편집, 구간별 이동수단, 조정안, 미리보기, 지연 재계산까지 순수 함수로 만든다. HANDOFF 골든 수치를 정확히 재현한다.",
+      "ownsFiles": [
+        "src/screens/PlanningScreen.tsx",
+        "src/screens/ScheduleScreen.tsx",
+        "src/screens/ScheduleEditScreen.tsx",
+        "src/screens/LegTransportScreen.tsx",
+        "src/features/schedule/**",
+        "src/core/planner/**",
+        "src/core/ops/schedule.ts",
+        "src/services/routes/**",
+        "src/data/scenario-tuning.ts",
+        "tests/wp4-*.test.ts"
+      ],
+      "mayRead": [
+        "../여행계획-앱-기능명세서-v0.2.md",
+        "../HANDOFF.md",
+        "../여행계획-앱-핑크-캔버스.html",
+        "../docs/meetings/01-킥오프.md",
+        "../docs/meetings/02-설계리뷰.md",
+        "../docs/meetings/03-기반작업-리뷰.md",
+        "../docs/plan.json",
+        "legacy-v1/src/**",
+        "src/types.ts",
+        "src/core/ports.ts",
+        "src/core/constants.ts",
+        "src/core/util.ts",
+        "src/core/spotUtil.ts",
+        "src/core/kv.ts",
+        "src/core/ops/index.ts",
+        "src/core/ops/lww.ts",
+        "src/ui/**",
+        "src/navigation/**",
+        "src/services/registry.ts",
+        "src/services/kakaoHttp.ts",
+        "src/config.ts",
+        "src/store/trips.ts",
+        "src/store/ui.ts",
+        "src/data/places.ts",
+        "src/data/scenario.ts",
+        "tests/helpers/**",
+        "tests/setup/ownership.json"
+      ],
+      "consumes": "types(Plan, DayPlan, TimetableItem, ExcludedSpot, PlanStep, PlanDiff, Adjustment, DaySetting, LegOverride, Spot, OpDraft), ops(schedule/*, spot/remove·pin), lww(patchSpot, patchDay), ports(RouteProvider, TravelMatrix, RouteLeg, Clock, KV, FetchLike), createKakaoClient, spotUtil.priorityCompare, util(josa, dayShort, humanMin, toMin, toHHMM, haversineKm), useTrips(dispatch, dispatchMany, recompute, usePlan, usePlanning, online), data/scenario(SCENARIO_PLACES, SCENARIO_EXPECTED), tests/helpers(scenarioTrip, tableRoutes, fixedClock, memoryKV, fakeFetch), 라우트 Planning/ScheduleEdit/LegTransport/Main.Schedule",
+      "acceptance": [
+        "골든(wp4-golden-plan): scenarioTrip()과 createRouteProvider(키 없음 → local, SCENARIO_ROUTE_TABLE 우선)로 자동차 계획을 만들면 확정 11, 제외 3이다. 동궁과 월지는 dayFull/2026-10-18/'10/18 저녁이 꽉 차서', 대릉원 돌담길은 dayFull/2026-10-17/'10/17이 꽉 차서', 감은사지 삼층석탑은 tooFar/'왕복 1시간 10분'. 10/18은 09:00 출발 → 불국사 09:25–10:55(+25) → 석굴암 11:07–12:37(+12) → 교촌마을 한정식 12:57–13:57(+20)이고, 10/18 7곳이 21:00 안에 끝나며 교촌마을 한정식은 고정이다. 도보로 바꾸면 제외가 늘어난다",
+        "불변식 속성 테스트(wp4-invariants, 무작위 좌표 100회): 모든 후보는 확정이나 제외 중 하나에만 속하고 제외 사유는 비어 있지 않다. pinned와 기간 안 fixedDate 스팟은 제외되지 않는다. 교환 불변식(더 낮은 우선순위 비고정 확정과 바꿔 넣을 수 있으면 실패)과 삽입 불변식(사용자가 빼지 않은 제외 스팟을 어느 날에 그대로 끼워 넣을 수 있으면 실패; 기점 왕복 60분 이상이어도 자리가 남으면 확정)을 지킨다. 고정만으로 넘치면 overCapacity에 날짜와 초과분이 나온다. tooFar는 사유 문장만 바꾸고 제외 여부를 바꾸지 않는다. 시나리오 전용 분기를 두지 않는다",
+        "FR-505: 같은 날 스팟 사이 평균 이동 시간이 다른 날 사이보다 짧다(속성 테스트). 하루 수용량을 넘으면 다음 날로 이월하고, 전부 차면 FR-403 순서로 제외한다. fixedDate는 그 날짜에만 배치하고 고정 취급한다",
+        "FR-501(wp4-optimize): 하루 10개 이하는 Held-Karp 정확해이고 orderMethod 'exact'다. 8개 이하 무작위 100회에서 완전탐색 최적값과 같다(복귀 있음은 순환, 복귀 없음은 경로). 11개 이상은 NN+2-opt 근사이고 orderMethod 'approx'다. 수동 순서가 있는 날은 'manual'이고 순서를 바꾸지 않는다. 경로 제공자가 던지거나 null이면 직선거리로 대체하고 estimated를 세운다",
+        "FR-502(wp4-timetable): 모든 항목에서 arrive=직전 depart+travel, depart=arrive+stay가 성립한다. 카테고리 기본 체류가 명세 표와 같고 사용자 값이 우선한다. 영업시간 밖 도착이면 outsideHours notice를 단다. 활동시간을 넘으면 carryOver(다음 날 이월 제안)가 나온다. timelineRows(features/schedule/timeline.ts)는 순수 함수로 테스트한다",
+        "FR-205 계산: 'inherit'는 직전 날짜 기점을 쓰고, 첫날부터 null이면 첫 스팟을 기점으로 한다(baseSource firstSpot). noReturn이면 returnMin이 0이다",
+        "FR-503(wp4-edit): reorder, setStay, setArrive, setDate 뒤 spot/pin 같은 다른 op로 재계산해도 사용자 순서와 값이 유지된다(현행 소실 회귀 테스트). 리듀서는 patchSpot·patchDay만 쓰고, 두 편집이 충돌하면 op.at이 늦은 쪽이 남는다. 10 화면은 막지 않고 WarnCard에 초과분과 조정안(체류 줄이기, 다음 날로 옮기기, 빼기)을 숫자로 보여주며, 누르면 dispatchMany로 적용된다. wp4-edit는 조정안 초안(OpDraft)과 patchSpot 직접 적용 결과까지만 보고, spot/remove·pin 리듀서(WP3)를 거친 적용 결과는 tests/integration-cross가 본다",
+        "FR-504(wp4-transport): 하루 전체와 구간별 수단을 지원한다. 12 화면은 route()로 자동차·도보·대중교통을 비교하고, 차이 칩(+분은 warn), '바꾸면 이렇게 됩니다'(previewOps), '이 구간만/하루 전체 적용'을 둔다. 대중교통 행에 ScopeBadge '2차'를 단다. 대중교통 모의는 도보 접근+배차 대기+승차+환승 벌점이다. 경로가 없으면 대체 수단을 안내한다. 자동차가 실패하면 도보로 대체 계산하고 fallbackTransport notice를 단다",
+        "replanForDelay(wp4-replan): 받은 delayMin으로 조정안만 만들고 {adjustments}를 돌려준다(ETA 계산은 WP5). 순서만 바꿔 지연을 흡수할 수 있으면 reorder 조정안을 먼저 낸다. 제외 조정안은 영업 종료로 방문할 수 없는 스팟(spot.hours 기준)이 1순위, 그다음 FR-403 순서이고, 고정은 빼지 않는다. 거절하면 아무 op도 적용되지 않는다. deps는 PlanDeps 그대로다",
+        "NFR(wp4-budget): 시나리오 첫 계산의 경로 조회는 구간 단위 100 이하다. createRouteCache({clock,kv})로 같은 입력을 24시간 안에 다시 계산하면 0구간이고, 24시간 1초 뒤에는 다시 조회한다(Clock 주입). clearCache 뒤에도 다시 조회한다. 스팟 14곳 재계산은 RECOMPUTE_MS(3000) 이내다",
+        "실제 경로 제공자: 다중 목적지 API가 필요하면 공유 kakaoHttp.post를 쓴다. 로컬 제공자는 SCENARIO_PLACES 좌표를 coordKey로 색인해 placeId 키 구간표를 찾는다. services/routes/kakao.ts는 구현 전에 카카오모빌리티 자동차 길찾기 문서를 WebFetch로 확인해 만든다. fakeFetch 주입 테스트로 요청 형식, 응답의 분·미터·polyline 변환, 구간 단위 호출 수 계산을 검증한다. 도보·대중교통은 로컬 모델로 계산하고 estimated를 세운다. 실키 동작과 웹 CORS 여부는 추적표에 적는다. 구글 구현은 두지 않는다",
+        "08: 실제 onStep 단계(위치 확인, 이동시간 조회, 배치 N/M, 제외 사유)와 경로 조회 건수, 선별 규칙 전문을 보여준다. 가짜 진행률은 쓰지 않는다. 09: 52px 고정 폭 시각 열 타임라인, Leg 줄(아이콘+분, 카드 아님), 기점 출발·복귀 행, 날짜 Seg. 로컬 제공자면 '예시 데이터' 칩",
+        "튜닝은 src/data/scenario-tuning.ts에서만 하고 export 이름(SCENARIO_DAYS 등)을 바꾸지 않는다(공유 fixtures가 import한다). services/routes 파일은 전부 순수 팩토리다",
+        "작업 중 게이트 node scripts/gate-scope.mjs WP4를 통과하고, 완료 보고 전 /tmp/yt-export-wp4 웹 export를 한 번 돌린다"
+      ]
+    },
+    {
+      "id": "WP5",
+      "name": "지도·실시간·여행 시뮬레이터",
+      "features": [
+        "FR-801",
+        "FR-802",
+        "FR-601",
+        "FR-602",
+        "FR-603(감지·제안)",
+        "FR-604",
+        "FR-704(위치 로그)",
+        "NFR 성능(지도 로딩)",
+        "NFR 위치·배터리·백그라운드·알림·개인정보",
+        "화면 11",
+        "화면 13",
+        "화면 19"
+      ],
+      "goal": "키 없이 모든 플랫폼에서 그려지는 지도 한 벌과, 시각 가속 시뮬레이터로 시연하는 실시간 진행(현재 위치, 도착, 지연 조정안, 빈 시간 추천)을 만든다. 판정 수치와 지도 계산 시간은 순수 함수 테스트로 증명한다.",
+      "ownsFiles": [
+        "src/screens/MapScreen.tsx",
+        "src/screens/NavigateScreen.tsx",
+        "src/screens/LiveTripScreen.tsx",
+        "src/components/map/**",
+        "src/features/live/**",
+        "src/core/live/**",
+        "src/core/sim/**",
+        "src/core/map/**",
+        "src/store/live.ts",
+        "src/services/location/**",
+        "tests/wp5-*.test.ts"
+      ],
+      "mayRead": [
+        "../여행계획-앱-기능명세서-v0.2.md",
+        "../HANDOFF.md",
+        "../여행계획-앱-핑크-캔버스.html",
+        "../docs/meetings/01-킥오프.md",
+        "../docs/meetings/02-설계리뷰.md",
+        "../docs/meetings/03-기반작업-리뷰.md",
+        "../docs/plan.json",
+        "legacy-v1/src/**",
+        "src/types.ts",
+        "src/core/ports.ts",
+        "src/core/constants.ts",
+        "src/core/util.ts",
+        "src/core/spotUtil.ts",
+        "src/core/tripStatus.ts",
+        "src/core/notify.ts",
+        "src/ui/**",
+        "src/navigation/**",
+        "src/services/registry.ts",
+        "src/services/clock.ts",
+        "src/config.ts",
+        "src/store/trips.ts",
+        "src/store/session.ts",
+        "src/store/ui.ts",
+        "src/data/places.ts",
+        "src/data/scenario.ts",
+        "src/data/scenario-tuning.ts",
+        "src/core/planner/replan.ts",
+        "src/features/schedule/components/DayTimeline.tsx",
+        "src/features/journal/api.ts",
+        "src/services/photos/sim.ts",
+        "tests/helpers/**",
+        "tests/setup/ownership.json"
+      ],
+      "consumes": "types(GpsSample, TrackPoint, Visit, Adjustment, DayPlan, Plan, Place, NotifyKind, SimPresetId, ArrivalState, LiveProposal, FreeTime, NotifyLogEntry), ports(LocationProvider, PlaceProvider.nearby, RouteProvider.route, Clock), registry(overrideServices, getServices), clock(setClockOverride, appClock, useNow), constants(50m, 100m, 3분, 15분, 30분, 30초, 90일, 음영 3샘플, WALKABLE_RADIUS_M, MAP_INITIAL_LOAD_MS), core(notify.shouldNotify·recordNotify, tripStatus.isTrackExpired), useTrips(dispatch journal/visit, dispatchMany, usePlan, useCurrentTrip), useSession(notifyPrefs, useDeviceLocation), WP4 replanForDelay·DayTimeline, WP6 importPhotos·createSimPhotoProvider, ui(SvgLabel, DAY_COLORS, mapC, Sheet, Seg, Notice), 라우트 Main.Map/Navigate/LiveTrip/SpotDetail",
+      "acceptance": [
+        "MapCanvas(react-native-svg)는 웹·iOS·안드로이드 공통 지도 한 벌이다. react-native-maps를 쓰지 않는다. 키 없는 웹 export에서도 07, 11, 13, 19, 22가 빈칸이 아니다. 지도 색은 전부 토큰(mapC, DAY_COLORS)에서 오고 글자는 SvgLabel만 쓴다",
+        "지도 초기 로딩(wp5-map): core/map/layout.ts의 layoutMap이 14곳·3일 선·위치 점 300개에서 100ms 이내에 끝난다. 렌더를 포함한 2초(MAP_INITIAL_LOAD_MS)는 화면 확인 사유로 추적표에 적는다",
+        "FR-801(wp5-map): 순번 박힌 원형 로즈 핀, 기점은 속 빈 로즈 링, 제외는 흰 핀에 '제외' 글자다. 밀집 마커는 숫자 원 하나로 묶는다(layoutMap 순수 테스트). 마커를 누르면 SpotDetail로 간다. 11에는 하단 시트에 순서 목록과 날짜 Seg를 둔다",
+        "경로 형상(03 결정): 지도는 getServices().routes.route()를 구간마다 불러 polyline을 얻는다(24시간 캐시). 이 호출은 buildPlan의 routeCalls와 08 수치에 넣지 않는다. 시뮬레이터 stop·pause는 가상 시각을 멈춘 채 setClockOverride를 유지하고 null로 되돌리지 않는다",
+        "FR-802: 날짜별 선 색은 로즈, 초록, 앰버, 잉크 순서다. estimated 구간은 직선이다",
+        "FR-601: 현재 위치는 로즈 점에 흰 3px 테두리다. 정확도 50m 초과는 흐린 원이다. 권한이 거부되면 수동 진행 모드(도착 처리 버튼)로 가고 계획 열람은 그대로 된다. 연속 3샘플 정확도 초과면 GPS 음영 안내를 띄운다",
+        "FR-602(wp5-arrival): 50m 이하 샘플만 쓰고, 반경 100m 안 3분 이상이면 도착, 2분 59초는 아니다. 80m 샘플과 옆 건물 120m 5분은 도착이 아니다. 수동 취소하면 visit cancelled이고 해당 일정이 다시 활성화된다. 지나친 뒤 다음 스팟에 도착하면 앞 스팟은 skipped다. journal/visit op로 기록한다",
+        "FR-603(wp5-delay): ETA 지연 계산과 15분 경계는 core/live/delay.ts(delayMinutes, isDelayed, proposeForDelay(delayMin, make)) 순수 함수이고 조정안 생성은 주입받는다(테스트는 가짜 make, 앱은 replanForDelay). ETA가 15분 이상 늦으면 조정안 시트('뒤 일정을 이렇게 바꿀까요', 적용/원래대로)를 띄운다. 14분이면 없다. 거절하면 일정이 그대로다. 알림 제한은 공유 core/notify(30분 1회, notifyPrefs.delay 꺼짐이면 없음)를 쓴다. '늦었습니다·지연되었습니다·서두르세요'를 쓰지 않는다",
+        "FR-604(wp5-freetime): 다음 일정까지 30분 이상이면 PlaceProvider.nearby(WALKABLE_RADIUS_M 800, 프로토타입 가정)로 2~3곳을 추천하고, 29분이면 없다. 주변 결과가 없으면 생략하고 아무것도 표시하지 않는다",
+        "시뮬레이터(wp5-sim): SimClock은 1·10·60·300배, 일시정지, 시각 점프(10/20 → 종료)를 지원하고 appClock이 된다. 프리셋 9종(정상, 지연25, 영업 종료, GPS 음영, 지나침, 옆 건물 오탐, 권한 거부, 빈 시간, 10/18 종합)이 있다. 같은 시드면 같은 이벤트 열이다. line 톤 '여행 시뮬레이터로 재생 중 · 실제 위치 아님' 띠를 둔다",
+        "NFR 위치·배터리(wp5-sim): 30초 간격과 정지 시 갱신 중단 판정은 core/live/throttle.ts 순수 함수다. device 어댑터는 이 함수로 JS 스로틀을 한다(웹 watchPosition은 간격을 보장하지 않는다). 트랙은 useLive.track에 저장하고 pruneTrack은 공유 isTrackExpired로 지운다. 그룹원 위치 공유는 만들지 않는다",
+        "NFR 백그라운드(wp5-sim): AppState가 background가 되면 watch와 재생을 멈추고, 돌아와도 그 사이 경로를 채우지 않는다(순수 판정 테스트)",
+        "10/18 종합 재생 한 번으로 도착 → 지연 조정안 → 빈 시간 추천 → 사진 이벤트(importPhotos(createSimPhotoProvider({clock:appClock, getPosition: useLive.last, seed})), EXIF 있음·없음)가 이어진다",
+        "13: route steps 구간 안내, 도착 시각, '지도 앱으로 열기'와 '안내 시작'(→19)을 둔다. 앰버 띠는 없다",
+        "location/sim.ts와 core/live·sim·map은 순수이고 node --test에서 돈다",
+        "작업 중 게이트 node scripts/gate-scope.mjs WP5를 통과하고, 완료 보고 전 /tmp/yt-export-wp5 웹 export를 한 번 돌린다"
+      ]
+    },
+    {
+      "id": "WP6",
+      "name": "기록·일기",
+      "features": [
+        "FR-701",
+        "FR-702",
+        "FR-703",
+        "FR-704(경로 데이터)",
+        "FR-804",
+        "계정 탈퇴 사진 삭제(journal/photoRemoved)",
+        "화면 20",
+        "화면 21",
+        "화면 22"
+      ],
+      "goal": "여행 중 사진과 방문 기록, 위치 로그를 하루 단위 일기와 실제 경로 지도로 자동 정리한다. 편집·공유와 종료 뒤 열람까지 동작하게 만든다.",
+      "ownsFiles": [
+        "src/screens/PhotosScreen.tsx",
+        "src/screens/DiaryScreen.tsx",
+        "src/screens/RecordMapScreen.tsx",
+        "src/features/journal/**",
+        "src/core/journal/**",
+        "src/core/ops/journal.ts",
+        "src/services/photos/**",
+        "src/services/diary/**",
+        "tests/wp6-*.test.ts"
+      ],
+      "mayRead": [
+        "../여행계획-앱-기능명세서-v0.2.md",
+        "../HANDOFF.md",
+        "../여행계획-앱-핑크-캔버스.html",
+        "../docs/meetings/01-킥오프.md",
+        "../docs/meetings/02-설계리뷰.md",
+        "../docs/meetings/03-기반작업-리뷰.md",
+        "../docs/plan.json",
+        "legacy-v1/src/**",
+        "src/types.ts",
+        "src/core/ports.ts",
+        "src/core/constants.ts",
+        "src/core/util.ts",
+        "src/core/tripStatus.ts",
+        "src/core/ops/index.ts",
+        "src/core/ops/lww.ts",
+        "src/ui/**",
+        "src/navigation/**",
+        "src/services/registry.ts",
+        "src/services/clock.ts",
+        "src/services/aiProxy.ts",
+        "src/services/share.ts",
+        "src/store/trips.ts",
+        "src/store/live.ts",
+        "src/store/ui.ts",
+        "src/components/map/MapCanvas.tsx",
+        "src/data/scenario.ts",
+        "tests/helpers/**",
+        "tests/setup/ownership.json"
+      ],
+      "consumes": "types(Photo, Visit, DiaryEntry, DiaryBlock, TrackPoint, Plan, DayPlan), ops(journal/*), lww, ports(PhotoProvider, PickedPhoto, DiaryWriter, Clock, IdGen, FetchLike), registry(photos, diary, ids, clock), createAiProxyClient, services/share.shareText, core(tripStatus.isEnded·isTrackExpired), useTrips(dispatch, usePlan, useCurrentTrip, myMemberId), useLive(track, last), WP5 MapCanvas(dots, dashed polylines), ui(SvgLabel, 컴포넌트), 라우트 Photos/Diary/RecordMap",
+      "acceptance": [
+        "FR-701(wp6-photo): EXIF가 있으면 촬영 시각과 위치를 그대로 쓴다. EXIF가 없으면 업로드 시각과 그 시각의 계획 스팟으로 추정하고 '추정' 칩을 단다. 10MB를 넘으면 압축 대상으로 판정하고 원본·압축 크기를 표시한다. 20은 3열 격자, 라운드 12다",
+        "사진 저장 규칙(wp6-photo): journal/photoAdded validate는 blob:·data: uri를 거부한다. 웹 기기 사진은 features/journal 안 메모리 맵에만 두고 sessionOnly와 '이 세션에서만 보임'을 표시한다. 웹 압축은 판정·표시만 하고 실제 압축은 네이티브 image-picker quality로 한다. 웹은 EXIF가 없어 추정 경로로 동작한다",
+        "createSimPhotoProvider({clock,getPosition,seed})는 순수이고 store를 import하지 않는다. 결정적이며 3장 중 1장은 EXIF가 없다. 모의 사진은 Photo.sim{label,tone}으로 SVG 타일(surface 토큰, SvgLabel)을 그리고 번들 이미지를 쓰지 않는다",
+        "FR-702(wp6-diary): 날짜별로 사진·도착 기록·장소를 시간순 블록으로 묶고 설명문을 붙인다(DiaryWriter template 기본, ai는 프록시). 사진 0장이면 방문 기록만으로 만든다. DiaryWriter가 던지면 status 'empty'인 빈 일기를 주고 앱이 죽지 않는다",
+        "FR-703(wp6-diary): 문장 편집은 journal/diaryEdited이고 공유 lww(op.at)로 충돌을 푼다. 공유는 services/share의 shareText와 journal/diaryShared다(공유가 안 되는 브라우저에서는 복사로 대체). 나간 멤버의 사진은 유지하고 '정책 미결정'을 표시한다",
+        "journal/photoRemoved: 사진을 지우고 일기 블록 photoIds에서도 뺀다. 계정 탈퇴 때 WP1이 보낸다(wp6-photo 리듀서 테스트)",
+        "FR-704(wp6-track): buildDayTrack이 도착 기록과 위치 로그로 날짜별 경로 점열을 만든다. 위치 권한이 거부됐으면 도착 지점만 순서대로 잇는다",
+        "FR-804(wp6-track): 실제 경로 점(ink)과 계획 루트 선을 함께 그린다. 기록이 없는 구간(백그라운드 공백 포함)은 dashed로 표시한다(순수 함수 테스트, MapCanvas polylines.dashed)",
+        "여행 종료 뒤에도 사진 추가와 일기 편집·열람이 된다(잠금 예외). 위치 이력 90일 판정은 공유 isTrackExpired만 쓴다",
+        "작업 중 게이트 node scripts/gate-scope.mjs WP6을 통과하고, 완료 보고 전 /tmp/yt-export-wp6 웹 export를 한 번 돌린다"
+      ]
+    }
+  ],
+  "designRules": [
+    "색은 src/ui/tokens.ts에만 둔다. 글자는 textC(ink #1A1014, muted #6B5A61, rose #B3123F, roseDeep #8E0E32, warn #8A5A00, ok #2F6B4F, onRose #FFFFFF, onRoseSoft #FDEFF3)만 쓴다. 면은 surfaceC(bg #FBF6F7, card #FFFFFF, tint #FDEFF3, tintLine #F6D9E2, warnBg #FBF0DC, warnLine #F0DFBB, okBg #E4F0E9, off #F1E6EA, excludedBg #F5EDEF, excludedLine #EBDDE1, track #F1E0E6, grabber #E6D4DA)다. 선은 #EFE2E6이다. 화면·feature·components 파일의 hex 리터럴은 금지한다",
+    "faint #9C8B92와 #8D7B82는 글자에 쓰지 않는다. 목업에서 이 색을 쓴 글자(비활성 탭 라벨, 입력 안내문, '이후 N곳', 대기 단계, off 버튼 글씨)는 muted #6B5A61로 올린다. #9C8B92는 아이콘과 비활성 테두리에만 쓴다",
+    "글자·면 조합은 본문 4.5:1, 24px 이상 3:1을 넘어야 한다. TEXT_ON_SURFACE_PAIRS 대비 테스트로 고정한다",
+    "폰트는 Hahmlet_700Bold(제목·워드마크), GothicA1_400Regular·600SemiBold·700Bold 네 개다. src/ui/fonts.ts 한 곳에서 서브패스로만 import하고 패키지 루트 import는 금지한다(웹 export ttf 4개). 굵기는 family로만 바꾸고 fontWeight는 쓰지 않는다. 화면은 <Txt v=...> 타입 스케일만 쓴다(display 52, ttl 25, ttlSm 20, nm 15, body 14, bubble 13.5, mt 12.5, eyebrow 11, chip 11.5, btn 15, label 11.5, seg 14, tab 10.5, time 12)",
+    "SVG 안의 글자(지도 핀 순번, '제외', 클러스터 숫자, 모의 사진 타일 이름)는 src/ui/SvgLabel만 쓴다. fontFamily와 색은 SvgLabel이 토큰에서 넣는다",
+    "간격·라운드·크기 토큰을 쓴다. 좌우 여백 22, 카드 패딩 14, 카드 라운드 12, 버튼 50/11(sm 38/9), 필드 46/10, 아이콘 버튼 34/9, 시트 16, 탭바 74, 아바타 27(흰 2px 테두리, 겹침 -8). 라운드는 16 이하이고 칩만 999다",
+    "그림자는 E.float(0 6px 18px rgba(26,16,20,.08)) 하나이고 지도 위에 뜬 요소에만 쓴다. 카드와 시트에는 그림자가 없다",
+    "다음은 쓰지 않는다: 그라디언트, 글래스·블러, 네온 글로우, 카드 왼쪽 컬러 보더, 이모지 아이콘, Inter·Roboto·Arial, 의미 없는 통계 타일",
+    "주색 로즈 전체면은 01 스플래시에만 쓴다. 로즈 면은 primary 버튼, 켜진 Tag·Choice, 내 말풍선, 첫 아바타, 지도 순번 핀·현재 위치, 13 안내 아이콘에만 쓴다",
+    "로즈를 위험 신호로 쓰지 않는다. danger 버튼은 없다. 삭제·나가기·내보내기·계정 탈퇴는 quiet 버튼과 ConfirmSheet 1회로 한다. 오류 문구는 앰버 Notice로 쓴다",
+    "앰버 WarnCard는 계획 단계의 수용량 초과(10)와 고정 초과 전용이다. 범위 안내와 시뮬레이터 안내는 line 톤이다",
+    "가운데 정렬은 01 스플래시, Empty, 지도 마커·클러스터·아바타 안 글자에만 쓴다. 디자인 규칙 테스트 허용 목록은 SplashScreen.tsx, components/map/**(textAnchor만), ui/**다",
+    "아이콘은 src/ui/Icon의 SVG만 쓴다. 목업 ic-* 23개(24 viewBox, 선 1.7, 뒤로 1.8, 오른쪽 2.2, round)에 bus, locate, play, pause, camera, book, user, bell, gear, share, trash, mail을 같은 규칙으로 더한다. 반짝이·별 같은 AI 연상 아이콘과 '↓' 같은 텍스트 화살표는 쓰지 않는다",
+    "하단 탭은 홈/후보/시간표/지도/더보기로 고정한다. 켜진 탭은 로즈다. 꺼진 탭 라벨은 muted, 아이콘은 faint다. 채팅(05)과 모달·스택 화면에는 탭바를 두지 않는다",
+    "05 채팅: 장소는 말풍선 안에서 연핑크 면으로 강조하고 밑줄은 쓰지 않는다. 추출 결과는 묶음 카드 하나에 담고 같은 줄에 되돌리기를 둔다",
+    "06: 머리말에 '확정 버튼 없음'을 둔다. 제외 스팟은 모든 화면(06, 07, 11, 19 조정안)에서 이유와 되돌리기가 보여야 하고, 조용한 제외는 화면에도 없다",
+    "09 시간표: 시각은 52px 고정 폭 열에 둔다. 이동 구간은 카드가 아니라 Leg 줄(아이콘+분)이다",
+    "지연(FR-603)은 경고가 아니라 조정안이다. 틴트 카드에 시계 아이콘, 제목 '뒤 일정을 이렇게 바꿀까요', 버튼 '적용'과 '원래대로'. '늦었습니다', '지연되었습니다', '서두르세요'는 쓰지 않는다",
+    "2·3차 기능은 비활성 문구 대신 ScopeBadge('2차'/'3차', line 칩)로 표시한다. 03 길찾기 칸, 12 대중교통 행, 14 내보내기와 초대 권한 토글에 '2차'를 단다. 13 상단은 line 톤 '여행 시뮬레이터로 재생 중 · 실제 위치 아님'이다",
+    "02 초대 수락 화면의 시각 기준은 WP2가 소유한다. 온보딩(WP1)은 WP2 컴포넌트를 가져다 쓰지 않고 같은 ui 컴포넌트로만 같은 틀을 만든다",
+    "지도는 MapCanvas 한 벌이다. 날짜별 선 색은 1일 로즈, 2일 초록, 3일 앰버, 4일부터 잉크다(지도 바탕 #F3EBEE 위 5.06 이상). 실제 경로 점은 잉크이고, 기록 없는 구간은 점선이다",
+    "용어는 후보 / 확정 스팟 / 제외 스팟 / 고정 / 기점 / 수용량 / 제안자 / 조정안 / 여행방 / 그룹방 / 게스트로 고정한다. '확정 장소', '제외 장소', '투표', 기점 대신 '출발지'는 쓰지 않는다. 앱 이름은 Young Trip이고 '여정'과 'yeojeong'은 0건이다",
+    "미결정·가정은 화면에 '미결정 · 프로토타입 가정' 문구로 드러낸다. 로컬 모의 데이터를 쓰는 화면에는 '예시 데이터' 칩을 단다. 카카오 실제 제공자를 켜면 18 제공자 상태에 '국내 SDK 선정 미결정'을 적는다",
+    "화면은 390×844 기준이고 모바일 웹 우선이다. 신규 화면 15~26도 같은 토큰과 컴포넌트만으로 만들고 최윤재가 검수한다"
+  ],
+  "qa": {
+    "testTargets": [
+      "tests/foundation-core-boundary.test.ts: 순수 영역(src/core/**, src/data/**, src/demo/scenarioRunner.ts, 순수 서비스 파일 목록, kakaoHttp·aiProxy)의 금지 import(react, react-native, expo-*, zustand, async-storage, react-native-svg, @expo-google-fonts/*, store, 비순수 공유 서비스, config)와 Date.now/Math.random/인자 없는 new Date 0건, 테스트가 도달하는 모듈 그래프에 .tsx 없음. YT_SCOPE 지원",
+      "tests/foundation-design-rules.test.ts: 이모지, 그라디언트·블러, borderLeft, ui 밖 hex·fontWeight·fontFamily·그림자, 라운드 16 초과, 가운데 정렬 허용 목록(SplashScreen, components/map textAnchor, ui), SvgLabel 밖 SVG Text, @expo-google-fonts 루트 import, react-native-maps import, '여정'·'yeojeong', 지연 금지 문구, 용어 오기. legacy-v1 제외. YT_SCOPE 지원",
+      "tests/foundation-contrast.test.ts: TEXT_ON_SURFACE_PAIRS 전부 4.5:1 이상, 날짜별 선 색은 지도 바탕 위 3:1 이상",
+      "tests/foundation-ops.test.ts: applyOp 라우팅(OP_OWNER), lastSeq max, foldOps seq 정렬·pending 뒤붙임·같은 id 1회, chat/send status가 seq 유무를 따름, isEditLocked와 LOCK_EXEMPT(journal/*, member/leave, member/anonymize, trip/delete), lww 경계(같은 at은 적용), patchSpot·patchDay의 edited 갱신과 늦은 at 우선",
+      "tests/foundation-core.test.ts: tripStatus KST 분류와 시작일 00:30 KST 진행중(UTC 회귀), isTrackExpired와 isRetentionExpired 경계 ±1초, notify 4종 전부 30분 1회·29분 59초 차단·끄기, sha256Hex 알려진 벡터(빈 문자열, 'abc', 한글), base32·base64url, memoryKV, group(tripMode·isHost·canIssueInvite 기본 false), orderedMessages",
+      "tests/foundation-ownership.test.ts: ownership.json의 WP 사이 겹침 0, 모든 src·tests·server 파일의 소유자가 정확히 하나",
+      "tests/wp1-session.test.ts: 128비트 토큰, 30일 만료, touch 연장, 만료 폐기, memoryKV 재부팅 복원(src/core/session.ts)",
+      "tests/wp1-auth.test.ts: 중복 이메일, 비밀번호 규칙 위반 항목, 재발송 토큰 무효, 5회 실패 10분 잠금과 10분 1초 해제, 기기 제한, 미인증 차단, 계정 세션 30일 만료, 소셜 동일 이메일 linkRequired, 제공자 실패, 닉네임 중복, 5MB 압축 판정, 승격 userId 유지, planAccountDeletion 초안 목록, deleteAccount 뒤 로그인 불가(createLocalAuth + memoryKV)",
+      "tests/wp1-home.test.ts: 홈 세그먼트 집계와 개인 모드 채팅 칸 비활성 판정",
+      "tests/wp2-trip.test.ts: 종료<시작 거부, 15일 확인, 지역 목록, 기점 없이 생성 → baseSource firstSpot, trip/setDay patch가 transport를 건드리지 않음(patchDay 직접), 권한 validate(setDay 전 멤버, update·delete 방장), 방장 나가기 미결정 거부, member/anonymize, purgeExpired 경계",
+      "tests/wp2-invite.test.ts: 코드 형식과 주입 Rng, 7일 만료, 정원 6(7번째 거부), 재발급 무효, 기본 그룹원 발급 거부, 이미 참여 중복 없음, 개인→그룹 전환, 전원 탈퇴 → 개인, 방장 본인 강퇴 불가",
+      "tests/wp2-sync.test.ts: outbox 오프라인 pending → 재연결 at 순 전송, 확인 응답으로 pending→log, seq 재접기, 중복 수신 1회, chaos 순서 뒤섞기·중복 주입, dirty 표시와 재연결 재계산 대상, loopback KV 유지와 reset. sync-server를 확장자 명시 import로 포트 0에 띄워 push/pull/lookupInvite/OPTIONS 확인 후 닫기",
+      "tests/wp3-golden-extract.test.ts: SCENARIO_CHAT 13줄 → 후보 14곳 이름·카테고리·제안자 일치",
+      "tests/wp3-extract.test.ts: 동궁과 월지·안압지·동궁 별칭, 조사 결합 phrase가 원문 부분 문자열, 지시 표현 0건, 동명 ambiguous, 지역 반경 밖 제외",
+      "tests/wp3-extract-quality.test.ts: 장소 문장 30개 이상 + 무장소 20개 이상, 재현율 80% 이상, 오탐율 10% 이하",
+      "tests/wp3-candidates.test.ts: 병합 제안자 누적, 되돌리기가 생성분만 지우고 병합 제안만 빼기(회귀), restore → 고정, spot/add 목적지 밖 표시, places.ts가 SCENARIO_PLACES를 바꾸지 않음",
+      "tests/wp3-recommend.test.ts: 3~5곳, 기존 후보 제외, 지역 안, 태그 부족 시 fallback 표시, 추천 이유 존재",
+      "tests/wp3-providers.test.ts: places/kakao 요청 형식과 응답 변환(fakeFetch), extraction/ai·recommend/ai 프록시 호출 형식과 실패 시 규칙 기반 대체",
+      "tests/wp4-golden-plan.test.ts: scenarioTrip + createRouteProvider(local) → 확정 11·제외 3, 사유 코드·문장·nearestDate, 10/18 앞 3곳 시각, 10/18 7곳 21:00 안, 도보 전환 시 제외 증가",
+      "tests/wp4-invariants.test.ts: 무작위 좌표 100회. 확정·제외 분할, 사유 비어 있지 않음, pinned·fixedDate 불가침, 교환 불변식, 삽입 불변식(먼 스팟도 자리가 있으면 확정), tooFar는 문장만, overCapacity, 근접도",
+      "tests/wp4-optimize.test.ts: 8개 이하 Held-Karp가 완전탐색 최적과 같음(순환·경로), 10개 이하 orderMethod exact, 11개 이상 approx, manual 순서 유지, 경로 실패 시 직선과 estimated",
+      "tests/wp4-timetable.test.ts: arrive/depart 등식, 카테고리 기본 체류, 영업시간 밖 notice, carryOver, 날짜별 기점(승계, 첫 스팟, 복귀 없음), timelineRows",
+      "tests/wp4-edit.test.ts: reorder·setStay·setArrive·setDate 뒤 다른 op 재계산에도 유지(소실 회귀), op.at LWW, 조정안 초안과 patchSpot 직접 적용 결과, previewOps가 doc를 바꾸지 않음",
+      "tests/wp4-transport.test.ts: 구간·하루 수단, 대중교통 모의 수치, 경로 없음 대체 안내, 자동차 실패 → 도보 대체, routes/kakao 요청·응답 변환과 구간 단위 호출 수(fakeFetch)",
+      "tests/wp4-budget.test.ts: 시나리오 첫 계산 구간 호출 100 이하, 24시간 캐시 재계산 0회와 24시간 1초 뒤 재조회(Clock·memoryKV 주입), clearCache, 14곳 재계산 3초 이내",
+      "tests/wp4-replan.test.ts: 입력 delayMin으로 조정안만 생성, 순서만으로 흡수되면 reorder 우선, 영업 종료 1순위, FR-403 순서, 고정 제외 안 함, 거절 무변경",
+      "tests/wp5-arrival.test.ts: 50m 이하만, 100m 3분 도착 / 2분 59초 아님, 80m 샘플 제외, 옆 건물 120m 5분 아님, 수동 취소, 지나침 → skipped",
+      "tests/wp5-delay.test.ts: core/live/delay.ts로 15분 조정안 / 14분 없음(가짜 make 주입), 공유 notify로 30분 1회, notifyPrefs.delay 끄기, 금지 문구 없음",
+      "tests/wp5-freetime.test.ts: 30분 2~3곳 / 29분 없음, 주변 결과 없음 → 생략, 반경 WALKABLE_RADIUS_M",
+      "tests/wp5-sim.test.ts: SimClock 배속·일시정지·점프, generateTrack 30초 간격·시드 결정성, 프리셋 9종 이벤트 열, throttle 30초·정지 시 중단, GPS 음영 3샘플, 권한 거부 → manual, AppState background 정지와 공백 미복원",
+      "tests/wp5-map.test.ts: layoutMap 클러스터링, 마커 분류(순번·제외·기점), 날짜 색 순서, estimated 직선, 투영 경계, 14곳·3일·300점 100ms 이내",
+      "tests/wp6-photo.test.ts: EXIF 사용, EXIF 없음 추정과 스팟 매칭, 10MB 압축 판정, blob·data uri 거부, createSimPhotoProvider 결정성(3장 중 1장 EXIF 없음), photoRemoved가 일기 블록 photoIds에서도 뺌",
+      "tests/wp6-diary.test.ts: 시간순 블록, 사진 0장 방문만, writer 실패 → empty, diaryEdited LWW, 종료 뒤 편집 허용",
+      "tests/wp6-track.test.ts: 도착+로그 경로, 권한 거부 시 도착 지점만, 기록 없는 구간 dashed",
+      "tests/integration-account-delete.test.ts(통합): planAccountDeletion 초안을 applyOp로 적용하면 본인 사진만 사라지고 채팅·제안은 남으며 멤버가 '탈퇴한 멤버'로 보인다",
+      "tests/golden-e2e.test.ts(통합에서 todo 해제): runScenario(순수)로 채팅 13줄 → 추출 → 사용자 조작 → buildPlan이 14/11/3과 10/18 타임라인을 재현하고, 두 번 돌려도 같다",
+      "tests/integration-scenario-steps.test.ts(기반): scenarioSteps 시각 엄격 증가, 채팅 줄 = t0 + 줄×60초, 초대가 합류보다 먼저, 조작·지우 합류 위치, stepsUntil 단계, 시나리오 시각 잠금 없음",
+      "tests/integration-cross.test.ts(통합에서 todo 해제): setDay×setDayTransport 공존, 조정안 applyOp 결과 = previewOps 예고, 지연 exclude → userRemoved, proposeForDelay×replanForDelay, 탈퇴 초안 actorId 적용"
+    ],
+    "demoScenario": [
+      "1. 앱 실행 → 01 스플래시에서 폰트 4개·저장소 4개 복원을 단계 진행률로 보여준다",
+      "2. 더보기 > 시연 도구 > 시연 리셋으로 처음 상태를 만든다",
+      "3. 온보딩에서 민지로 게스트 시작. 30일·기기 한정 안내를 보여준다(FR-105)",
+      "4. 03 홈 빈 상태에서 여행방 만들기로 간다(FR-203 예외)",
+      "5. 04 여행방 만들기: 경주 2박 3일, 지역 목록, 달력, 자동차. 기점 검색에 '없는곳'을 넣어 결과 없음과 '기점 없이 만들기'를 보여준 뒤 라한셀렉트 경주를 고른다. 15일로 바꿔 확인 창을 보여주고 되돌린다(FR-201, 205, 504)",
+      "6. 25 여행방 설정: 10/17 도착일 활동시간, 10/18 기점 승계, 10/19 복귀 없음, 보관 기한 표시(FR-205, 데이터 보존)",
+      "7. 개인 모드에서 채팅 메뉴 비활성을 확인한다. 06 수동 등록: '황남빵'은 동명 선택, '호미곶'은 목적지 밖 확인, 없는 이름은 결과 없음(FR-202)",
+      "8. 14 멤버: 초대 링크 발급, 복사, 공유(웹에서 공유가 안 되면 복사로 대체), 만료일과 남은 자리(FR-301)",
+      "9. 02 초대 수락: 준호·수아 합류 → 그룹 전환, 채팅 활성. 같은 코드로 다시 → '이미 참여'. 코드 없이 열면 코드 입력 칸(FR-302)",
+      "10. 05 채팅: 시나리오 대화 재생 → 추출 카드와 되돌리기. 수아가 교촌마을 한정식 고정·10/18 지정(FR-304, 401, 402)",
+      "11. 지우가 02로 게스트 합류 → 지우 발화 '동궁과 월지 야경 유명하대'",
+      "12. 네트워크 끊기 → 메시지 대기 표시 → 재연결 → 순서대로 전송과 밀린 재계산(FR-304 예외)",
+      "13. 08 루트 계산 중: 실제 단계, 경로 조회 건수, 선별 규칙 전문(FR-505, 501)",
+      "14. 06 후보 14 · 확정 11 · 제외 3과 제외 이유. 동궁과 월지를 되돌려 고정하면 다른 스팟이 이유와 함께 빠진다(FR-402, 403)",
+      "15. 07 불국사 상세: 제안자 3, 채팅 원문, 체류를 늘리면 무엇이 빠지는지 예고(FR-803)",
+      "16. 09 10/18 시간표: 09:00 출발 → 09:25 불국사 → 11:07 석굴암 → 12:57 교촌마을 한정식(FR-502)",
+      "17. 10 일정 편집: 순서 이동, 체류 변경 → 수용량 초과 경고와 조정안 적용. 고정 토글 뒤에도 순서가 유지된다(FR-503)",
+      "18. 11 지도: 순번 핀, 날짜별 색, 제외 흰 핀, 클러스터, 마커 → 상세(FR-801, 802, 803)",
+      "19. 12 불국사→석굴암 자동차·도보·대중교통(2차 배지) 비교와 '이 구간만'. 감은사지는 대중교통 경로 없음 대체 안내(FR-504)",
+      "20. 17 프로필 성향 태그 → 23 추천 3~5곳과 추천 이유(FR-104, 404)",
+      "21. 19 여행 진행: 10/18 종합 프리셋 60배속 재생. 현재 위치, 불국사 도착, 석굴암 구간 지연 → 조정안 적용·거절, 점심 뒤 빈 시간 추천, 사진 이벤트. 권한 거부 프리셋은 수동 진행 모드(FR-601~604, 701)",
+      "22. 13 길찾기: 구간 안내와 시뮬레이터 띠",
+      "23. 가상 시각을 10/20으로 점프 → 완료 상태와 편집 잠금(상태도)",
+      "24. 20 사진(EXIF·추정 칩) → 21 일기 자동 생성·편집·공유 → 22 기록 지도의 실제 점, 계획 선, 점선(FR-701~704, 804)",
+      "25. 계정 동선: 16 가입·모의 메일함 인증·재발송 → 15 로그인 5회 실패 잠금(기기 토큰 가정 문구) → 26 소셜 동일 이메일 연동 확인 → 17 닉네임 중복·이미지 압축 표시 → 게스트 승격(FR-101~104)",
+      "26. 권한 동선: 준호로 전환해 나가기, 방장 삭제 확인 1회, 방장 나가기는 위임 미결정 안내(FR-204). 수아 내보내기, 방장 본인 불가, 전원 나가면 개인 모드(FR-303)",
+      "27. 계정 탈퇴 동선: 계정으로 승격한 사용자가 17에서 탈퇴 → 그 사용자의 사진은 사라지고 채팅·제안은 '탈퇴한 멤버'로 남는다(데이터 보존)",
+      "28. 시연 리셋 뒤 1번부터 다시 돌려 같은 숫자를 재현한다",
+      "참고: 정적 서버로 웹 export를 열 때 /j/코드 경로는 SPA 폴백이 필요하다. 폴백이 없으면 루트로 들어가 02의 코드 입력 칸을 쓴다"
+    ]
+  }
+}

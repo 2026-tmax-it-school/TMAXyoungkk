@@ -1,0 +1,37 @@
+{
+  "role": "릴리스 담당 엔지니어",
+  "summary": "qa-integrate·qa-tests·qa-trace를 읽고 현재 파일로 다시 확인했다. 시작 시점에 이미 tsc 0건, npm test 582개 전부 통과(todo 0), 웹 export 성공이었다(과제 문구의 459개·실패 6·tsc 2건은 앞 단계에서 풀려 있었다). 통합 반영분(A12)이 코드에 있는지 파일을 열어 확인했고, src 결함은 나오지 않아 src는 고치지 않았다. 계획 qa.testTargets에만 있고 파일이 없던 tests/integration-account-delete.test.ts를 만들었다(3건: 여러 방·끝난 방 편집 잠금 예외·이미 나간 방, 적용 순서 무관, 일기 문단 정리). README를 릴리스 기준으로 다시 썼고(실행 방법과 웹 미리보기, 여행 시뮬레이터 사용법, 빠른·전체 시연 순서, FR 전부 구현 기능 표와 추적표 링크, 프로토타입이라 다른 점, 카카오·AI 프록시·동기화 서버로 바꾸는 방법), 통합 전 상태로 남아 있던 FR 추적표의 검증 결과와 풀린 남은 문제 14곳을 코드 확인 뒤 고쳤다(상태 판정은 그대로 기능 구현 34·부분 4, 비기능 구현 12·부분 4). 회의록 05-통합-QA.md에 명령별 최종 결과를 그대로 적고, 결정이 필요한 안건 7건을 올렸다. 최종: tsc 0건, npm test 585개 전부 통과·실패 0·todo 0, 웹 export 성공(번들 1개 1.5MB, ttf 4개), 패키지 게이트 WP1~WP6 통과.",
+  "filesChanged": [
+    "/Users/handong-gwan/IT희망학교 여행계획 프로젝트/test/tests/integration-account-delete.test.ts (새 파일, FOUNDATION 글롭 tests/integration-*.test.ts)",
+    "/Users/handong-gwan/IT희망학교 여행계획 프로젝트/test/README.md",
+    "/Users/handong-gwan/IT희망학교 여행계획 프로젝트/docs/FR-추적표.md",
+    "/Users/handong-gwan/IT희망학교 여행계획 프로젝트/docs/meetings/05-통합-QA.md (새 파일)",
+    "/Users/handong-gwan/IT희망학교 여행계획 프로젝트/docs/workflow-state/final.json"
+  ],
+  "results": [
+    "시작 상태: npx tsc --noEmit exit 0(출력 없음), npm test 582개 전부 통과·실패 0·todo 0, CI=1 npx expo export 성공",
+    "통합 반영 확인(파일 열람): Field multiline(DiaryScreen), share.ts dismissed, signOutFlow·deleteAccountFlow·resetDemo의 clearSessionPhotos, DAY_COLORS core/constants 이동, RecommendScreen anchor=확정 스팟 좌표와 RecommendResult.source(source.ts 삭제), AuthProvider linkToAccountId·providerEmail·getAccount, tabular-nums, Header step, 말풍선 bubbleBold·onRoseHl, SvgLabel pinLg 13px, 기록 지도 이동 점 r 3.5·흰 테두리, 사용자 문구의 'NN · ' 화면 번호 0건",
+    "node --test tests/integration-account-delete.test.ts: 3/3 통과(새 테스트가 드러낸 src 결함 없음)",
+    "plan.json qa.testTargets 파일 38개 모두 존재(이번에 integration-account-delete 추가)",
+    "최종 npx tsc --noEmit: exit 0, 출력 없음",
+    "최종 npm test: tests 585, suites 63, pass 585, fail 0, cancelled 0, skipped 0, todo 0, exit 0",
+    "최종 npx expo export --platform web --output-dir /tmp/yt-export: exit 0, Web Bundled index.ts(579 modules), 웹 번들 _expo/static/js/web/index-29123b78a1db2a0d922a640d82efe1e8.js 1.5MB(점검 전후 해시 같음), 에셋 15개 중 ttf 4개(Gothic A1 400·600·700, Hahmlet 700)",
+    "통합 게이트 추가 항목: '여정'·'yeojeong' grep src·App·README·app.config·app.json·scripts·server와 웹 번들 0건, legacy-v1 import 0건(../archive/legacy-v1 보관), react-native-maps 0건, 환율·정산 0건",
+    "node scripts/gate-scope.mjs WP1~WP6: 6개 모두 '작업 중 게이트: 통과 (tsc=ok, own-tests=ok, foundation-scoped=ok)'",
+    "확정 결정 대조: 확정 버튼 없음·자동 선별, 1단계 도보·자동차(대중교통 2차 배지), 국내 전용·SDK 중립, 게스트 세션 30일 — 되돌린 결정 없음",
+    "개발 서버·정적 서버·동기화 서버를 띄우지 않았고 git commit·push·branch 조작을 하지 않았다"
+  ],
+  "openIssues": [
+    "화면 눈 확인 미실시: 개발 서버 금지라 390×844 렌더, 지도 렌더 2초, 네이티브 기기를 보지 못했다. 메인 책임이 README '웹 미리보기'(npm run web)로 '시연 순서'를 한 번 돌아야 한다. 통합이 바꾼 배치(01 태그라인, 04 단계 라벨, 05 입력줄·말풍선, 08 단계 라벨, 10 경고 카드, 11 날짜 칩, 13 비활성 구간 버튼, 21 여러 줄 편집, 22 이동 점)를 먼저 본다",
+    "결정 필요 Q1(WP5 S10): 이미 떠난 스팟의 도착 취소와 잘못된 건너뜀 고치기 UI가 없다. 제안은 '건너뜀으로'·'도착으로 기록(시각 입력)'이고 19 목업이 없어 디자인 리뷰와 함께 다음 차수",
+    "결정 필요 Q2(WP6 S5): 이미 만든 일기 문장 속 탈퇴 멤버 닉네임(함께한 멤버)이 남는다. 결정 33 정책과 함께 정할 때까지 추적표 탈퇴 행은 부분",
+    "결정 필요 Q3(WP6 D5): 넷째 날부터 계획 선(잉크)과 실제 이동 점(잉크) 색이 겹친다. 시나리오 3일에서는 드러나지 않는다",
+    "결정 31과 코드 차이: 실제 압축은 네이티브 image-picker quality로 한다고 정했지만 services/photos/device.ts가 quality 1 고정이라 네이티브에서도 줄지 않는다(FR-104·FR-701 부분). 고르기 전에는 원본 크기를 모르므로 방식을 먼저 정하고 WP6·WP1 화면 코드를 고쳐야 한다",
+    "legacy-v1은 /Users/handong-gwan/IT희망학교 여행계획 프로젝트/archive/legacy-v1에 있다. git에 없는 유일한 사본이라 영구 삭제는 사람이 직접 한다",
+    "실키 미확인: 카카오 로컬·카카오모빌리티·AI 프록시는 가짜 fetch로만 검증했다. 웹 CORS와 동시 요청 한도를 실키로 확인해 추적표에 적어야 한다. 국내 지도 SDK는 미선정(모의 SVG 지도)",
+    "여러 기기 실시간 동기화는 메모리 전용 폴링 서버로만 되고 기기 간으로 확인하지 않았다. 실제 네트워크 끊김 감지 없음(시연 토글만)",
+    "미룬 공유 요청(통합 기록 그대로): WP3 재연결 재추출 훅, WP4 D6 12 미리보기 문장 굵은 강조(noteStrong 토큰만 있음), WP6 21이 09 시간표 틀 공유(선택), 기반 C13 테스트 전용 tsconfig",
+    "HANDOFF.md 화면 10 설명(즉시 저장, '시간표로' 버튼, W4-4)은 문서 소유자가 고쳐야 한다(plan.json 결정 38에는 반영됨)",
+    "명세 미결정 7건(경로 API 제공자와 예산, 승격 이관 범위, 초대 승인, 위치 공유, 방장 위임, 예산·정산, 사진 저장 정책)은 그대로 미결정이고 코드는 보수적 기본값이다"
+  ]
+}
