@@ -1,0 +1,22 @@
+name: OpenAI code review
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+permissions:
+  contents: read
+  actions: read
+  pull-requests: write
+jobs:
+  review:
+    if: >-
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.conclusion == 'success' &&
+      vars.OPENAI_REVIEW_ENABLED == 'true' &&
+      vars.OPENAI_REVIEW_BUDGET_CONFIRMED == 'true'
+    uses: 2026-tmax-it-school/TMAXyoungkk/.github/workflows/openai-review-reusable.yml@605be588e7b1daf299888dbfdc5474529a125dd3
+    with:
+      ci-name: CI
+      ci-path: .github/workflows/ci.yml
+    secrets:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}

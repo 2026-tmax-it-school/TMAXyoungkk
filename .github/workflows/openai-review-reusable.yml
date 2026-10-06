@@ -1,0 +1,48 @@
+name: OpenAI review reusable
+on:
+  workflow_call:
+    inputs:
+      ci-name:
+        type: string
+        default: CI
+      ci-path:
+        type: string
+        default: .github/workflows/ci.yml
+    secrets:
+      OPENAI_API_KEY:
+        required: false
+permissions:
+  contents: read
+  actions: read
+  pull-requests: write
+jobs:
+  review:
+    if: >-
+      github.event_name == 'workflow_run' &&
+      vars.OPENAI_REVIEW_ENABLED == 'true' &&
+      vars.OPENAI_REVIEW_BUDGET_CONFIRMED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    concurrency:
+      group: openai-review-${{ github.repository }}
+      cancel-in-progress: false
+      queue: max
+    steps:
+      # Only trusted central code. Never check out the caller's PR.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          repository: 2026-tmax-it-school/TMAXyoungkk
+          ref: 5873bc170cd390f4202f25394c6b28cf4f3cc079
+          persist-credentials: false
+          sparse-checkout: .github/scripts
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '24'
+      - run: node .github/scripts/openai-review.mjs
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_REVIEW_ENABLED: ${{ vars.OPENAI_REVIEW_ENABLED }}
+          OPENAI_REVIEW_BUDGET_CONFIRMED: ${{ vars.OPENAI_REVIEW_BUDGET_CONFIRMED }}
+          OPENAI_REVIEW_CI_NAME: ${{ inputs.ci-name }}
+          OPENAI_REVIEW_CI_PATH: ${{ inputs.ci-path }}
