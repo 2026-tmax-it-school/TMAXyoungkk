@@ -1,17 +1,21 @@
 import React, { useState } from 'react';
 import { View } from 'react-native';
 
-import type { DayBase, DaySetting, Trip } from '../types';
+import type { DayBase, DaySetting, Transport, Trip } from '../types';
+import { TRANSPORT_LABEL } from '../core/constants';
 import { isHost, tripMode } from '../core/group';
 import { isEditLocked, LOCKED_REASON } from '../core/ops';
 import { MEMBER_REASON } from '../core/ops/members';
-import { baseModeOf, dayHours, effectiveBase, periodLabel, TITLE_MAX, type BaseMode } from '../core/trip/create';
+import { baseModeOf, dayHours, effectiveBase, nightsLabel, periodLabel, TITLE_MAX, type BaseMode, type DateRangeSel } from '../core/trip/create';
+import { basesToClear, datesBrief, droppedDates } from '../core/trip/edit';
 import { dateWithYear } from '../core/trip/format';
 import { retentionUntil } from '../core/tripStatus';
-import { dateRange, dayLabel } from '../core/util';
+import { dateRange, dayLabel, josa } from '../core/util';
 import { regionById } from '../data/regions';
 import { BaseSearchSheet } from '../features/trip/components/BaseSearchSheet';
+import { CalendarRange } from '../features/trip/components/CalendarRange';
 import { PickerBox } from '../features/trip/components/PickerBox';
+import { RegionSheet } from '../features/trip/components/RegionSheet';
 import { TimeRange } from '../features/trip/components/TimeRange';
 import type { RootScreenProps } from '../navigation/routes';
 import { useNow } from '../services/clock';
@@ -31,6 +35,7 @@ import {
   Notice,
   Row,
   Screen,
+  Sheet,
   SP,
   Tag,
   Txt,
@@ -40,7 +45,9 @@ import {
  * 25 여행방 설정(FR-201·204·205, 데이터 보존, WP2 소유).
  * - 날짜별 기점: 지정(장소 검색), 직전 날짜와 같음('inherit'), 기점 없음(첫 스팟 사용, null), 복귀 없음, 날짜별 활동시간.
  *   전부 trip/setDay{date,patch}이고 전 멤버가 바꿀 수 있다. 하루 이동수단(transport)은 건드리지 않는다(시간표 12 화면).
- * - 이름·기본 활동시간은 trip/update라 방장만(프로토타입 가정).
+ * - 이름·지역·날짜·주 이동수단·기본 활동시간은 trip/update라 방장만(프로토타입 가정). 만든 뒤에도 방장이 바꿀 수 있다(2026-10-10).
+ *   지역을 바꾸면 장소로 정한 날짜별 기점을 비운다(확인 1회). 기간이 줄어 빠지는 날짜가 있으면 확인 1회 뒤 바꾼다.
+ *   바꾸면 루트를 다시 계산한다(needsRecompute). 그룹원에게는 값만 보인다.
  * - 방장은 삭제(확인 1회), 그룹원은 나가기(확인 1회). 방장에게는 나가기 버튼 없이 '방장 위임 미결정' 안내만 처음부터 보인다
  *   (validate 거부 경로는 core에 그대로 있다).
  * - 삭제는 모든 멤버 목록에서 바로 사라지는 삭제 표시(deletedAt)다. 내용은 보관 기한까지 각 기기에 남았다가 지워진다(확인 문구에 적는다).
@@ -56,7 +63,10 @@ export default function TripSettingsScreen({ navigation, route }: RootScreenProp
   const now = useNow(60_000);
 
   const [baseFor, setBaseFor] = useState<string | undefined>(undefined);
-  const [confirm, setConfirm] = useState<'delete' | 'leave' | undefined>(undefined);
+  const [confirm, setConfirm] = useState<'delete' | 'leave' | 'region' | 'dates' | undefined>(undefined);
+  const [edit, setEdit] = useState<'region' | 'dates' | undefined>(undefined);
+  const [range, setRange] = useState<DateRangeSel>({});
+  const [nextRegion, setNextRegion] = useState<string | undefined>(undefined);
   const [title, setTitle] = useState<string | undefined>(undefined);
 
   const home = () => navigation.reset({ index: 0, routes: [{ name: 'Main', params: { screen: 'Home' } }] });
@@ -83,6 +93,39 @@ export default function TripSettingsScreen({ navigation, route }: RootScreenProp
 
   const setDay = (date: string, patch: Partial<Pick<DaySetting, 'base' | 'noReturn' | 'dayStart' | 'dayEnd'>>) =>
     dispatch(trip.id, { type: 'trip/setDay', date, patch });
+
+  const applyRegion = (id: string) => {
+    const r = dispatch(trip.id, { type: 'trip/update', patch: { region: id } });
+    if (!r.ok) return;
+    for (const date of basesToClear(trip.days)) setDay(date, { base: null });
+  };
+  const pickRegion = (id: string) => {
+    setEdit(undefined);
+    if (id === trip.region) return;
+    if (basesToClear(trip.days).length > 0) {
+      setNextRegion(id);
+      setConfirm('region');
+      return;
+    }
+    applyRegion(id);
+  };
+
+  const openDates = () => {
+    setRange({ start: trip.startDate, end: trip.endDate });
+    setEdit('dates');
+  };
+  const applyDates = (start: string, end: string) => dispatch(trip.id, { type: 'trip/update', patch: { startDate: start, endDate: end } });
+  const pickDates = () => {
+    setEdit(undefined);
+    const { start, end } = range;
+    if (!start || !end || (start === trip.startDate && end === trip.endDate)) return;
+    if (droppedDates(trip, start, end).length > 0) {
+      setConfirm('dates');
+      return;
+    }
+    applyDates(start, end);
+  };
+  const dropped = range.start && range.end ? droppedDates(trip, range.start, range.end) : [];
 
   const saveTitle = () => {
     const t = (title ?? '').trim();
@@ -115,6 +158,34 @@ export default function TripSettingsScreen({ navigation, route }: RootScreenProp
             </Col>
           ) : (
             <Txt v="nm">{trip.title}</Txt>
+          )}
+          {host && !locked ? (
+            <Col gap={SP.m}>
+              <PickerBox label="지역" icon="pin" value={region?.label ?? trip.region} onPress={() => setEdit('region')} />
+              <PickerBox
+                label="날짜"
+                icon="cal"
+                value={periodLabel(trip.startDate, trip.endDate)}
+                trailing={<Chip text={nightsLabel(trip.startDate, trip.endDate)} tone="line" />}
+                onPress={openDates}
+              />
+              <Col gap={SP.s}>
+                <Txt v="label">주 이동수단</Txt>
+                <Choice<Transport>
+                  options={[
+                    { key: 'car', label: '자동차', icon: 'car' },
+                    { key: 'walk', label: '도보', icon: 'walk' },
+                    { key: 'transit', label: '대중교통' },
+                  ]}
+                  value={trip.transport}
+                  onChange={(t) => {
+                    if (t !== trip.transport) dispatch(trip.id, { type: 'trip/update', patch: { transport: t } });
+                  }}
+                />
+              </Col>
+            </Col>
+          ) : (
+            <Txt v="mt">{`${region?.label ?? trip.region} · ${periodLabel(trip.startDate, trip.endDate)} · ${TRANSPORT_LABEL[trip.transport]}`}</Txt>
           )}
           <Col gap={SP.s}>
             <Txt v="label">기본 활동시간</Txt>
@@ -183,6 +254,40 @@ export default function TripSettingsScreen({ navigation, route }: RootScreenProp
           if (baseFor) setDay(baseFor, { base });
         }}
         noneLabel="기점 없음(첫 스팟 사용)"
+      />
+      <RegionSheet visible={edit === 'region'} value={trip.region} onClose={() => setEdit(undefined)} onPick={pickRegion} />
+      <Sheet visible={edit === 'dates'} onClose={() => setEdit(undefined)} title="날짜 바꾸기">
+        <CalendarRange value={range} onChange={setRange} initialMonth={(range.start ?? trip.startDate).slice(0, 7)} />
+        {dropped.length > 0 ? (
+          <Txt v="mtTight" c="warn">{`${josa(datesBrief(dropped), '이/가')} 기간에서 빠집니다`}</Txt>
+        ) : null}
+        <Btn title="이 날짜로" disabled={!range.start || !range.end} onPress={pickDates} />
+      </Sheet>
+      <ConfirmSheet
+        visible={confirm === 'region'}
+        title="지역을 바꿀까요"
+        text={`${josa(regionById(nextRegion ?? '')?.label ?? '', '으로/로')} 바꾸면 날짜별로 정한 기점(숙소)을 비웁니다. 후보와 시간표는 그대로 남으니 이전 지역의 장소는 직접 정리해 주세요. 루트는 다시 계산합니다.`}
+        confirmLabel="바꾸기"
+        onConfirm={() => {
+          setConfirm(undefined);
+          if (nextRegion) applyRegion(nextRegion);
+          setNextRegion(undefined);
+        }}
+        onCancel={() => {
+          setConfirm(undefined);
+          setNextRegion(undefined);
+        }}
+      />
+      <ConfirmSheet
+        visible={confirm === 'dates'}
+        title="날짜를 바꿀까요"
+        text={`${josa(datesBrief(dropped), '이/가')} 기간에서 빠집니다. 그날의 기점·활동시간 설정은 사라지고, 그날로 날짜를 정한 스팟은 '여행 기간 밖'으로 제외됩니다. 루트는 다시 계산합니다.`}
+        confirmLabel="바꾸기"
+        onConfirm={() => {
+          setConfirm(undefined);
+          if (range.start && range.end) applyDates(range.start, range.end);
+        }}
+        onCancel={() => setConfirm(undefined)}
       />
       <ConfirmSheet
         visible={confirm === 'delete'}

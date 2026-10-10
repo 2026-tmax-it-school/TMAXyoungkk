@@ -209,6 +209,16 @@ export default function ChatScreen({ navigation, route }: RootScreenProps<'Chat'
       </View>
 
       <Sheet visible={menu} onClose={() => setMenu(false)} title="채팅 메뉴">
+        {/* 여행방 설정(이름·지역·날짜·이동수단·날짜별 기점)은 여기서 연다. 방장만 바꿀 수 있고 그룹원에게는 값만 보인다 */}
+        <Btn
+          title="여행방 설정"
+          variant="ghost"
+          icon="gear"
+          onPress={() => {
+            setMenu(false);
+            navigation.navigate('TripSettings', { tripId });
+          }}
+        />
         <Txt v="label">보내는 사람 바꾸기 · 같은 기기 시연</Txt>
         <Row wrap gap={SP.s}>
           {active.map((m) => (

@@ -53,7 +53,6 @@ type TripRoute =
 /** 여행방 진입점(목업 18). */
 const TRIP_ENTRIES: { route: TripRoute; label: string; icon: IconName }[] = [
   { route: 'Members', label: '멤버 · 초대 링크', icon: 'users' },
-  { route: 'TripSettings', label: '여행방 설정 · 날짜별 기점', icon: 'gear' },
   { route: 'LiveTrip', label: '여행 진행 · 시뮬레이터', icon: 'play' },
   { route: 'Recommend', label: '여행지 추천', icon: 'search' },
   { route: 'Photos', label: '사진', icon: 'camera' },
