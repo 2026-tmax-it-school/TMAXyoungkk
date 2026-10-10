@@ -27,7 +27,8 @@
  * 요청 본문이 잘못되면 400, 저장소 오류는 500이다. 앱은 둘 다 실패로 보고 다음 차례에 다시 보낸다.
  * 경로의 tripId가 키로 못 쓰는 값(NUL, 짝 없는 서로게이트, 200자 초과)이면 400, 그런 초대 코드는 notFound다(server/ids.mjs).
  *
- * 중계: 앱(EXPO_PUBLIC_API_URL)이 카카오 키 없이 여기를 거친다. 카카오 키는 서버 변수 KAKAO_REST_KEY에만 두고,
+ * 중계: 앱(EXPO_PUBLIC_API_URL)이 카카오·ODsay 키 없이 여기를 거친다. 카카오 키는 서버 변수 KAKAO_REST_KEY,
+ * 대중교통(ODsay) 키는 ODSAY_API_KEY에만 두고,
  * OSRM 상류는 OSRM_URL(기본 공개 서버)이다. 허용 목록·속도 제한·캐시·동시 요청 규칙은 server/proxy.mjs에 있다.
  * 중계 응답 캐시는 저장소의 routeCache다(PostgreSQL route_cache, 메모리면 MEMORY_ROUTE_CACHE_LIMIT까지).
  *
@@ -386,7 +387,7 @@ async function main() {
   console.log(`계정: 메일 발송 없음, 개발용 보낸편지함·모의 소셜 ${devOutbox ? '열림(GET /auth/outbox, /auth/social)' : '닫힘(AUTH_DEV_OUTBOX=1로 연다)'}`);
   console.log(`소셜 로그인(OAuth): ${describeOAuth(oauth)}`);
   console.log(
-    `중계: 카카오 ${proxy.kakaoKey ? '켜짐' : '꺼짐(KAKAO_REST_KEY 없음, 503)'}, OSRM ${new URL(proxy.osrmUrl).host}`,
+    `중계: 카카오 ${proxy.kakaoKey ? '켜짐' : '꺼짐(KAKAO_REST_KEY 없음, 503)'}, 대중교통 ODsay ${proxy.odsayKey ? '켜짐' : '꺼짐(ODSAY_API_KEY 없음, 503)'}, OSRM ${new URL(proxy.osrmUrl).host}`,
   );
   const stop = () => {
     server

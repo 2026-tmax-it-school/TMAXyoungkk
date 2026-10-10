@@ -117,6 +117,15 @@ export function kakaoDirectionsUrl(from: Endpoint, to: Endpoint): string {
 /** 수단 줄 순서(카카오맵 길찾기처럼 자동차·대중교통·도보) */
 export const MODE_ORDER: Transport[] = ['car', 'transit', 'walk'];
 
+/** 이 직선거리(km)를 넘으면 도보 경로를 묻지도 보이지도 않는다(서울역 → 경주역 도보 78시간 같은 칸을 없앤다) */
+export const WALK_MAX_KM = 30;
+
+/** 두 끝점 사이에 견줄 수단. 직선 WALK_MAX_KM 초과면 도보를 뺀다. 끝점이 덜 정해졌으면 모두 */
+export function modesFor(from: LatLng | undefined, to: LatLng | undefined): Transport[] {
+  if (from && to && haversineKm(from, to) > WALK_MAX_KM) return MODE_ORDER.filter((t) => t !== 'walk');
+  return MODE_ORDER;
+}
+
 const MODE_LABEL: Record<Transport, string> = { car: '자동차', transit: '대중교통', walk: '도보' };
 const MODE_ICON: Record<Transport, 'car' | 'bus' | 'walk'> = { car: 'car', transit: 'bus', walk: 'walk' };
 
@@ -154,15 +163,16 @@ export function estimateTextOf(leg: RouteLeg): ModeRow['estimateText'] {
   return leg.road ? '시간 추정' : '직선거리 추정';
 }
 
-/** 수단별 결과 → 비교 줄(순서 고정). 대중교통은 모의 모델이라 항상 추정으로 표시한다 */
-export function modeRows(results: Partial<Record<Transport, ModeResult>>): ModeRow[] {
-  const rows: ModeRow[] = MODE_ORDER.map((t) => {
+/** 수단별 결과 → 비교 줄(순서 고정). 대중교통은 실제 노선(ODsay, estimated false)이면 추정 표시가 없고, 추정 모델이면 '시간 추정'이다 */
+export function modeRows(results: Partial<Record<Transport, ModeResult>>, modes: readonly Transport[] = MODE_ORDER): ModeRow[] {
+  const rows: ModeRow[] = modes.map((t) => {
     const r = results[t];
     const base = { transport: t, label: MODE_LABEL[t], icon: MODE_ICON[t], fastest: false };
     if (r === undefined) return { ...base, state: 'loading', timeText: '찾는 중', distText: '', estimated: false };
     if (r === null) return { ...base, state: 'none', timeText: '경로 없음', distText: '', estimated: false };
-    const estimated = r.estimated || t === 'transit';
-    const estimateText = estimateTextOf(r) ?? (t === 'transit' ? '시간 추정' : undefined);
+    const estimated = r.estimated;
+    // 대중교통 추정은 선이 직선이어도 거리를 재지 않은 '시간' 추정이다
+    const estimateText = r.estimated && t === 'transit' ? '시간 추정' : estimateTextOf(r);
     return {
       ...base,
       state: 'ok',
@@ -183,8 +193,9 @@ export function modeRows(results: Partial<Record<Transport, ModeResult>>): ModeR
 /** 처음 고를 수단. 고른 수단에 결과가 있으면 그대로, 없으면 결과가 있는 첫 수단 */
 export function pickMode(rows: ModeRow[], wanted: Transport): Transport {
   const w = rows.find((r) => r.transport === wanted);
-  if (!w || w.state !== 'none') return wanted;
-  return rows.find((r) => r.state === 'ok')?.transport ?? wanted;
+  if (w && w.state !== 'none') return wanted;
+  // 고른 수단이 줄에 없거나(먼 거리의 도보) 경로가 없으면 결과가 있는 첫 수단, 없으면 첫 줄
+  return rows.find((r) => r.state === 'ok')?.transport ?? (w ? wanted : rows[0]?.transport ?? wanted);
 }
 
 /* ---------- 선·안내 줄 ---------- */
@@ -211,7 +222,7 @@ export function directionsShape(from: Endpoint, to: Endpoint, leg: RouteLeg | nu
 }
 
 /** 안내 줄. 경로 제공자의 steps가 있으면 그대로, 없으면 방위·거리 한 줄과 도착 줄(13 legSteps와 같은 규칙) */
-export function directionsSteps(from: Endpoint, to: Endpoint, leg: RouteLeg | null | undefined): { text: string; meters: number }[] {
+export function directionsSteps(from: Endpoint, to: Endpoint, leg: RouteLeg | null | undefined): RouteLeg['steps'] {
   return legSteps({ from: from.coord, to: to.coord, toName: endpointLabel(to) }, leg);
 }
 
@@ -241,14 +252,11 @@ export function searchRegionFor(regions: readonly Region[], tripRegion: Region |
 }
 
 /**
- * 전국에서 찾을지. 여행방 지역이 없고 반대쪽 끝점도 어느 지역에도 들지 않으면 지역 반경으로 거르지 않는다.
- * searchRegionFor가 첫 지역(기본)을 고른 경우라 그 반경으로 거르면 다른 도시 장소가 안 나온다
- * (여행방 없이 '불국사'를 찾으면 서울 20km 안의 비슷한 이름만 나오던 문제).
+ * 길찾기 장소 검색은 언제나 전국에서 찾는다(여행방 안에서 열었어도). 길찾기는 어디로든 갈 수 있어야 하고,
+ * 지역 반경(중심 20km)으로 거르면 '성남역'을 찾을 때 서울 반경 안의 모란역·태평역만 나오던 문제가 생긴다(2026-10-10).
+ * 결과 순서는 카카오 정확도순이고 반대쪽 끝점(searchBiasFor)은 거리 계산에만 쓴다.
  */
-export function searchesAnywhere(regions: readonly Region[], tripRegion: Region | undefined, near: LatLng | undefined): boolean {
-  if (tripRegion) return false;
-  return !near || !regions.some((r) => haversineKm(r.center, near) <= r.radiusKm);
-}
+export const DIRECTIONS_SEARCH_ANYWHERE = true;
 
 /**
  * 장소 검색의 가까운 쪽 기준점. 반대쪽 끝이 '내 위치'면 그 좌표를 검색 서비스로 보내지 않고 지역 중심을 쓴다

@@ -162,47 +162,27 @@ test('로컬 모델이 경로 없음(null)이면 길 서버에 묻지 않는다'
   assert.equal(fetch.calls.length, 0);
 });
 
-test('대중교통 선은 자동차 길 모양을 빌린다. 시간·안내 줄은 모의 모델이고 버스 구간 거리만 길 거리다', async () => {
+test('대중교통 추정은 찻길 모양을 빌리지 않고 두 점 직선이다(실제 노선처럼 보이지 않게). 대중교통 때문에 길 서버에 묻지 않는다', async () => {
   const fetch = fakeFetch(() => ({ body: osrmBody() }));
   const routes = createRouteProvider({ fetch, clock: fixedClock(0), kv: memoryKV(), roadShapes: {} });
-  const plain = createRouteProvider({ fetch: fakeFetch(), clock: fixedClock(0), kv: memoryKV() });
   const leg = await routes.route(A, B, 'transit');
-  const model = await plain.route(A, B, 'transit');
-  assert.ok(leg && model);
-  assert.ok(fetch.calls[0].url.includes('/routed-car/'));
-  assert.equal(leg.road, 'osm');
-  assert.deepEqual(leg.polyline, [A, CORNER, B]);
-  assert.equal(leg.minutes, model.minutes);
+  assert.ok(leg);
+  assert.equal(fetch.calls.length, 0);
+  assert.equal(leg.road, undefined);
+  assert.deepEqual(leg.polyline, [A, B]);
   assert.equal(leg.estimated, true);
-  assert.equal(leg.meters, 1490);
-  assert.deepEqual(
-    leg.steps.map((s) => s.text),
-    model.steps.map((s) => s.text),
-  );
-  assert.ok(leg.note?.includes('찻길 모양'));
-  assert.deepEqual(model.polyline, [A, B], '길 모양이 없으면 직선 그대로');
+  assert.ok(leg.note?.includes('실제 노선 아님'));
+  assert.ok(leg.steps.some((s) => s.text.includes('타고')));
 });
 
-test('대중교통 선: 자동차 경로가 실패하면(카카오 직접 호출이 던짐) 직선이지만 임시 결과라 캐시에 두지 않고, 다시 되면 길 모양이다', async () => {
-  let kakaoDown = true;
-  const kakaoBody = {
-    routes: [
-      {
-        result_code: 0,
-        summary: { distance: 2100, duration: 600 },
-        sections: [{ roads: [{ vertexes: [A.longitude, A.latitude, CORNER.longitude, CORNER.latitude, B.longitude, B.latitude] }] }],
-      },
-    ],
-  };
-  const fetch = fakeFetch((c) => (c.url.includes('kakaomobility') ? (kakaoDown ? { status: 500, body: {} } : { body: kakaoBody }) : { body: osrmBody() }));
+test('대중교통 추정은 자동차 경로 실패와 상관없다(카카오 직접 호출이 던져도 대중교통은 추정 결과다)', async () => {
+  const fetch = fakeFetch((c) => (c.url.includes('kakaomobility') ? { status: 500, body: {} } : { body: osrmBody() }));
   const routes = createRouteProvider({ kakaoKey: 'K', fetch, clock: fixedClock(0), kv: memoryKV(), roadShapes: {} });
-  const first = await routes.route(A, B, 'transit');
-  assert.deepEqual([first?.road, first?.provisional, first?.polyline.length], [undefined, true, 2]);
-  kakaoDown = false;
-  const again = await routes.route(A, B, 'transit');
-  assert.equal(again?.road, 'kakao', '직선을 하루 내내 캐시하지 않았다');
-  assert.equal(again?.provisional, undefined);
-  assert.deepEqual(again?.polyline, [A, CORNER, B]);
+  const leg = await routes.route(A, B, 'transit');
+  assert.ok(leg);
+  assert.equal(leg.provisional, undefined);
+  assert.deepEqual(leg.polyline, [A, B]);
+  assert.equal(fetch.calls.length, 0);
 });
 
 test('카카오 자동차 경로는 길 모양(road: kakao)이다', () => {

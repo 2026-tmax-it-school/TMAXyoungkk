@@ -9,6 +9,8 @@
  *   GET /osrm/routed-foot/route/v1/foot/{경도,위도;경도,위도}?overview&geometries&steps
  *   GET /osrm/routed-car/route/v1/driving/{…}                                       (osm.ts가 만드는 주소 꼴 그대로)
  *   GET /osrm/routed-{foot,car}/table/v1/{foot,driving}/{…}?sources&destinations&annotations
+ *   GET /odsay/search?SX&SY&EX&EY&OPT&SearchPathType                                ODsay 대중교통 길찾기(searchPubTransPathT)
+ *   GET /odsay/lane?mapObject                                                         ODsay 노선 모양(loadLane, 지도 선)
  *
  * 열린 중계가 되지 않게 한다.
  * - 위 경로와 매개변수만 받는다. 모르는 매개변수, 같은 이름 두 번, 범위를 벗어난 좌표·숫자는 400이다. 상류에는 서버가
@@ -22,7 +24,9 @@
  * - 카카오 키(KAKAO_REST_KEY)는 서버 환경 변수에서만 읽어 Authorization: KakaoAK 헤더로 붙인다. 키가 없으면 카카오 경로는
  *   503 kakaoDisabled와 이유를 준다(앱은 서버 경유에서 실패하면 로컬 장소 사전·추정 경로로 넘어간다). 상류 응답에 키 글자가
  *   섞여 있으면 가린다
- * OSRM·카카오 길찾기의 성공 응답(200)은 저장소의 경로 캐시(PostgreSQL route_cache 또는 메모리)에 24시간 둔다. 장소 검색은 두지 않는다.
+ * - ODsay 키(ODSAY_API_KEY, 서버 키·IP 등록)도 서버 환경 변수에서만 읽어 apiKey 쿼리로 붙인다. 키가 없으면 ODsay 경로는
+ *   503 odsayDisabled다(앱은 대중교통을 추정 모델로 넘어간다). ODsay는 실패도 200 + {error}로 주므로 그 응답은 캐시하지 않는다
+ * OSRM·카카오 길찾기·ODsay의 성공 응답(200)은 저장소의 경로 캐시(PostgreSQL route_cache 또는 메모리)에 24시간 둔다. 장소 검색은 두지 않는다.
  * 메모리 경로 캐시는 개수·크기 상한이 있다(sync-server.mjs createSyncStore, 넘으면 오래된 것부터 버린다).
  * OSRM에는 동시에 OSRM_CONCURRENCY개(기본 2)까지만 보낸다. 공개 서버 routing.openstreetmap.de에는 사용 정책상 설정과 상관없이
  * 2개를 넘기지 않는다. 차례를 기다리는 요청이 100개를 넘거나 6초(queueWaitMs) 안에 차례가 오지 않으면 503 busy와
@@ -117,6 +121,26 @@ export const KAKAO_ROUTES = Object.freeze({
     upstream: 'https://apis-navi.kakaomobility.com/v1/directions',
     required: ['origin', 'destination'],
     params: { origin: xy, destination: xy, priority: oneOf('RECOMMEND', 'TIME', 'DISTANCE'), summary: oneOf('true', 'false') },
+    cache: true,
+  },
+});
+
+/**
+ * ODsay 중계 경로. 키는 '/odsay/' 뒤 경로. 문서: lab.odsay.com(searchPubTransPathT, loadLane).
+ * 좌표는 SX·SY(출발 경도·위도), EX·EY(도착). OPT 0 추천·1 최단시간·2 최소환승(앱은 0), SearchPathType 0 모두·1 지하철·2 버스.
+ * loadLane의 mapObject는 경로 결과의 info.mapObj 앞에 '0:0@'를 붙인 값이다(숫자·':'·'@'·'.'·'-'만).
+ */
+export const ODSAY_ROUTES = Object.freeze({
+  search: {
+    upstream: 'https://api.odsay.com/v1/api/searchPubTransPathT',
+    required: ['SX', 'SY', 'EX', 'EY'],
+    params: { SX: lng, SY: lat, EX: lng, EY: lat, OPT: oneOf('0', '1', '2'), SearchPathType: oneOf('0', '1', '2') },
+    cache: true,
+  },
+  lane: {
+    upstream: 'https://api.odsay.com/v1/api/loadLane',
+    required: ['mapObject'],
+    params: { mapObject: (v) => v.length <= 1000 && /^[0-9:@.\-]+$/.test(v) },
     cache: true,
   },
 });
@@ -253,7 +277,7 @@ function isPublicOsrm(url) {
 }
 
 /**
- * 서버 환경 변수 → 중계 설정. KAKAO_REST_KEY(없으면 카카오 503), OSRM_URL(없으면 공개 서버),
+ * 서버 환경 변수 → 중계 설정. KAKAO_REST_KEY(없으면 카카오 503), ODSAY_API_KEY(없으면 ODsay 503), OSRM_URL(없으면 공개 서버),
  * OSRM_CONCURRENCY(기본 2), PROXY_RATE_PER_MIN(기본 300, 0이면 끔). OSRM_URL이 http(s) 주소가 아니면 던진다(시작하지 않는다).
  */
 export function proxyOptionsFromEnv(env) {
@@ -267,6 +291,7 @@ export function proxyOptionsFromEnv(env) {
   const osrm = String(env.OSRM_URL ?? '').trim();
   return {
     kakaoKey: String(env.KAKAO_REST_KEY ?? '').trim(),
+    odsayKey: String(env.ODSAY_API_KEY ?? '').trim(),
     osrmUrl: osrm ? baseUrl(osrm, 'OSRM_URL') : OSRM_PUBLIC_URL,
     osrmConcurrency: Math.max(1, count(env.OSRM_CONCURRENCY, PROXY_DEFAULTS.osrmConcurrency)),
     ratePerMin: count(env.PROXY_RATE_PER_MIN, PROXY_DEFAULTS.ratePerMin),
@@ -275,7 +300,7 @@ export function proxyOptionsFromEnv(env) {
 
 /** 이 경로를 중계가 맡는지 */
 export function isProxyPath(pathname) {
-  return /^\/(kakao|osrm)(\/|$)/.test(pathname);
+  return /^\/(kakao|osrm|odsay)(\/|$)/.test(pathname);
 }
 
 /**
@@ -284,6 +309,7 @@ export function isProxyPath(pathname) {
  */
 export function createApiProxy({
   kakaoKey = '',
+  odsayKey = '',
   osrmUrl = OSRM_PUBLIC_URL,
   fetch: fetchImpl = globalThis.fetch,
   cache,
@@ -297,6 +323,9 @@ export function createApiProxy({
   log = () => {},
 } = {}) {
   const key = String(kakaoKey ?? '').trim();
+  const odsay = String(odsayKey ?? '').trim();
+  /** 응답에서 가릴 키 글자 */
+  const secrets = [key, odsay].filter(Boolean);
   const osrmBase = baseUrl(osrmUrl, 'OSRM_URL');
   const limits = { ...PROXY_DEFAULTS, ...limitsIn };
   const osrmMax = Math.max(1, isPublicOsrm(osrmBase) ? Math.min(osrmConcurrency, limits.publicOsrmConcurrency) : osrmConcurrency);
@@ -337,7 +366,7 @@ export function createApiProxy({
   function toResult(r) {
     let t = r.text;
     if (t.length > limits.maxResponseLength) return json(502, { error: 'upstreamTooLarge' });
-    if (key && t.includes(key)) t = t.split(key).join(MASK);
+    for (const s of secrets) if (t.includes(s)) t = t.split(s).join(MASK);
     let body;
     try {
       body = JSON.parse(t);
@@ -369,7 +398,7 @@ export function createApiProxy({
   /**
    * 상류에 묻는다. kind는 기록용 이름, gate는 동시 요청 제한(OSRM). cacheable이면 성공 응답을 24시간 두고 겹치는 요청을 합친다.
    */
-  async function relay({ kind, url, headers, cacheable, gate }) {
+  async function relay({ kind, url, upstreamUrl, headers, cacheable, gate }) {
     const ck = cacheable ? `${kind}:${createHash('sha256').update(url).digest('hex')}` : undefined;
     if (ck) {
       const hit = await cacheGet(ck);
@@ -380,7 +409,8 @@ export function createApiProxy({
     const call = (async () => {
       let r;
       try {
-        r = await (gate ? gate.run(() => upstream(url, headers)) : upstream(url, headers));
+        const target = upstreamUrl ?? url;
+        r = await (gate ? gate.run(() => upstream(target, headers)) : upstream(target, headers));
       } catch (e) {
         if (e instanceof BusyError) return json(503, { error: 'busy', reason: '경로 서버 차례를 기다리는 요청이 많다' }, { 'Retry-After': '1' });
         if (e instanceof TimeoutError) {
@@ -395,7 +425,9 @@ export function createApiProxy({
         rejectedLogged.add(r.status);
         log(`카카오가 서버 키를 거부했다(${r.status}). KAKAO_REST_KEY와 카카오 개발자 콘솔의 서비스 사용 설정(카카오맵·카카오모빌리티)을 확인한다`);
       }
-      if (ck && out.status === 200) {
+      // ODsay는 실패도 200 + {error}다. 그 응답은 캐시하지 않는다
+      const failedOk = out.status === 200 && out.body && typeof out.body === 'object' && 'error' in out.body;
+      if (ck && out.status === 200 && !failedOk) {
         await cachePut(ck, out.body);
         out.headers = { 'X-Cache': 'miss' };
       }
@@ -422,6 +454,25 @@ export function createApiProxy({
       kind: `kakao-${route.replace('/', '-')}`,
       url: `${spec.upstream}?${queryString(pairs)}`,
       headers: { Authorization: `KakaoAK ${key}` },
+      cacheable: spec.cache,
+    });
+  }
+
+  function odsayRelay(route, search) {
+    if (!Object.hasOwn(ODSAY_ROUTES, route)) return json(404, { error: 'notFound' });
+    const spec = ODSAY_ROUTES[route];
+    const pairs = checkParams(search, spec.params, spec.required);
+    if (typeof pairs === 'string') return bad(pairs);
+    if (!odsay) {
+      return json(503, { error: 'odsayDisabled', reason: '서버에 ODSAY_API_KEY가 없어 대중교통 길찾기를 중계하지 않는다' });
+    }
+    // 캐시 키에 apiKey가 들어가지 않게 키 없는 주소로 캐시 키를 만들고, 상류에는 키를 붙여 보낸다
+    const base = `${spec.upstream}?${queryString(pairs)}`;
+    return relay({
+      kind: `odsay-${route}`,
+      url: base,
+      upstreamUrl: `${base}&apiKey=${encodeURIComponent(odsay)}`,
+      headers: {},
       cacheable: spec.cache,
     });
   }
@@ -460,7 +511,7 @@ export function createApiProxy({
   return {
     /** 카카오 중계가 켜졌는지와 OSRM 상류(로그·점검용. 키는 담지 않는다) */
     info() {
-      return { kakao: key.length > 0, osrm: osrmBase, osrmConcurrency: osrmMax, ratePerMin };
+      return { kakao: key.length > 0, odsay: odsay.length > 0, osrm: osrmBase, osrmConcurrency: osrmMax, ratePerMin };
     },
     /**
      * 요청 하나. method·URL·요청 줄 길이·IP를 받는다. 결과는 {status, body, headers}
@@ -477,6 +528,7 @@ export function createApiProxy({
         const segments = url.pathname.split('/').filter(Boolean);
         if (segments[0] === 'kakao') return await kakao(segments.slice(1).join('/'), url.searchParams);
         if (segments[0] === 'osrm') return await osrm(segments.slice(1), url.searchParams);
+        if (segments[0] === 'odsay') return await odsayRelay(segments.slice(1).join('/'), url.searchParams);
         return json(404, { error: 'notFound' });
       } catch (e) {
         log(`중계 처리 실패: ${e?.message ?? e}`);

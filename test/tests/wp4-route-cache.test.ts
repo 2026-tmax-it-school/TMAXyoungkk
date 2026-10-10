@@ -227,14 +227,15 @@ test('미리보기 계획 두 개를 동시에 계산해도 같은 구간은 길
   );
 });
 
-test('구간 비교: 대중교통 선이 빌리는 자동차 모양은 캐시를 거쳐 자동차 칸과 요청 하나를 나눠 쓴다. 다시 열면 요청이 없다', async () => {
+test('구간 비교: 자동차·도보 길 모양을 한 번씩 묻고, 대중교통 추정은 길 서버에 묻지 않는다(직선). 다시 열면 요청이 없다', async () => {
   const f = fakeFetch(() => ({ body: routeBody }));
   const routes = createRouteProvider({ fetch: f, clock: fixedClock(0), kv: memoryKV(), roadShapes: {} });
   const options = await compareLeg(routes, A, B, 'car');
   const paths = f.calls.map((c) => new URL(c.url).pathname.split('/').slice(1, 3).join('/'));
-  assert.deepEqual(paths.sort(), ['routed-car/route', 'routed-foot/route'], '자동차 길 모양은 한 번만 묻는다');
+  assert.deepEqual(paths.sort(), ['routed-car/route', 'routed-foot/route']);
   const transit = options.find((o) => o.transport === 'transit')?.leg;
-  assert.equal(transit?.road, 'osm', '대중교통 선은 자동차 길 모양');
+  assert.equal(transit?.road, undefined, '대중교통 추정은 찻길 모양을 빌리지 않는다');
+  assert.equal(transit?.estimated, true);
   await compareLeg(routes, A, B, 'car');
   assert.equal(f.calls.length, 2);
 });

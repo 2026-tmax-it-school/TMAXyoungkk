@@ -50,7 +50,8 @@ import { createSyncTransport } from './sync';
  * 서비스 레지스트리(계약 A5). 화면·스토어는 여기서만 제공자를 얻는다. 어느 구현인지 알 필요가 없다.
  *
  * 선택 규칙
- * - EXPO_PUBLIC_API_URL이 있으면 장소·경로가 키 없이 키 숨기는 서버를 거쳐 카카오(자동차만 실제, 도보·대중교통은 로컬 모델)다.
+ * - EXPO_PUBLIC_API_URL이 있으면 장소·경로가 키 없이 키 숨기는 서버를 거쳐 카카오(자동차만 실제, 도보는 로컬 모델)이고,
+ *   대중교통은 서버의 ODsay(ODSAY_API_KEY가 있을 때 실제 노선, 없으면 추정)다.
  *   서버·카카오를 못 쓰면(서버에 카카오 키 없음, 닿지 못함, 시간 초과 등) 장소는 로컬 장소 사전, 자동차는 도로 모양 · 로컬 모델로
  *   넘어가고 그 결과는 캐시에 두지 않는다. 그동안 제공자 id는 'local'이다(마지막 응답 출처. 화면의 예시 데이터 표시와 아래 상태).
  *   서버 경유 장소는 카카오 어댑터에 로컬 장소 사전을 대체로 붙여 여기서 만든다(places 팩토리는 직접 키만 받는다).
@@ -174,6 +175,10 @@ export interface ServiceStatus {
 }
 
 const KAKAO_NOTE = '프로토타입 가정 · 국내 SDK 선정 미결정 · 키가 번들에 들어가므로 시연 한정';
+/** 대중교통: 서버가 있으면 서버의 ODsay 실제 노선(키가 서버에 있을 때), 없으면 추정 */
+const TRANSIT_NOTE = API_URL
+  ? '대중교통은 서버의 ODsay 실제 노선(서버에 ODsay 키가 없으면 추정)'
+  : '대중교통은 추정(서버 주소가 있으면 ODsay 실제 노선)';
 /** 서버 경유 카카오. 앱 .env에 직접 호출 키가 남아 있으면 쓰지 않아도 번들에 들어가므로 그렇게 적는다 */
 const KAKAO_SERVER_NOTE = KAKAO_KEY_IGNORED
   ? '프로토타입 가정 · 국내 SDK 선정 미결정 · 앱 .env의 카카오 키는 쓰지 않지만 번들에 들어감(비워 두기)'
@@ -236,8 +241,8 @@ export function describeServices(): ServiceStatus[] {
       mode: 'real',
       note: [
         road
-          ? `도보 시간과 선은 실제 길(${OSM_ATTRIBUTION}${roadWhere}) · 대중교통은 모의 모델 추정`
-          : '도보·대중교통은 로컬 모델 추정',
+          ? `도보 시간과 선은 실제 길(${OSM_ATTRIBUTION}${roadWhere}) · ${TRANSIT_NOTE}`
+          : `도보는 로컬 모델 추정 · ${TRANSIT_NOTE}`,
         server ? KAKAO_SERVER_NOTE : KAKAO_NOTE,
       ].join(' · '),
       via: server ? 'server' : 'app',
@@ -260,7 +265,7 @@ export function describeServices(): ServiceStatus[] {
       key: 'routes',
       label: '경로 · 실제 길 OpenStreetMap',
       mode: 'real',
-      note: `도보·자동차 시간과 선은 실제 길(${OSM_ATTRIBUTION}) · 자동차는 교통 보정 ${OSRM_CAR_TIME_FACTOR}배 · 시연 구간은 예시 구간표 · 대중교통은 모의 모델 추정 · ${
+      note: `도보·자동차 시간과 선은 실제 길(${OSM_ATTRIBUTION}) · 자동차는 교통 보정 ${OSRM_CAR_TIME_FACTOR}배 · 시연 구간은 예시 구간표 · ${TRANSIT_NOTE} · ${
         road === 'server' ? '서버 경유(서버가 24시간 캐시)' : road === 'custom' ? '지정한 경로 서버' : '공개 서버라 시연 한정'
       }`,
       via: road === 'server' ? 'server' : 'app',

@@ -91,16 +91,20 @@ export interface TravelMatrix {
   estimatedCells?: boolean[][];
 }
 
+/** 대중교통 안내 줄 종류 */
+export type TransitStepKind = 'walk' | 'bus' | 'subway' | 'train' | 'intercityBus' | 'air' | 'arrive';
+
 export interface RouteLeg {
   transport: Transport;
   minutes: number;
   meters: number;
   polyline: LatLng[];
-  steps: { text: string; meters: number }[];
+  /** 안내 줄. kind는 대중교통 구간 종류(아이콘용, ODsay만 채운다) */
+  steps: { text: string; meters: number; kind?: TransitStepKind }[];
   note?: string;
   estimated: boolean;
-  /** 선 모양이 실제 길을 따른다(어디서 받았는지). 없으면 두 점 직선이다. 시간이 추정(estimated)이어도 모양은 실제 길일 수 있다 */
-  road?: 'osm' | 'kakao';
+  /** 선 모양이 실제 길·노선을 따른다(어디서 받았는지, odsay는 대중교통 노선). 없으면 두 점 직선이다. 시간이 추정(estimated)이어도 모양은 실제 길일 수 있다 */
+  road?: 'osm' | 'kakao' | 'odsay';
   /** 도로 모양을 받지 못해 대신 낸 임시 결과. 캐시에 두지 않고 다음에 다시 묻는다 */
   provisional?: boolean;
 }

@@ -117,21 +117,19 @@ test('회귀: 10/18 모든 구간에서 "이 구간만" 도보·대중교통을 
   assert.ok(kept >= 12, `구간이 남은 경우 ${kept}`);
 });
 
-test('대중교통 모의 = 도보 접근 + 배차 간격 절반 대기 + 승차 + 환승 벌점', () => {
+test('대중교통 추정 = 탑승 시간만(걷기·배차 간격 대기·환승 시간은 넣지 않는다)', () => {
   const a: LatLng = { latitude: 35.8, longitude: 129.2 };
   const near: LatLng = { latitude: 35.81, longitude: 129.2 };
   const far: LatLng = { latitude: 35.9, longitude: 129.3 };
   const p = { accessWalkMin: 6, defaultHeadwayMin: 30, transferPenaltyMin: 10, legs: {} };
   const b1 = transitBreakdown(a, near, p);
-  assert.equal(b1.transfers, 0);
-  assert.equal(b1.waitMin, 15);
-  assert.equal(b1.total, 6 + 15 + b1.rideMin);
+  assert.equal(b1.total, b1.rideMin);
   const b2 = transitBreakdown(a, far, p);
-  assert.equal(b2.transfers, 1);
-  assert.equal(b2.total, 6 + 15 + b2.rideMin + 10);
-  // 구간 덮어쓰기(불국사 → 석굴암: 승차 15, 배차 40)
+  assert.equal(b2.total, b2.rideMin);
+  assert.ok(b2.rideMin > b1.rideMin);
+  // 구간 덮어쓰기(불국사 → 석굴암: 승차 15. 배차·접근·환승 값은 읽지 않는다)
   const o = transitBreakdown(coord('gj-bulguksa'), coord('gj-seokguram'), SCENARIO_TRANSIT, 'gj-bulguksa>gj-seokguram');
-  assert.deepEqual([o.rideMin, o.waitMin, o.total], [15, 20, 6 + 20 + 15]);
+  assert.deepEqual([o.rideMin, o.total], [15, 15]);
 });
 
 test('대중교통 route는 단계와 estimated를 주고, 구간표 null이면 경로 없음(null)', async () => {
@@ -139,8 +137,8 @@ test('대중교통 route는 단계와 estimated를 주고, 구간표 null이면 
   const leg = await r.route(coord('gj-bulguksa'), coord('gj-seokguram'), 'transit');
   assert.ok(leg);
   assert.equal(leg.estimated, true);
-  assert.equal(leg.minutes, 41);
-  assert.ok(leg.steps.some((s) => s.text.includes('기다리기')));
+  assert.equal(leg.minutes, 15);
+  assert.deepEqual(leg.steps.map((s) => s.text), ['버스·지하철 타고 15분(추정)'], '탑승 한 줄(걷기·대기 줄이 없다)');
   assert.equal(await r.route(coord('gj-lahan-select'), coord('gj-gameunsaji'), 'transit'), null);
   const m = await r.matrix([coord('gj-lahan-select')], [coord('gj-gameunsaji')], 'transit');
   assert.equal(m.minutes[0][0], null);

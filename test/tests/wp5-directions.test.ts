@@ -16,11 +16,13 @@ import {
   ME_NOTICE,
   minutesText,
   modeRows,
+  modesFor,
   pickMode,
+  WALK_MAX_KM,
   routeReady,
   searchable,
   searchBiasFor,
-  searchesAnywhere,
+  DIRECTIONS_SEARCH_ANYWHERE,
   searchRegionFor,
   swapEndpoints,
   tripBaseFor,
@@ -106,7 +108,7 @@ test('수단 줄: 자동차·대중교통·도보 순서, 응답 전·경로 없
   );
   const rows = modeRows({
     car: leg({ transport: 'car', minutes: 8, meters: 2400, road: 'osm' }),
-    transit: leg({ transport: 'transit', minutes: 18, estimated: false, note: '대중교통 모의 모델(2차) · 실제 노선 아님' }),
+    transit: leg({ transport: 'transit', minutes: 18, estimated: true, note: '대중교통 추정 · 실제 노선 아님' }),
     walk: null,
   });
   assert.deepEqual(rows.map((r) => r.label), ['자동차', '대중교통', '도보']);
@@ -115,9 +117,13 @@ test('수단 줄: 자동차·대중교통·도보 순서, 응답 전·경로 없
   assert.equal(rows[0].distText, '2.4km');
   assert.equal(rows[0].estimated, false);
   assert.equal(rows[0].estimateText, undefined);
-  // 대중교통은 모의 모델이라 늘 추정
+  // 대중교통 추정 모델은 '시간 추정'
   assert.equal(rows[1].estimated, true);
   assert.equal(rows[1].estimateText, '시간 추정');
+  // 실제 노선(ODsay)은 추정 표시가 없다
+  const real = modeRows({ transit: leg({ transport: 'transit', minutes: 125, estimated: false, road: 'odsay' }) });
+  assert.equal(real.find((r) => r.transport === 'transit')?.estimated, false);
+  assert.equal(real.find((r) => r.transport === 'transit')?.estimateText, undefined);
   assert.equal(rows[2].state, 'none');
   assert.equal(rows[2].timeText, '경로 없음');
   assert.equal(rows[2].fastest, false);
@@ -191,11 +197,10 @@ test('검색 지역과 검색어 길이', () => {
   assert.equal(searchRegionFor(regions, regions[1], undefined)?.id, 'gyeongju');
   assert.equal(searchRegionFor(regions, undefined, A)?.id, 'gyeongju');
   assert.equal(searchRegionFor(regions, undefined, undefined)?.id, 'seoul');
-  // 여행방 지역이 없고 반대쪽 끝도 어느 지역에도 없으면 전국에서 찾는다(서울 반경으로 거르지 않는다)
-  assert.equal(searchesAnywhere(regions, undefined, undefined), true);
-  assert.equal(searchesAnywhere(regions, undefined, { latitude: 33.45, longitude: 126.57 }), true);
-  assert.equal(searchesAnywhere(regions, undefined, A), false);
-  assert.equal(searchesAnywhere(regions, regions[1], undefined), false);
+  // 길찾기 검색은 여행방 안에서도 언제나 전국(지역 반경으로 거르면 '성남역'에 모란역·태평역만 나온다)
+  assert.equal(DIRECTIONS_SEARCH_ANYWHERE, true);
+  const src = readFileSync('src/screens/DirectionsScreen.tsx', 'utf8');
+  assert.match(src, /const anywhere = DIRECTIONS_SEARCH_ANYWHERE;/);
   assert.equal(searchable(' 경 '), false);
   assert.equal(searchable('경주'), true);
 });
@@ -277,4 +282,18 @@ test('위치 한 번 읽기: 거부 · 첫 표본 하나만 받고 감시를 끈
   assert.equal(stopped, 1);
   assert.deepEqual(await readLocationOnce(provider('granted', false), 10), { ok: false, reason: 'timeout' });
   assert.equal(stopped, 2);
+});
+
+test('직선 30km를 넘으면 도보를 묻지도 보이지도 않고, 도보를 골라 두었으면 결과가 있는 첫 수단을 보인다', () => {
+  const seoul: LatLng = { latitude: 37.5547, longitude: 126.9707 };
+  const gyeongju: LatLng = { latitude: 35.7983, longitude: 129.1393 };
+  const cityHall: LatLng = { latitude: 37.5657, longitude: 126.9769 };
+  assert.equal(WALK_MAX_KM, 30);
+  assert.deepEqual(modesFor(seoul, gyeongju), ['car', 'transit']);
+  assert.deepEqual(modesFor(seoul, cityHall), ['car', 'transit', 'walk']);
+  assert.deepEqual(modesFor(seoul, undefined), ['car', 'transit', 'walk']);
+  const rows = modeRows({ car: leg({ transport: 'car', minutes: 255 }), transit: leg({ transport: 'transit', minutes: 128 }) }, modesFor(seoul, gyeongju));
+  assert.deepEqual(rows.map((r) => r.transport), ['car', 'transit']);
+  assert.equal(pickMode(rows, 'walk'), 'car');
+  assert.equal(pickMode(modeRows({}, ['car', 'transit']), 'walk'), 'car');
 });

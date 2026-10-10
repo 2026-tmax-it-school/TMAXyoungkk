@@ -3,7 +3,7 @@ import { Linking, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { LatLng, Place, Transport } from '../types';
-import type { RouteLeg } from '../core/ports';
+import type { RouteLeg, TransitStepKind } from '../core/ports';
 import type { MapMarkerInput, MapPolylineInput } from '../core/map/layout';
 import {
   createRequestGuard,
@@ -16,13 +16,13 @@ import {
   mapPickEndpoint,
   ME_NAME,
   ME_NOTICE,
-  MODE_ORDER,
+  modesFor,
   modeRows,
   pickMode,
   routeReady,
   searchable,
   searchBiasFor,
-  searchesAnywhere,
+  DIRECTIONS_SEARCH_ANYWHERE,
   searchRegionFor,
   swapEndpoints,
   tripBaseFor,
@@ -77,6 +77,19 @@ const SEARCH_DEBOUNCE_MS = 400;
 /** 지도에서 누른 곳 근처 장소를 찾는 반경(m) */
 const MAP_PICK_RADIUS_M = 150;
 const STEPS_MAX_H = 84;
+/** 실제 대중교통 노선 안내는 따라 탈 정보라 더 길게 보인다 */
+const TRANSIT_STEPS_MAX_H = 220;
+
+/** 대중교통 안내 줄 종류 → 아이콘 */
+const STEP_ICON: Record<TransitStepKind, IconName> = {
+  walk: 'walk',
+  bus: 'bus',
+  subway: 'train',
+  train: 'train',
+  intercityBus: 'bus',
+  air: 'nav',
+  arrive: 'pin',
+};
 const LIST_MAX_H = 240;
 
 type Results = Partial<Record<Transport, ModeResult>>;
@@ -118,7 +131,7 @@ export default function DirectionsScreen({ navigation, route }: RootScreenProps<
     setResults({});
     if (!key || !ends.from || !ends.to) return;
     const { from, to } = ends;
-    for (const t of MODE_ORDER) {
+    for (const t of modesFor(from.coord, to.coord)) {
       void getServices()
         .routes.route(from.coord, to.coord, t)
         .catch(() => null)
@@ -131,7 +144,8 @@ export default function DirectionsScreen({ navigation, route }: RootScreenProps<
   }, [key]);
   useEffect(() => () => routeGuard.cancel(), [routeGuard]);
 
-  const rows = useMemo(() => modeRows(results), [results]);
+  const modes = useMemo(() => modesFor(ends.from?.coord, ends.to?.coord), [ends.from?.coord, ends.to?.coord]);
+  const rows = useMemo(() => modeRows(results, modes), [results, modes]);
   const shown = pickMode(rows, mode);
   const row = rows.find((r) => r.transport === shown);
   const leg: RouteLeg | null | undefined = results[shown];
@@ -330,16 +344,30 @@ export default function DirectionsScreen({ navigation, route }: RootScreenProps<
             {leg?.note ? <Txt v="mtTight">{leg.note}</Txt> : null}
             {row?.state === 'none' ? <Txt v="mt">{`${row.label} 경로가 없습니다. 다른 수단을 골라 주세요.`}</Txt> : null}
             {steps.length > 0 ? (
-              <ScrollView style={{ flexGrow: 0, maxHeight: STEPS_MAX_H }} contentContainerStyle={{ gap: SP.s }}>
-                {steps.map((s, i) => (
-                  <Row key={`${i}-${s.text}`} gap={SP.l}>
-                    <Icon name={i === steps.length - 1 ? 'pin' : 'right'} size={14} color={i === 0 ? 'accent' : 'faint'} />
-                    <Txt v="mt" c={i === 0 ? 'ink' : 'muted'} style={{ flex: 1 }}>
-                      {s.text}
-                    </Txt>
-                    {s.meters > 0 ? <Txt v="mtTight">{distanceText(s.meters)}</Txt> : null}
-                  </Row>
-                ))}
+              <ScrollView
+                style={{ flexGrow: 0, maxHeight: leg?.road === 'odsay' ? TRANSIT_STEPS_MAX_H : STEPS_MAX_H }}
+                contentContainerStyle={{ gap: SP.s }}
+              >
+                {steps.map((s, i) =>
+                  s.kind ? (
+                    // 실제 대중교통 노선: 구간 종류 아이콘과 잉크 글씨(버스 번호·노선·승하차가 따라 탈 정보다)
+                    <Row key={`${i}-${s.text}`} gap={SP.l} top>
+                      <Icon name={STEP_ICON[s.kind]} size={16} color={s.kind === 'walk' ? 'muted' : 'accent'} stroke={1.9} />
+                      <Txt v="mt" c={s.kind === 'walk' ? 'muted' : 'ink'} style={{ flex: 1 }}>
+                        {s.text}
+                      </Txt>
+                      {s.meters > 0 ? <Txt v="mtTight">{distanceText(s.meters)}</Txt> : null}
+                    </Row>
+                  ) : (
+                    <Row key={`${i}-${s.text}`} gap={SP.l}>
+                      <Icon name={i === steps.length - 1 ? 'pin' : 'right'} size={14} color={i === 0 ? 'accent' : 'faint'} />
+                      <Txt v="mt" c={i === 0 ? 'ink' : 'muted'} style={{ flex: 1 }}>
+                        {s.text}
+                      </Txt>
+                      {s.meters > 0 ? <Txt v="mtTight">{distanceText(s.meters)}</Txt> : null}
+                    </Row>
+                  ),
+                )}
               </ScrollView>
             ) : null}
           </>
@@ -360,7 +388,6 @@ export default function DirectionsScreen({ navigation, route }: RootScreenProps<
         side={picker}
         other={picker ? ends[picker === 'from' ? 'to' : 'from'] : undefined}
         regionFor={(near) => searchRegionFor(REGIONS, trip ? regionById(trip.region) : undefined, near)}
-        anywhereFor={(near) => searchesAnywhere(REGIONS, trip ? regionById(trip.region) : undefined, near)}
         base={base ? { kind: 'base', name: base.name, coord: base.coord, id: base.placeId } : undefined}
         spots={spots.map((s) => ({ kind: 'spot' as const, name: s.name, coord: s.coord, id: s.id }))}
         liveCoord={liveTripId && last ? last.coord : undefined}
@@ -420,7 +447,6 @@ function EndpointPicker({
   side,
   other,
   regionFor,
-  anywhereFor,
   base,
   spots,
   liveCoord,
@@ -431,7 +457,6 @@ function EndpointPicker({
   side: EndpointSide | undefined;
   other: Endpoint | undefined;
   regionFor: (near: LatLng | undefined) => ReturnType<typeof searchRegionFor>;
-  anywhereFor: (near: LatLng | undefined) => boolean;
   base: Endpoint | undefined;
   spots: Endpoint[];
   liveCoord: LatLng | undefined;
@@ -467,7 +492,7 @@ function EndpointPicker({
     const region = regionFor(other?.coord);
     const term = q.trim();
     if (!searchable(term) || !region) return;
-    const anywhere = anywhereFor(other?.coord);
+    const anywhere = DIRECTIONS_SEARCH_ANYWHERE;
     const ask = `${anywhere ? '*' : region.id}:${term}`;
     if (ask === lastAsked.current) return;
     lastAsked.current = ask;

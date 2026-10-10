@@ -126,6 +126,7 @@ test('중계 경로는 /kakao/…와 /osrm/…뿐이다', () => {
 test('서버 환경 변수: 기본은 키 없음·공개 OSRM·동시 2개·분당 300회, OSRM_URL이 주소가 아니거나 수가 아니면 시작하지 않는다', () => {
   assert.deepEqual(proxyOptionsFromEnv({}), {
     kakaoKey: '',
+    odsayKey: '',
     osrmUrl: OSRM_PUBLIC_URL,
     osrmConcurrency: PROXY_DEFAULTS.osrmConcurrency,
     ratePerMin: PROXY_DEFAULTS.ratePerMin,
@@ -133,8 +134,14 @@ test('서버 환경 변수: 기본은 키 없음·공개 OSRM·동시 2개·분�
   assert.equal(PROXY_DEFAULTS.ratePerMin, 300);
   assert.equal(PROXY_DEFAULTS.osrmConcurrency, 2);
   assert.deepEqual(
-    proxyOptionsFromEnv({ KAKAO_REST_KEY: ` ${KEY} `, OSRM_URL: 'http://127.0.0.1:5000/', OSRM_CONCURRENCY: '4', PROXY_RATE_PER_MIN: '0' }),
-    { kakaoKey: KEY, osrmUrl: 'http://127.0.0.1:5000', osrmConcurrency: 4, ratePerMin: 0 },
+    proxyOptionsFromEnv({
+      KAKAO_REST_KEY: ` ${KEY} `,
+      ODSAY_API_KEY: ' ODSAY-KEY ',
+      OSRM_URL: 'http://127.0.0.1:5000/',
+      OSRM_CONCURRENCY: '4',
+      PROXY_RATE_PER_MIN: '0',
+    }),
+    { kakaoKey: KEY, odsayKey: 'ODSAY-KEY', osrmUrl: 'http://127.0.0.1:5000', osrmConcurrency: 4, ratePerMin: 0 },
   );
   assert.throws(() => proxyOptionsFromEnv({ OSRM_URL: 'routing.example' }), /OSRM_URL/);
   assert.throws(() => proxyOptionsFromEnv({ PROXY_RATE_PER_MIN: 'many' }), /정수/);
