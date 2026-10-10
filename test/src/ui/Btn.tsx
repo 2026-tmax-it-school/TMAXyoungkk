@@ -9,14 +9,15 @@ export type BtnVariant = 'primary' | 'ghost' | 'quiet' | 'off';
 
 const LOOK: Record<BtnVariant, { box: ViewStyle; text: TextColorKey; icon: IconColorKey }> = {
   primary: { box: { backgroundColor: surfaceC.accent }, text: 'onAccent', icon: 'onAccent' },
-  ghost: { box: { backgroundColor: surfaceC.card, borderWidth: 1.5, borderColor: surfaceC.ink }, text: 'ink', icon: 'ink' },
-  quiet: { box: { backgroundColor: surfaceC.card, borderWidth: 1, borderColor: lineC.line }, text: 'muted', icon: 'muted' },
+  ghost: { box: { backgroundColor: surfaceC.card, borderWidth: 1, borderColor: lineC.ink }, text: 'ink', icon: 'ink' },
+  quiet: { box: { backgroundColor: surfaceC.card, borderWidth: 1, borderColor: lineC.line }, text: 'ink', icon: 'muted' },
   // off 글씨는 목업의 #8D7B82가 대비 미달이라 muted로 올렸다.
   off: { box: { backgroundColor: surfaceC.off }, text: 'muted', icon: 'faint' },
 };
 
 /**
- * 버튼. danger는 없다. 삭제·나가기·내보내기·계정 탈퇴는 quiet + ConfirmSheet 1회로 한다.
+ * 버튼(DS Button). primary는 brand 면, 화면당 하나. ghost는 DS secondary(잉크 1px 테두리).
+ * quiet는 회색 선의 보조 버튼. 높이 48/36, 라운드 12/8. danger는 없다. 삭제·나가기·내보내기·계정 탈퇴는 quiet + ConfirmSheet 1회로 한다.
  * disabled면 off 모양이 된다.
  */
 export function Btn({
@@ -63,18 +64,23 @@ export function Btn({
   );
 }
 
-/** 40 × 40 원형 아이콘 버튼(연회색 면). label은 스크린리더용이다. disabled면 누를 수 없고 아이콘이 faint가 된다. */
+/**
+ * 40 × 40 원형 아이콘 버튼(DS IconButton). label은 스크린리더용이다. disabled면 누를 수 없고 아이콘이 faint가 된다.
+ * plain(기본): 머리말 뒤로·닫기, soft: 연회색 원(탭 첫 화면 오른쪽 위).
+ */
 export function IconBtn({
   icon,
   onPress,
   label,
   color = 'ink',
+  variant = 'plain',
   disabled,
 }: {
   icon: IconName;
   onPress: () => void;
   label: string;
   color?: IconColorKey;
+  variant?: 'plain' | 'soft';
   disabled?: boolean;
 }) {
   return (
@@ -88,13 +94,13 @@ export function IconBtn({
         width: H.iconBtn,
         height: H.iconBtn,
         borderRadius: R.iconBtn,
-        backgroundColor: surfaceC.soft,
+        backgroundColor: variant === 'soft' ? surfaceC.soft : 'transparent',
         alignItems: 'center',
         justifyContent: 'center',
       }}
     >
       <View>
-        <Icon name={icon} size={19} color={disabled ? 'faint' : color} />
+        <Icon name={icon} size={22} color={disabled ? 'faint' : color} stroke={1.9} />
       </View>
     </Pressable>
   );
