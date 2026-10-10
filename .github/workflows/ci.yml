@@ -2,7 +2,7 @@ name: CI
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, develop]
   push:
     branches: [main]
 
@@ -38,3 +38,4 @@ jobs:
 
       - name: 웹 번들 폰트는 ttf 4개
         run: test "$(find /tmp/yt-export -name '*.ttf' | wc -l | tr -d ' ')" = "4"
+
