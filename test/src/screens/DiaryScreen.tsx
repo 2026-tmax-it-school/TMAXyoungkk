@@ -215,6 +215,15 @@ export default function DiaryScreen({ navigation, route }: RootScreenProps<'Diar
             </View>
           ) : null}
         </Row>
+        {/* 이 날의 일기를 커뮤니티 글로 올린다(글쓰기 화면이 본문을 채워 연다) */}
+        {entry && entry.blocks.length > 0 ? (
+          <Btn
+            title="커뮤니티에 올리기"
+            icon="users"
+            variant="ghost"
+            onPress={() => navigation.navigate('CommunityCompose', { tripId, date })}
+          />
+        ) : null}
       </Foot>
 
       <Sheet visible={!!editing} onClose={() => setEditing(undefined)} title={editing ? `${editing.time} ${editing.placeName}` : ''}>

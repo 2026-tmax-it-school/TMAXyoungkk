@@ -17,6 +17,8 @@ export type MainTabParamList = {
   Candidates: undefined;
   Schedule: { date?: string } | undefined;
   Map: { date?: string } | undefined;
+  /** 사진·일기 글을 앱 사용자 모두와 나누는 곳(서버 저장) */
+  Community: undefined;
   More: undefined;
 };
 
@@ -46,6 +48,8 @@ export type RootStackParamList = {
   Diary: { tripId: string; date?: string };
   RecordMap: { tripId: string; date?: string };
   Profile: undefined;
+  /** 커뮤니티 글쓰기. tripId·date를 주면 그 날짜 일기로 본문을 채운다 */
+  CommunityCompose: { tripId?: string; date?: string } | undefined;
 };
 
 export type RootRouteName = keyof RootStackParamList;
@@ -79,6 +83,7 @@ export const linking: LinkingOptions<RootStackParamList> = {
           Candidates: 'candidates',
           Schedule: 'schedule',
           Map: 'map',
+          Community: 'community',
           More: 'more',
         },
       },
@@ -87,14 +92,15 @@ export const linking: LinkingOptions<RootStackParamList> = {
 };
 
 /**
- * 하단 탭(홈/후보/시간표/지도/프로필 고정). 채팅은 탭이 아니라 스택 화면이다.
- * 다섯째 탭(More)은 숙박 앱처럼 '프로필'로 보이고, 안에 계정·설정·시연 도구를 모은다.
+ * 하단 탭(홈/후보/시간표/지도/커뮤니티/프로필 고정). 채팅은 탭이 아니라 스택 화면이다.
+ * 마지막 탭(More)은 숙박 앱처럼 '프로필'로 보이고, 안에 계정·설정·시연 도구를 모은다.
  */
-export const TAB_ITEMS: { key: TabRouteName; label: string; icon: 'home' | 'heart' | 'cal' | 'map' | 'user' }[] = [
+export const TAB_ITEMS: { key: TabRouteName; label: string; icon: 'home' | 'heart' | 'cal' | 'map' | 'users' | 'user' }[] = [
   { key: 'Home', label: '홈', icon: 'home' },
   { key: 'Candidates', label: '후보', icon: 'heart' },
   { key: 'Schedule', label: '시간표', icon: 'cal' },
   { key: 'Map', label: '지도', icon: 'map' },
+  { key: 'Community', label: '커뮤니티', icon: 'users' },
   { key: 'More', label: '프로필', icon: 'user' },
 ];
 
@@ -134,4 +140,6 @@ export const SCREEN_META: Record<Exclude<RootRouteName, 'Main'> | TabRouteName |
   TripSettings: { no: '25', title: '여행방 설정 · 날짜별 기점', fr: 'FR-201·205·204', wp: 'WP2' },
   SocialConsent: { no: '26', title: '소셜 로그인 동의', fr: 'FR-103', wp: 'WP1' },
   Directions: { no: '27', title: '길찾기', fr: 'FR-601~603', wp: 'WP5' },
+  Community: { no: '28', title: '커뮤니티 · 사진과 일기', fr: 'FR-705', wp: 'WP6' },
+  CommunityCompose: { no: '29', title: '커뮤니티 글쓰기', fr: 'FR-705', wp: 'WP6' },
 };

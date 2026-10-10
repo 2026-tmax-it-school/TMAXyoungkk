@@ -219,14 +219,15 @@ for (const backend of BACKENDS) {
     const count = async (table: string, tripId: string) =>
       Number((await db.query(`SELECT count(*)::int AS c FROM ${table} WHERE trip_id = $1`, [tripId])).rows[0].c);
 
-    test('마이그레이션: 처음 적용하면 1·2·3번이 기록되고, 다시 돌려도(동시에 두 번 포함) 아무것도 적용하지 않는다', async () => {
-      assert.deepEqual(firstMigration, [1, 2, 3]);
+    test('마이그레이션: 처음 적용하면 1·2·3·5번이 기록되고, 다시 돌려도(동시에 두 번 포함) 아무것도 적용하지 않는다', async () => {
+      assert.deepEqual(firstMigration, [1, 2, 3, 5]);
       assert.deepEqual(await Promise.all([migrate(db), migrate(db)]), [[], []]);
       const { rows } = await db.query('SELECT version, name FROM schema_migrations ORDER BY version');
       assert.deepEqual(rows.map((r) => [r.version, r.name]), [
         [1, '001_init.sql'],
         [2, '002_auth.sql'],
         [3, '003_oauth_states.sql'],
+        [5, '005_community.sql'],
       ]);
     });
 

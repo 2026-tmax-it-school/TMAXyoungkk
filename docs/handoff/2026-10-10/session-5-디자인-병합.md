@@ -63,3 +63,26 @@ TMAXyoungkk에는 `.env`가 없어 SVG 기본 지도·모의 데이터로 돌았
 4. **커밋·PR.** 사용자가 요청할 때만. 학교 레포 쓰기 권한이 없으니 포크(`hanbg191919-eng/TMAXyoungkk-school`)를 remote로 더해 이 브랜치를 푸시하고 develop으로 PR을 연다. 커밋에 Claude 공동 작성자 줄을 넣지 않는다. 의존성(`package.json`·`package-lock.json`, expo-auth-session·web-browser·webview 등)은 협업 규칙대로 따로 묶을지 정한다.
 5. 원래 폴더를 계속 쓸지, TMAXyoungkk로 옮길지 정한다. 옮기면 원래 폴더 변경은 이미 여기에 들어 있으니 원래 폴더에서 새로 고치지 않는다(두 곳이 갈라진다).
 6. session-4 파일의 나머지 남은 일(카카오 실제 로그인, 코드 문제 7건, SMTP, 안드로이드, 앱 WebView 기기 확인)은 그대로다.
+
+## 이어서 한 일 (세션 5 후반, 커밋 전)
+
+| 일 | 상태 | 비고 |
+| --- | --- | --- |
+| 길찾기 커밋 가져오기 | 완료 | `origin/develop`의 `b8c91c0`(팀원 sezurchoe, ODsay 대중교통·길찾기 개선)만 `cherry-pick -n`으로 가져옴. 테스트 993개 중 992 통과 |
+| 여행방 설정 수정(방장) | 완료 · 웹 확인 | TMAXyoungkk 정리 때 사라져 다시 만듦. 지역·날짜·주 이동수단을 방장이 만든 뒤에도 바꾼다. `src/core/trip/edit.ts`, `TripSettingsScreen.tsx`, `tests/wp2-trip-edit.test.ts` |
+| 커뮤니티(사진·일기 글) | 완료 · 웹·실제 PostgreSQL 확인 | 아래 |
+
+### 커뮤니티
+- 사용자 결정: 앱 사용자 전체가 보고 서버에 저장한다. 하단 탭 「커뮤니티」(지도와 프로필 사이). 요약은 `test/README.md` "커뮤니티 · 사진과 일기".
+- 서버: `server/community.mjs`(서비스·메모리 저장소), `server/db/community-store.mjs`(PostgreSQL), 마이그레이션 **`005_community.sql`**. `sync-server.mjs`가 `/community/…`를 넘기고 사진 글은 본문 한도 10MB(`readBody`의 drain 모드로 413). `auth.mjs`에 `authenticate(headers)`와 `onAccountRemoved`(탈퇴하면 글 삭제)를 더함.
+- **마이그레이션 번호 주의:** 로컬 개발 DB(`youngtrip`)에는 두 폴더 어디에도 없는 `004_member_accounts.sql`(trip_member_accounts 표)이 이미 적용돼 있다(오늘 15:29, 다른 작업). 그래서 내 마이그레이션을 004가 아닌 005로 했다. 그 004가 저장소에 들어오면 번호가 1~5로 이어진다. 테스트(`wp2-db`)는 지금 [1,2,3,5]를 기대한다. 그때 004가 들어오면 [1,2,3,4,5]로 고친다.
+- 앱: `src/core/community`(규칙·서버와 같은 한도), `src/services/community`(http·local·picker), `src/store/community.ts`, `CommunityScreen`, `CommunityComposeScreen`, `features/community/components/PostCard`. `AuthProvider.bearer()`로 세션 토큰을 꺼내 서버에 보낸다. 서버 주소(AUTH_URL)가 없으면 이 기기 모의로 돌아간다.
+- 웹 확인(8090 + 새 API 서버 8787, 실제 PostgreSQL): 일기 글을 올려 피드에 보임, 사진 글은 서버에서 받아 보임, 내 글 삭제(확인 창) 뒤 목록·DB에서 사라지고 사진 행도 같이 지워짐. 테스트 글은 모두 지웠다.
+- **화면으로 못 본 것:** 사진 고르기·업로드(앱 안 브라우저에서 파일 창을 열 수 없다), 기기에서의 화질 줄이기 결과(1.5MB 넘으면 올리기 전에 막는다), 360px 폭. 일기 → 커뮤니티 연결 버튼(DiaryScreen)은 아직 없다(글쓰기 화면은 `tripId`·`date`로 열면 그날 일기를 채운다).
+- 서버 프로세스: 8787은 `tmax-server`(미리보기 설정, 원래 폴더 `.claude/launch.json`)로 새로 띄웠다. 예전 서버(16:20 시작, 커뮤니티 경로 없음)는 껐다.
+- 검사: `tsc` 오류 0, `npm test` 1027개 중 1026 통과(실패 0, 건너뜀 1), WP1~WP6 통과.
+
+### 연결 정리 (같은 날 마지막)
+- **여행방 설정은 채팅 화면 위 `...`(채팅 메뉴) 맨 위 「여행방 설정」에서 연다.** 프로필 탭의 여행방 목록에서는 뺐다(웹 확인: 프로필에 없고, 채팅 메뉴에서 열린다).
+- **일기 화면(Diary) 아래 「커뮤니티에 올리기」**: 그날 일기가 있으면 보인다. 글쓰기 화면이 `tripId`·`date`로 열려 제목(여행방 이름 · 날짜)과 본문을 일기로 채운다. 화면으로는 못 봤고 `wp6-community` 소스 규칙 테스트로만 확인했다.
+- 검사: `tsc` 0, 테스트 1028개 중 1027 통과(실패 0, 건너뜀 1), WP1~WP6 통과.
