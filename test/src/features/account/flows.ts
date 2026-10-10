@@ -1,6 +1,6 @@
 import type { Session, Trip } from '../../types';
 import { planAccountDeletion, planAccountLink } from '../../core/auth';
-import type { AccountPublic, AuthResult, Profile } from '../../core/ports';
+import type { AccountPublic, AuthAck, AuthResult, Profile } from '../../core/ports';
 import { sessionExpiryNotice } from '../../core/session';
 import { appClock } from '../../services/clock';
 import type { SocialInput } from '../../services/auth';
@@ -19,6 +19,9 @@ import { judgeSocial, type SocialIntent, type SocialJudgement } from './social';
  * - 승격 때는 게스트 때 고른 성향 태그와 이미지 정보를 계정에 먼저 올린다(이 기기 데이터 유지).
  * - 소셜 연결(17 → 26, intent 'link'): 지금 계정에만 붙이고 세션을 바꾸지 않는다(judgeSocial).
  * - 로그아웃·탈퇴는 signOutFlow로 세션·프로필과 지금 여행방(ui.currentTripId), 세션 사진 원본을 같이 비운다.
+ *   계정 서버를 쓰면 서버 세션도 끊는다(AuthProvider.signOut. 기다리지 않고, 실패해도 이 기기는 로그아웃한다).
+ * - 앱 시작 때 계정 세션이 서버에서 끊겼으면(만료·재설정·탈퇴) 로그아웃하고 다시 로그인하라고 알린다(restoreAccountSession).
+ * - 비밀번호 재설정(requestPasswordResetFlow, confirmPasswordResetFlow): 제공자 계약은 있고 화면은 아직 없다(추적표 남은 일).
  * - 탈퇴(17): planAccountDeletion 초안을 방마다 본인 멤버 이름으로 보내고(actingAs를 따르지 않는다),
  *   AuthProvider.deleteAccount 뒤 로그아웃한다.
  */
@@ -65,6 +68,9 @@ export async function completeAuth(account: AccountPublic): Promise<{ promoted: 
 
 /** 로그아웃. 세션·프로필(스토어)과 지금 여행방 선택을 비운다. 여행방 자체는 이 기기에 남는다. */
 export function signOutFlow(): void {
+  const s = useSession.getState().session;
+  const auth = getServices().auth;
+  if (s?.kind === 'account' && auth.signOut) void auth.signOut(s.accountId).catch(() => undefined);
   useSession.getState().signOut();
   useUi.getState().setCurrentTrip(undefined);
   // 이 세션에서만 보이던 웹 사진 원본(blob:)도 다음 사람에게 남기지 않는다.
@@ -74,8 +80,9 @@ export function signOutFlow(): void {
 /** 16 가입. 게스트면 그 userId를 계정에 물려 승격 준비를 한다. */
 export async function signUpFlow(input: { email: string; password: string; nickname: string }): Promise<AuthResult> {
   const s = useSession.getState().session;
-  const userId = s?.kind === 'guest' ? s.userId : undefined;
-  return getServices().auth.signUp({ ...input, userId });
+  if (s?.kind !== 'guest') return getServices().auth.signUp(input);
+  // 게스트 userId는 여행방 로그로 남에게 보이므로, 이 기기 토큰을 같이 보내 같은 게스트인지 확인받는다
+  return getServices().auth.signUp({ ...input, userId: s.userId, deviceToken: useSession.getState().ensureDeviceToken() });
 }
 
 /** 모의 메일함에서 인증. 인증되면 이 기기에서 바로 로그인(게스트면 승격)한다. */
@@ -181,6 +188,33 @@ export async function deleteAccountFlow(): Promise<DeleteAccountResult> {
 }
 
 registerAccountDeletion(deleteAccountFlow);
+
+/**
+ * 앱 시작 때 계정 세션 확인. 계정 서버가 세션을 모르면(expired) 로그아웃하고 true를 돌려준다(부팅이 만료 안내를 낸다).
+ * 서버에 닿지 못했거나 모의 인증이면 이 기기 세션을 그대로 둔다.
+ */
+export async function restoreAccountSession(): Promise<'ok' | 'expired' | 'unreachable' | 'skipped'> {
+  const s = useSession.getState().session;
+  const auth = getServices().auth;
+  if (s?.kind !== 'account' || !s.accountId || !auth.checkSession) return 'skipped';
+  const r = await auth.checkSession(s.accountId);
+  if (r === 'expired') signOutFlow();
+  return r;
+}
+
+const NO_RESET: AuthAck = { ok: false, code: 'notFound', detail: '이 인증 방식은 비밀번호 재설정을 지원하지 않습니다' };
+
+/** 비밀번호 재설정 메일 요청. 가입 여부와 상관없이 같은 응답이다 */
+export async function requestPasswordResetFlow(email: string): Promise<AuthAck> {
+  const auth = getServices().auth;
+  return auth.requestPasswordReset ? auth.requestPasswordReset(email) : NO_RESET;
+}
+
+/** 재설정 메일 토큰으로 새 비밀번호. 성공해도 로그인하지 않는다(새 비밀번호로 로그인한다) */
+export async function confirmPasswordResetFlow(token: string, password: string): Promise<AuthAck & { violations?: string[] }> {
+  const auth = getServices().auth;
+  return auth.confirmPasswordReset ? auth.confirmPasswordReset({ token, password }) : NO_RESET;
+}
 
 /**
  * sessionExpiry 알림(만료 3일 전, 가정). 띄울 문구를 돌려주고 기록한다. 없으면 null.

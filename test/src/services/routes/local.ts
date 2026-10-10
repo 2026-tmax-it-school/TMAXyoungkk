@@ -12,6 +12,7 @@ import { SCENARIO_ROUTE_TABLE } from '../../data/scenario-tuning';
  *
  * RouteProvider는 좌표만 받으므로 장소 좌표를 소수 4자리(약 10m)로 색인해 좌표 → placeId를 찾는다(계약 A11).
  * 호출 수는 계산한 구간 수로 센다(캐시에서 나오지 않은 구간 = 호출). 같은 지점끼리는 세지 않는다.
+ * 행렬은 칸마다 추정인지(estimatedCells)도 낸다(구간표 칸과 직선 추정 칸이 한 행렬에 섞여도 구간마다 맞게).
  */
 
 export type RouteTable = Record<Transport, Record<string, number | null>>;
@@ -67,15 +68,17 @@ export function createLocalRoutes(opts: LocalRoutesOptions = {}): RouteProvider 
     async matrix(origins, destinations, transport): Promise<TravelMatrix> {
       let calls = 0;
       let estimated = false;
-      const minutes = origins.map((o) =>
-        destinations.map((d) => {
+      const estimatedCells = origins.map(() => destinations.map(() => false));
+      const minutes = origins.map((o, i) =>
+        destinations.map((d, j) => {
           if (!sameCoord(o, d)) calls += 1;
           const r = one(o, d, transport);
           estimated ||= r.estimated;
+          estimatedCells[i][j] = r.estimated;
           return r.minutes;
         }),
       );
-      return { minutes, calls, cacheHits: 0, estimated };
+      return { minutes, calls, cacheHits: 0, estimated, estimatedCells };
     },
     async route(a, b, transport): Promise<RouteLeg | null> {
       const r = one(a, b, transport);

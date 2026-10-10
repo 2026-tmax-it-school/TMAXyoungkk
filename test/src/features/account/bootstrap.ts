@@ -9,7 +9,7 @@ import { useSession } from '../../store/session';
 import { useTrips } from '../../store/trips';
 import { useUi } from '../../store/ui';
 import { FONT_ASSETS, FONT_LABELS } from '../../ui/fonts';
-import { takeSessionExpiryNotice } from './flows';
+import { restoreAccountSession, takeSessionExpiryNotice } from './flows';
 
 /**
  * 부팅(WP1 소유). App.tsx는 이 함수만 부르고 그동안 01 스플래시를 그린다.
@@ -17,7 +17,7 @@ import { takeSessionExpiryNotice } from './flows';
  * 5~8단계: 스토어 4개(ui, session, trips, live)의 복원을 기다린다.
  * 진행률은 단계 수(8단계) 기준이고 label은 지금 하는 단계 이름이다. 바이트 진행률은 약속하지 않는다.
  * 그다음 한 번에 끝나는 정리를 한다: 구 저장 키 삭제(안내는 한 번만), 만료 3일 전 알림(연장 전 세션 기준),
- * 세션 갱신(만료면 폐기와 안내), 보관 기한이 지난 여행방 로컬 삭제(purgeExpired, WP2).
+ * 세션 갱신(만료면 폐기와 안내), 계정 서버 세션 확인(끊겼으면 로그아웃과 같은 만료 안내), 보관 기한이 지난 여행방 로컬 삭제(purgeExpired, WP2).
  */
 
 export interface BootProgress {
@@ -79,7 +79,18 @@ export async function bootstrap(onProgress: (p: BootProgress) => void): Promise<
   const before = useSession.getState().session;
   const soon = before ? takeSessionExpiryNotice({ extended: true, session: before }) : null;
 
-  const sessionState = useSession.getState().touchSession();
+  let sessionState = useSession.getState().touchSession();
+  if (sessionState === 'ok') {
+    // 계정 서버가 세션을 모르면(만료·다른 기기 재설정·탈퇴) 다시 로그인하게 한다. 서버에 닿지 못하면 그대로 쓴다
+    try {
+      if ((await restoreAccountSession()) === 'expired') {
+        sessionState = 'expired';
+        useSession.setState({ expiredKind: 'account' });
+      }
+    } catch {
+      // 확인을 못 하면 이 기기 세션을 그대로 쓴다
+    }
+  }
   if (sessionState === 'expired') {
     notices.push(expiredNotice({ kind: useSession.getState().expiredKind ?? 'guest' }));
   } else if (soon) {

@@ -45,7 +45,7 @@ import {
  * - 방장은 행 오른쪽 메뉴에서 초대 권한 토글과 내보내기(ScopeBadge 2차, 프로토타입 가정). 로즈를 위험 신호로 쓰지 않는다.
  */
 export default function MembersScreen({ navigation, route }: RootScreenProps<'Members'>) {
-  const { tripId } = route.params;
+  const { tripId, fromCreate } = route.params;
   const trip = useTripDoc(tripId);
   const pending = useTrips((s) => s.pending);
   const dispatch = useTrips((s) => s.dispatch);
@@ -88,6 +88,7 @@ export default function MembersScreen({ navigation, route }: RootScreenProps<'Me
     <Screen>
       <Header
         back={back}
+        step={fromCreate ? '2 / 2 단계' : undefined}
         title="멤버 초대"
         size="sm"
         sub="링크를 받은 사람은 가입 없이 게스트로 들어옵니다."

@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import type { Plan, Trip } from '../src/types';
-import { buildPlan, type PlanDeps } from '../src/core/planner';
+import type { LatLng, Plan, Trip } from '../src/types';
+import type { RouteProvider } from '../src/core/ports';
+import { buildPlan, resolveBases, type PlanDeps } from '../src/core/planner';
+import { sameCoord } from '../src/core/planner/estimate';
 import { replanForDelay } from '../src/core/planner/replan';
 import { scenarioPlace } from '../src/data/scenario';
 import { toHHMM, toMin } from '../src/core/util';
@@ -110,4 +112,77 @@ test('남은 일정이 없거나 지연이 0이면 조정안이 없다', async (
   assert.deepEqual(none.adjustments, []);
   const zero = await replanForDelay(input(trip, plan, 0), deps());
   assert.deepEqual(zero.adjustments, []);
+});
+
+test('지금 위치(GPS)는 경로 제공자에 넘기지 않는다. 지금 위치에서 출발하는 구간은 직선거리 추정이고, 스팟 좌표 그대로면 묻는다', async () => {
+  const { trip, plan } = await setup({ closeAfterArriveMin: 10, dayEnd: '22:30' });
+  /** 경로 제공자에 넘어간 좌표를 모두 적는다(서버 경유 카카오·OSRM이면 이 좌표가 기기 밖으로 나간다) */
+  const recording = () => {
+    const inner = deps().routes;
+    const seen: LatLng[] = [];
+    const routes: RouteProvider = {
+      id: inner.id,
+      matrix: (o, d, t) => {
+        seen.push(...o, ...d);
+        return inner.matrix(o, d, t);
+      },
+      route: (a, b, t) => {
+        seen.push(a, b);
+        return inner.route(a, b, t);
+      },
+      clearCache: () => inner.clearCache(),
+    };
+    return { routes, seen };
+  };
+  // 석굴암에서 동쪽으로 약 300m 떨어진 길 위(정확한 GPS)
+  const seok = scenarioPlace('gj-seokguram').coord;
+  const gps: LatLng = { latitude: seok.latitude + 0.0011, longitude: seok.longitude + 0.0031 };
+  const r = recording();
+  const { adjustments } = await replanForDelay({ ...input(trip, plan, 20), position: gps }, { routes: r.routes, now: SCENARIO_T0 });
+  assert.ok(adjustments.length > 0, '조정안은 그대로 낸다');
+  assert.ok(r.seen.length > 0, '스팟 사이 구간은 묻는다');
+  assert.ok(
+    r.seen.every((c) => !sameCoord(c, gps)),
+    '지금 위치 좌표는 한 번도 넘기지 않는다',
+  );
+  const bases = resolveBases(trip).flatMap((b) => (b.base ? [b.base.coord] : []));
+  assert.ok(r.seen.every((c) => trip.spots.some((s) => sameCoord(s.coord, c)) || bases.some((b) => sameCoord(b, c))), '스팟·기점 좌표만');
+
+  // GPS가 없어 replanPosition이 스팟 좌표를 골랐으면 그 좌표로 묻는다(계획에도 쓰는 값이다)
+  const r2 = recording();
+  await replanForDelay(input(trip, plan, 20), { routes: r2.routes, now: SCENARIO_T0 });
+  assert.ok(r2.seen.some((c) => sameCoord(c, seok)));
+});
+
+test('지금 위치가 스팟 좌표와 소수 5자리까지 같으면(맞은 스팟) 받은 위치의 나머지 자리 대신 그 스팟 좌표 그대로 묻는다', async () => {
+  const { trip, plan } = await setup({ closeAfterArriveMin: 10, dayEnd: '22:30' });
+  const inner = deps().routes;
+  const seen: LatLng[] = [];
+  const routes: RouteProvider = {
+    id: inner.id,
+    matrix: (o, d, t) => {
+      seen.push(...o, ...d);
+      return inner.matrix(o, d, t);
+    },
+    route: (a, b, t) => {
+      seen.push(a, b);
+      return inner.route(a, b, t);
+    },
+    clearCache: () => inner.clearCache(),
+  };
+  const seok = scenarioPlace('gj-seokguram').coord;
+  // 석굴암 좌표에서 1m 안쪽(소수 5자리는 같다)으로 떨어진 위치
+  const near: LatLng = { latitude: seok.latitude + 0.0000031, longitude: seok.longitude - 0.0000027 };
+  assert.ok(sameCoord(near, seok));
+  const exact = await replanForDelay({ ...input(trip, plan, 20), position: seok }, deps());
+  const { adjustments } = await replanForDelay({ ...input(trip, plan, 20), position: near }, { routes, now: SCENARIO_T0 });
+  assert.ok(seen.some((c) => c.latitude === seok.latitude && c.longitude === seok.longitude), '맞은 스팟 좌표에서 출발하는 구간을 묻는다');
+  const stops = [...trip.spots.map((s) => s.coord), ...resolveBases(trip).flatMap((b) => (b.base ? [b.base.coord] : []))];
+  for (const c of seen) {
+    assert.ok(
+      stops.some((s) => s.latitude === c.latitude && s.longitude === c.longitude),
+      `스팟·기점 좌표 그대로만 넘긴다(${c.latitude},${c.longitude})`,
+    );
+  }
+  assert.deepEqual(adjustments, exact.adjustments, '스팟 좌표 그대로일 때와 같은 조정안');
 });

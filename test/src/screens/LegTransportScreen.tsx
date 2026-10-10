@@ -151,7 +151,8 @@ export default function LegTransportScreen({ navigation, route }: RootScreenProp
     }
     const chip = isCurrent ? { text: '적용중', tone: 'soft' as const } : deltaChip(o.deltaMin);
     const km = `${(o.leg.meters / 1000).toFixed(1)}km`;
-    const sub = [km, o.leg.estimated ? '추정' : undefined].filter(Boolean).join(' · ');
+    // 시간이 추정일 때만 적는다. 선이 실제 길이면 거리는 실제라 '시간 추정', 직선이면 '직선거리 추정'(길찾기 칩과 같은 말)
+    const sub = [km, o.leg.estimated ? (o.leg.road ? '시간 추정' : '직선거리 추정') : undefined].filter(Boolean).join(' · ');
     return (
       <Card key={o.transport} variant={on ? 'selected' : 'default'} onPress={() => setPicked(o.transport)}>
         <Row top gap={SP.l}>

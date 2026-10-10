@@ -1,0 +1,26 @@
+# 로컬 개발용 PostgreSQL(WP2). npm run db:up 으로 켜고 npm run db:down 으로 끈다(데이터는 볼륨에 남는다).
+# 데이터까지 비우려면 docker compose -f server/docker-compose.yml down -v. 비운 뒤에는 기기마다 시연 리셋이나 새 여행방이 필요하다
+# (기기가 이미 확정된 op를 다시 보내지 않아 서버에 생성 op 없는 방이 생긴다).
+# 계정은 개발용이다. 실서비스에 쓰지 않는다. 포트는 이 컴퓨터(127.0.0.1)에만 연다.
+# 스키마는 동기화 서버가 시작할 때 server/db/migrations/를 적용해 만든다.
+name: young-trip
+
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: youngtrip
+      POSTGRES_PASSWORD: youngtrip-dev
+      POSTGRES_DB: youngtrip
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U youngtrip -d youngtrip"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+
+volumes:
+  pgdata:

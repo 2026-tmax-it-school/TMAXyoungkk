@@ -8,7 +8,9 @@ import { getServices } from '../../services/registry';
  * 지도 선 모양(WP5 소유). 구간마다 routes.route()를 불러 polyline을 얻는다(03 회의 C9).
  * 경로 제공자가 24시간 캐시를 거치고, 여기서는 화면 사이를 오갈 때 깜빡이지 않게 메모리에 한 번 더 둔다.
  * 이 호출은 buildPlan의 routeCalls(08 수치)에 넣지 않는다. 실패하거나 경로가 없으면 null이고 선은 직선이 된다.
- * 실패(null)는 메모에 두지 않는다. 일시 장애 한 번으로 세션 내내 직선이 되지 않게, 다음 화면 진입 때 다시 부른다.
+ * 실패(null)와 도로 모양을 못 받은 임시 결과(provisional)는 메모에 두지 않는다. 일시 장애 한 번으로 세션 내내 직선이 되지 않게,
+ * 다음 화면 진입 때 다시 부른다(경로 캐시도 임시 결과는 두지 않는다).
+ * 시뮬레이터 궤적(store/live)도 legGeometry로 같은 메모·진행 중 요청을 쓴다. 지도와 시뮬레이터가 같은 구간을 두 번 묻지 않는다.
  */
 
 const memo = new Map<string, RouteLeg | null>();
@@ -21,12 +23,17 @@ function fetchLeg(leg: MapLeg): Promise<RouteLeg | null> {
     .routes.route(leg.from, leg.to, leg.transport)
     .catch(() => null)
     .then((r) => {
-      if (r) memo.set(leg.key, r);
+      if (r && !r.provisional) memo.set(leg.key, r);
       inflight.delete(leg.key);
       return r;
     });
   inflight.set(leg.key, p);
   return p;
+}
+
+/** 훅 밖에서 구간 모양을 받는다(시뮬레이터 궤적). 메모에 있으면 그대로, 없으면 지도와 같은 요청을 같이 기다린다 */
+export function legGeometry(leg: MapLeg): Promise<RouteLeg | null> {
+  return memo.has(leg.key) ? Promise.resolve(memo.get(leg.key) ?? null) : fetchLeg(leg);
 }
 
 /** 시연 리셋 때 지도 선 모양 메모를 비운다(경로 캐시는 resetServices가 비운다). */

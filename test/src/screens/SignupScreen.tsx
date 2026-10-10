@@ -39,7 +39,8 @@ export default function SignupScreen({ navigation }: RootScreenProps<'Signup'>) 
   const finish = useAuthDone(navigation);
 
   const refresh = useCallback(async () => {
-    setMails(await getServices().auth.outbox());
+    // 비밀번호 재설정·소셜 연결 확인 메일은 여기서 보이지 않는다(인증하기 버튼으로 쓸 수 없다)
+    setMails((await getServices().auth.outbox()).filter((m) => (m.kind ?? 'verify') === 'verify'));
   }, []);
   useEffect(() => {
     void refresh();
