@@ -33,7 +33,7 @@ import {
   Header,
   Notice,
   Row,
-  ScopeBadge,
+ 
   Screen,
   Sheet,
   SP,
@@ -164,7 +164,6 @@ export default function CreateTripScreen({ navigation }: RootScreenProps<'Create
             <Txt v="label">주 이동수단</Txt>
             <View style={{ flex: 1 }} />
             <Txt v="mtTight">대중교통</Txt>
-            <ScopeBadge phase="2차" />
           </Row>
           <Choice<Transport>
             options={[

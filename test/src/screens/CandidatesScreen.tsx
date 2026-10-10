@@ -19,7 +19,7 @@ import {
   Notice,
   Row,
   Screen,
-  ScopeBadge,
+ 
   Seg,
   SP,
   Txt,
@@ -208,7 +208,6 @@ export default function CandidatesScreen({ navigation }: TabScreenProps<'Candida
                   <Col grow>
                     <Txt v="btnSm">성향 태그로 추천 받기</Txt>
                   </Col>
-                  <ScopeBadge phase="2차" />
                   <Icon name="right" size={16} color="muted" stroke={2.2} />
                 </Row>
               </Pressable>

@@ -43,7 +43,7 @@ import {
  * 03 홈 · 메인 메뉴(FR-203, WP1 소유).
  * - 예정·진행중·완료 세그먼트와 개수. 상태는 공유 tripStatus(KST, appClock)라 시뮬레이터 시각을 따른다.
  * - 여행방 카드(D-일, 아바타, 후보·확정·제외 수) 다음에 메뉴 6칸(목업 03 순서).
- * - 개인 모드면 채팅 칸이 비활성이고 이유를 적는다. 길찾기 칸은 활성에 ScopeBadge '2차'.
+ * - 개인 모드면 채팅 칸이 비활성이고 이유를 적는다.
  * - 여행방이 없으면 생성 유도 Empty.
  * - 2026-10-10 리디자인(숙박·여행 앱 레퍼런스): 카테고리 알약(세그먼트), 내 여행 표지 카드 가로 줄, 원형 빠른 메뉴 6칸, 추천 여행지 가로 줄 순서다.
  * - 쓰는 동안 세션을 유지한다(useSessionKeepAlive: 연장, 만료 폐기, 만료 3일 전 알림 한 번).
@@ -252,7 +252,6 @@ function MenuGrid({ cells, onPress }: { cells: HomeMenuCell[]; onPress: (c: Home
               key={c.key}
               icon={c.icon}
               label={c.label}
-              badge={c.scope}
               disabled={c.disabled}
               onPress={() => onPress(c)}
             />

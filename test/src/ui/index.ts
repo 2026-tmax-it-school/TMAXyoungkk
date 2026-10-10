@@ -9,7 +9,7 @@ export { Txt } from './Txt';
 export { Body, Col, Foot, Header, Row, Screen } from './layout';
 export { Card, type CardVariant } from './Card';
 export { Btn, IconBtn, type BtnVariant } from './Btn';
-export { Chip, ScopeBadge, type ChipTone } from './Chip';
+export { Chip, type ChipTone } from './Chip';
 export { Seg } from './Seg';
 export { Choice, Field, Tag } from './Field';
 export { Empty, Notice, WarnCard } from './Notice';

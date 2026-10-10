@@ -8,11 +8,11 @@ import { kstDate } from '../../core/util';
  * 18 더보기 · 설정 문구(WP1 소유, 순수). wp1-home 테스트가 node로 부른다.
  */
 
-export const NOTIFY_ROWS: { kind: NotifyKind; label: string; sub: string; scope: '2차' | '3차' }[] = [
-  { kind: 'delay', label: '뒤 일정 조정안', sub: '예정보다 15분 이상 밀리면 조정안을 보여줍니다', scope: '2차' },
-  { kind: 'arrival', label: '도착 확인', sub: '스팟 100m 안에 3분 머물면 도착으로 기록합니다', scope: '2차' },
-  { kind: 'freeTime', label: '빈 시간 추천', sub: '다음 일정까지 30분 이상 남으면 근처를 추천합니다', scope: '3차' },
-  { kind: 'sessionExpiry', label: '게스트 세션 만료 안내', sub: '만료 3일 전에 한 번 알려 드려요', scope: '2차' },
+export const NOTIFY_ROWS: { kind: NotifyKind; label: string; sub: string }[] = [
+  { kind: 'delay', label: '뒤 일정 조정안', sub: '예정보다 15분 이상 밀리면 조정안을 보여줍니다' },
+  { kind: 'arrival', label: '도착 확인', sub: '스팟 100m 안에 3분 머물면 도착으로 기록합니다' },
+  { kind: 'freeTime', label: '빈 시간 추천', sub: '다음 일정까지 30분 이상 남으면 근처를 추천합니다' },
+  { kind: 'sessionExpiry', label: '게스트 세션 만료 안내', sub: '만료 3일 전에 한 번 알려 드려요' },
 ];
 
 export const PERMISSION_LABEL: Record<LocationPermission, string> = {

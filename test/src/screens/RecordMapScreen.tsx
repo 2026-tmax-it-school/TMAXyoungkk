@@ -24,7 +24,7 @@ import {
   Notice,
   Row,
   Screen,
-  ScopeBadge,
+ 
   SP,
   Txt,
 } from '../ui';
@@ -89,7 +89,7 @@ export default function RecordMapScreen({ navigation, route }: RootScreenProps<'
 
   return (
     <Screen>
-      <Header back={back} eyebrow={trip.title} title="기록 지도" sub={dayLabel(date)} right={<ScopeBadge phase="3차" />} />
+      <Header back={back} eyebrow={trip.title} title="기록 지도" sub={dayLabel(date)} />
       <Body scroll>
         <DateSeg trip={trip} value={date} onChange={setDate} />
         {model.notices.map((k) => (
