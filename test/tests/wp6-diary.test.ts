@@ -16,7 +16,7 @@ import { applyOp, foldOps, validateOp } from '../src/core/ops';
 import { atKst } from '../src/core/util';
 import { createDiaryWriter } from '../src/services/diary';
 import { createAiDiary } from '../src/services/diary/ai';
-import { createTemplateDiary } from '../src/services/diary/template';
+import { createTemplateDiary, templateLine } from '../src/services/diary/template';
 import { fakeFetch } from './helpers/fakes';
 import { memberId, scenarioTrip } from './helpers/fixtures';
 
@@ -125,12 +125,20 @@ describe('FR-702 시간순 블록', () => {
     assert.equal(createDiaryWriter({ fetch: ok }).id, 'template');
   });
 
-  test('템플릿 문장은 카테고리와 함께한 멤버, 사진 수를 담는다', async () => {
+  test('템플릿 문장은 카테고리와 그 자리에 있던 멤버(주어), 사진 수를 담는다. 한 명이면 \'함께\'를 붙이지 않는다', async () => {
     const texts = await createTemplateDiary().write({
       date: D,
-      blocks: [{ time: '09:25', placeName: '불국사', category: '관광지', photoCount: 2, memberNames: ['민지', '준호'] }],
+      blocks: [
+        { time: '09:25', placeName: '불국사', category: '관광지', photoCount: 2, memberNames: ['민지', '준호'] },
+        { time: '11:31', placeName: '석굴암', category: '관광지', photoCount: 0, memberNames: ['민지'] },
+        { time: '13:00', placeName: '교촌마을', photoCount: 1, memberNames: ['수아'] },
+        { time: '15:00', placeName: '대릉원', category: '관광지', photoCount: 0, memberNames: [] },
+      ],
     });
-    assert.equal(texts[0], '09:25 민지, 준호와 함께 불국사에서 천천히 둘러봤다. 사진 2장을 남겼다.');
+    assert.equal(texts[0], '09:25 민지, 준호가 함께 불국사에서 천천히 둘러봤다. 사진 2장을 남겼다.');
+    assert.equal(texts[1], '11:31 민지가 석굴암에서 천천히 둘러봤다.', '본인 한 명이면 \'민지와 함께\'가 아니다');
+    assert.equal(texts[2], '13:00 수아가 교촌마을에서 사진 1장을 남겼다.');
+    assert.equal(texts[3], '15:00 대릉원에서 천천히 둘러봤다.');
   });
 });
 
@@ -274,4 +282,11 @@ describe('FR-703 편집·공유', () => {
     const drafts = diaryBlocks(t, D);
     assert.ok(drafts.some((d) => d.block.photoIds.includes('p2')));
   });
+});
+
+test('템플릿: 장소가 아닌 묶음(이동 중, 날짜만 정한 사진)에는 \'…에서\'를 붙이지 않는다', () => {
+  const b = { time: '10:00', placeName: '이동 중', photoCount: 2, memberNames: ['민준'] };
+  assert.equal(templateLine(b), '10:00 민준이 이동하며 사진 2장을 남겼다.');
+  assert.equal(templateLine({ ...b, photoCount: 0, memberNames: [] }), '10:00 이동했다.');
+  assert.equal(templateLine({ ...b, placeName: '날짜만 정한 사진', memberNames: ['민지', '준호'] }), '10:00 민지, 준호가 함께 사진 2장을 남겼다.');
 });

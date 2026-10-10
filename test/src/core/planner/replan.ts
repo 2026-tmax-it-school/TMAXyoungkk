@@ -2,6 +2,7 @@ import type { Adjustment, LatLng, Plan, Spot, Trip } from '../../types';
 import { priorityCompare } from '../spotUtil';
 import { humanMin, toMin, weekday } from '../util';
 import { dayContexts, legTransport, type DayCtx } from './day';
+import { sameCoord } from './estimate';
 import type { PlanDeps } from './index';
 import { heldKarp, type OrderInput } from './order';
 import { createTravelBook, type Pair, type TravelBook } from './travel';
@@ -12,6 +13,7 @@ import { createTravelBook, type Pair, type TravelBook } from './travel';
  *
  * 남은 일정(방문·지나침 처리하지 않은 스팟)을 지금 위치에서 다시 흘려 본다. 첫 남은 스팟 도착이
  * 계획보다 delayMin 늦도록 출발 시각을 맞춘다. 문제는 두 가지다: 활동시간 초과, 영업 종료 뒤 도착.
+ * 지금 위치에서 출발하는 구간은 경로 제공자에 묻지 않고 직선거리로 추정한다(지금 위치를 기기 밖으로 보내지 않는다).
  * 지연 없이 흘려도 있던 문제(계획 단계 안내·고정 초과)는 지연 탓으로 치지 않는다.
  * 조정안 순서:
  *  1. reorder: 순서만 바꿔 두 문제가 모두 사라지면 먼저 낸다
@@ -94,23 +96,32 @@ export async function replanForDelay(input: ReplanInput, deps: PlanDeps): Promis
     .filter((s): s is Spot => !!s);
   if (remaining.length === 0) return { adjustments: [] };
 
-  // 필요한 구간만 조회: 지금 위치 → 남은 스팟, 남은 스팟 사이, 남은 스팟 → 기점
+  // 필요한 구간만 조회: 지금 위치 → 남은 스팟, 남은 스팟 사이, 남은 스팟 → 기점.
+  // 지금 위치는 기기 밖으로 보내지 않는다(2026-10-09 결정: 서버에 위치를 올리지 않는다). 제공자가 서버·카카오·OSRM에
+  // 물을 수 있으므로 지금 위치에서 출발하는 구간은 묻지 않고 장부의 직선거리 추정(book.get)으로 둔다.
+  // 지금 위치가 스팟·기점 좌표 그대로면(정확한 GPS가 없어 replanPosition이 고른 자리) 그 좌표는 계획에도 쓰는 값이라 묻는다.
+  // 그대로인지는 소수 5자리(약 1m)로 보므로, 물을 때와 흘려 볼 때 모두 받은 위치가 아니라 맞은 스팟·기점 좌표를 쓴다
+  // (받은 위치의 나머지 자리까지 기기 밖으로 보내지 않는다).
   const book = createTravelBook(deps.routes);
+  const stop =
+    trip.spots.find((s) => sameCoord(s.coord, position))?.coord ??
+    (ctx.base && sameCoord(ctx.base.coord, position) ? ctx.base.coord : undefined);
+  const from = stop ?? position;
   const pairs: Pair[] = [];
   for (const s of remaining) {
-    pairs.push({ a: position, b: s.coord, t: legTransport(ctx, 'pos', s.id) });
+    if (stop) pairs.push({ a: stop, b: s.coord, t: legTransport(ctx, 'pos', s.id) });
     for (const o of remaining) if (o !== s) pairs.push({ a: s.coord, b: o.coord, t: legTransport(ctx, s.id, o.id) });
     if (ctx.base && !ctx.noReturn) pairs.push({ a: s.coord, b: ctx.base.coord, t: legTransport(ctx, s.id, 'base') });
   }
   await book.ensure(pairs);
 
   const first = remaining[0];
-  const firstLeg = book.get(position, first.coord, legTransport(ctx, 'pos', first.id)).minutes;
+  const firstLeg = book.get(from, first.coord, legTransport(ctx, 'pos', first.id)).minutes;
   const startAt = toMin(remainingItems[0].arrive) + delayMin - firstLeg;
-  const sim = (order: readonly Spot[]) => simulate(ctx, book, position, startAt, order);
+  const sim = (order: readonly Spot[]) => simulate(ctx, book, from, startAt, order);
   const base = sim(remaining);
   // 지연 없이 흘렸을 때 이미 있던 문제(계획 단계의 영업시간 안내, 고정 초과)는 지연 탓이 아니다
-  const calm = simulate(ctx, book, position, startAt - delayMin, remaining);
+  const calm = simulate(ctx, book, from, startAt - delayMin, remaining);
   const troubled = base.over > calm.over || base.closed.some((id) => !calm.closed.includes(id));
   const adjustments: Adjustment[] = [];
 
@@ -124,7 +135,7 @@ export async function replanForDelay(input: ReplanInput, deps: PlanDeps): Promis
         : [
             heldKarp({
               n: remaining.length,
-              start: (j) => book.get(position, remaining[j].coord, ctx.transport).minutes,
+              start: (j) => book.get(from, remaining[j].coord, ctx.transport).minutes,
               end: (j) => (ctx.base && !ctx.noReturn ? book.get(remaining[j].coord, ctx.base.coord, ctx.transport).minutes : 0),
               step: (i, j) => book.get(remaining[i].coord, remaining[j].coord, ctx.transport).minutes,
             } satisfies OrderInput).map((i) => remaining[i]),

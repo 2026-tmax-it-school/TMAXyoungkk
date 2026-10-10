@@ -47,7 +47,8 @@ export function planningStepRows(steps: readonly PlanStep[], busy: boolean, cand
     const state: StepState = !s ? 'wait' : busy && i === lastIdx ? 'active' : i <= lastIdx ? 'done' : 'wait';
     const row: StepRow = { key, label: stepLabel(key, candidates, hasBase), state };
     if (s && (key === 'allocate' || key === 'reasons') && s.total > 0) row.count = `${s.done} / ${s.total}`;
-    if (s && key === 'matrix' && s.total > 0) row.count = `${s.done}구간`;
+    // 이동시간 조회는 구간이 끝날 때마다 done이 오른다(TravelBook.ensure onProgress). 진행 중이면 '37 / 100구간'으로 보인다
+    if (s && key === 'matrix' && s.total > 0) row.count = state === 'active' ? `${s.done} / ${s.total}구간` : `${s.done}구간`;
     if (s && state === 'done' && s.ms > 0) row.time = `${(s.ms / 1000).toFixed(1)}초`;
     return row;
   });
@@ -60,7 +61,7 @@ export function planningProgress(rows: readonly StepRow[], steps: readonly PlanS
     if (r.state === 'done') v += 1;
     else if (r.state === 'active') {
       const s = steps.find((x) => x.key === r.key);
-      if (s && s.total > 0 && r.key !== 'matrix') v += Math.min(1, s.done / s.total);
+      if (s && s.total > 0) v += Math.min(1, s.done / s.total);
     }
   }
   return v / rows.length;

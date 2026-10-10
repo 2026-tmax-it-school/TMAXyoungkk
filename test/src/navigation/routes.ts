@@ -29,7 +29,8 @@ export type RootStackParamList = {
   Main: NavigatorScreenParams<MainTabParamList> | undefined;
   CreateTrip: undefined;
   TripSettings: { tripId: string };
-  Members: { tripId: string };
+  /** fromCreate: 여행방 만들기에서 넘어왔을 때만 '2 / 2 단계'를 보인다 */
+  Members: { tripId: string; fromCreate?: boolean };
   Chat: { tripId: string };
   SpotDetail: { tripId: string; spotId: string };
   Recommend: { tripId: string };

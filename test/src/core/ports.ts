@@ -83,6 +83,8 @@ export interface TravelMatrix {
   cacheHits: number;
   /** 직선거리로 때운 값이 섞였는지 */
   estimated: boolean;
+  /** 칸마다 직선거리로 때웠는지. 없으면 모든 칸이 estimated와 같다(목적지 여럿을 한 번에 물어도 추정 표시가 구간마다 맞게) */
+  estimatedCells?: boolean[][];
 }
 
 export interface RouteLeg {
@@ -93,6 +95,10 @@ export interface RouteLeg {
   steps: { text: string; meters: number }[];
   note?: string;
   estimated: boolean;
+  /** 선 모양이 실제 길을 따른다(어디서 받았는지). 없으면 두 점 직선이다. 시간이 추정(estimated)이어도 모양은 실제 길일 수 있다 */
+  road?: 'osm' | 'kakao';
+  /** 도로 모양을 받지 못해 대신 낸 임시 결과. 캐시에 두지 않고 다음에 다시 묻는다 */
+  provisional?: boolean;
 }
 
 export interface RouteProvider {
@@ -214,14 +220,20 @@ export interface MockMail {
   sentAt: number;
   /** 재발송으로 무효가 된 인증 메일 */
   invalidated: boolean;
+  /** 인증 메일(기본)인지 비밀번호 재설정 메일인지, 소셜 로그인 연결 확인 메일인지(계정 서버) */
+  kind?: 'verify' | 'reset' | 'link';
 }
 
 export interface AuthProvider {
+  /** local: 이 기기 모의 인증, server: 계정 서버(server/auth.mjs). 없으면 local로 본다 */
+  readonly id?: 'local' | 'server';
   signUp(input: {
     email: string;
     password: string;
     nickname: string;
     userId?: string;
+    /** 게스트 승격일 때 이 기기 토큰. 계정 서버가 같은 게스트의 가입인지 확인한다(모의 인증은 쓰지 않는다) */
+    deviceToken?: string;
   }): Promise<AuthResult>;
   resendVerification(email: string): Promise<AuthAck>;
   verifyEmail(token: string): Promise<AuthResult>;
@@ -243,6 +255,17 @@ export interface AuthProvider {
   deleteAccount(accountId: string): Promise<{ ok: true } | { ok: false; code: AuthFail }>;
   outbox(): Promise<MockMail[]>;
   reset(): Promise<void>;
+  /** 로그아웃. 서버 세션을 끊고 이 기기에 둔 세션 토큰을 지운다(모의 인증은 할 일이 없다) */
+  signOut?(accountId?: string): Promise<void>;
+  /**
+   * 앱 시작 때 계정 세션이 서버에서 아직 살아 있는지. expired면 다시 로그인해야 한다.
+   * unreachable(서버에 닿지 못함)이면 이 기기 세션을 그대로 둔다. 모의 인증은 두지 않는다
+   */
+  checkSession?(accountId: string): Promise<'ok' | 'expired' | 'unreachable'>;
+  /** 비밀번호 재설정 메일 요청. 가입 여부와 상관없이 같은 응답이다 */
+  requestPasswordReset?(email: string): Promise<AuthAck>;
+  /** 재설정 메일의 토큰으로 새 비밀번호를 정한다. 그 계정의 다른 세션은 끊긴다 */
+  confirmPasswordReset?(input: { token: string; password: string }): Promise<AuthAck & { violations?: string[] }>;
 }
 
 /* ---------- 그룹 동기화 ---------- */

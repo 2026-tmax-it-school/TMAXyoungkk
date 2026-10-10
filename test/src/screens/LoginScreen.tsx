@@ -12,7 +12,7 @@ import { Body, Btn, Col, Field, Foot, Header, Notice, Row, Screen, ScopeBadge, T
 
 /**
  * 15 로그인 · 소셜 로그인(FR-102·103, WP1 소유, 2차).
- * - 계정 5회 연속 실패 시 10분 잠금 + 기기 토큰 기준 10분 20회 제한(서버가 없어 IP 대신 기기 토큰, 가정).
+ * - 계정 5회 연속 실패 시 10분 잠금 + 기기 토큰 기준 10분 20회 제한(모의 인증은 IP 대신 기기 토큰, 계정 서버는 IP 기준).
  * - 미인증 계정은 막고 인증 메일 재발송으로 이어 준다.
  * - 로그아웃 뒤 같은 계정으로 로그인하면 이 기기의 여행방을 그대로 이어 쓴다(userId가 같다).
  * - 소셜은 26 모의 동의 화면으로 간다.
@@ -106,7 +106,13 @@ export default function LoginScreen({ navigation }: RootScreenProps<'Login'>) {
           title="로그인 시도 제한"
           text="비밀번호를 5번 연속 틀리면 10분 동안 잠겨요."
         />
-        <Notice text="계정은 이 기기에만 저장돼요. 비밀번호는 원문을 남기지 않아요." />
+        <Notice
+          text={
+            getServices().auth.id === 'server'
+              ? '계정은 계정 서버에 저장돼요. 비밀번호는 원문을 남기지 않아요.'
+              : '계정은 이 기기에만 저장돼요. 비밀번호는 원문을 남기지 않아요.'
+          }
+        />
       </Body>
       <Foot>
         <Btn title={busy ? '확인 중' : '로그인'} disabled={!canSubmit} onPress={() => void submit()} />

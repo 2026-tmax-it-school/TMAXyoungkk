@@ -5,12 +5,21 @@ import { View } from 'react-native';
 import { GOOGLE_MAPS_API_KEY } from '../../config';
 import { ARRIVAL_ACCURACY_M } from '../../core/constants';
 import {
+  clusterMemberIds,
+  clusterName,
   DEFAULT_MAP_CENTER,
+  dotsKey,
   FIT_MAX_ZOOM,
   fitCoords,
   fitKey,
   FOCUS_MAX_ZOOM,
+  focusPadding,
   GROUP_LIST_ZOOM,
+  mapPadding,
+  markersKey,
+  pinName,
+  polylinesKey,
+  userName,
 } from '../../core/map/engine';
 import {
   clusterMarkers,
@@ -22,27 +31,37 @@ import {
 } from '../../core/map/layout';
 import type { LatLng } from '../../types';
 import { GOOGLE_MAP_STYLE, lineC, mapC, mapPinSvg, R, type PinSpec } from '../../ui';
-import { ClusterListSheet, FitAllButton, MapChildren, mapHeight, type MapCanvasProps } from './parts';
+import { googleScriptUrl } from './googleScript';
+import { ClusterListSheet, FitAllButton, MapChildren, mapHeight, type MapCanvasProps, type MapFailReason } from './parts';
 
 /**
  * 구글 지도(웹, WP5 소유). Maps JavaScript API를 스크립트로 한 번 불러와 MapCanvas와 같은 props를 그린다.
  * - 바탕: mapId 없이 GOOGLE_MAP_STYLE(무채색). mapId를 쓰면 스타일이 무시된다.
  * - 핀·묶음·현재 위치·이동 점: OverlayView 한 장에 div로 얹는다. 그림은 ui/mapPinSvg(기본 지도와 같은 모양)다.
+ *   노드는 id로 붙잡아 두고 위치만 옮긴다. 다시 만들지 않으므로 키보드 포커스와 누르는 중인 핀이 유지된다.
  *   묶음은 지금 배율의 화면 좌표로 core/map/layout.clusterMarkers를 돌려 만든다. 배율이 바뀌면 다시 묶는다.
- * - 선: google.maps.Polyline. 점선은 짧은 선 기호를 11px마다 찍어 '6 5' 점선과 맞춘다.
+ * - 선: google.maps.Polyline. 점선은 짧은 선 기호를 11px마다 찍어 '6 5' 점선과 맞춘다. 선 내용이 바뀔 때만 다시 만든다.
  * - 정확도 원: 50m를 넘거나 모를 때만 미터 반경 원(google.maps.Circle)을 두른다.
- * - 처음과 마커·선이 바뀔 때 화면을 맞춘다. 현재 위치가 움직일 때는 다시 맞추지 않는다(core/map/engine.fitCoords).
+ * - 처음, 마커·선이 바뀔 때, 지도 크기가 바뀔 때(사용자가 움직이지 않았으면) 화면을 맞춘다.
+ *   현재 위치가 움직일 때는 다시 맞추지 않는다(core/map/engine.fitCoords).
  *   끌거나 확대하면 '전체 보기'가 뜬다. 묶음을 누르면 그 자리로 당기고, 충분히 당겼는데도 묶여 있으면 목록을 띄운다.
- * - 키가 거부되거나(gm_authFailure) 스크립트를 못 받거나 바탕 타일이 TILE_TIMEOUT_MS 안에 안 오면 onFail로 기본 지도에 넘긴다.
- *   타일 시한은 인증 콜백이 오지 않는 오류(ApiProjectMapError 등)와 끊긴 망을 잡는다.
+ * - 손짓: 화면 가득한 지도(flat)는 한 손가락으로 움직이고, 스크롤 화면 안의 지도는 cooperative(두 손가락·Ctrl+휠)라
+ *   페이지 스크롤을 가로채지 않는다. 미리보기(compact)는 움직이지 않고 묶음도 누를 수 없다.
+ * - 지도를 눌러 고르기(onPressMap)는 300ms 기다렸다 보낸다. 더블클릭 확대가 장소 고르기가 되지 않게 한다.
+ * - 실패: 키 거부(gm_authFailure)와 스크립트 실패는 세션 전체를, 타일 시한 초과는 이 지도 하나만 기본 지도로 바꾼다.
+ *   타일 시한(TILE_TIMEOUT_MS)은 문서가 보이고 지도 칸에 크기가 있을 때만 흐른다. 숨은 탭·display:none 화면에서는 멈춘다.
+ *   타일 요청이 네트워크에서 실패해도 구글은 tilesloaded를 보낸다(2026-10 확인). 그때는 회색 바탕 위에 핀·선이 그대로 보이고,
+ *   시한은 tilesloaded가 아예 오지 않는 경우(인증 콜백 없는 거부, 그려지지 못하는 지도)만 잡는다.
  * 구글 로고와 약관 표기는 가리지 않는다. 하단 시트가 덮는 높이(overlayBottom)만큼 지도 영역을 줄이고 '전체 보기'를 로고 위로 올린다.
  */
 
 type MapsWindow = Window & { __ytGoogleMapsReady?: () => void; gm_authFailure?: () => void };
 
 const CALLBACK = '__ytGoogleMapsReady';
-/** 지도를 만든 뒤 첫 타일이 이 안에 안 오면 못 불러온 것으로 본다 */
+/** 지도가 보이기 시작한 뒤 첫 타일이 이 안에 안 오면 못 불러온 것으로 본다 */
 const TILE_TIMEOUT_MS = 10_000;
+/** 지도 클릭을 고르기로 보내기 전에 더블클릭인지 기다리는 시간 */
+const CLICK_DELAY_MS = 300;
 let loader: Promise<void> | undefined;
 let authFailed = false;
 const authListeners = new Set<() => void>();
@@ -61,10 +80,8 @@ function loadScript(): Promise<void> {
       authFailed = true;
       for (const f of authListeners) f();
     };
-    const q = new URLSearchParams({ v: 'weekly', language: 'ko', region: 'KR', loading: 'async', callback: CALLBACK });
-    if (GOOGLE_MAPS_API_KEY) q.set('key', GOOGLE_MAPS_API_KEY);
     const s = document.createElement('script');
-    s.src = `https://maps.googleapis.com/maps/api/js?${q.toString()}`;
+    s.src = googleScriptUrl(GOOGLE_MAPS_API_KEY, CALLBACK);
     s.async = true;
     s.onerror = () => {
       loader = undefined;
@@ -103,39 +120,63 @@ interface LayerHandlers {
   cluster: (c: MapCluster) => void;
 }
 
-/** 핀 하나. 누를 수 있으면 버튼(Enter·Space도 받음), 아니면 그림이다. */
-function pinEl(libs: Libs, spec: PinSpec, p: XY, name: string, onPress?: () => void): HTMLElement {
-  const { html, size } = mapPinSvg(spec);
+type ItemKind = 'dot' | 'base' | 'pin' | 'cluster' | 'user';
+/** 겹칠 때 위에 오는 순서. 이동 점은 아래 판(누르지 않음)에 따로 둔다 */
+const Z: Record<ItemKind, number> = { dot: 0, base: 1, pin: 2, cluster: 3, user: 4 };
+
+interface OverlayItem {
+  key: string;
+  kind: ItemKind;
+  spec: PinSpec;
+  xy: XY;
+  /** 없으면 장식이다(이동 점). 화면 읽기에서 숨긴다 */
+  name?: string;
+  press?: () => void;
+}
+
+interface OverlayNode {
+  el: HTMLElement;
+  sig: string;
+  size: number;
+}
+
+/** 핀 노드 하나. 누를 수 있으면 버튼(Enter·Space도 받음), 이름만 있으면 그림, 둘 다 없으면 화면 읽기에서 숨긴다 */
+function createNode(libs: Libs, it: OverlayItem, sig: string, press: () => void): OverlayNode {
+  const { html, size } = mapPinSvg(it.spec);
   const el = document.createElement('div');
   el.innerHTML = html;
   el.style.position = 'absolute';
-  el.style.left = `${p.x - size / 2}px`;
-  el.style.top = `${p.y - size / 2}px`;
   el.style.width = `${size}px`;
   el.style.height = `${size}px`;
-  el.setAttribute('aria-label', name);
-  if (onPress) {
+  el.style.zIndex = String(Z[it.kind]);
+  if (it.press) {
     el.setAttribute('role', 'button');
+    el.setAttribute('aria-label', it.name ?? '');
     el.tabIndex = 0;
-    el.title = name;
+    el.title = it.name ?? '';
     el.style.cursor = 'pointer';
     el.addEventListener('click', (e) => {
       e.stopPropagation();
-      onPress();
+      press();
     });
     el.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();
-        onPress();
+        press();
       }
     });
     // 핀을 눌렀을 때 지도 클릭(지도에서 선택)이나 끌기가 같이 일어나지 않게 한다
     libs.maps.OverlayView.preventMapHitsAndGesturesFrom(el);
   } else {
-    el.setAttribute('role', 'img');
     el.style.pointerEvents = 'none';
+    if (it.name) {
+      el.setAttribute('role', 'img');
+      el.setAttribute('aria-label', it.name);
+    } else {
+      el.setAttribute('aria-hidden', 'true');
+    }
   }
-  return el;
+  return { el, sig, size };
 }
 
 function createPinLayer(libs: Libs, on: LayerHandlers) {
@@ -146,16 +187,25 @@ function createPinLayer(libs: Libs, on: LayerHandlers) {
     under = document.createElement('div');
     /** 핀·묶음·현재 위치 */
     over = document.createElement('div');
+    nodes = new Map<string, OverlayNode>();
+    /** 노드는 그대로 두고 누를 때 할 일만 매번 갈아 끼운다(묶음 좌표는 그릴 때마다 바뀐다) */
+    presses = new Map<string, () => void>();
 
     onAdd() {
       const panes = this.getPanes();
       panes?.overlayLayer.appendChild(this.under);
       panes?.overlayMouseTarget.appendChild(this.over);
+      // 사용자가 직접(Tab·클릭) 다른 핀으로 옮기면 따라가던 핀은 잊는다
+      this.over.addEventListener('focusin', (e) => {
+        if (e.target !== this.autoFocused) this.wanted = undefined;
+      });
     }
 
     onRemove() {
       this.under.remove();
       this.over.remove();
+      this.nodes.clear();
+      this.presses.clear();
     }
 
     setData(d: LayerData) {
@@ -163,19 +213,16 @@ function createPinLayer(libs: Libs, on: LayerHandlers) {
       this.draw();
     }
 
-    draw() {
-      const proj = this.getProjection();
-      if (!proj) return;
+    items(proj: google.maps.MapCanvasProjection): OverlayItem[] {
       const at = (c: LatLng): XY | null => {
         const p = proj.fromLatLngToDivPixel(new GLatLng(c.latitude, c.longitude));
         return p ? { x: p.x, y: p.y } : null;
       };
       const d = this.data;
-      const under: HTMLElement[] = [];
-      const over: HTMLElement[] = [];
+      const out: OverlayItem[] = [];
       for (const dot of d.dots) {
         const p = at(dot.coord);
-        if (p) under.push(pinEl(libs, { kind: 'dot', tone: dot.tone, size: dot.size }, p, '이동 지점'));
+        if (p) out.push({ key: `d:${dot.id}`, kind: 'dot', spec: { kind: 'dot', tone: dot.tone, size: dot.size }, xy: p });
       }
       const base: (MapMarkerInput & XY)[] = [];
       const rest: (MapMarkerInput & XY)[] = [];
@@ -184,26 +231,123 @@ function createPinLayer(libs: Libs, on: LayerHandlers) {
         if (p) (m.kind === 'base' ? base : rest).push({ ...m, ...p });
       }
       const { singles, clusters } = clusterMarkers(rest, d.clusterPx);
-      for (const m of base) over.push(pinEl(libs, { kind: 'base', compact: d.compact }, m, `기점 ${m.title}`));
+      for (const m of base) {
+        out.push({ key: `m:${m.id}`, kind: 'base', spec: { kind: 'base', compact: d.compact }, xy: m, name: pinName(m) });
+      }
       for (const m of singles) {
         const spec: PinSpec =
           m.kind === 'excluded'
             ? { kind: 'excluded', label: m.label, compact: d.compact }
             : { kind: 'spot', label: m.label, color: m.color, compact: d.compact };
-        const name = m.kind === 'excluded' ? `제외 스팟 ${m.title}` : m.label ? `${m.label}번 ${m.title}` : m.title;
-        over.push(pinEl(libs, spec, m, name, d.pressable ? () => on.marker(m.id) : undefined));
+        out.push({
+          key: `m:${m.id}`,
+          kind: 'pin',
+          spec,
+          xy: m,
+          name: pinName(m),
+          press: d.pressable ? () => on.marker(m.id) : undefined,
+        });
       }
+      // 미리보기(compact)는 움직일 수 없으므로 묶음도 누르지 않는다(당겨 놓고 돌아올 방법이 없다)
+      const clusterPressable = !d.compact;
       for (const c of clusters) {
-        over.push(
-          pinEl(libs, { kind: 'cluster', count: c.count, compact: d.compact }, c, `${c.count}곳 묶음 · 눌러서 확대`, () => on.cluster(c)),
-        );
+        out.push({
+          key: `c:${c.id}`,
+          kind: 'cluster',
+          spec: { kind: 'cluster', count: c.count, compact: d.compact },
+          xy: c,
+          name: clusterName(c.count, clusterPressable),
+          press: clusterPressable ? () => on.cluster(c) : undefined,
+        });
       }
       if (d.user) {
         const p = at(d.user.coord);
-        if (p) over.push(pinEl(libs, { kind: 'user', compact: d.compact }, p, d.user.faint ? '현재 위치(정확도 낮음)' : '현재 위치'));
+        if (p) out.push({ key: 'user', kind: 'user', spec: { kind: 'user', compact: d.compact }, xy: p, name: userName(d.user.faint) });
       }
-      this.under.replaceChildren(...under);
-      this.over.replaceChildren(...over);
+      return out;
+    }
+
+    draw() {
+      const proj = this.getProjection();
+      if (!proj) return;
+      const items = this.items(proj);
+      const seen = new Set<string>();
+      this.presses.clear();
+      for (const it of items) {
+        seen.add(it.key);
+        if (it.press) this.presses.set(it.key, it.press);
+        const sig = `${JSON.stringify(it.spec)}|${it.name ?? ''}|${it.press ? 1 : 0}`;
+        let node = this.nodes.get(it.key);
+        if (!node || node.sig !== sig) {
+          const hadFocus = !!node && node.el === document.activeElement;
+          node?.el.remove();
+          const key = it.key;
+          node = createNode(libs, it, sig, () => this.presses.get(key)?.());
+          this.nodes.set(key, node);
+          (it.kind === 'dot' ? this.under : this.over).appendChild(node.el);
+          if (hadFocus) node.el.focus();
+        }
+        node.el.style.left = `${it.xy.x - node.size / 2}px`;
+        node.el.style.top = `${it.xy.y - node.size / 2}px`;
+      }
+      for (const [key, node] of this.nodes) {
+        if (seen.has(key)) continue;
+        // 사용자가 포커스를 둔 핀이 사라지면(묶음에 들어감, 묶음이 풀림) 그 핀을 기억해 두고 따라간다
+        if (node.el === document.activeElement && !this.wanted) this.wanted = key;
+        node.el.remove();
+        this.nodes.delete(key);
+      }
+      if (this.wanted) this.follow();
+    }
+
+    /** 사용자가 포커스를 둔 핀의 키. 그 핀이 묶음에 들어가면 묶음에, 다시 나오면 그 핀에 포커스를 둔다 */
+    wanted: string | undefined;
+    /** 코드가 옮겨 준 포커스 노드. 이 노드 말고 다른 곳에 포커스가 가면 사용자가 옮긴 것이다 */
+    autoFocused: HTMLElement | undefined;
+
+    focusNode(el: HTMLElement) {
+      this.autoFocused = el;
+      el.focus();
+    }
+
+    follow() {
+      const want = this.wanted;
+      if (!want) return;
+      const active = document.activeElement;
+      // 사용자가 지도 밖으로 포커스를 옮겼으면 따라가지 않는다
+      if (active && active !== document.body && !this.over.contains(active)) {
+        this.wanted = undefined;
+        return;
+      }
+      const exact = this.nodes.get(want);
+      if (exact && this.presses.has(want)) {
+        if (active !== exact.el) this.focusNode(exact.el);
+        this.wanted = undefined;
+        return;
+      }
+      if (want.startsWith('m:')) {
+        // 핀이 묶음에 들어갔으면 그 묶음에 둔다. 묶음이 풀리면 위에서 원래 핀으로 돌아온다
+        const id = want.slice(2);
+        for (const [key, n] of this.nodes) {
+          if (key.startsWith('c:') && this.presses.has(key) && clusterMemberIds(key.slice(2)).includes(id)) {
+            if (active !== n.el) this.focusNode(n.el);
+            return;
+          }
+        }
+        return;
+      }
+      if (want.startsWith('c:')) {
+        // 사용자가 둔 묶음이 풀리면 그 묶음의 첫 스팟으로
+        for (const id of clusterMemberIds(want.slice(2))) {
+          const n = this.nodes.get(`m:${id}`);
+          if (n && this.presses.has(`m:${id}`)) {
+            this.focusNode(n.el);
+            this.wanted = undefined;
+            return;
+          }
+        }
+      }
+      this.wanted = undefined;
     }
   }
   return new PinLayer();
@@ -215,18 +359,106 @@ interface MapState {
   layer?: ReturnType<typeof createPinLayer>;
   lines: google.maps.Polyline[];
   ring?: google.maps.Circle;
-  /** 코드가 화면을 옮기는 중이면 배율 변화를 '사용자가 움직임'으로 치지 않는다 */
-  programmatic: boolean;
-  tileTimer?: ReturnType<typeof setTimeout>;
+  /** 지도를 만들 때 붙인 감시(타일 시한, 화면 크기, 손짓, 클릭 지연)를 떼는 함수들 */
+  cleanups: (() => void)[];
 }
 
-export function GoogleMapView(props: MapCanvasProps & { onFail: () => void }) {
+/** 확대·이동 키. 지도 키보드 단축키와 같다 */
+const MOVE_KEYS = new Set(['+', '-', '=', '_', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight']);
+
+/**
+ * 사용자가 지도를 직접 움직였는지는 손짓으로만 판단한다. 배율 변화(zoom_changed)는 코드가 맞출 때도 생기고,
+ * 늦게 뜨는 지도(시트 안)에서는 fitBounds가 나중에 적용돼 사용자 조작과 구별할 수 없다.
+ * 끌기는 지도의 dragstart로 따로 받는다.
+ */
+function bindGestures(el: HTMLElement, onMove: () => void, cooperative: boolean): () => void {
+  // cooperative 지도는 Ctrl(맥은 Cmd)+휠만 확대하고, 그냥 휠은 페이지를 스크롤한다
+  const onWheel = (e: WheelEvent) => {
+    if (!cooperative || e.ctrlKey || e.metaKey) onMove();
+  };
+  const onDbl = () => onMove();
+  const onTouch = (e: TouchEvent) => {
+    if (e.touches.length > 1) onMove();
+  };
+  const onKey = (e: KeyboardEvent) => {
+    if (MOVE_KEYS.has(e.key)) onMove();
+  };
+  el.addEventListener('wheel', onWheel, { passive: true });
+  el.addEventListener('dblclick', onDbl);
+  el.addEventListener('touchstart', onTouch, { passive: true });
+  el.addEventListener('keydown', onKey);
+  return () => {
+    el.removeEventListener('wheel', onWheel);
+    el.removeEventListener('dblclick', onDbl);
+    el.removeEventListener('touchstart', onTouch);
+    el.removeEventListener('keydown', onKey);
+  };
+}
+
+/** 지금 이 지도 칸이 그려질 수 있는가(문서가 보이고 칸에 크기가 있다). display:none 조상이 있으면 크기가 0이다 */
+function canRender(el: HTMLElement): boolean {
+  return document.visibilityState === 'visible' && el.offsetWidth > 0 && el.offsetHeight > 0;
+}
+
+/**
+ * 첫 타일 시한. 그려질 수 있을 때만 시간이 흐르고, 숨으면 멈췄다가 다시 보이면 남은 시간부터 잇는다.
+ * resume은 화면 크기 감시에서도 부른다.
+ */
+function watchTiles(map: google.maps.Map, el: HTMLElement, onTimeout: () => void): { resume: () => void; stop: () => void } {
+  let remaining = TILE_TIMEOUT_MS;
+  let startedAt = 0;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let done = false;
+  const pause = () => {
+    if (!timer) return;
+    clearTimeout(timer);
+    timer = undefined;
+    remaining -= performance.now() - startedAt;
+  };
+  const resume = () => {
+    if (done) return;
+    if (!canRender(el)) {
+      pause();
+      return;
+    }
+    if (timer) return;
+    startedAt = performance.now();
+    timer = setTimeout(() => {
+      timer = undefined;
+      done = true;
+      onTimeout();
+    }, Math.max(0, remaining));
+  };
+  const onVisibility = () => resume();
+  document.addEventListener('visibilitychange', onVisibility);
+  const loaded = google.maps.event.addListenerOnce(map, 'tilesloaded', () => {
+    done = true;
+    pause();
+  });
+  resume();
+  return {
+    resume,
+    stop: () => {
+      done = true;
+      pause();
+      document.removeEventListener('visibilitychange', onVisibility);
+      loaded.remove();
+    },
+  };
+}
+
+export function GoogleMapView(props: MapCanvasProps & { onFail: (reason: MapFailReason) => void }) {
   const host = useRef<View>(null);
-  const st = useRef<MapState>({ lines: [], programmatic: false });
+  const st = useRef<MapState>({ lines: [], cleanups: [] });
   const latest = useRef(props);
   latest.current = props;
   const [ready, setReady] = useState(false);
-  const [moved, setMoved] = useState(false);
+  const [moved, setMovedState] = useState(false);
+  const movedRef = useRef(false);
+  const setMoved = (v: boolean) => {
+    movedRef.current = v;
+    setMovedState(v);
+  };
   const [group, setGroup] = useState<string[] | undefined>(undefined);
   const height = mapHeight(props);
   const compact = !!props.compact;
@@ -243,22 +475,26 @@ export function GoogleMapView(props: MapCanvasProps & { onFail: () => void }) {
   const fitRef = useRef(fitList);
   fitRef.current = fitList;
 
-  /** 끝날 때까지 기다렸다가 배율 한도를 넘었으면 되돌린다. idle이 안 오면 1.5초 뒤에 풀어 준다 */
+  // 화면이 다시 그려질 때마다 새 배열이 와도 내용이 같으면 지도는 그대로 둔다
+  const polyKey = useMemo(() => polylinesKey(props.polylines), [props.polylines]);
+  const markKey = useMemo(() => markersKey(props.markers), [props.markers]);
+  const dotKey = useMemo(() => dotsKey(props.dots ?? []), [props.dots]);
+  const userLat = props.user?.coord.latitude;
+  const userLng = props.user?.coord.longitude;
+  const userAcc = props.user?.accuracyM;
+
+  const hostEl = () => host.current as unknown as HTMLElement | null;
+  const hostSize = () => {
+    const el = hostEl();
+    return { width: el?.clientWidth ?? 0, height: el?.clientHeight ?? 0 };
+  };
+
+  /** 맞춘 화면이 자리 잡으면(idle) 배율 한도를 넘었는지 보고 되돌린다 */
   const settle = (maxZoom: number) => {
-    const s = st.current;
-    const map = s.map;
+    const map = st.current.map;
     if (!map) return;
-    const done = setTimeout(() => {
-      s.programmatic = false;
-    }, 1500);
     google.maps.event.addListenerOnce(map, 'idle', () => {
-      clearTimeout(done);
-      if ((map.getZoom() ?? 0) > maxZoom) {
-        map.setZoom(maxZoom);
-        settle(maxZoom);
-        return;
-      }
-      s.programmatic = false;
+      if ((map.getZoom() ?? 0) > maxZoom) map.setZoom(maxZoom);
     });
   };
 
@@ -268,8 +504,6 @@ export function GoogleMapView(props: MapCanvasProps & { onFail: () => void }) {
     if (!map || !s.libs) return;
     const coords = fitRef.current;
     const p = latest.current;
-    const pad = p.compact ? 16 : 40;
-    s.programmatic = true;
     if (coords.length === 0) {
       map.setCenter(toG(DEFAULT_MAP_CENTER));
       map.setZoom(13);
@@ -279,8 +513,7 @@ export function GoogleMapView(props: MapCanvasProps & { onFail: () => void }) {
     } else {
       const b = new s.libs.core.LatLngBounds();
       for (const c of coords) b.extend(toG(c));
-      // 11·13은 위에 칩·안내 카드가 떠 있어 위쪽을 더 비운다
-      map.fitBounds(b, { top: p.flat ? 96 : pad, right: pad, bottom: pad, left: pad });
+      map.fitBounds(b, mapPadding(hostSize(), { compact: p.compact, flat: p.flat }));
     }
     settle(FIT_MAX_ZOOM);
     setMoved(false);
@@ -296,8 +529,7 @@ export function GoogleMapView(props: MapCanvasProps & { onFail: () => void }) {
     }
     const b = new s.libs.core.LatLngBounds();
     for (const x of c.coords) b.extend(toG(x));
-    s.programmatic = true;
-    map.fitBounds(b, 80);
+    map.fitBounds(b, focusPadding(hostSize()));
     settle(FOCUS_MAX_ZOOM);
     setMoved(true);
   };
@@ -306,25 +538,27 @@ export function GoogleMapView(props: MapCanvasProps & { onFail: () => void }) {
   useEffect(() => {
     let alive = true;
     const s = st.current;
-    const fail = () => {
-      if (alive) latest.current.onFail();
+    const fail = (reason: MapFailReason) => {
+      if (alive) latest.current.onFail(reason);
     };
+    const onAuthFail = () => fail('auth');
     if (authFailed) {
-      fail();
+      fail('auth');
       return;
     }
-    authListeners.add(fail);
+    authListeners.add(onAuthFail);
     loadLibs()
       .then((libs) => {
-        const el = host.current as unknown as HTMLElement | null;
+        const el = hostEl();
         if (!alive || !el) return;
+        const p = latest.current;
         const map = new libs.maps.Map(el, {
           center: toG(DEFAULT_MAP_CENTER),
           zoom: 13,
           disableDefaultUI: true,
           clickableIcons: false,
-          keyboardShortcuts: !compact,
-          gestureHandling: compact ? 'none' : 'greedy',
+          keyboardShortcuts: !p.compact,
+          gestureHandling: p.compact ? 'none' : p.flat ? 'greedy' : 'cooperative',
           styles: GOOGLE_MAP_STYLE,
           backgroundColor: mapC.bg,
         });
@@ -336,27 +570,57 @@ export function GoogleMapView(props: MapCanvasProps & { onFail: () => void }) {
         });
         layer.setMap(map);
         s.layer = layer;
+
         map.addListener('dragstart', () => setMoved(true));
-        map.addListener('zoom_changed', () => {
-          if (!s.programmatic) setMoved(true);
+        s.cleanups.push(bindGestures(el, () => setMoved(true), !p.compact && !p.flat));
+
+        const tiles = watchTiles(map, el, () => {
+          console.warn('구글 지도 타일을 받지 못해 이 지도를 기본 지도로 바꿔요(키·결제·API 사용 설정·하루 한도 확인)');
+          fail('tiles');
         });
-        const tileTimer = setTimeout(() => {
-          console.warn('구글 지도 타일을 받지 못해 기본 지도로 바꿔요(키·결제·API 사용 설정 확인)');
-          fail();
-        }, TILE_TIMEOUT_MS);
-        google.maps.event.addListenerOnce(map, 'tilesloaded', () => clearTimeout(tileTimer));
-        s.tileTimer = tileTimer;
+        s.cleanups.push(tiles.stop);
+
+        // 크기가 바뀌면(창 폭, 시트 높이, 숨었다 다시 보임) 타일 시한을 다시 판단하고, 사용자가 움직이지 않았으면 다시 맞춘다
+        let lastW = el.clientWidth;
+        let lastH = el.clientHeight;
+        let refit: ReturnType<typeof setTimeout> | undefined;
+        const ro = new ResizeObserver(() => {
+          tiles.resume();
+          const w = el.clientWidth;
+          const h = el.clientHeight;
+          if (w === lastW && h === lastH) return;
+          lastW = w;
+          lastH = h;
+          if (w === 0 || h === 0 || movedRef.current) return;
+          clearTimeout(refit);
+          refit = setTimeout(fit, 120);
+        });
+        ro.observe(el);
+        s.cleanups.push(() => {
+          ro.disconnect();
+          clearTimeout(refit);
+        });
+
+        // 지도 고르기는 더블클릭(확대)이 아닐 때만 보낸다
+        let clickTimer: ReturnType<typeof setTimeout> | undefined;
         map.addListener('click', (e: google.maps.MapMouseEvent) => {
           const at = e.latLng;
-          if (at) latest.current.onPressMap?.({ latitude: at.lat(), longitude: at.lng() });
+          if (!at || !latest.current.onPressMap) return;
+          const coord = { latitude: at.lat(), longitude: at.lng() };
+          clearTimeout(clickTimer);
+          clickTimer = setTimeout(() => latest.current.onPressMap?.(coord), CLICK_DELAY_MS);
         });
+        map.addListener('dblclick', () => clearTimeout(clickTimer));
+        s.cleanups.push(() => clearTimeout(clickTimer));
+
         setReady(true);
       })
-      .catch(fail);
+      .catch(() => fail('script'));
     return () => {
       alive = false;
-      authListeners.delete(fail);
-      clearTimeout(s.tileTimer);
+      authListeners.delete(onAuthFail);
+      for (const f of s.cleanups) f();
+      s.cleanups = [];
       s.layer?.setMap(null);
       for (const l of s.lines) l.setMap(null);
       s.ring?.setMap(null);
@@ -369,14 +633,13 @@ export function GoogleMapView(props: MapCanvasProps & { onFail: () => void }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // 선·핀·정확도 원
-  const pressable = !!props.onMarkerPress;
+  // 선: 내용이 바뀔 때만 다시 만든다
   useEffect(() => {
     const s = st.current;
-    const { map, libs, layer } = s;
-    if (!ready || !map || !libs || !layer) return;
+    const { map, libs } = s;
+    if (!ready || !map || !libs) return;
     for (const l of s.lines) l.setMap(null);
-    s.lines = props.polylines.map(
+    s.lines = latest.current.polylines.map(
       (l) =>
         new libs.maps.Polyline({
           map,
@@ -396,11 +659,20 @@ export function GoogleMapView(props: MapCanvasProps & { onFail: () => void }) {
             : undefined,
         }),
     );
-    const u = props.user;
+  }, [ready, polyKey, compact]);
+
+  // 핀·이동 점·현재 위치·정확도 원: 내용이나 현재 위치 값이 바뀔 때만 다시 그린다
+  const pressable = !!props.onMarkerPress;
+  useEffect(() => {
+    const s = st.current;
+    const { map, libs, layer } = s;
+    if (!ready || !map || !libs || !layer) return;
+    const p = latest.current;
+    const u = p.user;
     const faint = !!u && (u.accuracyM == null || u.accuracyM > ARRIVAL_ACCURACY_M);
     layer.setData({
-      markers: props.markers,
-      dots: props.dots ?? [],
+      markers: p.markers,
+      dots: p.dots ?? [],
       user: u ? { coord: u.coord, faint } : undefined,
       compact,
       clusterPx: compact ? 18 : DEFAULT_CLUSTER_PX,
@@ -416,13 +688,13 @@ export function GoogleMapView(props: MapCanvasProps & { onFail: () => void }) {
       s.ring.setMap(null);
       s.ring = undefined;
     }
-  }, [ready, props.markers, props.polylines, props.dots, props.user, compact, pressable]);
+  }, [ready, markKey, dotKey, userLat, userLng, userAcc, compact, pressable]);
 
-  // 처음, 마커·선이 바뀔 때, 높이가 바뀔 때 화면을 맞춘다
+  // 처음과 마커·선이 바뀔 때 화면을 맞춘다. 크기 변화는 ResizeObserver가 맡는다
   useEffect(() => {
     if (ready) fit();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, key, height, bottomCover]);
+  }, [ready, key]);
 
   const titleOf = useMemo(() => new Map(props.markers.map((m) => [m.id, m.title])), [props.markers]);
 
@@ -446,3 +718,6 @@ export function GoogleMapView(props: MapCanvasProps & { onFail: () => void }) {
     </View>
   );
 }
+
+/** 웹은 키만 있으면 구글 지도를 그릴 수 있다(앱은 빌드에 키가 들어갔는지 따로 본다) */
+export const GOOGLE_VIEW_READY = true;
