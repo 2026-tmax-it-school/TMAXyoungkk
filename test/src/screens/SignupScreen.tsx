@@ -111,17 +111,9 @@ export default function SignupScreen({ navigation }: RootScreenProps<'Signup'>) 
         back={navigation.canGoBack() ? navigation.goBack : undefined}
         eyebrow={promoting ? `게스트 · ${session?.nickname ?? ''} · 계정으로` : 'Young Trip 계정'}
         title={promoting ? '게스트를 계정으로' : '이메일로 가입'}
-        sub={promoting ? '지금 쓰던 여행방을 그대로 두고 계정으로 바꿉니다.' : '인증 메일을 확인하면 가입이 끝납니다.'}
         right={<ScopeBadge phase="2차" />}
       />
       <Body scroll>
-        {promoting ? (
-          <Notice
-            icon="user"
-            title={`게스트 ${session?.nickname ?? ''} 승격`}
-            text="지금 쓰던 여행방과 채팅, 제안은 그대로 이 계정으로 옮겨져요."
-          />
-        ) : null}
         <Field label="이메일" value={email} onChangeText={setEmail} placeholder="you@example.com" keyboardType="email-address" />
         <Col gap={6}>
           <Field
@@ -169,7 +161,7 @@ export default function SignupScreen({ navigation }: RootScreenProps<'Signup'>) 
           />
         </Row>
         {shown.length === 0 ? (
-          <Txt v="mt">아직 받은 메일이 없습니다. 서버가 없어 인증 메일은 이 기기 안 모의 메일함으로 옵니다.</Txt>
+          <Txt v="mt">아직 받은 메일이 없습니다</Txt>
         ) : (
           shown.map((m) => (
             <Card key={m.id} variant={m.invalidated ? 'excluded' : 'default'}>
@@ -183,15 +175,10 @@ export default function SignupScreen({ navigation }: RootScreenProps<'Signup'>) 
                 </Col>
                 {m.invalidated ? <Chip text="쓸 수 없음" tone="line" /> : null}
               </Row>
-              {m.invalidated ? (
-                <Txt v="mtTight">다시 보냈거나 이미 쓴 메일이라 이 링크로는 인증할 수 없습니다.</Txt>
-              ) : (
-                <Btn title="인증하기" size="sm" disabled={busy} onPress={() => void verify(m)} />
-              )}
+              {m.invalidated ? null : <Btn title="인증하기" size="sm" disabled={busy} onPress={() => void verify(m)} />}
             </Card>
           ))
         )}
-        <Notice text="비밀번호는 암호화해서 이 기기에만 저장해요." />
       </Body>
     </Screen>
   );

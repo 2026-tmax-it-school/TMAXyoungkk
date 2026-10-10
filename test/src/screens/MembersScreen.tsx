@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Pressable, View } from 'react-native';
 
-import { activeMembers, canIssueInvite, isHost, tripMode } from '../core/group';
+import { activeMembers, canIssueInvite, isHost } from '../core/group';
 import { dateLongShort } from '../core/trip/format';
 import { inviteStatus, inviteUrlShort, seatsLeft, INVITE_ERROR_TEXT } from '../core/trip/invite';
 import { memberRows, type MemberRow } from '../core/trip/members';
@@ -66,7 +66,7 @@ export default function MembersScreen({ navigation, route }: RootScreenProps<'Me
         <Header back={back} title="멤버 초대" size="sm" />
         <Body>
           <Card>
-            <Empty title="여행방을 찾을 수 없습니다" text="삭제됐거나 이 여행방에서 나갔습니다." action={{ label: '홈으로', onPress: () => navigation.navigate('Main', { screen: 'Home' }) }} />
+            <Empty title="여행방을 찾을 수 없습니다" action={{ label: '홈으로', onPress: () => navigation.navigate('Main', { screen: 'Home' }) }} />
           </Card>
         </Body>
       </Screen>
@@ -91,13 +91,8 @@ export default function MembersScreen({ navigation, route }: RootScreenProps<'Me
         step={fromCreate ? '2 / 2 단계' : undefined}
         title="멤버 초대"
         size="sm"
-        sub="링크를 받은 사람은 가입 없이 게스트로 들어옵니다."
       />
       <Body scroll>
-        {tripMode(trip) === 'personal' ? (
-          <Notice icon="users" text="지금은 개인 모드입니다. 첫 멤버가 합류하면 그룹방으로 바뀌고 채팅이 열립니다. 이미 담은 후보는 그대로입니다." />
-        ) : null}
-
         {actingOther && own ? (
           <Card variant="tinted">
             <Txt v="mtTight" c="accentStrong">{`이 기기에서 ${actingName ?? '다른 멤버'}님으로 행동하는 중입니다(시연).`}</Txt>
@@ -114,10 +109,9 @@ export default function MembersScreen({ navigation, route }: RootScreenProps<'Me
           <Col gap={9}>
             <Txt v="eyebrow">초대 링크</Txt>
             {!mayInvite ? (
-              <>
-                <Notice icon="link" text="초대는 방장 또는 초대 권한이 있는 멤버만 할 수 있습니다. 함께 갈 사람이 있으면 방장에게 알려 주세요." />
-                {inv && usable ? <Txt v="mtTight">{`남은 자리 ${seatsLeft(trip)} · 방장 포함 6명까지`}</Txt> : null}
-              </>
+              inv && usable ? (
+                <Txt v="mtTight">{`남은 자리 ${seatsLeft(trip)} · 방장 포함 6명까지`}</Txt>
+              ) : null
             ) : inv && usable ? (
               <>
                 <Row
@@ -168,7 +162,6 @@ export default function MembersScreen({ navigation, route }: RootScreenProps<'Me
                       : '이 링크는 더 이상 쓸 수 없습니다. 새 링크를 만들어 주세요.'}
                 </Txt>
                 <Btn title="초대 링크 만들기" size="sm" variant="ghost" icon="link" onPress={() => issueInvite(trip.id)} />
-                <Txt v="mtTight">링크는 7일 동안 쓸 수 있고 방장 포함 6명까지 들어옵니다.</Txt>
               </>
             )}
           </Col>
@@ -191,29 +184,16 @@ export default function MembersScreen({ navigation, route }: RootScreenProps<'Me
             <MemberLine key={r.id} row={r} index={i} canManage={host && !r.isMe && !r.left && r.role !== 'host'} onMenu={() => setMenuFor(r)} />
           ))}
         </Col>
-
-        <Card variant="tinted">
-          <Txt v="mtTight" c="accentStrong">
-            {'게스트 세션은 '}
-            <Txt v="chip" c="accentStrong">
-              30일
-            </Txt>
-            {' 동안 쓰지 않으면 끊깁니다. 만료 3일 전에 앱 안에서 본인에게 알립니다.'}
-          </Txt>
-        </Card>
       </Body>
 
       <Sheet visible={menuFor != null && confirm == null} onClose={() => setMenuFor(undefined)} title={menuFor?.nickname}>
         {menuFor ? (
           <>
             <Row>
-              <View style={{ flex: 1, gap: 2 }}>
-                <Row gap={SP.s}>
-                  <Txt v="nm">초대 권한</Txt>
-                  <ScopeBadge phase="2차" />
-                </Row>
-                <Txt v="mtTight">켜면 이 멤버도 초대 링크를 만들고 공유할 수 있습니다. 권한 조정은 초대 권한 한 가지 · 프로토타입 가정</Txt>
-              </View>
+              <Row gap={SP.s} style={{ flex: 1 }}>
+                <Txt v="nm">초대 권한</Txt>
+                <ScopeBadge phase="2차" />
+              </Row>
               <Tag
                 label={menuFor.canInvite ? '켜짐' : '꺼짐'}
                 on={menuFor.canInvite}
@@ -225,13 +205,10 @@ export default function MembersScreen({ navigation, route }: RootScreenProps<'Me
             </Row>
             <View style={{ height: 1, backgroundColor: lineC.line }} />
             <Row>
-              <View style={{ flex: 1, gap: 2 }}>
-                <Row gap={SP.s}>
-                  <Txt v="nm">내보내기</Txt>
-                  <ScopeBadge phase="2차" />
-                </Row>
-                <Txt v="mtTight">제안한 후보와 채팅은 '나간 멤버'로 남습니다 · 정책 미결정</Txt>
-              </View>
+              <Row gap={SP.s} style={{ flex: 1 }}>
+                <Txt v="nm">내보내기</Txt>
+                <ScopeBadge phase="2차" />
+              </Row>
               <Btn title="내보내기" variant="quiet" size="sm" onPress={() => setConfirm('remove')} />
             </Row>
           </>

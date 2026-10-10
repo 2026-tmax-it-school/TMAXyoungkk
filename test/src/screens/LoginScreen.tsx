@@ -64,7 +64,6 @@ export default function LoginScreen({ navigation }: RootScreenProps<'Login'>) {
         back={navigation.canGoBack() ? navigation.goBack : undefined}
         eyebrow={session ? `${session.kind === 'guest' ? '게스트' : '계정'} · ${session.nickname}` : 'Young Trip 계정'}
         title="계정으로 로그인"
-        sub="로그인하면 같은 계정의 여행방을 이어 씁니다."
         right={<ScopeBadge phase="2차" />}
       />
       <Body scroll>
@@ -100,19 +99,6 @@ export default function LoginScreen({ navigation }: RootScreenProps<'Login'>) {
             />
           </Col>
         </Row>
-
-        <Notice
-          icon="pinlock"
-          title="로그인 시도 제한"
-          text="비밀번호를 5번 연속 틀리면 10분 동안 잠겨요."
-        />
-        <Notice
-          text={
-            getServices().auth.id === 'server'
-              ? '계정은 계정 서버에 저장돼요. 비밀번호는 원문을 남기지 않아요.'
-              : '계정은 이 기기에만 저장돼요. 비밀번호는 원문을 남기지 않아요.'
-          }
-        />
       </Body>
       <Foot>
         <Btn title={busy ? '확인 중' : '로그인'} disabled={!canSubmit} onPress={() => void submit()} />

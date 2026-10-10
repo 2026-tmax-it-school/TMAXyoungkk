@@ -73,9 +73,6 @@ export function ProposalSheet({
           </Card>
         ))}
       </Col>
-      {chosen?.kind === 'exclude' ? (
-        <Txt v="mtTight">뺀 스팟은 후보 탭의 제외 스팟에 사유와 함께 남고, 되돌리기로 다시 넣을 수 있습니다.</Txt>
-      ) : null}
       <Row gap={SP.m}>
         <View style={{ flex: 1 }}>
           <Btn title={PROPOSAL_KEEP} variant="quiet" onPress={onKeep} />

@@ -103,7 +103,7 @@ export default function LegTransportScreen({ navigation, route }: RootScreenProp
       <Screen>
         <Header back={back} title="이동수단 비교" size="sm" />
         <Body>
-          <Empty title="이 구간을 찾을 수 없습니다" text="시간표가 다시 계산되며 구간이 바뀌었을 수 있습니다. 시간표에서 이동 줄을 다시 눌러 주세요." />
+          <Empty title="이 구간을 찾을 수 없습니다" />
         </Body>
       </Screen>
     );
@@ -203,7 +203,7 @@ export default function LegTransportScreen({ navigation, route }: RootScreenProp
             <Col gap={SP.s}>
               {!choice || choice === ends.transport ? (
                 <Txt v="note" c="accentStrong">
-                  {`지금 이 구간은 ${TRANSPORT_LABEL[ends.transport]}입니다. 다른 수단을 누르면 시간표가 어떻게 바뀌는지 먼저 보여 드립니다.`}
+                  {`지금 이 구간은 ${TRANSPORT_LABEL[ends.transport]}입니다.`}
                 </Txt>
               ) : previewBusy || !preview.leg ? (
                 <Txt v="note" c="accentStrong">
@@ -224,7 +224,6 @@ export default function LegTransportScreen({ navigation, route }: RootScreenProp
             </Col>
           </Card>
         </Col>
-        <Txt v="mtTight">이 구간만 바꿀지, 하루 전체에 적용할지 고를 수 있습니다. 경로가 없으면 다른 수단으로 계산하고 알려 드립니다.</Txt>
       </Body>
       <Foot>
         <Row gap={SP.m}>

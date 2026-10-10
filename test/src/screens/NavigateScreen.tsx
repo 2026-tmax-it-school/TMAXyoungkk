@@ -90,7 +90,7 @@ export default function NavigateScreen({ navigation, route }: RootScreenProps<'N
     return (
       <Screen>
         <Header back={back} title="길찾기" right={<ScopeBadge phase="2차" />} />
-        <Empty title="안내할 구간이 없습니다" text="루트를 계산하면 구간마다 길 안내가 나옵니다." />
+        <Empty title="안내할 구간이 없습니다" />
       </Screen>
     );
   }

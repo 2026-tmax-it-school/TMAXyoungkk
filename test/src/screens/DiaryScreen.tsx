@@ -101,7 +101,7 @@ export default function DiaryScreen({ navigation, route }: RootScreenProps<'Diar
       <Screen>
         <Header back={back} title="일기" />
         <Body>
-          <Empty title="여행방을 찾을 수 없습니다" text="홈에서 여행방을 다시 골라 주세요" />
+          <Empty title="여행방을 찾을 수 없습니다" />
         </Body>
       </Screen>
     );
@@ -158,23 +158,17 @@ export default function DiaryScreen({ navigation, route }: RootScreenProps<'Diar
           {ai ? <Chip text="AI가 쓴 문장" tone="line" /> : null}
           {entry?.sharedAt != null ? <Chip text={`공유 ${dayShort(kstDate(entry.sharedAt))} ${kstHHMM(entry.sharedAt)}`} tone="ok" /> : null}
         </Row>
-        {isEnded(trip, now) ? <Notice icon="book" text="여행이 끝났어도 일기와 사진은 계속 고치고 볼 수 있습니다." /> : null}
         {stale && stale.newRecords > 0 ? (
-          <Notice icon="plus" text={`새 기록 ${stale.newRecords}건이 일기에 없습니다 · 다시 만들기를 누르면 들어갑니다. 고친 문장은 남습니다.`} />
+          <Notice icon="plus" text={`새 기록 ${stale.newRecords}건이 일기에 없습니다`} />
         ) : null}
         {stale && stale.blankBlocks > 0 ? (
-          <Notice text={`사진이 지워져 문장을 비운 문단 ${stale.blankBlocks}개 · 다시 만들거나 눌러서 직접 쓸 수 있습니다.`} />
+          <Notice text={`사진이 지워져 문장을 비운 문단 ${stale.blankBlocks}개`} />
         ) : null}
         {outside > 0 ? <Notice tone="warn" text={`여행 기간 밖에 찍은 사진 ${outside}장은 일기에 들어가지 않습니다.`} /> : null}
 
         {!entry ? (
           <Card>
             <Txt v="nm">{`${dayLabel(date)} 일기가 아직 없습니다`}</Txt>
-            <Txt v="mt">
-              {pending.length > 0
-                ? `도착 기록과 사진 ${pending.length}묶음으로 시간순 일기를 만듭니다.${pendingPhotos === 0 ? ' 사진이 없어 방문 기록만으로 만듭니다.' : ''}`
-                : '이 날은 도착 기록도 사진도 없습니다. 여행 진행이나 사진을 올리면 일기가 채워집니다.'}
-            </Txt>
           </Card>
         ) : (
           <>
@@ -204,7 +198,6 @@ export default function DiaryScreen({ navigation, route }: RootScreenProps<'Diar
             ))}
           </>
         )}
-        <Txt v="mtTight">여러 명이 같은 문단을 고치면 나중에 저장한 문장이 남습니다.</Txt>
       </Body>
       <Foot>
         <Row>

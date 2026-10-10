@@ -131,7 +131,6 @@ export default function CreateTripScreen({ navigation }: RootScreenProps<'Create
           }}
           maxLength={TITLE_MAX}
           placeholder="예: 경주 2박 3일"
-          help={titleTouched ? undefined : '지역과 날짜를 고르면 이름을 제안합니다'}
           error={err.title}
         />
         <PickerBox
@@ -150,7 +149,6 @@ export default function CreateTripScreen({ navigation }: RootScreenProps<'Create
           trailing={range.start && range.end ? <Chip text={nightsLabel(range.start, range.end)} tone="line" /> : null}
           onPress={() => setSheet('dates')}
           error={err.order ?? err.dates}
-          help={check.needsLongConfirm ? `${check.days}일 여행입니다. 15일 이상이면 만들기 전에 한 번 확인합니다.` : undefined}
         />
         <PickerBox
           label="기점 · 선택"
@@ -160,13 +158,6 @@ export default function CreateTripScreen({ navigation }: RootScreenProps<'Create
           trailing={base && baseCategory ? <Txt v="mt">{baseCategory}</Txt> : null}
           onPress={() => setSheet('base')}
           disabled={!region}
-          help={
-            !region
-              ? '지역을 고르면 기점을 찾을 수 있습니다'
-              : base
-                ? '모든 날의 출발과 도착을 이 기점으로 계산합니다. 날짜별로는 여행방 설정에서 바꿉니다.'
-                : '기점을 비워 두면 그날 첫 스팟이 기점이 됩니다.'
-          }
         />
         <View style={{ gap: SP.s }}>
           <Row gap={SP.s}>
@@ -184,11 +175,6 @@ export default function CreateTripScreen({ navigation }: RootScreenProps<'Create
             value={transport}
             onChange={setTransport}
           />
-          <Txt v="mtTight">
-            {transport === 'transit'
-              ? '대중교통은 걷는 시간과 배차 대기를 더해 어림잡아 계산해요.'
-              : '구간마다 다른 수단은 시간표에서 바꿀 수 있습니다.'}
-          </Txt>
         </View>
         <View style={{ gap: SP.s }}>
           <Txt v="label">하루 활동시간</Txt>
@@ -197,9 +183,7 @@ export default function CreateTripScreen({ navigation }: RootScreenProps<'Create
             <Txt v="mtTight" c="warn">
               {err.hours}
             </Txt>
-          ) : (
-            <Txt v="mtTight">기점과 활동시간이 하루 수용량 계산의 입력값입니다.</Txt>
-          )}
+          ) : null}
         </View>
       </Body>
       <Foot>
@@ -221,11 +205,9 @@ export default function CreateTripScreen({ navigation }: RootScreenProps<'Create
       />
       <Sheet visible={sheet === 'dates'} onClose={() => setSheet(undefined)} title="날짜 고르기">
         <CalendarRange value={range} onChange={setRange} initialMonth={(range.start ?? today).slice(0, 7)} minDate={today} />
-        <Txt v="mtTight">
-          {range.start && range.end
-            ? `${periodLabel(range.start, range.end)} · ${nightsLabel(range.start, range.end)}`
-            : '시작일을 누른 뒤 종료일을 누르세요. 당일 여행은 같은 날을 한 번만 누릅니다.'}
-        </Txt>
+        {range.start && range.end ? (
+          <Txt v="mtTight">{`${periodLabel(range.start, range.end)} · ${nightsLabel(range.start, range.end)}`}</Txt>
+        ) : null}
         <Btn title="이 날짜로" disabled={!range.start || !range.end} onPress={() => setSheet(undefined)} />
       </Sheet>
       <BaseSearchSheet

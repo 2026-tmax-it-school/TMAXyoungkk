@@ -105,7 +105,7 @@ export default function RecommendScreen({ navigation, route }: RootScreenProps<'
       <Screen>
         <Header back={back} title="여행지 추천" />
         <Body>
-          <Empty title="여행방을 찾을 수 없습니다" text="홈에서 여행방을 다시 골라 주세요" />
+          <Empty title="여행방을 찾을 수 없습니다" />
         </Body>
       </Screen>
     );
@@ -124,7 +124,7 @@ export default function RecommendScreen({ navigation, route }: RootScreenProps<'
         back={back}
         eyebrow="여행지 추천"
         title="이런 곳은 어때요"
-        sub={`${region.name} · 성향 태그와 기존 후보 ${trip.spots.length}곳을 기준으로 골랐습니다.`}
+        sub={region.name}
         right={
           <Row gap={SP.s}>
             <ScopeBadge phase="2차" />
@@ -139,9 +139,6 @@ export default function RecommendScreen({ navigation, route }: RootScreenProps<'
               <Tag key={t} label={t} on={tags.includes(t)} onPress={() => toggle(t)} />
             ))}
           </Row>
-          <Txt v="mtTight">
-            {profileTags.length ? '프로필에 저장한 태그가 기본입니다. 여기서 바꾼 것은 저장하지 않습니다.' : '프로필에 태그를 저장하면 기본으로 켜집니다.'}
-          </Txt>
         </Col>
 
         {!online ? (
@@ -157,7 +154,7 @@ export default function RecommendScreen({ navigation, route }: RootScreenProps<'
         {busy ? <Txt v="mt">추천을 고르는 중입니다</Txt> : null}
 
         {online && result
-          ? result.r.items.map(({ place, reason }) => {
+          ? result.r.items.map(({ place }) => {
               const added = trip.spots.some((s) => s.placeId === place.placeId);
               return (
                 <Card key={place.placeId}>
@@ -168,9 +165,6 @@ export default function RecommendScreen({ navigation, route }: RootScreenProps<'
                     </Col>
                     {result.r.fallback && !(place.tags ?? []).some((t) => result.tags.includes(t)) ? <Chip text="대체됨" tone="line" /> : null}
                   </Row>
-                  <Txt v="mt" c="ink">
-                    {reason}
-                  </Txt>
                   <View style={{ alignSelf: 'flex-start' }}>
                     {added ? (
                       <Chip text="후보에 담김" tone="ok" icon="check" />
@@ -183,7 +177,7 @@ export default function RecommendScreen({ navigation, route }: RootScreenProps<'
             })
           : null}
         {online && result && result.r.items.length === 0 ? (
-          <Empty title="추천할 곳이 없습니다" text="지역 안 장소가 모두 후보에 있습니다." />
+          <Empty title="추천할 곳이 없습니다" />
         ) : null}
         <Btn title="다시 추천 받기" variant="quiet" onPress={() => void load()} disabled={!online || busy} />
       </Body>

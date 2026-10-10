@@ -165,14 +165,13 @@ export default function InviteAcceptScreen({ navigation, route }: RootScreenProp
   if (!code) {
     return (
       <Screen>
-        <Header back={leave} eyebrow="초대 코드로 합류" title="받은 초대 코드를 적어 주세요" sub="링크 youngtrip.app/j/코드를 그대로 붙여 넣어도 됩니다." />
+        <Header back={leave} eyebrow="초대 코드로 합류" title="받은 초대 코드를 적어 주세요" />
         <Body scroll>
           <Field
             label="초대 코드"
             value={codeInput}
             onChangeText={setCodeInput}
             placeholder="예: 7K2D-9MQX"
-            help="대소문자와 하이픈은 가리지 않습니다"
             error={codeError}
           />
           {!online ? <Notice tone="warn" icon="alert" text="오프라인입니다. 이 기기에 없는 여행방은 연결된 뒤에 확인할 수 있습니다." /> : null}
@@ -244,47 +243,17 @@ export default function InviteAcceptScreen({ navigation, route }: RootScreenProp
       <Body scroll>
         <TripSummary trip={trip} />
         {already ? (
-          <>
-            <Notice icon="check" text="같은 사람으로 다시 합류하지 않고 그대로 여행방으로 들어갑니다." />
-            {joinError ? <Notice tone="warn" icon="alert" text={joinError} /> : null}
-          </>
+          joinError ? <Notice tone="warn" icon="alert" text={joinError} /> : null
         ) : (
-          <>
-            <Field
-              label="이 여행방에서 쓸 이름"
-              value={nickname}
-              onChangeText={setNickname}
-              maxLength={NICKNAME_MAX}
-              placeholder="예: 지우"
-              help="닉네임은 여행방마다 따로 둡니다"
-              error={joinError}
-            />
-            {guest ? (
-              <Card variant="tinted">
-                <Row top gap={8}>
-                  <Icon name="pinlock" size={17} color="accentStrong" />
-                  <Col gap={4} grow>
-                    <Txt v="btnSm" c="accentStrong">
-                      게스트로 바로 참여합니다
-                    </Txt>
-                    <Txt v="mtTight" c="accentStrong">
-                      {'가입 없이 이 기기에서 '}
-                      <Txt v="chip" c="accentStrong">
-                        30일
-                      </Txt>
-                      {' 유지됩니다. 기기를 바꾸거나 30일이 지나면 다시 초대를 받아야 합니다.'}
-                    </Txt>
-                  </Col>
-                </Row>
-              </Card>
-            ) : (
-              <Notice icon="user" text={`계정 ${session?.email ?? ''}으로 참여합니다. 다른 기기에서도 이어 쓸 수 있습니다.`} />
-            )}
-          </>
+          <Field
+            label="이 여행방에서 쓸 이름"
+            value={nickname}
+            onChangeText={setNickname}
+            maxLength={NICKNAME_MAX}
+            placeholder="예: 지우"
+            error={joinError}
+          />
         )}
-        {demoOther ? (
-          <Notice icon="users" title="다른 사람으로 합류(시연)" text="같은 기기에서 새 게스트를 만들어 합류하고, 이 여행방에서는 그 멤버로 행동합니다. 실제 서비스에는 없는 시연 기능입니다." />
-        ) : null}
         {!online ? <Notice tone="warn" icon="alert" text="오프라인입니다. 합류는 이 기기에 먼저 반영되고 연결되면 전송됩니다." /> : null}
       </Body>
       <Foot>

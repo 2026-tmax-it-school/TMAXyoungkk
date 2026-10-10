@@ -75,7 +75,7 @@ export default function LiveTripScreen({ navigation, route }: RootScreenProps<'L
       <Screen>
         <Header back={back} title="여행 진행" />
         <Body>
-          <Empty title="여행방을 찾을 수 없습니다" text="홈에서 여행방을 다시 골라 주세요" />
+          <Empty title="여행방을 찾을 수 없습니다" />
         </Body>
       </Screen>
     );
@@ -137,16 +137,12 @@ export default function LiveTripScreen({ navigation, route }: RootScreenProps<'L
         {!running && dateItems.length > 1 ? <Seg items={dateItems} value={date} onChange={setPicked} /> : null}
 
         {ended ? (
-          <Notice
-            icon="clock"
-            text="여행이 끝나 일정 편집이 잠겼습니다. 사진 추가, 일기, 기록 지도는 계속 쓸 수 있습니다."
-          />
+          <Notice icon="clock" text="여행이 끝나 일정 편집이 잠겼습니다." />
         ) : null}
 
         {!hasItems ? (
           <Empty
             title={`${date ? dayShort(date) : '이 날'} 일정이 없습니다`}
-            text="후보를 담고 루트를 계산하면 여행 진행을 시작할 수 있습니다."
             action={{ label: '루트 계산', onPress: () => navigation.navigate('Planning', { tripId }) }}
           />
         ) : (
@@ -167,11 +163,7 @@ export default function LiveTripScreen({ navigation, route }: RootScreenProps<'L
           <Notice
             icon="locate"
             title="수동 진행 모드"
-            text={
-              live.requested === 'manual'
-                ? '위치를 쓰지 않고 도착을 버튼으로 기록합니다. 계획 열람과 시간표는 그대로 됩니다.'
-                : '위치 권한이 없어 도착을 버튼으로 기록합니다. 계획 열람과 시간표는 그대로 됩니다.'
-            }
+            text={live.requested === 'manual' ? '도착을 버튼으로 기록합니다.' : '위치 권한이 없어 도착을 버튼으로 기록합니다.'}
           />
         ) : null}
         {running && live.shadow ? (
@@ -182,27 +174,21 @@ export default function LiveTripScreen({ navigation, route }: RootScreenProps<'L
           />
         ) : null}
         {running && live.accuracyUnknown && live.mode === 'device' ? (
-          <Notice
-            icon="locate"
-            text="이 브라우저가 위치 정확도를 알려 주지 않아 도착을 자동으로 판정하지 않습니다. 도착하면 도착 처리 버튼을 눌러 주세요."
-          />
+          <Notice icon="locate" text="도착을 자동으로 판정하지 않습니다. 도착 처리 버튼을 눌러 주세요." />
         ) : null}
         {proposalHidden ? (
           <Card variant="tinted">
             <Row gap={SP.l}>
               <Icon name="clock" size={18} color="accent" />
-              <View style={{ flex: 1, gap: 2 }}>
+              <View style={{ flex: 1 }}>
                 <Txt v="nm">{proposalName ? `${proposalName} 조정안` : '뒤 일정 조정안'}</Txt>
-                <Txt v="mtTight">
-                  {live.requested === 'sim' ? '적용하거나 원래대로를 고를 때까지 재생을 멈춰 둡니다' : '적용하거나 원래대로를 골라 주세요'}
-                </Txt>
               </View>
               <Btn title="조정안 보기" size="sm" variant="quiet" onPress={() => setHiddenProposal(undefined)} />
             </Row>
           </Card>
         ) : null}
         {running && live.background && !live.bgActive ? (
-          <Notice icon="pause" text="앱이 화면 밖에 있어 위치 확인과 재생을 멈췄습니다. 그 사이 경로는 채우지 않습니다." />
+          <Notice icon="pause" text="앱이 화면 밖에 있어 위치 확인과 재생을 멈췄습니다." />
         ) : null}
 
         {!running && hasItems ? (
@@ -225,13 +211,6 @@ export default function LiveTripScreen({ navigation, route }: RootScreenProps<'L
                   <Btn title="수동 진행" icon="check" size="sm" variant="quiet" onPress={() => L.start(tripId, date, 'manual')} />
                 </View>
               </Row>
-              <Txt v="mtTight">
-                {!useDevice
-                  ? '기기 위치는 더보기 설정에서 켤 수 있습니다. 시연은 여행 시뮬레이터로 합니다.'
-                  : live.bgRecord && !bgBlock && today
-                    ? '30초 간격으로 위치를 확인하고, 백그라운드 동선 기록이 켜져 있어 앱이 화면 밖에 있어도 동선과 도착을 남깁니다.'
-                    : '앱을 켜 둔 동안만 30초 간격으로 위치를 확인합니다. 웹은 HTTPS 주소에서만 위치를 쓸 수 있습니다.'}
-              </Txt>
             </Col>
           </Card>
         ) : null}
@@ -294,7 +273,7 @@ export default function LiveTripScreen({ navigation, route }: RootScreenProps<'L
             </Col>
           </Card>
         ) : null}
-        {running && timing === null ? <Notice icon="check" text="오늘 일정을 모두 마쳤습니다. 기록 지도와 일기에서 하루를 돌아볼 수 있습니다." /> : null}
+        {running && timing === null ? <Notice icon="check" text="오늘 일정을 모두 마쳤습니다." /> : null}
 
         {running && live.freeTime ? (
           <FreeTimeCard
@@ -315,7 +294,7 @@ export default function LiveTripScreen({ navigation, route }: RootScreenProps<'L
                     <Txt v="nm" numberOfLines={1}>
                       {s.name}
                     </Txt>
-                    <Txt v="mtTight">지연 조정안으로 뺌 · 되돌리면 고정으로 돌아옵니다</Txt>
+                    <Txt v="mtTight">지연 조정안으로 뺌</Txt>
                   </View>
                   <Btn title="되돌리기" icon="undo" size="sm" variant="quiet" onPress={() => restore(s.id, s.name)} />
                 </Row>
@@ -369,12 +348,6 @@ export default function LiveTripScreen({ navigation, route }: RootScreenProps<'L
             </View>
           </Row>
         ) : null}
-        <Txt v="mtTight">
-          위치는 앱을 켜 둔 동안 30초 간격으로 확인하고, 멈춰 있으면 기록을 쉬고 20m 넘게 움직일 때까지 위치 갱신도 줄입니다. 앱이
-          화면 밖에 있으면 멈추고 그 사이 경로는 채우지 않습니다. 백그라운드 동선 기록을 켜면 오늘 일정을 진행하는 동안 화면 밖에서도
-          동선과 도착을 남깁니다. 화면 밖 도착은 알림 없이 진행 기록에 남고, 지연 조정안은 앱으로 돌아와서 봅니다. 위치 기록은 이
-          기기에만 있고 종료 후 90일 뒤 지웁니다. 그룹원 위치 공유는 꺼져 있습니다(미결정).
-        </Txt>
       </Body>
 
       <ProposalSheet

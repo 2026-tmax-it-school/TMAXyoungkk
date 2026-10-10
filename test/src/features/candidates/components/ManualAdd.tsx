@@ -8,7 +8,7 @@ import { regionById } from '../../../data/regions';
 import { MapCanvas } from '../../../components/map/MapCanvas';
 import { myMemberId } from '../../../store/trips';
 import { useUi } from '../../../store/ui';
-import { Btn, ConfirmSheet, Field, Notice, Row, Sheet, SP, Txt } from '../../../ui';
+import { Btn, ConfirmSheet, Field, Notice, Row, Sheet, SP } from '../../../ui';
 import { addPlace, pickAtCoord, searchForManual, type SearchOutcome } from '../actions';
 import { PlacePickSheet } from './PlacePickSheet';
 
@@ -125,7 +125,6 @@ export function ManualAdd({ trip }: { trip: Trip }) {
       <PlacePickSheet
         visible={!!options}
         title="어느 곳인가요?"
-        sub="검색 결과가 여러 곳입니다. 담을 곳을 골라 주세요."
         options={options ?? []}
         onPick={(o) => choose(o, true)}
         onDismiss={() => setOptions(undefined)}
@@ -144,7 +143,6 @@ export function ManualAdd({ trip }: { trip: Trip }) {
       />
 
       <Sheet visible={mapOpen} onClose={() => setMapOpen(false)} title="지도에서 선택">
-        <Txt v="mt">지도를 누르면 그 근처 300m 안에서 가장 가까운 장소를 찾습니다. 기존 후보는 핀으로 보입니다.</Txt>
         <MapCanvas
           height={280}
           markers={trip.spots.map((s) => ({ id: s.id, coord: s.coord, kind: 'spot' as const, title: s.name }))}

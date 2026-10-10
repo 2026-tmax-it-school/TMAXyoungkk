@@ -2,7 +2,7 @@ import { useIsFocused } from '@react-navigation/native';
 import React, { useEffect, useState } from 'react';
 import { Image, View } from 'react-native';
 
-import { NICKNAME_MAX, PROFILE_IMAGE_MAX_BYTES, PROFILE_TAGS } from '../core/constants';
+import { NICKNAME_MAX, PROFILE_TAGS } from '../core/constants';
 import { compressedImageBytes, formatBytes, needsImageCompression, nicknameProblem } from '../core/auth';
 import { tokenTail } from '../core/session';
 import { kstDate } from '../core/util';
@@ -11,7 +11,6 @@ import { isStorableImageUri, SAMPLE_PROFILE_IMAGE_BYTES } from '../features/acco
 import type { RootScreenProps } from '../navigation/routes';
 import { getServices } from '../services/registry';
 import { useSession } from '../store/session';
-import { useMyTrips } from '../store/trips';
 import { useUi } from '../store/ui';
 import {
   Avatar,
@@ -62,7 +61,6 @@ export default function ProfileScreen({ navigation }: RootScreenProps<'Profile'>
   const profile = useSession((s) => s.profile);
   const deleteAccount = useSession((s) => s.deleteAccount);
   const showToast = useUi((s) => s.showToast);
-  const trips = useMyTrips();
 
   const [nickname, setNickname] = useState(profile.nickname || session?.nickname || '');
   const [tags, setTags] = useState<string[]>(profile.tags);
@@ -142,7 +140,6 @@ export default function ProfileScreen({ navigation }: RootScreenProps<'Profile'>
         back={navigation.canGoBack() ? navigation.goBack : undefined}
         eyebrow={session ? `${isAccount ? '계정' : '게스트'} · ${savedName}` : '프로필'}
         title="내 프로필"
-        sub="닉네임과 성향 태그는 추천과 여행방 표시에 쓰입니다."
         right={<ScopeBadge phase="2차" />}
       />
       <Body scroll>
@@ -170,7 +167,6 @@ export default function ProfileScreen({ navigation }: RootScreenProps<'Profile'>
           }}
           maxLength={NICKNAME_MAX}
           placeholder="예: 민지"
-          help="다른 계정과 같은 닉네임은 쓸 수 없습니다"
           error={nickError ?? (nickname.length > 0 ? problem ?? undefined : undefined)}
         />
 
@@ -201,25 +197,15 @@ export default function ProfileScreen({ navigation }: RootScreenProps<'Profile'>
               )}
               <Col gap={4} grow>
                 {image ? (
-                  <>
-                    <Txt v="nm">
-                      {image.compressed
-                        ? `${formatBytes(image.originalBytes)}에서 ${formatBytes(image.bytes)}로 압축`
-                        : `${formatBytes(image.bytes)} · 압축 없이 사용`}
-                    </Txt>
-                    <Txt v="mtTight">
-                      {image.compressed
-                        ? `${formatBytes(PROFILE_IMAGE_MAX_BYTES)}를 넘어 압축 대상입니다. 웹은 판정과 표시만 하고 실제 압축은 앱에서 합니다.`
-                        : `${formatBytes(PROFILE_IMAGE_MAX_BYTES)} 이하라 그대로 씁니다.`}
-                    </Txt>
-                    {image.previewUri && !image.storableUri ? (
-                      <Txt v="mtTight">웹에서 고른 사진은 이 세션에서만 보이고 크기만 저장합니다.</Txt>
-                    ) : null}
-                  </>
+                  <Txt v="nm">
+                    {image.compressed
+                      ? `${formatBytes(image.originalBytes)}에서 ${formatBytes(image.bytes)}로 압축`
+                      : `${formatBytes(image.bytes)} · 압축 없이 사용`}
+                  </Txt>
                 ) : shownBytes != null ? (
                   <Txt v="mt">{`${formatBytes(shownBytes)}${profile.imageCompressed ? ' · 압축됨' : ''}`}</Txt>
                 ) : (
-                  <Txt v="mt">{`이미지가 없습니다. ${formatBytes(PROFILE_IMAGE_MAX_BYTES)}를 넘으면 압축합니다.`}</Txt>
+                  <Txt v="mt">이미지가 없습니다</Txt>
                 )}
               </Col>
             </Row>
@@ -251,7 +237,6 @@ export default function ProfileScreen({ navigation }: RootScreenProps<'Profile'>
               />
             ))}
           </Row>
-          <Txt v="mtTight">여행지 추천이 이 태그로 고릅니다. 고르지 않으면 인기 장소로 대체합니다.</Txt>
         </Col>
 
         {notice ? <Notice tone="warn" icon="alert" title={notice.title} text={notice.text} /> : null}
@@ -264,10 +249,9 @@ export default function ProfileScreen({ navigation }: RootScreenProps<'Profile'>
             <Card>
               <Row>
                 <Icon name="mail" size={18} color="muted" />
-                <Col gap={2} grow>
-                  <Txt v="nm">{session?.email ?? ''}</Txt>
-                  <Txt v="mt">로그인 방법을 늘려도 같은 여행방을 봅니다.</Txt>
-                </Col>
+                <Txt v="nm" style={{ flex: 1 }}>
+                  {session?.email ?? ''}
+                </Txt>
               </Row>
               <Row gap={6} wrap>
                 <ProviderChips accountEmail={session?.email} />
@@ -299,11 +283,6 @@ export default function ProfileScreen({ navigation }: RootScreenProps<'Profile'>
                 showToast('로그아웃했습니다. 같은 계정으로 다시 로그인하면 여행방을 이어 씁니다');
               }}
             />
-            <Notice
-              icon="trash"
-              title="계정 탈퇴"
-              text={`참여한 여행방 ${trips.length}곳에서 내가 올린 사진을 지우고, 내 채팅과 제안은 '탈퇴한 멤버'로 남깁니다. 되돌릴 수 없습니다.`}
-            />
             <Btn title="계정 탈퇴" variant="quiet" disabled={busy} onPress={() => setConfirmDelete(true)} />
           </Col>
         ) : (
@@ -312,24 +291,14 @@ export default function ProfileScreen({ navigation }: RootScreenProps<'Profile'>
             <Card variant="tinted">
               <Row top gap={8}>
                 <Icon name="user" size={17} color="accentStrong" />
-                <Col gap={4} grow>
-                  <Txt v="nm" c="accentStrong">
-                    계정으로 바꾸고 여행방을 그대로 쓰기
-                  </Txt>
-                  <Txt v="mtTight" c="accentStrong">
-                    {`참여한 여행방 ${trips.length}곳과 채팅, 제안은 그대로 계정으로 옮겨져요.`}
-                  </Txt>
-                </Col>
+                <Txt v="nm" c="accentStrong" style={{ flex: 1 }}>
+                  계정으로 바꾸고 여행방을 그대로 쓰기
+                </Txt>
               </Row>
               <Btn title="이메일로 승격하기" size="sm" variant="ghost" onPress={() => navigation.navigate('Signup')} />
             </Card>
-            <Txt v="mtTight">
-              게스트는 탈퇴할 계정이 없습니다. 30일 동안 쓰지 않으면 세션이 만료되고 복구할 수 없습니다.
-            </Txt>
           </Col>
         )}
-
-        <Notice text="계정과 프로필은 이 기기에만 저장돼요." />
       </Body>
       <Foot>
         <Btn
