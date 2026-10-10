@@ -5,6 +5,7 @@ import { msOfMinute, type LiveDay } from './context';
 import type { Timing } from './delay';
 import type { EngineEffect } from './engine';
 import { visitId } from './engine';
+import type { LiveMode } from './mode';
 
 /**
  * 여행 진행 세션 도우미(WP5 소유, 순수). 스토어(store/live.ts)와 19·13 화면이 같이 쓰는 작은 판정들.
@@ -229,3 +230,38 @@ export function photoLine(t: number, count: number, withoutExif: number): LiveLo
   const tail = withoutExif > 0 ? ` · 촬영 정보 없음 ${withoutExif}장(추정)` : '';
   return { t, text: `사진 ${count}장 올림${tail}`, icon: 'camera' };
 }
+
+/* ---------- 진행을 끝내야 하는 때 ---------- */
+
+/**
+ * 여행 진행을 그대로 두면 안 되는 이유. 스토어가 세션·기기 위치 설정·여행방이 바뀔 때마다 보고 진행을 끝낸다(stop).
+ * 진행을 끝내야 앱 안 감시와 백그라운드 받기(화면 밖 위치 수집, 안드로이드 '동선 기록 중' 알림)가 함께 멈춘다.
+ * - signedOut: 로그아웃·탈퇴·세션 만료로 세션이 없어짐
+ * - deviceOff: 기기 위치로 진행하는 중에 더보기에서 '기기 위치 사용'을 끔. 사용자가 위치 사용을 거둔 것이다.
+ *   시뮬레이터와 수동 진행(권한이 없어 수동이 된 진행 포함)은 기기 위치를 쓰지 않아 그대로 둔다.
+ * - tripGone: 여행방이 이 기기에서 없어졌거나(삭제·나가기) 내가 더는 멤버가 아님
+ */
+export type LiveStopReason = 'signedOut' | 'deviceOff' | 'tripGone';
+
+export function liveStopReason(o: {
+  signedIn: boolean;
+  /** 18 더보기 '기기 위치 사용' */
+  useDevice: boolean;
+  mode: LiveMode;
+  tripExists: boolean;
+  /** 이 여행방의 활성 멤버인지 */
+  member: boolean;
+}): LiveStopReason | undefined {
+  if (o.mode === 'off') return undefined;
+  if (!o.signedIn) return 'signedOut';
+  if (!o.tripExists || !o.member) return 'tripGone';
+  if (o.mode === 'device' && !o.useDevice) return 'deviceOff';
+  return undefined;
+}
+
+/** 진행을 끝낸 이유 안내(토스트) */
+export const LIVE_STOP_TEXT: Record<LiveStopReason, string> = {
+  signedOut: '로그아웃되어 여행 진행을 끝냈습니다',
+  deviceOff: '기기 위치 사용을 꺼 여행 진행을 끝냈습니다. 수동 진행으로 다시 시작할 수 있습니다',
+  tripGone: '여행방을 나가거나 지워 여행 진행을 끝냈습니다',
+};

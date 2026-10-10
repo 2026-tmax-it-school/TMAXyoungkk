@@ -20,6 +20,8 @@ export interface DayMap {
   markers: MapMarkerInput[];
   polylines: MapPolylineInput[];
   legs: MapLeg[];
+  /** 선 가운데 하나라도 OpenStreetMap 길 모양이면 true. 화면이 출처를 적는다 */
+  osmRoads: boolean;
 }
 
 export function useDayMap(trip: Trip | undefined, plan: Plan | undefined, date: string | 'all'): DayMap {
@@ -30,5 +32,6 @@ export function useDayMap(trip: Trip | undefined, plan: Plan | undefined, date: 
     () => (model ? model.days.map((d) => dayPolyline(`day:${d.date}`, d.legs, geo, d.color)) : NO_LINES),
     [model, geo],
   );
-  return { model, markers: model?.markers ?? NO_MARKERS, polylines, legs };
+  const osmRoads = legs.some((l) => geo[l.key]?.road === 'osm');
+  return { model, markers: model?.markers ?? NO_MARKERS, polylines, legs, osmRoads };
 }

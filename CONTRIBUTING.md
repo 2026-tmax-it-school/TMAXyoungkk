@@ -13,7 +13,7 @@ This file is for the two developers, 한동관 (dh) and 최윤재 (yj), and the 
 | PR size and age | ≤400 insertions + deletions (lockfile, `test/assets` excluded; shared-file PR ≤100); first commit to merge ≤72 h; Draft PR the day the branch is cut |
 | Before `gh pr ready` (in `test/`) | `npm run gate:wp -- WP<n>` for each work package you changed (skip if only FOUNDATION or root files), then `npm run typecheck && npm test && npm run export:web`, ttf count = 4 |
 | Review deadline | First review 24 h (phases 7–8: 6 h); re-review 4 h (2 h); revert 30 min |
-| Merge | Rebase only; 1 approval from the other developer; CI `check` green; threads resolved; `gh pr merge --rebase --delete-branch` |
+| Merge | Rebase only; 1 approval from the other developer; CI `check` and `db` green; threads resolved; `gh pr merge --rebase --delete-branch` |
 | `main` red | Post in team chat; fix or revert within 30 min, revert merged within 60 min; phases 7–8 revert only |
 | Never commit | `.env`, `.env*.local`, `*.key`, any key value; AI provider keys live only on the proxy; every `EXPO_PUBLIC_*` value is public |
 | Dependencies | `npx expo install <pkg>` in `test/`, separate PR, never `npm install <pkg>` |
@@ -62,7 +62,7 @@ Unsettled disputes: 한동관 (dh) decides. File ownership: see [Ownership map](
 - `docs/`: `FR-추적표.md`, `plan.json`, `meetings/`.
 - `HANDOFF.md`: handover between AI sessions.
 
-The root is not a git repository yet: do [One-time setup](#one-time-setup-root-repository) first.
+The root is the git repository, with `main` and `develop`; [One-time setup](#one-time-setup-root-repository) is retained as a reference.
 
 ### Daily loop
 
@@ -80,7 +80,7 @@ The root is not a git repository yet: do [One-time setup](#one-time-setup-root-r
 
 ### Changing this document
 
-Change a rule that is wrong or broken twice; do not ignore it. Branch `<initials>/docs-contributing`; PR body names the rule, when it broke, and the replacement. Self-merge: [PR §3](#3-review-request-and-deadlines), except a PR that changes a locked rule (the first paragraph of [Branching model](#branching-model), Conventional Commits with an English type and Korean description, `.env` never committed, CI `check`): it needs the other developer's approval and is never self-merged.
+Change a rule that is wrong or broken twice; do not ignore it. Branch `<initials>/docs-contributing`; PR body names the rule, when it broke, and the replacement. Self-merge: [PR §3](#3-review-request-and-deadlines), except a PR that changes a locked rule (the first paragraph of [Branching model](#branching-model), Conventional Commits with an English type and Korean description, `.env` never committed, CI `check` and `db`): it needs the other developer's approval and is never self-merged.
 
 ---
 
@@ -258,7 +258,7 @@ Git mechanics: [Branching model](#branching-model).
 ### Repository settings
 
 - **Settings → General → Pull Requests**: merge commits **off**, rebase merging **on**, squash **off**, auto-delete head branches **on**.
-- **Settings → Rules → Rulesets**, default branch, **Active**: restrict deletions; block force pushes; require PR (approvals **1**, dismiss stale approvals **off**, conversation resolution **on**); require status check `check`, up to date **on**. Bypass: **Repository admin**, **For pull requests only**.
+- **Settings → Rules → Rulesets**, default branch, **Active**: restrict deletions; block force pushes; require PR (approvals **1**, dismiss stale approvals **off**, conversation resolution **on**); require status checks `check` and `db`, up to date **on**. Bypass: **Repository admin**, **For pull requests only**.
 
 Private repository on GitHub Free: rulesets are unavailable and Draft PRs may be refused. The repository owner either claims GitHub Pro through the GitHub Student Developer Pack or makes the repository public (nothing secret is committed), then applies the ruleset. Until then, open normal PRs titled `WIP …` instead of Drafts, and after every merge verify the landed commit range against the merged PR. Rebased commit subjects do not necessarily contain a PR number; missing `(#N)` is not proof of a direct push.
 
@@ -318,7 +318,7 @@ Tick template checkboxes only after steps 2–3. Red CI: do not mark ready.
 
 Run `gh pr ready && gh pr edit --add-reviewer <other-github-id>` (IDs: [Team](#team)), then post the link and deadline in team chat (`#12 리뷰 부탁. 내일 21시까지`); the clock starts there. Deadlines: first review 24 h (phases 7–8: 6 h), re-review 4 h (2 h), revert 30 min. Cannot make it: say so in chat with a time. Deadline passed, no response:
 
-- `chore`, `docs`: 24 h after the chat post in every phase (the phase 7–8 6 h deadline does not shorten this), if `check` is green and no `[필수]` is open, comment `SLA 경과 리뷰 없음, self-merge`, then `gh pr merge --rebase --delete-branch --admin`. Refused: wait. Never for a PR that edits the other developer's area ([Editing outside your area](#editing-outside-your-area)).
+- `chore`, `docs`: 24 h after the chat post in every phase (the phase 7–8 6 h deadline does not shorten this), if `check` and `db` are green and no `[필수]` is open, comment `SLA 경과 리뷰 없음, self-merge`, then `gh pr merge --rebase --delete-branch --admin`. Refused: wait. Never for a PR that edits the other developer's area ([Editing outside your area](#editing-outside-your-area)).
 - `feat`, `fix`, `refactor`: never self-merge. At 48 h, agree a time directly; no agreement: `gh pr ready --undo`.
 
 ### 4. Review comments
@@ -341,7 +341,7 @@ No style comments, not even `[제안]`.
 
 ### 6. Merging
 
-The author merges after approval, `check` green, threads resolved, branch up to date.
+The author merges after approval, `check` and `db` green, threads resolved, branch up to date.
 
 ```bash
 TARGET=$(gh pr view --json baseRefName --jq .baseRefName)
@@ -522,7 +522,7 @@ Done: the phone shows the onboarding screen (`Young Trip 시작하기`). Enter a
 
 - AI provider keys and DB credentials live only on a server, never under `test/`. If yj's proxy fails by `v0.2.0`, the URL stays empty and the demo uses fallbacks.
 - The exchange-rate PR (yj) adds its row; a key not documented as client-safe goes behind the proxy.
-- CI gets no keys. Add no repository secrets.
+- App CI (`ci.yml`) gets no keys or repository secrets. The separately configured OpenAI reviewer uses its own repository secret.
 
 ### Keys
 
@@ -613,7 +613,7 @@ Setup (dh, once): Projects board `Young Trip`; `Status` exactly `할 일`, `진�
 
 ### What CI runs
 
-`.github/workflows/ci.yml` job `check` (Node 24, in `test/`) runs on every PR into `main` or `develop` and every push to `main`:
+`.github/workflows/ci.yml` (Node 24, in `test/`) runs on every PR into `develop` or `main` and every push to `develop`, `main`, `dh/**`, `yj/**`. A branch with an open PR runs twice per push (push and PR); a newer run cancels the older one of the same event and ref. Each push to `develop` and `main` gets its own concurrency group (the commit SHA), so no integrated commit's run is cancelled or left without a result. Job `check`:
 
 | Step | Red means |
 | --- | --- |
@@ -623,6 +623,26 @@ Setup (dh, once): Projects board `Young Trip`; `Status` exactly `할 일`, `진�
 | `npx expo export --platform web --output-dir /tmp/yt-export` | Web bundle fails |
 | ttf count = `4` | Font imported outside `src/ui/fonts.ts` subpaths |
 
+Job `db` runs the server tests `tests/wp2-*.test.ts` one file at a time against a `postgres:17-alpine` service with `YT_TEST_DATABASE_URL` set; `npm test` without the variable runs the same SQL on PGlite. Every real-database suite keeps `실제 PostgreSQL` in its name (now `PostgreSQL 저장소(실제 PostgreSQL)` and `HTTP 서버 + PostgreSQL 저장소(실제 PostgreSQL)` in `tests/wp2-db.test.ts`), and no other test or suite name contains it; the job looks for that name in the TAP output. A test that only runs on the real driver may skip itself in the PGlite suite (now `openPostgresStore: …`); the job ignores that skip.
+
+| Step | Red means |
+| --- | --- |
+| `node … --test --test-concurrency=1 … "tests/wp2-*.test.ts"` | SQL that PGlite accepts but PostgreSQL 17 rejects, or a server test fails |
+| `/tmp/yt-db.tap` written; no `# SKIP` inside a `실제 PostgreSQL` suite and none whose reason names `YT_TEST_DATABASE_URL` | No TAP was written, or a real-database suite or a test in it was skipped, so part of the run never touched PostgreSQL |
+| A passing `실제 PostgreSQL` suite (`ok`, no `# SKIP`) in `/tmp/yt-db.tap` | Every real-database suite is gone, renamed or moved out of `tests/wp2-*.test.ts` (a comment naming the variable does not count), so real PostgreSQL is never used; one suite moving out leaves this green, and `npm test` catches that (below) |
+
+Reproduce locally, from `test/`: `npm run db:up` starts the dev database in `server/docker-compose.yml` (the account in `server/.env.example`); the tests create a temporary schema and drop it, so existing tables stay. Then run the job's three commands; the two checks run in a subshell, so their `exit` does not close your terminal, and print nothing when they pass:
+
+```bash
+YT_TEST_DATABASE_URL=postgresql://youngtrip:youngtrip-dev@127.0.0.1:5432/youngtrip node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./tests/setup/resolve-ts.mjs --test --test-concurrency=1 --test-reporter=spec --test-reporter-destination=stdout --test-reporter=tap --test-reporter-destination=/tmp/yt-db.tap "tests/wp2-*.test.ts"
+(if ! test -s /tmp/yt-db.tap || ! awk '{ n = match($0, /[^ ]/) } /^ *[#] Subtest/ { if (!d && index($0, "실제 PostgreSQL")) d = n; next } /^ *(not )?ok [0-9]+ - / { s = match($0, / [#] SKIP/); if (s && (d || index(substr($0, s), "YT_TEST_DATABASE_URL"))) { print; bad = 1 } if (n == d) d = 0 } END { exit bad }' /tmp/yt-db.tap; then echo "TAP이 없거나, 실 DB 묶음 안이나 실 DB 주소 때문에 건너뛴 테스트가 있다. 실 PostgreSQL로 다 돌지 않았다"; exit 1; fi)
+(grep -qE '^ *ok [0-9]+ - [^#]*실제 PostgreSQL[^#]*$' /tmp/yt-db.tap || { echo "TAP에 통과한 '실제 PostgreSQL' 묶음이 없다. 실 DB 테스트가 빠졌다"; exit 1; })
+```
+
+`npm test` runs the first check on the current `tests/wp2-*.test.ts` with an unreachable `YT_TEST_DATABASE_URL` (`tests/foundation-ci-db.test.ts`), so a skip that would turn `db` red shows up in job `check` first. It also fails when a file under `tests/` outside `tests/wp2-*.test.ts`, helpers included, names a `실제 PostgreSQL` suite or `YT_TEST_DATABASE_URL`: job `db` runs only that glob, so a suite moved elsewhere would stop running on PostgreSQL while the other keeps `db` green.
+
+The job's database account lives only inside the job; CI still gets no keys or repository secrets.
+
 No native build, no app launch: see the [manual checklist](#manual-checklist).
 
 ### When a check is red
@@ -630,7 +650,7 @@ No native build, no app launch: see the [manual checklist](#manual-checklist).
 - Do not merge, even if approved. Read `gh run view <run-id> --log-failed`; fix on the same branch.
 - Re-run once (`gh run rerun <run-id> --failed`) only for `ETIMEDOUT`, `ECONNRESET`, `npm error network` or runner shutdown; comment `re-ran: <error line>`. Fails again: stop.
 - Never comment out a step, add `continue-on-error`, skip or delete a test, or change the ttf number. A wrong test is fixed in its own PR.
-- Never rename job `check` or add a job-level `name:` (step `name:` keys are fine); the `main` ruleset requires the status check `check`.
+- Never rename jobs `check` or `db` or add a job-level `name:` (step `name:` keys are fine); require both status checks in the target branch ruleset.
 
 **Pre-PR checks**, before every `gh pr ready` (while working, `gate:wp` is advisory):
 
@@ -810,5 +830,5 @@ git clean -nd  # -fd only if every path is agent output
 
 ### Not delegated to agents
 
-Locked decisions (`main` for releases and `develop` for development integration, `<initials>/<type>-<scope>` branch names, one branch per feature, rebase merge only, PR-only `main` with 1 approval, release tags, Conventional Commits with Korean descriptions, `.env` never committed, CI `check`) and the 400-line PR limit; this document (`docs` PR, 한동관 (dh) breaks ties); spec product rules; phase 8 slide numbers, each measured in phase 7 and recorded in an issue.
+Locked decisions (`main` for releases and `develop` for development integration, `<initials>/<type>-<scope>` branch names, one branch per feature, rebase merge only, PR-only `main` with 1 approval, release tags, Conventional Commits with Korean descriptions, `.env` never committed, CI `check` and `db`) and the 400-line PR limit; this document (`docs` PR, 한동관 (dh) breaks ties); spec product rules; phase 8 slide numbers, each measured in phase 7 and recorded in an issue.
 

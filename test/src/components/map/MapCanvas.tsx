@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { View, type GestureResponderEvent, type LayoutChangeEvent } from 'react-native';
+import { Platform, View, type GestureResponderEvent, type LayoutChangeEvent } from 'react-native';
 import Svg, { Circle, G, Line, Polyline, Rect } from 'react-native-svg';
 
 import type { LatLng } from '../../types';
@@ -7,15 +7,32 @@ import { focusOptions, layoutMap, unproject, type MapCluster } from '../../core/
 import { useUi } from '../../store/ui';
 import { lineC, mapC, R, SvgLabel } from '../../ui';
 import { MAP_ENGINE } from './engine';
-import { GoogleMapView } from './GoogleMapView';
-import { ClusterListSheet, FitAllButton, MapChildren, mapHeight, type MapCanvasProps } from './parts';
+import { GOOGLE_VIEW_READY, GoogleMapView } from './GoogleMapView';
+import { ClusterListSheet, FitAllButton, MapChildren, mapHeight, type MapCanvasProps, type MapFailReason } from './parts';
+
+const IS_WEB = Platform.OS === 'web';
+
+/**
+ * SVG 요소 누르기. 웹은 onClick, 앱은 onPress다. react-native-svg 웹 구현은 onPress를 받으면 RN 응답자 핸들러
+ * (onStartShouldSetResponder 등)를 DOM 요소에 그대로 넘겨 React가 'Unknown event handler property' 경고를 낸다
+ * (2026-10-09 웹 실행). onClick은 DOM 클릭으로 바로 붙어 경고가 없고 동작은 같다.
+ * 웹에서는 onPress: null을 같이 준다. react-native-svg 15 웹 prepare()가 onPress !== null이면
+ * clean.onClick = props.onPress로 덮어써서, onPress가 undefined면 우리 onClick이 지워져 누르기가 전부 죽는다.
+ */
+const WEB_CLICK = (fn: unknown) => ({ onClick: fn, onPress: null });
+
+function tap(fn: (() => void) | undefined): Record<string, unknown> {
+  if (!fn) return {};
+  return IS_WEB ? WEB_CLICK(fn) : { onPress: fn };
+}
 
 export type { MapCanvasProps } from './parts';
 
 /**
  * 공통 지도(WP5 소유). 07, 11, 13, 19, 22가 같은 컴포넌트를 쓴다. 화면은 어느 지도인지 모른다.
  * - 구글 키(EXPO_PUBLIC_GOOGLE_MAPS_API_KEY)가 있으면 GoogleMapView(웹 Maps JavaScript API, 앱 react-native-maps)를 그린다.
- *   구글 지도를 못 불러오면(키 거부, 오프라인) 이 세션은 기본 지도로 돌아온다.
+ *   키가 거부되거나 스크립트를 못 받으면 이 세션은 기본 지도로 돌아온다. 타일이 시한 안에 안 오면 그 지도 하나만 돌아온다.
+ *   앱은 구글 지도를 띄울 수 있는 빌드일 때만(GOOGLE_VIEW_READY) 쓴다.
  * - 없으면 기본 지도(SvgMapCanvas)다. react-native-svg 한 벌로 웹·iOS·안드로이드를 그리고 키가 필요 없다.
  * 투영·클러스터·선 계산은 core/map/layout.ts(순수)가 하고 여기서는 그리기만 한다.
  *
@@ -32,18 +49,26 @@ export type { MapCanvasProps } from './parts';
 
 const GRID_PX = 56;
 
-/** 구글 지도를 한 번 못 불러오면 이 세션 동안 다른 지도도 기본 지도로 그린다(화면마다 다시 실패하지 않게). */
+/** 키 거부·스크립트 실패면 이 세션 동안 다른 지도도 기본 지도로 그린다(화면마다 다시 실패하지 않게). */
 let googleDown = false;
+/** 안내는 세션에 한 번만 띄운다 */
+let failToastShown = false;
+
+/** react-native-svg의 accessible은 웹에서 그대로 DOM 속성이 되어 경고가 난다. 웹은 accessibilityLabel만 쓴다 */
+const SVG_ACCESSIBLE = Platform.OS === 'web' ? undefined : true;
 
 export function MapCanvas(props: MapCanvasProps) {
   const [down, setDown] = useState(googleDown);
-  if (MAP_ENGINE === 'google' && !down) {
+  if (MAP_ENGINE === 'google' && GOOGLE_VIEW_READY && !down) {
     return (
       <GoogleMapView
         {...props}
-        onFail={() => {
-          if (!googleDown) useUi.getState().showToast('구글 지도를 불러오지 못해 기본 지도로 보여 드려요', 'warn');
-          googleDown = true;
+        onFail={(reason: MapFailReason) => {
+          if (!failToastShown) {
+            failToastShown = true;
+            useUi.getState().showToast('구글 지도를 불러오지 못해 기본 지도로 보여 드려요', 'warn');
+          }
+          if (reason !== 'tiles') googleDown = true;
           setDown(true);
         }}
       />
@@ -85,6 +110,16 @@ function SvgMapCanvas(props: MapCanvasProps) {
         props.onPressMap?.(unproject(layout.projection, { x: locationX, y: locationY }));
       }
     : undefined;
+  // 웹은 DOM 클릭 위치를 svg 기준으로 바꿔 같은 투영으로 되돌린다
+  const clickMap = props.onPressMap
+    ? (e: { clientX: number; clientY: number; currentTarget: unknown }) => {
+        if (!layout) return;
+        const el = e.currentTarget as { ownerSVGElement?: { getBoundingClientRect(): { left: number; top: number } } | null };
+        const box = el.ownerSVGElement?.getBoundingClientRect();
+        if (!box) return;
+        props.onPressMap?.(unproject(layout.projection, { x: e.clientX - box.left, y: e.clientY - box.top }));
+      }
+    : undefined;
 
   const grid: React.ReactNode[] = [];
   if (layout) {
@@ -119,7 +154,7 @@ function SvgMapCanvas(props: MapCanvasProps) {
     >
       {layout ? (
         <Svg width={width} height={height}>
-          <Rect x={0} y={0} width={width} height={height} fill={mapC.bg} onPress={pressMap} />
+          <Rect x={0} y={0} width={width} height={height} fill={mapC.bg} {...((IS_WEB ? (clickMap ? WEB_CLICK(clickMap) : {}) : { onPress: pressMap }) as Record<string, unknown>)} />
           {grid}
           {layout.lines.map((l) => (
             <Polyline
@@ -148,14 +183,14 @@ function SvgMapCanvas(props: MapCanvasProps) {
             const press = props.onMarkerPress && m.kind !== 'base' ? () => props.onMarkerPress?.(m.id) : undefined;
             if (m.kind === 'base') {
               return (
-                <G key={m.id} accessible accessibilityLabel={`기점 ${m.title}`}>
+                <G key={m.id} accessible={SVG_ACCESSIBLE} accessibilityLabel={`기점 ${m.title}`}>
                   <Circle cx={m.x} cy={m.y} r={compact ? 9 : 12} fill={mapC.white} stroke={mapC.ink} strokeWidth={3} />
                 </G>
               );
             }
             if (m.kind === 'excluded') {
               return (
-                <G key={m.id} onPress={press} accessible accessibilityLabel={`제외 스팟 ${m.title}`}>
+                <G key={m.id} {...tap(press)} accessible={SVG_ACCESSIBLE} accessibilityLabel={`제외 스팟 ${m.title}`}>
                   <Circle cx={m.x} cy={m.y} r={compact ? 11 : 14} fill={mapC.excludedPin} stroke={mapC.faint} strokeWidth={2} />
                   <SvgLabel x={m.x} y={m.y + 3.5} text={m.label ?? '제외'} v="pinSm" c="muted" />
                 </G>
@@ -163,26 +198,26 @@ function SvgMapCanvas(props: MapCanvasProps) {
             }
             if (!m.label) {
               return (
-                <G key={m.id} onPress={press} accessible accessibilityLabel={m.title}>
+                <G key={m.id} {...tap(press)} accessible={SVG_ACCESSIBLE} accessibilityLabel={m.title}>
                   <Circle cx={m.x} cy={m.y} r={compact ? 6 : 7.5} fill={mapC[m.color ?? 'ink']} stroke={mapC.white} strokeWidth={2} />
                 </G>
               );
             }
             return (
-              <G key={m.id} onPress={press} accessible accessibilityLabel={`${m.label}번 ${m.title}`}>
+              <G key={m.id} {...tap(press)} accessible={SVG_ACCESSIBLE} accessibilityLabel={`${m.label}번 ${m.title}`}>
                 <Circle cx={m.x} cy={m.y} r={pinR} fill={mapC[m.color ?? 'ink']} stroke={mapC.white} strokeWidth={2} />
                 <SvgLabel x={m.x} y={m.y + labelDy} text={m.label} v={label} c="onAccent" />
               </G>
             );
           })}
           {layout.clusters.map((c) => (
-            <G key={c.id} onPress={() => pressCluster(c)} accessible accessibilityLabel={`${c.count}곳 묶음 · 눌러서 확대`}>
+            <G key={c.id} {...tap(() => pressCluster(c))} accessible={SVG_ACCESSIBLE} accessibilityLabel={`${c.count}곳 묶음 · 눌러서 확대`}>
               <Circle cx={c.x} cy={c.y} r={compact ? 13 : 17} fill={mapC.white} stroke={mapC.ink} strokeWidth={2} />
               <SvgLabel x={c.x} y={c.y + 4} text={String(c.count)} v="cluster" c="ink" />
             </G>
           ))}
           {layout.user ? (
-            <G accessible accessibilityLabel={layout.user.faint ? '현재 위치(정확도 낮음)' : '현재 위치'}>
+            <G accessible={SVG_ACCESSIBLE} accessibilityLabel={layout.user.faint ? '현재 위치(정확도 낮음)' : '현재 위치'}>
               {layout.user.faint ? (
                 <Circle
                   cx={layout.user.x}

@@ -240,12 +240,13 @@ test('카카오 행렬: 구간마다 요청 한 번(구간 단위 호출 수), �
   assert.equal(p.days.flatMap((d) => d.items).length > 0, true);
 });
 
-test('createRouteProvider: 키가 있으면 자동차는 카카오, 없으면 로컬', async () => {
+test('createRouteProvider: 키가 있으면 자동차는 카카오(예시 구간표 구간은 구간표), 없으면 로컬', async () => {
   const f = fakeFetch(() => ({ body: { routes: [{ result_code: 0, summary: { distance: 1000, duration: 600 } }] } }));
   const withKey = createRouteProvider({ kakaoKey: 'K', fetch: f, clock: fixedClock(0), kv: memoryKV() });
   assert.equal(withKey.id, 'kakao');
-  const m = await withKey.matrix([coord('gj-bulguksa')], [coord('gj-seokguram')], 'car');
-  assert.equal(m.minutes[0][0], 10);
+  const m = await withKey.matrix([coord('gj-bulguksa')], [coord('gj-seokguram'), coord('gj-museum')], 'car');
+  assert.equal(m.minutes[0][0], 12, '구간표 구간(불국사→석굴암)은 시연 수치 그대로(2026-10-09 결정)');
+  assert.equal(m.minutes[0][1], 10, '표에 없는 구간은 카카오');
   assert.equal(f.calls.length, 1);
   assert.equal(routes().id, 'local');
 });

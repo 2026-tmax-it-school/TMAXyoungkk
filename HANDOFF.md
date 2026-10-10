@@ -1,6 +1,119 @@
-# 인계 문서 — Young Trip (기능명세서 + 목업)
+# 인계 문서 — Young Trip
 
-작성 2026-09-19 · 갱신 2026-09-19 (핑크 캔버스 완료 시점). 다른 계정/세션에서 이어서 작업할 때 이 파일만 읽으면 된다.
+작성 2026-09-19 · 갱신 2026-10-10 (세션 3: 세션 2 결과 재검사, 독립 리뷰 3개로 찾은 문제 20여 건 수정). 다른 계정이나 세션에서 이어서 작업할 때 **이 파일의 "지금 상태"부터** 읽는다.
+아래쪽 "이전 인계 기록"은 2026-09 명세·목업 단계 기록이다.
+
+## 지금 상태 (2026-10-10) — 여기부터 읽기
+
+### 한 줄 요약
+
+전 기능 Expo 프로토타입(`test/`) 위에 구글 바탕 지도, 실제 도로 경로 선, 한동관 담당 기능 6개를 얹는 일이 **끝났다**.
+문서(README·FR-추적표)도 반영했다. **git에는 아직 하나도 커밋하지 않았다**(develop 브랜치, 마지막 커밋 `d2a485e 테스트`).
+2026-10-10 세션 3이 세션 2 결과를 다시 검사하고 독립 리뷰로 찾은 문제를 고쳤다. **`docs/handoff/2026-10-10/session-3-검사.md`**가 최신이다.
+다음 일은 그 파일의 남은 코드 문제 7건과 사람이 할 일이다. 세션 2 상세는 `docs/handoff/2026-10-09/session-2-이어하기.md`.
+
+### 진행 표
+
+| 기능 | 상태 | 비고 |
+| --- | --- | --- |
+| 구글 바탕 지도(웹 Maps JS, 앱 react-native-maps) | 완료 · 웹 실키 확인 | 2026-10-05~06. 앱은 실기기 미확인 |
+| 경로 선을 실제 도로로(OpenStreetMap OSRM) | 완료 · 웹 확인 | 2026-10-07 |
+| 1. PostgreSQL 서버·DB | 완료(구현·리뷰 3·수정) | `test/server/db/`. 실 PostgreSQL 미실행(Docker 꺼짐) |
+| 2. 키 숨기는 서버(카카오·OSRM 중계) | 완료(구현·리뷰 3·수정) | `server/proxy.mjs`, 앱 `EXPO_PUBLIC_API_URL` |
+| 3. 실제 길 기준 이동 시간 | 완료(구현 · 세션 2 리뷰 · 세션 3 독립 리뷰·수정 11건) | `src/services/routes/`. 캐시 v2, 출발지별 묶음, 카카오 꺼짐 5분 쉬기. 자동차 계수 1.3은 가정 |
+| 4. 동선 기록 보완 | 완료(구현·리뷰·수정 2회) | 백그라운드 옵션(기본 꺼짐, 개발 빌드), 날짜별 거부 기록, 기록 지도 색 |
+| 5. 시뮬레이터 위치가 길을 따라가기 | 완료(구현 · 세션 2 리뷰 · 세션 3 독립 리뷰·수정 4건) | `src/core/sim/track.ts`, `legShapes.ts`, `core/live/legPath.ts`(길 기준 ETA, U턴) |
+| 6. CI를 GitFlow에 맞추기 | 완료 | `ci.yml` check·db 잡. GitHub·실 DB에서 미실행 |
+| 문서 반영(test/README·FR-추적표) | 완료(세션 2) | 루트 README는 main→develop 동기화 뒤에 고친다 |
+| 웹 실행 테스트 오류 1(경로 계산 90초) | 수정·웹 확인(세션 2) | 공개 OSRM 429 뒤 60초 쉬기, 직접 table 4초. `osm.ts` |
+| 웹 실행 테스트 오류 2(조정안 늦게 뜸) | 수정·웹 확인(세션 2) | 조정안 계산 전에 시뮬레이터 멈춤. `store/live.ts` |
+| 웹 실행 작은 문제 8건 | 수정(세션 2) | 안내 문구, 토스트 위치, 단계 표시, 엔터 검색, 일기 주어, 웹 SVG 경고, expo 패치, 계산 진행 숫자 |
+| 세션 3 재검사·리뷰 수정 | 완료(2026-10-10) | 웹 SVG 지도 누르기 전부 죽음(blocker) 수정, 경로 캐시 v2·요청 묶기·카카오 꺼짐 쉬기, 길 기준 ETA·U턴, 조정안 멈춤. `session-3-검사.md` |
+
+워크플로 `wf_53f42247-d41`은 사용량 한도로 기능 3·5 리뷰·수정과 문서 단계에서 끊겼다. 끊긴 에이전트는 파일을 건드리지 않았다(transcript tool_use 0건).
+남은 일은 세션 2가 직접 마쳤으므로 **이 워크플로를 다시 돌리지 않는다.**
+
+마지막으로 확인한 검사(2026-10-10, 세션 3 끝): `npx tsc --noEmit` 오류 0, `npm test` 836개 중 835 통과·실패 0·건너뜀 1(실 Postgres, `YT_TEST_DATABASE_URL` 없을 때),
+`node scripts/gate-scope.mjs WP1`~`WP6` 모두 통과. 웹 시나리오 채우기·지도·길찾기·시뮬레이터 재생 JS 오류 0.
+
+### 메인 책임 결정 (2026-10, 되돌리지 말 것)
+
+| 항목 | 결정 |
+| --- | --- |
+| 바탕 지도 | 구글 지도. 키가 있을 때만(`EXPO_PUBLIC_GOOGLE_MAPS_API_KEY`), 없으면 SVG 기본 지도 |
+| 경로 선 모양 | OpenStreetMap 공개 OSRM(routing.openstreetmap.de). 구글 길찾기는 국내 도보·자동차 미지원. `EXPO_PUBLIC_ROAD_SHAPE=off`면 직선 |
+| DB | **PostgreSQL**. 서버는 `test/server`(Node 24, node:http, 드라이버 pg). 테스트는 PGlite(WASM Postgres). 로컬 실 DB는 docker compose(postgres:17-alpine). `DATABASE_URL` 없으면 메모리 저장 |
+| 위치 공유 | 만들지 않는다. 서버에 위치를 올리지 않는다 |
+| 이동 시간 | 실제 길 시간(OSRM). 경주 시연 예시 구간표가 있으면 구간표 우선(시연 수치 유지). 서버에 카카오 키가 있으면 자동차는 카카오 |
+| 백그라운드 동선 기록 | 사용자가 켜는 옵션, 기본 꺼짐. Expo Go·웹에서는 못 켠다고 안내(개발 빌드 필요) |
+| 키 | 카카오 REST 키는 서버(`test/server/.env`의 `KAKAO_REST_KEY`)에만. 구글 지도 키는 숨길 수 없어 콘솔 제한으로 막는다 |
+| 브랜치 | GitFlow: main(배포) · develop(통합) · feature/* · release/* · hotfix/* |
+
+### 끊겼을 때 이어하는 법
+
+워크플로는 사용량 한도로 여러 번 끊겼다. **`resumeFromRunId`로 이어 돌리지 않는다.** 에이전트가 동시에 도는 스크립트라 캐시 매칭이 어긋나,
+이미 끝난 리뷰·수정을 다시 돌리고 사용량을 낭비했다(실제로 CI 리뷰가 4번, 수정이 3번 돌았다).
+
+대신 이렇게 한다.
+
+1. 끝난 에이전트 결과를 꺼낸다: `~/.claude/projects/-Users-handong-gwan-IT--------------/6161f0d7-d0df-45fe-b698-e6fffc883ebd/subagents/workflows/<실행 ID>/journal.jsonl`의 `"type":"result"` 줄.
+   2026-10-09까지 꺼낸 결과는 `docs/handoff/2026-10-09/`에 있다(`done-notes.md` 끝난 기능 문서 메모, `api-proxy.md`·`track.md`·`ci.md` 구현 보고와 리뷰).
+2. 남은 일만 하는 새 스크립트를 만든다. `docs/handoff/2026-10-09/workflow.js`가 그 예다(공통 규칙 COMMON, 기능 명세 F_*, 리뷰 렌즈 3개, 스키마가 들어 있다).
+3. 새 스크립트를 `Workflow({ scriptPath })`로 돌린다. 이어하기 전에 `cd test && npx tsc --noEmit && npm test`로 트리가 깨지지 않았는지 먼저 본다.
+   수정 에이전트가 중간에 끊기면 소스만 바뀌고 테스트는 옛것인 상태가 남을 수 있다. 다음 수정 에이전트가 그 상태부터 고치게 한다.
+
+### 꼭 지킬 규칙
+
+- `test/.env`(그리고 `test/server/.env`)는 사람도 AI도 채팅에 붙이지 않는다. **AI 에이전트는 읽지도 고치지도 않는다**(CONTRIBUTING 규칙). 키는 사용자가 직접 넣는다.
+- 커밋·푸시는 사용자가 요청할 때만. 지금 바뀐 파일이 많다(`git status`). 올릴 때는 GitFlow대로 `feature/...` 브랜치에서 develop으로.
+- 구글 키는 하루 사용량이 있는 Demo Key다. 지도 화면을 여는 브라우저 시험을 줄인다. 에이전트에게 개발 서버·브라우저를 띄우지 말라고 한다. 화면 확인은 마지막에 한 번만 한다.
+- 브라우저 창이 숨겨져 있으면 구글 타일이 안 그려진다. 그때는 헤드리스 크롬(CDP)으로 확인하고, 끝나면 프로필 폴더를 지운다(캐시에 키가 든 요청 주소가 남는다).
+- 화면 문구는 한국어, 주변 화면 말투. 디자인 규칙 테스트: src/ui 밖 색·폰트 값 금지, 이모지·저작권 기호·텍스트 화살표 금지.
+- 새 파일은 `test/tests/setup/ownership.json` 글롭 하나에 걸려야 한다. 새 테스트는 `tests/wp<N>-*.test.ts`.
+
+### 검사 명령 (`test/`에서)
+
+```bash
+npx tsc --noEmit
+npm test
+node scripts/gate-scope.mjs WP2   # WP4, WP5, WP6도
+npm run web                       # 웹 미리보기(포트 8090). Claude는 preview_start로 띄운다
+npm run db:up && YT_TEST_DATABASE_URL=postgresql://youngtrip:youngtrip-dev@127.0.0.1:5432/youngtrip npm test   # 실 Postgres(Docker 필요)
+npm run server                    # 동기화·중계 서버(server/.env를 읽는다)
+```
+
+### 남은 코드 문제 (요약, 상세는 session-3-검사.md)
+
+1. 빈 시간 추천(FR-604)이 지금 GPS로 장소를 묻는다. 서버 경유면 카카오로 간다. '위치를 서버에 올리지 않는다' 결정과 충돌한다(WP5)
+2. 시나리오 채우기가 서버에 카카오 키가 있으면 카카오 장소를 써서 시연 수치(14·11·3)가 깨질 수 있다
+3. iOS 백그라운드 기록 중에도 동기화 폴링·재계산이 돈다(WP2)
+4. 자동차 OSRM 계수 1.3은 가정이다(카카오 실측으로 보정)
+5. 기기 진행의 이동 중 ETA는 아직 직선 비율이다(시뮬레이터만 길 기준)
+6. 앱 `.env`에 `EXPO_PUBLIC_API_URL`과 `EXPO_PUBLIC_KAKAO_REST_KEY`가 함께 있을 때 빌드 점검이 없다
+7. 카카오 일시 실패가 묶음 중간에 나면 그 묶음 전체가 대체로 간다(드묾)
+
+### 사람이 해야 할 일
+
+1. **커밋.** CI 넣는 순서대로 PR을 나눈다: (1) GitFlow 문서·ci.yml check·foundation-ci 테스트 → (2) WP2 서버 DB → (3) db 잡·foundation-ci-db. 나머지는 기능별 `feature/dh/...`
+2. **GitHub 설정.** main→develop 동기화 PR(`--merge`), 기본 브랜치 develop, ruleset(처음 필수 검사 check만), 태그 ruleset
+3. **루트 README.md**는 동기화 뒤 `git show origin/main:README.md`를 바탕으로 고친다(지금 작업 트리는 develop 한 줄짜리)
+4. **구글 키 제한.** 웹사이트(`localhost:8090`, 배포 주소), API(Maps JavaScript API만), 하루 사용량 상한
+5. **카카오 REST 키.** `test/server/.env`의 `KAKAO_REST_KEY`에 직접 넣는다(채팅 금지)
+6. **Docker Desktop 켜기 → `npm run db:up`.** 실 PostgreSQL 확인
+7. **실기기·개발 빌드.** `npx expo run:android`/`run:ios`(app.config.js 바뀜). 백그라운드 기록, 시뮬레이터 점이 길을 따라가는지
+8. **남은 결정.** 백그라운드 기록 4건, CI 브랜치 이름·릴리스 방식(yj 승인), 서버 인증, 방장 위임, 게스트 승격, 초대 승인, 예산·정산, 사진 저장, 경로 API 상용 업체
+
+### 이어서 시작할 프롬프트 (2026-10-10~)
+
+```
+/Users/handong-gwan/IT희망학교 여행계획 프로젝트/HANDOFF.md 의 "지금 상태"를 읽고 이어서 작업해줘.
+기능 6개와 세션 3 재검사는 끝났다. docs/handoff/2026-10-10/session-3-검사.md 의 "남은 문제 (코드)"부터 처리한다.
+test/.env, test/server/.env 는 읽지 않는다. 커밋은 내가 요청할 때만 한다.
+```
+
+---
+
+# 이전 인계 기록 (2026-09-19 ~ 09-29)
 
 ## 앱 이름
 
@@ -40,6 +153,8 @@
 핑크 캔버스를 고칠 때는 로컬 `여행계획-앱-핑크-캔버스.html`을 수정한 뒤 같은 URL로 재게시한다. 다른 대화에서 고칠 때는 Artifact 도구에 위 URL을 `url`로 넘겨야 같은 아티팩트가 갱신된다. URL 없이 게시하면 별도 아티팩트가 새로 생긴다.
 
 ## 확정된 결정 (되돌리지 말 것)
+
+서비스 지역 줄의 지도 SDK(카카오맵 또는 네이버지도)는 2026-10 결정으로 바뀌었다: 바탕 지도는 구글, 경로 선은 OpenStreetMap. 위 "메인 책임 결정 (2026-10)"이 우선한다.
 
 | 항목 | 결정 |
 | --- | --- |
@@ -171,7 +286,7 @@ Workflow({
 - `wf_b3cab983-42e` — 스크립트만 남아 있음:
   `~/.claude/projects/-Users-handong-gwan-IT--------------/6161f0d7-d0df-45fe-b698-e6fffc883ebd/workflows/scripts/pink-app-screens-v2-wf_b3cab983-42e.js`
 
-## 다음에 할 일 (우선순위 순)
+## (옛) 다음에 할 일 — 2026-09-19 기준. 1·2번은 위 "메인 책임 결정 (2026-10)"으로 대체됐다
 
 1. **경로 API 제공자와 월 호출 예산 결정.** 1단계 착수 전 필수. 08번 화면이 "경로 조회 12건"을 노출하므로, 하루 3일 × 멤버 편집 횟수로 호출량을 먼저 추산할 것
 2. 지도 SDK 1종 선정(카카오맵 / 네이버지도)과 중립 인터페이스 설계. 11·13번 화면이 이것에 묶인다
@@ -179,7 +294,7 @@ Workflow({
 4. 남은 미결정 6건 정리
 5. `~/Downloads/여행계획 추천 앱 기능명세서 v0.1.md` 중복 파일 삭제
 
-## 이어서 시작할 프롬프트
+## (옛) 이어서 시작할 프롬프트 — 2026-09-19 목업 단계용, 지금은 쓰지 않는다
 
 아래를 그대로 붙여 넣으면 된다.
 

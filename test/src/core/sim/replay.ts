@@ -1,4 +1,4 @@
-import type { NotifyPrefs } from '../../types';
+import type { LatLng, NotifyPrefs } from '../../types';
 import { DEFAULT_NOTIFY_PREFS } from '../constants';
 import type { LiveDay } from '../live/context';
 import { acknowledgeDelay, ingestSample, initialEngine, type EngineEffect, type EngineState } from '../live/engine';
@@ -9,6 +9,7 @@ import type { SimEvent, SimTrack } from './track';
  * 테스트(같은 시드면 같은 이벤트 열, 10/18 종합 재생 순서)와 19 화면의 '이 프리셋에서 일어날 일' 미리보기가 쓴다.
  * 앱의 실제 재생은 스토어가 같은 엔진을 시계에 맞춰 조금씩 부른다. 결과는 같다.
  * 조정안은 만들지 않는다. 지연 효과가 나오면 거절한 것으로 치고(acknowledge) 계속 간다.
+ * legShapes는 궤적을 만든 구간 모양이다. 스토어처럼 엔진도 같은 모양으로 남은 시간을 잰다(EngineCtx.legShapes).
  */
 
 export type TimelineEntry =
@@ -44,12 +45,14 @@ export function replayTrack(input: {
   day: LiveDay;
   tripId?: string;
   prefs?: NotifyPrefs;
+  legShapes?: Record<string, LatLng[]>;
 }): ReplayResult {
   const ctx = {
     tripId: input.tripId ?? input.day.tripId,
     day: input.day,
     prefs: input.prefs ?? DEFAULT_NOTIFY_PREFS,
     source: 'sim' as const,
+    ...(input.legShapes ? { legShapes: input.legShapes } : {}),
   };
   let st = initialEngine();
   const effects: EngineEffect[] = [];

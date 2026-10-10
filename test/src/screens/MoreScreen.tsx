@@ -3,7 +3,7 @@ import { Pressable, View } from 'react-native';
 
 import { isSeeding, resetDemo, seedScenario, type SeedProgress } from '../demo/tools';
 import type { ScenarioStage } from '../demo/scenarioSteps';
-import { NOTIFY_ROWS, PERMISSION_LABEL, retentionText, sessionSummary } from '../features/account/settings';
+import { NOTIFY_ROWS, PERMISSION_LABEL, providerNotice, retentionText, sessionSummary } from '../features/account/settings';
 import { SCREEN_META, type RootStackParamList, type TabScreenProps } from '../navigation/routes';
 import { useNow } from '../services/clock';
 import { describeServices } from '../services/registry';
@@ -117,7 +117,6 @@ export default function MoreScreen({ navigation }: TabScreenProps<'More'>) {
 
   const summary = sessionSummary(session, now);
   const services = describeServices();
-  const kakaoOn = services.some((s) => s.key === 'places' && s.mode === 'real');
 
   const open = (route: TripRoute) => {
     if (!trip) return;
@@ -269,11 +268,7 @@ export default function MoreScreen({ navigation }: TabScreenProps<'More'>) {
           </Card>
           <Notice
             icon="map"
-            text={
-              kakaoOn
-                ? '장소와 자동차 경로를 카카오에서 받아와요. 키가 앱에 들어가니 시연에만 쓰세요.'
-                : '카카오 키가 없어서 장소와 경로를 예시 데이터로 계산해요. 키를 넣으면 카카오로 바뀌어요.'
-            }
+            text={providerNotice(services)}
           />
         </Col>
 
