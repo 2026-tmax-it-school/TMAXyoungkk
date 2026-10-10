@@ -18,10 +18,7 @@ permissions:
 jobs:
   review:
     if: >-
-      (github.event_name == 'workflow_run' ||
-       (github.event_name == 'workflow_dispatch' &&
-        github.ref == format('refs/heads/{0}', github.event.repository.default_branch) &&
-        github.run_attempt == 1)) &&
+      github.event_name == 'workflow_run' &&
       vars.OPENAI_REVIEW_ENABLED == 'true' &&
       vars.OPENAI_REVIEW_BUDGET_CONFIRMED == 'true'
     runs-on: ubuntu-latest
@@ -35,7 +32,7 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           repository: 2026-tmax-it-school/TMAXyoungkk
-          ref: eddedf34e92e1e142bb95d1cb5d3e0d8e4852f39
+          ref: dfd7d49ab5c4bb666679289914eb713c28c11868
           persist-credentials: false
           sparse-checkout: .github/scripts
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
