@@ -127,7 +127,7 @@ export default function ScheduleEditScreen({ navigation, route }: RootScreenProp
       <Screen>
         <Header back={back} title="일정 편집" size="sm" />
         <Body>
-          <Empty title="편집할 시간표가 없습니다" text="루트를 계산한 뒤 다시 열어 주세요." />
+          <Empty title="편집할 시간표가 없습니다" />
         </Body>
       </Screen>
     );
@@ -365,12 +365,7 @@ export default function ScheduleEditScreen({ navigation, route }: RootScreenProp
             onPress={() => apply('자동 순서', [{ type: 'schedule/reorder', date, spotIds: [] }])}
           />
         ) : null}
-        <Row gap={SP.m}>
-          <Col grow>
-            <Txt v="mtTight">고정하거나 날짜를 지정한 곳은 빠지지 않습니다. 바꾼 값은 바로 저장되고 다시 계산합니다.</Txt>
-          </Col>
-          <Txt v="mtTight">{`${day.items.length}곳 · ${humanMin(end - day.startMin)}`}</Txt>
-        </Row>
+        <Txt v="mtTight">{`${day.items.length}곳 · ${humanMin(end - day.startMin)}`}</Txt>
       </Body>
       <Foot>
         <Btn title="시간표로" onPress={() => navigation.navigate('Main', { screen: 'Schedule', params: { date } })} />

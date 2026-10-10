@@ -55,7 +55,6 @@ export default function CandidatesScreen({ navigation }: TabScreenProps<'Candida
         <Body>
           <Empty
             title="여행방이 없습니다"
-            text="여행방을 만들면 채팅과 검색으로 담은 후보가 여기에 쌓입니다."
             action={{ label: '여행방 만들기', onPress: () => navigation.navigate('CreateTrip') }}
           />
         </Body>
@@ -104,9 +103,6 @@ export default function CandidatesScreen({ navigation }: TabScreenProps<'Candida
           </Row>
         </Card>
       ))}
-      {view.excluded.length > 0 ? (
-        <Txt v="mtTight">되돌리면 고정 스팟이 되고, 수용량을 넘는 만큼 다른 후보가 이유와 함께 빠집니다.</Txt>
-      ) : null}
     </Col>
   );
 
@@ -147,7 +143,7 @@ export default function CandidatesScreen({ navigation }: TabScreenProps<'Candida
             ]}
           />
         ))}
-        {planning?.busy ? <Notice icon="clock" text="루트를 다시 계산하는 중입니다. 확정·제외가 곧 바뀝니다." /> : null}
+        {planning?.busy ? <Notice icon="clock" text="루트를 다시 계산하는 중입니다." /> : null}
         {!online ? (
           <Notice icon="alert" text="오프라인이라 재계산을 멈췄습니다. 연결되면 다시 계산합니다." />
         ) : dirty && !planning?.busy ? (
@@ -159,7 +155,6 @@ export default function CandidatesScreen({ navigation }: TabScreenProps<'Candida
             {view.total === 0 ? (
               <Empty
                 title="아직 후보가 없습니다"
-                text="채팅에서 가고 싶은 곳을 말하면 자동으로 담깁니다. 아래 '장소 직접 담기'로 검색해서 담을 수도 있습니다."
                 action={{ label: '채팅 열기', onPress: () => navigation.navigate('Chat', { tripId: trip.id }) }}
               />
             ) : null}
@@ -210,9 +205,8 @@ export default function CandidatesScreen({ navigation }: TabScreenProps<'Candida
                 onPress={() => navigation.navigate('Recommend', { tripId: trip.id })}
               >
                 <Row gap={SP.m} style={{ paddingVertical: SP.s }}>
-                  <Col grow gap={2}>
+                  <Col grow>
                     <Txt v="btnSm">성향 태그로 추천 받기</Txt>
-                    <Txt v="mtTight">기존 후보와 겹치지 않는 3~5곳</Txt>
                   </Col>
                   <ScopeBadge phase="2차" />
                   <Icon name="right" size={16} color="muted" stroke={2.2} />
@@ -221,7 +215,7 @@ export default function CandidatesScreen({ navigation }: TabScreenProps<'Candida
             </Col>
           </>
         ) : view.excluded.length === 0 ? (
-          <Empty title="제외 스팟이 없습니다" text="하루 수용량 안에 모든 후보가 들어갔습니다." />
+          <Empty title="제외 스팟이 없습니다" />
         ) : (
           excludedList
         )}

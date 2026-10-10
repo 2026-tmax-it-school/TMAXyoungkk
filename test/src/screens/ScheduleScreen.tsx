@@ -41,7 +41,6 @@ export default function ScheduleScreen({ navigation, route }: TabScreenProps<'Sc
         <Body>
           <Empty
             title="여행방이 없습니다"
-            text="여행방을 만들면 날짜별 시간표가 나옵니다."
             action={{ label: '여행방 만들기', onPress: () => navigation.navigate('CreateTrip') }}
           />
         </Body>
@@ -91,11 +90,7 @@ export default function ScheduleScreen({ navigation, route }: TabScreenProps<'Sc
         {!online || dirty ? (
           <Notice
             icon="alert"
-            text={
-              online
-                ? '오프라인 중에 바뀐 편집이 있어 다시 계산합니다.'
-                : '오프라인입니다. 저장된 시간표를 보여 드리고, 연결되면 다시 계산합니다.'
-            }
+            text={online ? '오프라인 중에 바뀐 편집이 있어 다시 계산합니다.' : '오프라인입니다. 연결되면 다시 계산합니다.'}
           />
         ) : null}
         {busy ? (
@@ -109,13 +104,11 @@ export default function ScheduleScreen({ navigation, route }: TabScreenProps<'Sc
         {!plan ? (
           <Empty
             title="아직 계산한 시간표가 없습니다"
-            text="후보를 담으면 자동으로 날짜를 나누고 순서와 시각을 정합니다. 확정 버튼은 없습니다."
             action={{ label: '루트 계산', onPress: openPlanning }}
           />
         ) : !day || day.items.length === 0 ? (
           <Empty
             title="이날은 확정 스팟이 없습니다"
-            text="후보가 다른 날로 배치됐거나 아직 후보가 적습니다."
             action={{ label: '후보 보기', onPress: () => navigation.navigate('Candidates') }}
           />
         ) : (
@@ -151,7 +144,7 @@ export default function ScheduleScreen({ navigation, route }: TabScreenProps<'Sc
                 </Txt>
               ))}
               {plan.excluded.length > 0 ? (
-                <Txt v="mtTight">{`제외 스팟 ${plan.excluded.length}곳은 후보 탭에서 이유와 함께 볼 수 있습니다.`}</Txt>
+                <Txt v="mtTight">{`제외 스팟 ${plan.excluded.length}곳`}</Txt>
               ) : null}
             </Col>
           </>

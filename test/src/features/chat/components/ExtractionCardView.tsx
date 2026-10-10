@@ -59,7 +59,6 @@ export function ExtractionCardView({
           <Row key={p.phrase} gap={SP.m}>
             <Col grow gap={2}>
               <Txt v="btnSm">{p.phrase}</Txt>
-              <Txt v="mtTight">{`같은 이름이 ${p.options.length}곳이라 담기 전에 골라 주세요`}</Txt>
             </Col>
             <Btn title="고르기" size="sm" variant="ghost" onPress={() => onPick(p.phrase)} />
           </Row>

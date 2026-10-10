@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import { ScrollView, View } from 'react-native';
+import { ScrollView } from 'react-native';
 
 import type { DayBase, Place } from '../../../types';
 import type { Region } from '../../../core/ports';
 import { getServices } from '../../../services/registry';
-import { Btn, Col, Field, Notice, SP, Sheet, Txt } from '../../../ui';
+import { Btn, Field, Notice, SP, Sheet } from '../../../ui';
 import { PickRow } from './PickerBox';
 
 /**
@@ -60,7 +60,6 @@ export function BaseSearchSheet({
         value={query}
         onChangeText={setQuery}
         placeholder="예: 라한셀렉트 경주, 경주역"
-        help="국내 지역 안에서만 찾습니다"
         // 키보드 엔터·검색 키로도 찾는다(2026-10-09 웹 실행: 엔터를 눌러도 아무 일이 없었다)
         onSubmitEditing={() => {
           if (!busy) void search();
@@ -69,7 +68,7 @@ export function BaseSearchSheet({
       <Btn title={busy ? '찾는 중' : '검색'} size="sm" variant="ghost" icon="search" disabled={busy || !query.trim() || !region} onPress={search} />
       {error ? <Notice tone="warn" icon="alert" text={error} /> : null}
       {results && results.length === 0 ? (
-        <Notice icon="search" title="결과 없음" text={`'${query.trim()}'에 맞는 장소가 없습니다. 기점 없이 만들면 그날 첫 스팟이 기점이 됩니다.`} />
+        <Notice icon="search" title="결과 없음" text={`'${query.trim()}'에 맞는 장소가 없습니다.`} />
       ) : null}
       {results && results.length > 0 ? (
         <ScrollView style={{ maxHeight: 260 }} contentContainerStyle={{ gap: SP.m }}>
@@ -87,20 +86,15 @@ export function BaseSearchSheet({
           ))}
         </ScrollView>
       ) : null}
-      <View style={{ gap: SP.s }}>
-        <Btn
-          title={noneLabel}
-          variant="quiet"
-          size="sm"
-          onPress={() => {
-            onPick(null);
-            close();
-          }}
-        />
-        <Col>
-          <Txt v="mtTight">기점은 나중에 여행방 설정에서 날짜별로 바꿀 수 있습니다.</Txt>
-        </Col>
-      </View>
+      <Btn
+        title={noneLabel}
+        variant="quiet"
+        size="sm"
+        onPress={() => {
+          onPick(null);
+          close();
+        }}
+      />
     </Sheet>
   );
 }

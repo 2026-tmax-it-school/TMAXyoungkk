@@ -171,3 +171,21 @@ export function homeMenu(trip: Trip | undefined, plan?: Plan): HomeMenuCell[] {
   ];
   return cells;
 }
+
+/* ---------- 추천 여행지 줄(2026-10-10 리디자인) ---------- */
+
+export interface HomePick {
+  id: string;
+  name: string;
+  blurb: string;
+}
+
+/** 홈 '추천 여행지' 가로 줄. 누르면 여행방 만들기로 간다(지역은 거기서 고른다) */
+export const HOME_PICKS: HomePick[] = [
+  { id: 'busan', name: '부산', blurb: '바다와 야경이 있는 항구 도시' },
+  { id: 'gyeongju', name: '경주', blurb: '천년 고도를 걷는 산책' },
+  { id: 'jeju', name: '제주', blurb: '자연을 만끽하기 좋은 섬' },
+  { id: 'gangneung', name: '강릉', blurb: '커피 거리와 동해 바다' },
+  { id: 'jeonju', name: '전주', blurb: '한옥마을과 골목 맛집' },
+  { id: 'yeosu', name: '여수', blurb: '밤바다가 예쁜 남해 도시' },
+];

@@ -3,7 +3,7 @@ import { View } from 'react-native';
 
 import type { SimPresetId } from '../../../types';
 import type { JumpTarget } from '../../../core/live/session';
-import { presetById, SIM_PRESETS, SIM_SPEEDS } from '../../../core/sim/presets';
+import { SIM_PRESETS, SIM_SPEEDS } from '../../../core/sim/presets';
 import { dayShort, kstDate, kstHHMM } from '../../../core/util';
 import type { SimSpeed } from '../../../store/live';
 import { Btn, Card, Col, ProgressBar, Row, Seg, SP, Tag, Txt } from '../../../ui';
@@ -37,7 +37,6 @@ export function SimControls({
   onPause: () => void;
   onJump: (t: number) => void;
 }) {
-  const p = presetById(preset);
   const progress =
     window && virtualNow != null && window.endAt > window.startAt
       ? Math.min(1, Math.max(0, (virtualNow - window.startAt) / (window.endAt - window.startAt)))
@@ -71,7 +70,6 @@ export function SimControls({
               <Tag key={x.id} label={x.label} on={x.id === preset} onPress={() => onPreset(x.id)} />
             ))}
           </Row>
-          <Txt v="mt">{p.text}</Txt>
         </Col>
         {jumps.length > 0 ? (
           <Col gap={SP.s}>

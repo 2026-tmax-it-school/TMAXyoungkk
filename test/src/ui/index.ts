@@ -17,6 +17,7 @@ export { Avatar, AvatarStack } from './Avatar';
 export { ConfirmSheet, Sheet } from './Sheet';
 export { ProgressBar } from './ProgressBar';
 export { TabBar } from './TabBar';
+export { CoverTile, coverFor, FeatureTile, ListRow, ProfileHero, QuickAction, SectionTitle } from './Discover';
 export { Toast } from './Toast';
 export { GOOGLE_MAP_STYLE, type GoogleMapStyleRule } from './mapStyle';
 export { mapPinSvg, type PinColor, type PinSpec, type PinSvg } from './mapPinSvg';

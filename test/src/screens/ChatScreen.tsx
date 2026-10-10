@@ -89,7 +89,7 @@ export default function ChatScreen({ navigation, route }: RootScreenProps<'Chat'
       <Screen>
         <ChatHeader back={back} title="그룹 채팅" sub="여행방 없음" />
         <Body>
-          <Empty title="여행방을 찾을 수 없습니다" text="홈에서 여행방을 다시 골라 주세요" />
+          <Empty title="여행방을 찾을 수 없습니다" />
         </Body>
       </Screen>
     );
@@ -151,12 +151,7 @@ export default function ChatScreen({ navigation, route }: RootScreenProps<'Chat'
         contentContainerStyle={{ paddingHorizontal: SP.gutter, paddingBottom: SP.l, gap: SP.l, flexGrow: 1, justifyContent: 'flex-end' }}
         onContentSizeChange={() => scroll.current?.scrollToEnd({ animated: false })}
       >
-        {messages.length === 0 ? (
-          <Empty
-            title="아직 대화가 없습니다"
-            text="가고 싶은 곳을 말하면 장소를 찾아 후보에 담습니다. 헤더 메뉴에서 시나리오 대화를 재생할 수도 있습니다."
-          />
-        ) : null}
+        {messages.length === 0 ? <Empty title="아직 대화가 없습니다" /> : null}
         {messages.map((m, i) => {
           const mine = m.memberId === me;
           const showTime = m.status === 'pending' || i === messages.length - 1;
@@ -244,7 +239,6 @@ export default function ChatScreen({ navigation, route }: RootScreenProps<'Chat'
           onPress={() => play(SCENARIO_LATE_JOIN.afterLine + 1, SCENARIO_CHAT.length)}
           disabled={playing || !group}
         />
-        <Txt v="mtTight">아직 합류하지 않은 멤버의 줄은 건너뜁니다. 뒤쪽 줄은 지우가 초대 수락으로 합류한 뒤 재생합니다.</Txt>
         <Btn
           title="후보 보기"
           variant="quiet"
@@ -275,7 +269,6 @@ export default function ChatScreen({ navigation, route }: RootScreenProps<'Chat'
       <PlacePickSheet
         visible={!!pick && options.length > 0}
         title={`${josa(pick?.phrase ?? '', '은/는')} 어느 곳인가요?`}
-        sub="같은 이름이 여러 곳이라 자동으로 담지 않았습니다. 고르면 말한 사람의 제안으로 후보에 담깁니다."
         options={options}
         onPick={(o) => {
           if (pick) resolvePick(tripId, pick.messageId, pick.phrase, { place: o.place, existingSpotId: o.existingSpotId });

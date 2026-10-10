@@ -3,7 +3,7 @@ import { View } from 'react-native';
 
 import { activeSpots } from '../core/spotUtil';
 import { dateRange } from '../core/util';
-import { monthDay, planMeta, planningProgress, planningStepRows, SELECTION_RULES, type StepRow } from '../features/schedule/view';
+import { monthDay, planMeta, planningProgress, planningStepRows, type StepRow } from '../features/schedule/view';
 import type { RootScreenProps } from '../navigation/routes';
 import { usePlan, usePlanning, useTripDoc, useTrips } from '../store/trips';
 import { Body, Btn, Card, Col, Empty, Foot, Header, Icon, lineC, Notice, ProgressBar, Row, Screen, SP, Txt } from '../ui';
@@ -77,7 +77,7 @@ export default function PlanningScreen({ navigation, route }: RootScreenProps<'P
       <Screen>
         <Header back={back} title="루트 계산" />
         <Body>
-          <Empty title="여행방을 찾을 수 없습니다" text="삭제됐거나 이 여행방에서 나갔습니다." />
+          <Empty title="여행방을 찾을 수 없습니다" />
         </Body>
       </Screen>
     );
@@ -93,15 +93,11 @@ export default function PlanningScreen({ navigation, route }: RootScreenProps<'P
       <Header eyebrow={eyebrow} title={title} />
       <Body scroll>
         {!online ? (
-          <Notice
-            icon="alert"
-            title="오프라인"
-            text="연결이 끊겨 경로를 조회하지 않습니다. 저장된 계획으로 시간표를 볼 수 있고, 연결되면 밀린 편집을 반영해 다시 계산합니다."
-          />
+          <Notice icon="alert" title="오프라인" text="연결되면 다시 계산합니다." />
         ) : null}
         {planning?.error ? <Notice icon="alert" tone="warn" title="계산하지 못했습니다" text={planning.error} /> : null}
         {candidates === 0 ? (
-          <Notice icon="pin" text="후보가 없어 배치할 곳이 없습니다. 채팅이나 검색으로 후보를 담으면 다시 계산합니다." />
+          <Notice icon="pin" text="후보가 없어 배치할 곳이 없습니다." />
         ) : null}
         <Card>
           <Col gap={SP.l}>
@@ -124,18 +120,6 @@ export default function PlanningScreen({ navigation, route }: RootScreenProps<'P
           </Col>
         </Card>
         <ProgressBar value={progress} />
-        <Card variant="tinted">
-          <Col gap={SP.s}>
-            <Txt v="eyebrow" c="accentStrong">
-              지금 적용중인 규칙
-            </Txt>
-            {SELECTION_RULES.map((rule) => (
-              <Txt key={rule} v="note" c="accentStrong">
-                {rule}
-              </Txt>
-            ))}
-          </Col>
-        </Card>
         <Col gap={SP.s}>
           {planMeta(trip, plan, date).map((line) => (
             <Txt key={line} v="mtTight">

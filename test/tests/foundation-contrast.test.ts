@@ -5,7 +5,7 @@ import { DAY_COLORS, mapC, NON_TEXT_PAIRS, surfaceC, TEXT_ON_SURFACE_PAIRS, text
 
 /**
  * 대비(WCAG 2.x 상대 휘도). 본문 4.5:1, 24px 이상 3:1. 날짜별 선 색은 지도 바탕 위 3:1 이상.
- * 2026-09-29 화이트·모노톤 개편 토큰 기준. 새 조합은 TEXT_ON_SURFACE_PAIRS에 넣으면 여기서 자동으로 검사된다.
+ * 2026-09-29 화이트 개편 토큰 기준(주색은 2026-10-10 리디자인에서 진한 연두로 바뀜). 새 조합은 TEXT_ON_SURFACE_PAIRS에 넣으면 여기서 자동으로 검사된다.
  */
 
 function channel(v: number): number {
@@ -72,10 +72,13 @@ test('상태를 알리는 비텍스트 요소(진행 막대 채움·트랙)는 3
   );
 });
 
-test('앱 바탕과 카드는 흰색이고, 주색은 무채색 잉크다', () => {
+test('앱 바탕과 카드는 흰색이고, 주색은 진한 연두 하나다(2026-10-10 리디자인)', () => {
   assert.equal(surfaceC.bg, '#FFFFFF');
   assert.equal(surfaceC.card, '#FFFFFF');
   const hex = surfaceC.accent.replace('#', '');
   const [r, g, b] = [0, 2, 4].map((i) => parseInt(hex.slice(i, i + 2), 16));
-  assert.ok(r === g && g === b, '주색은 채도 0');
+  assert.ok(g > r && g > b, '주색은 초록 계열(연두)');
+  // 주색 면·선·글자가 같은 계열이고 흰 바탕 위 4.5:1 이상이다
+  assert.ok(contrast(textC.accent, surfaceC.bg) >= 4.5);
+  assert.ok(contrast(textC.onAccent, surfaceC.accent) >= 4.5);
 });

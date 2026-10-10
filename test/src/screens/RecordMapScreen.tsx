@@ -43,8 +43,8 @@ import {
 const NO_POINTS: TrackPoint[] = [];
 
 const NOTICE_TEXT: Record<RecordNoticeKind, string> = {
-  expired: '위치 이력은 여행 종료 후 90일이 지나 지웠습니다. 도착 지점만 순서대로 이어 보여줍니다.',
-  denied: '이 날은 위치 권한이 없어 도착 지점만 순서대로 이었습니다. 그 사이 이동은 점선으로 남깁니다.',
+  expired: '위치 이력은 여행 종료 후 90일이 지나 지웠습니다.',
+  denied: '이 날은 위치 권한이 없어 도착 지점만 순서대로 이었습니다.',
   deniedNone: '이 날은 위치 권한이 없었고 도착 기록도 없어 이동 기록이 없습니다.',
   noLog: '이 날은 위치 기록이 없어 도착 지점만 순서대로 이었습니다.',
   sim: '여행 시뮬레이터로 만든 기록 · 실제 위치 아님',
@@ -79,7 +79,7 @@ export default function RecordMapScreen({ navigation, route }: RootScreenProps<'
       <Screen>
         <Header back={back} title="기록 지도" />
         <Body>
-          <Empty title="여행방을 찾을 수 없습니다" text="홈에서 여행방을 다시 골라 주세요" />
+          <Empty title="여행방을 찾을 수 없습니다" />
         </Body>
       </Screen>
     );
@@ -97,10 +97,7 @@ export default function RecordMapScreen({ navigation, route }: RootScreenProps<'
         ))}
 
         {model.empty ? (
-          <Empty
-            title={`${dayLabel(date)} 기록이 없습니다`}
-            text="루트를 계산하거나 여행 진행에서 도착을 기록하면 이 날의 경로가 그려집니다"
-          />
+          <Empty title={`${dayLabel(date)} 기록이 없습니다`} />
         ) : (
           <>
             <MapCanvas
@@ -141,10 +138,6 @@ export default function RecordMapScreen({ navigation, route }: RootScreenProps<'
             <Btn title="일기" icon="book" variant="quiet" size="sm" onPress={() => navigation.navigate('Diary', { tripId, date })} />
           </View>
         </Row>
-        <Txt v="mtTight">
-          앱을 켜 둔 동안 30초 간격으로 기록합니다. 여행 진행에서 백그라운드 동선 기록을 켜면 앱이 화면 밖에 있어도 기록합니다. 기록이
-          끊긴 구간은 채워 넣지 않고 점선으로 둡니다. 그룹원 위치 공유는 꺼져 있습니다(미결정).
-        </Txt>
       </Body>
     </Screen>
   );

@@ -1,9 +1,12 @@
 /**
- * 디자인 토큰(2026-09-29 개편: 화이트·모노톤). 화면·feature·components 파일에는 hex·fontWeight·
+ * 디자인 토큰(2026-10-10 리디자인: 숙박·여행 앱 레퍼런스). 화면·feature·components 파일에는 hex·fontWeight·
  * fontFamily·그림자·16 초과 라운드를 적지 않고 전부 여기와 src/ui 컴포넌트를 거친다.
  *
- * 방향: 흰 바탕, 거의 검정인 잉크 하나를 주색(accent)으로 쓴다. 유채색은 상태에만 쓴다(확정 초록, 경고 앰버,
- * 지도 날짜 선과 현재 위치). 그라디언트·유채 틴트 면·장식용 색은 두지 않는다.
+ * 방향: 흰 바탕에 잉크 글자, 주색(accent)은 진한 연두 하나다(주 버튼, 켜진 탭, 선택 표시).
+ * 흰 글씨 대비 4.5:1을 지키려고 밝은 연두 대신 #457F1A(면)·#3F7A16(글자)을 쓴다.
+ * 카드는 테두리 대신 큰 라운드와 옅은 그림자로 띄운다(E.card, src/ui 안에서만).
+ * 빠른 메뉴 원형 아이콘은 연한 연두 면(accentTint), 여행지 표지는 cover 색 면 위 흰 글씨다.
+ * 유채색 상태 표시(확정 초록, 경고 앰버, 지도 날짜 선과 현재 위치)는 그대로 둔다. 그라디언트는 두지 않는다.
  *
  * 글자색(textC)과 면색(surfaceC)을 나눠 타입으로 섞이지 않게 한다.
  * faint #A1A1AA는 본문 대비 4.5 미만이라 글자에 쓰지 않는다. 아이콘과 비활성 테두리에만 쓴다.
@@ -16,8 +19,8 @@
 export const textC = {
   ink: '#111111',
   muted: '#666666',
-  /** 주색 글자(링크형 버튼, 선택된 탭). 잉크와 같은 값이지만 역할이 달라 키를 나눈다 */
-  accent: '#111111',
+  /** 주색 글자(링크형 버튼, 선택된 탭). 진한 연두 */
+  accent: '#3F7A16',
   /** 연회색 면(soft) 위 강조 글자(칩, 달력 사이 날짜) */
   accentStrong: '#111111',
   warn: '#8A5A00',
@@ -26,6 +29,10 @@ export const textC = {
   onAccent: '#FFFFFF',
   /** 잉크 면 위 흰 글씨(지도 클러스터 숫자 등) */
   onInk: '#FFFFFF',
+  /** 연한 연두 면(accentTint) 위 글자·아이콘 */
+  accentDeep: '#3A7014',
+  /** 프로필 원(lavender) 위 머리글자 */
+  lavenderInk: '#4338CA',
 } as const;
 export type TextColorKey = keyof typeof textC;
 
@@ -46,17 +53,28 @@ export const surfaceC = {
   grabber: '#D9D9D9',
   /** 05 내 말풍선(잉크 면) 안 장소 강조 면(흰 글씨 11.4:1) */
   onAccentHl: '#3A3A3A',
-  accent: '#111111',
+  accent: '#457F1A',
   amber: '#8A5A00',
   moss: '#2F6B4F',
   ink: '#111111',
+  /** 빠른 메뉴 원, 빈 상태 원(연한 연두) */
+  accentTint: '#F0F7E6',
+  /** 프로필 머리 원 */
+  lavender: '#EEECFD',
+  /** 여행지 표지 면(흰 글씨 5.7:1 이상). 지역마다 하나씩 돌려 쓴다 */
+  coverSea: '#1F5F8B',
+  coverTeal: '#2C6E7F',
+  coverPlum: '#7A3E6E',
+  coverForest: '#2F6B4F',
+  coverClay: '#9A4A1E',
+  coverNavy: '#3B4A8C',
 } as const;
 export type SurfaceColorKey = keyof typeof surfaceC;
 
 /** 선색. line은 1px 구분선, faint는 비활성 테두리 전용 */
 export const lineC = {
   line: '#EBEBEB',
-  accent: '#111111',
+  accent: '#457F1A',
   faint: '#A1A1AA',
 } as const;
 export type LineColorKey = keyof typeof lineC;
@@ -109,7 +127,15 @@ export interface TypeStyle {
 export const T = {
   // 01 워드마크. 고딕 ExtraBold, 자간 -.03em
   display: { fontFamily: F.title, fontSize: 44, lineHeight: 48, letterSpacing: -1.3 },
-  ttl: { fontFamily: F.title, fontSize: 24, lineHeight: 31, letterSpacing: -0.6 },
+  /** 탭 첫 화면 큰 제목(프로필·메시지처럼) */
+  hero: { fontFamily: F.title, fontSize: 32, lineHeight: 40, letterSpacing: -0.9 },
+  ttl: { fontFamily: F.title, fontSize: 26, lineHeight: 33, letterSpacing: -0.7 },
+  /** 홈 구역 제목('추천 여행지') */
+  section: { fontFamily: F.title, fontSize: 20, lineHeight: 27, letterSpacing: -0.5 },
+  /** 표지 위 큰 지역 이름 */
+  cover: { fontFamily: F.title, fontSize: 22, lineHeight: 28, letterSpacing: -0.5 },
+  /** 프로필 원 안 머리글자 */
+  monogram: { fontFamily: F.title, fontSize: 40, lineHeight: 48 },
   ttlSm: { fontFamily: F.title, fontSize: 19, lineHeight: 26, letterSpacing: -0.4 },
   nm: { fontFamily: F.bold, fontSize: 15, lineHeight: 21, letterSpacing: -0.15 },
   nmLg: { fontFamily: F.bold, fontSize: 17, lineHeight: 24, letterSpacing: -0.17 },
@@ -129,7 +155,9 @@ export const T = {
   btnSm: { fontFamily: F.bold, fontSize: 13, lineHeight: 18 },
   label: { fontFamily: F.semibold, fontSize: 12, lineHeight: 16 },
   seg: { fontFamily: F.semibold, fontSize: 14, lineHeight: 20 },
-  tab: { fontFamily: F.semibold, fontSize: 10.5, lineHeight: 14, letterSpacing: -0.1 },
+  tab: { fontFamily: F.semibold, fontSize: 11, lineHeight: 14, letterSpacing: -0.1 },
+  /** 빠른 메뉴 원 아래 라벨, 검색 알약 글자 */
+  quick: { fontFamily: F.semibold, fontSize: 13, lineHeight: 18 },
   time: { fontFamily: F.bold, fontSize: 12, lineHeight: 17 },
   /** 목업 01 태그라인(SemiBold 15, 행간 1.7) */
   tagline: { fontFamily: F.semibold, fontSize: 15, lineHeight: 25.5 },
@@ -161,7 +189,7 @@ export const TABULAR_NUMS: readonly TypeKey[] = ['time'];
 /** 간격 */
 export const SP = {
   gutter: 22,
-  cardPad: 14,
+  cardPad: 16,
   xs: 4,
   s: 6,
   m: 8,
@@ -175,16 +203,18 @@ export const SP = {
   hl: 3,
 } as const;
 
-/** 라운드. 16 이하, 칩만 999 */
+/** 라운드. 화면 코드에는 숫자를 적지 않고 이 토큰만 쓴다. 칩·알약·원형 버튼은 999 */
 export const R = {
-  card: 12,
-  btn: 11,
-  btnSm: 9,
-  field: 10,
-  iconBtn: 9,
-  sheet: 16,
-  bubble: 12,
-  photo: 12,
+  card: 20,
+  btn: 12,
+  btnSm: 10,
+  field: 12,
+  iconBtn: 999,
+  sheet: 24,
+  bubble: 16,
+  photo: 16,
+  /** 여행지 표지 타일 */
+  cover: 18,
   /** 말풍선 장소 강조(목업 .hl 3) */
   hl: 3,
   chip: 999,
@@ -192,11 +222,15 @@ export const R = {
 
 /** 크기 */
 export const H = {
-  btn: 50,
-  btnSm: 38,
-  field: 46,
-  iconBtn: 34,
-  tabBar: 74,
+  btn: 52,
+  btnSm: 40,
+  field: 48,
+  iconBtn: 40,
+  tabBar: 66,
+  /** 빠른 메뉴 원 */
+  quick: 60,
+  /** 프로필 머리 원 */
+  monogram: 104,
   avatar: 27,
   avatarBorder: 2,
   avatarOverlap: -8,
@@ -211,11 +245,13 @@ export const H = {
 } as const;
 
 /**
- * 그림자는 이것 하나. 지도 위에 뜬 요소에만 쓴다. 카드·시트·토스트에는 없다.
- * 디자인 규칙 테스트가 참조 위치를 FLOAT_ALLOWED(지도 컴포넌트와 지도 화면)로 제한한다.
+ * 그림자. float는 지도 위에 뜬 요소 전용이고, 디자인 규칙 테스트가 참조 위치를 FLOAT_ALLOWED로 제한한다.
+ * card·pill은 src/ui 컴포넌트(Card, 카테고리 칩, 표지)만 쓴다. 화면 코드는 그림자를 직접 쓰지 않는다.
  */
 export const E = {
   float: { boxShadow: '0 4px 14px rgba(17,17,17,0.08)' },
+  card: { boxShadow: '0 6px 20px rgba(0,0,0,0.08)' },
+  pill: { boxShadow: '0 3px 12px rgba(0,0,0,0.10)' },
 } as const;
 
 /**
@@ -251,6 +287,15 @@ export const TEXT_ON_SURFACE_PAIRS: { text: TextColorKey; surface: SurfaceColorK
   { text: 'onAccent', surface: 'moss' },
   { text: 'onAccent', surface: 'onAccentHl' },
   { text: 'onInk', surface: 'ink' },
+  { text: 'accentDeep', surface: 'accentTint' },
+  { text: 'accent', surface: 'accentTint' },
+  { text: 'lavenderInk', surface: 'lavender' },
+  { text: 'onAccent', surface: 'coverSea' },
+  { text: 'onAccent', surface: 'coverTeal' },
+  { text: 'onAccent', surface: 'coverPlum' },
+  { text: 'onAccent', surface: 'coverForest' },
+  { text: 'onAccent', surface: 'coverClay' },
+  { text: 'onAccent', surface: 'coverNavy' },
 ];
 
 /**
@@ -258,5 +303,5 @@ export const TEXT_ON_SURFACE_PAIRS: { text: TextColorKey; surface: SurfaceColorK
  * foundation-contrast가 검사한다.
  */
 export const NON_TEXT_PAIRS: { name: string; fg: SurfaceColorKey; bg: SurfaceColorKey }[] = [
-  { name: '진행 막대: 잉크 채움 / 트랙', fg: 'accent', bg: 'track' },
+  { name: '진행 막대: 연두 채움 / 트랙', fg: 'accent', bg: 'track' },
 ];

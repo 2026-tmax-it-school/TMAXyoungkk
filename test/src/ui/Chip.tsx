@@ -6,8 +6,8 @@ import { Txt } from './Txt';
 import { lineC, R, surfaceC, type TextColorKey } from './tokens';
 
 /**
- * tint: 연핑크 면·roseDeep, line: 흰 면·경계선·muted(범위 배지, 예시 데이터),
- * card: 흰 면·경계선·roseDeep 굵은 글자(목업 11 지도 위 날짜 칩), warn: 앰버, ok: 초록
+ * tint: 연핑크 면·accentDeep, line: 흰 면·경계선·muted(범위 배지, 예시 데이터),
+ * card: 흰 면·경계선·accentDeep 굵은 글자(목업 11 지도 위 날짜 칩), warn: 앰버, ok: 초록
  */
 export type ChipTone = 'soft' | 'line' | 'card' | 'warn' | 'ok';
 

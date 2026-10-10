@@ -9,7 +9,7 @@ export type BtnVariant = 'primary' | 'ghost' | 'quiet' | 'off';
 
 const LOOK: Record<BtnVariant, { box: ViewStyle; text: TextColorKey; icon: IconColorKey }> = {
   primary: { box: { backgroundColor: surfaceC.accent }, text: 'onAccent', icon: 'onAccent' },
-  ghost: { box: { backgroundColor: surfaceC.card, borderWidth: 1, borderColor: lineC.accent }, text: 'accent', icon: 'accent' },
+  ghost: { box: { backgroundColor: surfaceC.card, borderWidth: 1.5, borderColor: surfaceC.ink }, text: 'ink', icon: 'ink' },
   quiet: { box: { backgroundColor: surfaceC.card, borderWidth: 1, borderColor: lineC.line }, text: 'muted', icon: 'muted' },
   // off 글씨는 목업의 #8D7B82가 대비 미달이라 muted로 올렸다.
   off: { box: { backgroundColor: surfaceC.off }, text: 'muted', icon: 'faint' },
@@ -63,12 +63,12 @@ export function Btn({
   );
 }
 
-/** 34 × 34 아이콘 버튼. label은 스크린리더용이다. disabled면 누를 수 없고 아이콘이 faint가 된다. */
+/** 40 × 40 원형 아이콘 버튼(연회색 면). label은 스크린리더용이다. disabled면 누를 수 없고 아이콘이 faint가 된다. */
 export function IconBtn({
   icon,
   onPress,
   label,
-  color = 'muted',
+  color = 'ink',
   disabled,
 }: {
   icon: IconName;
@@ -88,15 +88,13 @@ export function IconBtn({
         width: H.iconBtn,
         height: H.iconBtn,
         borderRadius: R.iconBtn,
-        borderWidth: 1,
-        borderColor: lineC.line,
-        backgroundColor: surfaceC.card,
+        backgroundColor: surfaceC.soft,
         alignItems: 'center',
         justifyContent: 'center',
       }}
     >
       <View>
-        <Icon name={icon} size={18} color={disabled ? 'faint' : color} />
+        <Icon name={icon} size={19} color={disabled ? 'faint' : color} />
       </View>
     </Pressable>
   );

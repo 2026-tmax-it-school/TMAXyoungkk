@@ -69,7 +69,7 @@ export default function TripSettingsScreen({ navigation, route }: RootScreenProp
         <Header back={back} title="여행방 설정" />
         <Body>
           <Card>
-            <Empty title="여행방을 찾을 수 없습니다" text="삭제됐거나 이 여행방에서 나갔습니다." action={{ label: '홈으로', onPress: home }} />
+            <Empty title="여행방을 찾을 수 없습니다" action={{ label: '홈으로', onPress: home }} />
           </Card>
         </Body>
       </Screen>
@@ -108,24 +108,13 @@ export default function TripSettingsScreen({ navigation, route }: RootScreenProp
         <Card>
           {host && !locked ? (
             <Col gap={SP.m}>
-              <Field
-                label="여행방 이름"
-                value={title ?? trip.title}
-                onChangeText={setTitle}
-                maxLength={TITLE_MAX}
-                help="이름과 기본 활동시간은 방장만 바꿀 수 있어요"
-              />
+              <Field label="여행방 이름" value={title ?? trip.title} onChangeText={setTitle} maxLength={TITLE_MAX} />
               {title != null && title.trim() !== trip.title ? (
                 <Btn title="이름 저장" size="sm" variant="ghost" disabled={!title.trim()} onPress={saveTitle} />
               ) : null}
             </Col>
           ) : (
-            <Col gap={4}>
-              <Txt v="nm">{trip.title}</Txt>
-              <Txt v="mtTight">
-                {locked ? '여행이 끝나 이름과 활동시간을 바꿀 수 없습니다' : '이름과 기본 활동시간은 방장만 바꿀 수 있어요'}
-              </Txt>
-            </Col>
+            <Txt v="nm">{trip.title}</Txt>
           )}
           <Col gap={SP.s}>
             <Txt v="label">기본 활동시간</Txt>
@@ -139,16 +128,10 @@ export default function TripSettingsScreen({ navigation, route }: RootScreenProp
           </Col>
           <Row gap={SP.s}>
             <Chip text={tripMode(trip) === 'group' ? '그룹방' : '개인 모드'} tone="line" />
-            <Txt v="mtTight" style={{ flex: 1 }}>
-              {tripMode(trip) === 'group'
-                ? '멤버가 2명 이상이라 채팅과 대화 인식이 켜져 있습니다.'
-                : '혼자인 동안에는 채팅과 대화 인식이 꺼져 있습니다. 멤버가 합류하면 그룹방이 됩니다.'}
-            </Txt>
           </Row>
         </Card>
 
         <Txt v="eyebrow">날짜별 기점</Txt>
-        <Txt v="mtTight">기점은 모든 멤버가 바꿀 수 있습니다. 그날의 출발과 도착을 기점으로 계산합니다.</Txt>
         {dates.map((date, i) => (
           <DayCard
             key={date}
@@ -175,14 +158,9 @@ export default function TripSettingsScreen({ navigation, route }: RootScreenProp
 
         <Txt v="eyebrow">데이터 보존</Txt>
         <Card>
-          <Row top gap={SP.m}>
+          <Row gap={SP.m}>
             <Icon name="clock" size={17} />
-            <Col grow gap={4}>
-              <Txt v="nm">{`${dateWithYear(retentionUntil(trip))}까지 보관`}</Txt>
-              <Txt v="mtTight">
-                여행 종료 다음 날부터 1년 동안 보관하고, 기한이 지나면 이 기기에서 지웁니다. 위치 기록은 종료 후 90일까지입니다.
-              </Txt>
-            </Col>
+            <Txt v="nm" style={{ flex: 1 }}>{`${dateWithYear(retentionUntil(trip))}까지 보관`}</Txt>
           </Row>
         </Card>
 
@@ -278,19 +256,14 @@ function DayCard({
       <Choice<BaseMode> options={options} value={mode} onChange={pickMode} />
       {mode === 'set' ? (
         <PickerBox label="기점" icon="pin" value={own?.name} placeholder="장소 찾기" onPress={onPickBase} disabled={locked} />
-      ) : mode === 'inherit' ? (
-        <Txt v="mtTight">
-          {inherited ? `직전 날짜와 같음 · ${inherited.name}` : '직전 날짜와 같음 · 직전 날짜에도 기점이 없어 그날 첫 스팟이 기점이 됩니다.'}
-        </Txt>
-      ) : (
-        <Txt v="mtTight">기점 없음(첫 스팟 사용) · 그날 첫 스팟에서 출발합니다.</Txt>
-      )}
+      ) : mode === 'inherit' && inherited ? (
+        <Txt v="mtTight">{`직전 날짜와 같음 · ${inherited.name}`}</Txt>
+      ) : null}
       <Row>
-        <View style={{ flex: 1, gap: 2 }}>
+        <View style={{ flex: 1 }}>
           <Txt v="mt" c="ink">
             복귀 없음
           </Txt>
-          <Txt v="mtTight">마지막 스팟에서 하루를 끝냅니다(마지막 날 역으로 가는 경우 등)</Txt>
         </View>
         {locked ? (
           <Chip text={day?.noReturn ? '켜짐' : '꺼짐'} tone="line" />

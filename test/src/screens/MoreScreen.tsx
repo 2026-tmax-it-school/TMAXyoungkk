@@ -3,7 +3,7 @@ import { Pressable, View } from 'react-native';
 
 import { isSeeding, resetDemo, seedScenario, type SeedProgress } from '../demo/tools';
 import type { ScenarioStage } from '../demo/scenarioSteps';
-import { NOTIFY_ROWS, PERMISSION_LABEL, providerNotice, retentionText, sessionSummary } from '../features/account/settings';
+import { NOTIFY_ROWS, PERMISSION_LABEL, retentionText, sessionSummary } from '../features/account/settings';
 import { SCREEN_META, type RootStackParamList, type TabScreenProps } from '../navigation/routes';
 import { useNow } from '../services/clock';
 import { describeServices } from '../services/registry';
@@ -19,14 +19,17 @@ import {
   Choice,
   Col,
   ConfirmSheet,
-  Header,
+  FeatureTile,
   Icon,
+  ListRow,
   lineC,
+  ProfileHero,
   Notice,
   ProgressBar,
   Row,
   Screen,
   ScopeBadge,
+  SP,
   Txt,
   type IconName,
 } from '../ui';
@@ -87,15 +90,17 @@ const SEED_ROWS: { key: ScenarioStage; label: string }[][] = [
 ];
 
 /**
- * 18 더보기 · 설정 · 시연 도구(WP1 소유).
+ * 18 더보기 · 설정 · 시연 도구(WP1 소유). 탭 라벨은 '프로필'이다.
+ * - 2026-10-10 리디자인: 큰 '프로필' 제목, 프로필 머리 카드(연보라 원), 두 칸 타일(여행 진행·멤버),
+ *   그 아래 꺾쇠 목록 줄(ListRow). 설정·시연 도구 카드는 그 뒤에 그대로 둔다.
  * - 진입점: 멤버, 여행방 설정, 여행 진행(19), 추천(23), 기록(20~22), 계정(15~17).
  * - 설정: 알림 유형별 끄기(notifyPrefs), 위치 권한 상태와 기기 위치 사용, 그룹원 위치 공유 '꺼짐 · 미결정',
  *   제공자 상태(describeServices, 카카오 키 유무와 '국내 SDK 선정 미결정'), 세션 만료와 토큰 끝 4자리,
  *   데이터 보존 안내(종료 후 1년).
  * - 시연 도구: 시연 리셋(확인 1회), 시나리오 채우기(단계 선택, 진행 표시), 네트워크 끊기 토글, 화면 목록.
  *   채우는 동안에는 리셋을 막는다. 다시 채우면 이전 시나리오 방은 지우고 새로 만든다.
- * - 켜고 끄는 줄(ToggleRow)은 줄 전체가 스위치다(접근성 이름 = 항목 이름). 켜짐은 로즈 채움이 아니라
- *   tint 칩으로 보인다. 로즈 채움은 주 버튼에만 쓴다.
+ * - 켜고 끄는 줄(ToggleRow)은 줄 전체가 스위치다(접근성 이름 = 항목 이름). 켜짐은 주색 채움이 아니라
+ *   tint 칩으로 보인다. 주색 채움은 주 버튼에만 쓴다.
  */
 export default function MoreScreen({ navigation }: TabScreenProps<'More'>) {
   const trip = useCurrentTrip();
@@ -154,51 +159,65 @@ export default function MoreScreen({ navigation }: TabScreenProps<'More'>) {
 
   return (
     <Screen>
-      <Header eyebrow={trip ? `지금 여행방 · ${trip.title}` : '여행방을 고르지 않음'} title="더보기" />
       <Body scroll>
+        <Txt v="hero" style={{ paddingTop: SP.l }}>
+          프로필
+        </Txt>
+
+        <ProfileHero
+          name={session?.nickname ?? ''}
+          sub={session?.kind === 'account' ? '계정' : '게스트'}
+          onPress={() => navigation.navigate('Profile')}
+        />
+
+        <Row gap={SP.xl}>
+          <FeatureTile
+            icon="play"
+            label="여행 진행"
+            badge="2차"
+            disabled={!trip}
+            onPress={() => open('LiveTrip')}
+          />
+          <FeatureTile icon="users" label="멤버 초대" disabled={!trip} onPress={() => open('Members')} />
+        </Row>
+
         {/* 여행방 */}
-        <Col gap={8}>
-          <Txt v="label">여행방</Txt>
-          {trip ? null : <Txt v="mt">홈에서 여행방을 고르면 아래 화면이 열립니다.</Txt>}
-          <Card>
-            {TRIP_ENTRIES.map((e, i) => (
-              <EntryRow
-                key={e.route}
-                first={i === 0}
-                icon={e.icon}
-                label={e.label}
-                scope={e.scope}
-                disabled={!trip}
-                onPress={() => open(e.route)}
-              />
-            ))}
-          </Card>
+        <Col>
+          <Txt v="section" style={{ marginTop: SP.l }}>
+            {trip ? trip.title : '여행방'}
+          </Txt>
+          {TRIP_ENTRIES.filter((e) => e.route !== 'Members' && e.route !== 'LiveTrip').map((e, i) => (
+            <ListRow
+              key={e.route}
+              first={i === 0}
+              icon={e.icon}
+              label={e.label}
+              right={e.scope ? <ScopeBadge phase={e.scope} /> : undefined}
+              disabled={!trip}
+              onPress={() => open(e.route)}
+            />
+          ))}
         </Col>
 
         {/* 계정 */}
-        <Col gap={8}>
-          <Txt v="label">계정</Txt>
-          <Card>
-            <Row top>
-              <Icon name="user" size={18} color="muted" />
-              <Col gap={3} grow>
-                <Txt v="nm">{summary.title}</Txt>
-                {summary.lines.map((l) => (
-                  <Txt key={l} v="mtTight">
-                    {l}
-                  </Txt>
-                ))}
-              </Col>
-              {summary.soon ? <Chip text="곧 만료" tone="warn" /> : null}
-            </Row>
-            <EntryRow icon="user" label="프로필 · 성향 태그" scope="2차" onPress={() => navigation.navigate('Profile')} />
-            {session?.kind === 'guest' ? (
-              <>
-                <EntryRow icon="mail" label="회원가입으로 승격" scope="2차" onPress={() => navigation.navigate('Signup')} />
-                <EntryRow icon="pinlock" label="다른 계정으로 로그인" scope="2차" onPress={() => navigation.navigate('Login')} />
-              </>
-            ) : null}
-          </Card>
+        <Col>
+          <Txt v="section" style={{ marginTop: SP.l }}>
+            계정
+          </Txt>
+          <ListRow
+            first
+            icon="user"
+            label="프로필 보기"
+            sub={[summary.title, ...summary.lines].join(' · ')}
+            right={summary.soon ? <Chip text="곧 만료" tone="warn" /> : <ScopeBadge phase="2차" />}
+            onPress={() => navigation.navigate('Profile')}
+          />
+          {session?.kind === 'guest' ? (
+            <>
+              <ListRow icon="mail" label="회원가입으로 승격" right={<ScopeBadge phase="2차" />} onPress={() => navigation.navigate('Signup')} />
+              <ListRow icon="pinlock" label="다른 계정으로 로그인" right={<ScopeBadge phase="2차" />} onPress={() => navigation.navigate('Login')} />
+            </>
+          ) : null}
         </Col>
 
         {/* 알림 */}
@@ -217,7 +236,6 @@ export default function MoreScreen({ navigation }: TabScreenProps<'More'>) {
               />
             ))}
           </Card>
-          <Txt v="mtTight">같은 알림은 30분에 한 번만 띄웁니다. 앱 안 알림이며 푸시는 없습니다.</Txt>
         </Col>
 
         {/* 위치 */}
@@ -239,10 +257,9 @@ export default function MoreScreen({ navigation }: TabScreenProps<'More'>) {
               onChange={setUseDeviceLocation}
             />
             <Row style={{ borderTopWidth: 1, borderTopColor: lineC.line, paddingTop: 10 }}>
-              <Col gap={2} grow>
-                <Txt v="nm">그룹원 위치 공유</Txt>
-                <Txt v="mtTight">아직 없어요. 어디까지 공유할지 정하는 중이에요.</Txt>
-              </Col>
+              <Txt v="nm" style={{ flex: 1 }}>
+                그룹원 위치 공유
+              </Txt>
               <Chip text="준비 중" tone="line" />
             </Row>
           </Card>
@@ -266,19 +283,12 @@ export default function MoreScreen({ navigation }: TabScreenProps<'More'>) {
               </Row>
             ))}
           </Card>
-          <Notice
-            icon="map"
-            text={providerNotice(services)}
-          />
         </Col>
 
         {/* 데이터 보존 */}
         <Col gap={8}>
           <Txt v="label">데이터 보존</Txt>
           <Notice icon="clock" text={retentionText(trip)} />
-          <Txt v="mtTight">
-            계정을 탈퇴하면 내가 올린 사진은 지우고 채팅·제안은 '탈퇴한 멤버'로 남깁니다. 프로필에서 할 수 있습니다.
-          </Txt>
         </Col>
 
         {/* 시연 도구 */}
@@ -286,10 +296,6 @@ export default function MoreScreen({ navigation }: TabScreenProps<'More'>) {
           <Txt v="label">시연 도구</Txt>
           <Card>
             <Txt v="nm">시나리오 채우기</Txt>
-            <Txt v="mtTight">
-              경주 2박 3일(민지·준호·수아·지우). 실제 날짜와 상관없이 10/1 10:00 가상 시각에서 돕니다. 다시 채우면 이전
-              시나리오 여행방은 지우고 새로 만듭니다.
-            </Txt>
             <Col gap={8}>
               {SEED_ROWS.map((row) => (
                 <Choice<ScenarioStage> key={row[0].key} options={row} value={stage} onChange={setStage} />
@@ -429,14 +435,11 @@ function ToggleRow({
       onPress={() => onChange(!on)}
       style={first ? undefined : { borderTopWidth: 1, borderTopColor: lineC.line, paddingTop: 10 }}
     >
-      <Row top>
-        <Col gap={2} grow>
-          <Row gap={6}>
-            <Txt v="nm">{label}</Txt>
-            {scope ? <ScopeBadge phase={scope} /> : null}
-          </Row>
-          {sub ? <Txt v="mtTight">{sub}</Txt> : null}
-        </Col>
+      <Row>
+        <Row gap={6} style={{ flex: 1 }}>
+          <Txt v="nm">{label}</Txt>
+          {scope ? <ScopeBadge phase={scope} /> : null}
+        </Row>
         <View importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
           <Chip text={on ? onLabel : offLabel} tone={on ? 'soft' : 'line'} icon={on ? 'check' : undefined} />
         </View>

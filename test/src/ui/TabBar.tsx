@@ -7,7 +7,7 @@ import { Txt } from './Txt';
 import { H, lineC, surfaceC } from './tokens';
 
 /**
- * 하단 탭(홈/후보/시간표/지도/더보기 고정). 켜진 탭은 로즈, 꺼진 탭 라벨은 muted, 아이콘은 faint.
+ * 하단 탭(홈/후보/시간표/지도/프로필 고정). 켜진 탭은 아이콘·라벨 모두 주색(연두), 꺼진 탭은 muted.
  * 네비게이터와 무관한 표시 컴포넌트다. src/navigation이 react-navigation 탭에 연결한다.
  */
 export function TabBar<K extends string>({
@@ -25,8 +25,8 @@ export function TabBar<K extends string>({
       accessibilityRole="tablist"
       style={{
         height: H.tabBar + insets.bottom,
-        paddingTop: 9,
-        paddingHorizontal: 20,
+        paddingTop: 10,
+        paddingHorizontal: 12,
         paddingBottom: insets.bottom,
         flexDirection: 'row',
         justifyContent: 'space-between',
@@ -45,9 +45,9 @@ export function TabBar<K extends string>({
             accessibilityState={{ selected: on }}
             accessibilityLabel={it.label}
             onPress={() => onPress(it.key)}
-            style={{ width: 60, alignItems: 'center', gap: 4 }}
+            style={{ flex: 1, alignItems: 'center', gap: 5 }}
           >
-            <Icon name={it.icon} size={22} color={on ? 'accent' : 'faint'} />
+            <Icon name={it.icon} size={25} color={on ? 'accent' : 'muted'} stroke={on ? 2 : 1.6} />
             <Txt v="tab" c={on ? 'accent' : 'muted'}>
               {it.label}
             </Txt>
