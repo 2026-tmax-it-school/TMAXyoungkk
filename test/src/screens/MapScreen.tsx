@@ -101,7 +101,15 @@ export default function MapScreen({ navigation, route }: TabScreenProps<'Map'>) 
 
   return (
     <Screen>
-      <View style={{ flex: 1, minHeight: 0 }} onLayout={(e) => setMapH(Math.round(e.nativeEvent.layout.height))}>
+      {/* 다른 화면이 위에 쌓여 이 화면이 숨으면(웹 display:none) 높이가 0으로 온다. 그때 지도를 내리지 않아야
+          돌아왔을 때 지도를 새로 불러오지 않는다(구글 지도는 띄울 때마다 사용량이 든다) */}
+      <View
+        style={{ flex: 1, minHeight: 0 }}
+        onLayout={(e) => {
+          const h = Math.round(e.nativeEvent.layout.height);
+          if (h > 0) setMapH(h);
+        }}
+      >
         {mapH > 0 ? (
           <MapCanvas
             flat
@@ -157,6 +165,7 @@ export default function MapScreen({ navigation, route }: TabScreenProps<'Map'>) 
           </Txt>
           {sub ? <Txt v="mt">{sub}</Txt> : null}
         </Row>
+        {map.osmRoads ? <Txt v="mtTight">선은 실제 길 모양 · 길 데이터 OpenStreetMap 기여자</Txt> : null}
 
         <ScrollView style={{ flexGrow: 0 }} contentContainerStyle={{ gap: SP.m }} scrollEnabled={expanded}>
           {day ? (

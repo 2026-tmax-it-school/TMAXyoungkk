@@ -61,6 +61,10 @@ export function BaseSearchSheet({
         onChangeText={setQuery}
         placeholder="예: 라한셀렉트 경주, 경주역"
         help="국내 지역 안에서만 찾습니다"
+        // 키보드 엔터·검색 키로도 찾는다(2026-10-09 웹 실행: 엔터를 눌러도 아무 일이 없었다)
+        onSubmitEditing={() => {
+          if (!busy) void search();
+        }}
       />
       <Btn title={busy ? '찾는 중' : '검색'} size="sm" variant="ghost" icon="search" disabled={busy || !query.trim() || !region} onPress={search} />
       {error ? <Notice tone="warn" icon="alert" text={error} /> : null}

@@ -410,7 +410,11 @@ export async function buildPlan(trip: Trip, deps: PlanDeps): Promise<Plan> {
   const ask1 = withinBudget(book, [...baseAsk, ...clusterAsk], firstLimit);
   const matrixTotal = ask1.length;
   emit({ key: 'matrix', label: '이동시간 조회', done: 0, total: matrixTotal });
-  await book.ensure(ask1);
+  // 구간이 하나 끝날 때마다 진행 숫자를 올린다(이미 아는 구간은 처음부터 끝난 것으로 센다).
+  // 전에는 다 끝나야 숫자가 채워져, 경로 서버가 느리면 계산 화면이 내내 '0구간'으로 멈춰 보였다(2026-10-09 웹 실행).
+  await book.ensure(ask1, (done, total) =>
+    emit({ key: 'matrix', label: '이동시간 조회', done: matrixTotal - total + done, total: matrixTotal }),
+  );
   emit({ key: 'matrix', label: '이동시간 조회', done: matrixTotal, total: matrixTotal }, true);
 
   // 3. 배치(실제 구간을 조회하고 값이 바뀌면 다시)

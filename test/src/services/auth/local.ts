@@ -35,6 +35,7 @@ import { base64url, makeIdGen } from '../../core/util';
  *   (자동 병합 없음). 미인증 계정에는 연결하지 않는다.
  * - 연결(17 '카카오 연결'): linkToAccountId로 받은 지금 계정에만 연결한다. 다른 계정으로 바뀌지 않는다.
  * - 게스트 승격 가입은 게스트 userId 하나에 계정 하나만 둔다. 같은 userId의 미인증 가입은 새 가입으로 대체한다.
+ * - 비밀번호 재설정: 재설정 메일(kind 'reset', 30분)도 모의 메일함에 온다. 없는 이메일이어도 같은 응답이다(계정 서버와 같다).
  * 저장은 KV 색인 키 하나('index')에 전체 blob을 둔다(계약 A11, KV에 키 나열이 없다).
  * 모든 메서드는 한 줄로 차례 실행한다(serial). load → await → save 사이에 다른 호출이 끼면 뒤에 저장한 쪽이
  * 앞의 변경(잠금 실패 수, 기기 시도 기록)을 덮어써 5회 잠금·20회 제한을 우회할 수 있어서다.
@@ -83,6 +84,9 @@ const PROVIDER_LABEL = { kakao: '카카오', google: '구글' } as const;
 const PROVIDER_SUBJECT = { kakao: '카카오가', google: '구글이' } as const;
 /** 연동 확인 토큰 유효 시간(모의). 동의 화면을 벗어나면 다시 시작한다 */
 const LINK_TTL_MS = 10 * 60 * 1000;
+/** 비밀번호 재설정 메일 유효 시간(계정 서버 RESET_TTL_MS와 같다) */
+const RESET_TTL_MS = 30 * 60 * 1000;
+const isReset = (m: MockMail) => m.kind === 'reset';
 
 function emptyDb(): AuthDb {
   return { accounts: [], mails: [], links: [], attempts: {}, socialAccounts: {} };
@@ -136,7 +140,7 @@ export function createLocalAuth(opts: { clock: Clock; rng: Rng; hasher: Hasher; 
 
   function sendVerification(db: AuthDb, email: string): MockMail {
     const now = clock.now();
-    for (const m of db.mails) if (m.to === email) m.invalidated = true;
+    for (const m of db.mails) if (m.to === email && !isReset(m)) m.invalidated = true;
     const mail: MockMail = {
       id: ids.next('mail'),
       to: email,
@@ -144,6 +148,7 @@ export function createLocalAuth(opts: { clock: Clock; rng: Rng; hasher: Hasher; 
       token: token(),
       sentAt: now,
       invalidated: false,
+      kind: 'verify',
     };
     db.mails.push(mail);
     return mail;
@@ -238,7 +243,7 @@ export function createLocalAuth(opts: { clock: Clock; rng: Rng; hasher: Hasher; 
 
     async verifyEmail(t): Promise<AuthResult> {
       const db = await load();
-      const mail = db.mails.find((m) => m.token === t);
+      const mail = db.mails.find((m) => m.token === t && !isReset(m));
       if (!mail || mail.invalidated) {
         return { ok: false, code: 'invalidToken', detail: '쓸 수 없는 인증 링크입니다. 가장 최근 메일로 인증해 주세요' };
       }
@@ -439,6 +444,46 @@ export function createLocalAuth(opts: { clock: Clock; rng: Rng; hasher: Hasher; 
       return { ok: true };
     },
 
+    async requestPasswordReset(email): Promise<AuthAck> {
+      const db = await load();
+      const e = normalizeEmail(email);
+      if (!isEmailLike(e)) return { ok: false, code: 'badCredentials', detail: '이메일 형식이 아닙니다' };
+      const acc = db.accounts.find((a) => a.email === e);
+      if (acc?.salt && acc.hash) {
+        for (const m of db.mails) if (m.to === e && isReset(m)) m.invalidated = true;
+        db.mails.push({
+          id: ids.next('mail'),
+          to: e,
+          subject: 'Young Trip 비밀번호 재설정',
+          token: token(),
+          sentAt: clock.now(),
+          invalidated: false,
+          kind: 'reset',
+        });
+        await save(db);
+      }
+      return { ok: true };
+    },
+
+    async confirmPasswordReset({ token: t, password }) {
+      const violations = passwordViolations(password);
+      if (violations.length > 0) return { ok: false, code: 'weakPassword', detail: '비밀번호 규칙을 지켜 주세요', violations };
+      const db = await load();
+      const now = clock.now();
+      const mail = db.mails.find((m) => m.token === t && isReset(m) && !m.invalidated && now - m.sentAt < RESET_TTL_MS);
+      const acc = mail ? db.accounts.find((a) => a.email === mail.to) : undefined;
+      if (!mail || !acc) {
+        return { ok: false, code: 'invalidToken', detail: '쓸 수 없는 재설정 링크입니다. 재설정 메일을 다시 받아 주세요' };
+      }
+      mail.invalidated = true;
+      acc.salt = token();
+      acc.hash = await hashOf(acc.salt, password);
+      acc.lock = { fails: 0 };
+      acc.verified = true;
+      await save(db);
+      return { ok: true };
+    },
+
     async outbox(): Promise<MockMail[]> {
       const db = await load();
       return [...db.mails].sort((a, b) => b.sentAt - a.sentAt);
@@ -450,6 +495,7 @@ export function createLocalAuth(opts: { clock: Clock; rng: Rng; hasher: Hasher; 
   };
 
   return {
+    id: 'local',
     signUp: (input) => serial(() => impl.signUp(input)),
     resendVerification: (email) => serial(() => impl.resendVerification(email)),
     verifyEmail: (t) => serial(() => impl.verifyEmail(t)),
@@ -462,5 +508,7 @@ export function createLocalAuth(opts: { clock: Clock; rng: Rng; hasher: Hasher; 
     deleteAccount: (accountId) => serial(() => impl.deleteAccount(accountId)),
     outbox: () => serial(() => impl.outbox()),
     reset: () => serial(() => impl.reset()),
+    requestPasswordReset: (email) => serial(() => impl.requestPasswordReset!(email)),
+    confirmPasswordReset: (input) => serial(() => impl.confirmPasswordReset!(input)),
   };
 }

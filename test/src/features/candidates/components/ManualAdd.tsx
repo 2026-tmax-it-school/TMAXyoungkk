@@ -107,6 +107,10 @@ export function ManualAdd({ trip }: { trip: Trip }) {
         }}
         placeholder="예: 불국사, 황남빵"
         maxLength={40}
+        // 키보드 엔터·검색 키로도 찾는다(검색 버튼과 같은 조건)
+        onSubmitEditing={() => {
+          if (!busy && query.trim().length >= 2) void search();
+        }}
       />
       <Row gap={SP.m}>
         <View style={{ flex: 1 }}>

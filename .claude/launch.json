@@ -4,8 +4,41 @@
     {
       "name": "yeojeong-web",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["--prefix", "test", "run", "web"],
+      "runtimeArgs": [
+        "--prefix",
+        "test",
+        "run",
+        "web"
+      ],
       "port": 8090
+    },
+    {
+      "name": "yeojeong-web-svg",
+      "runtimeExecutable": "env",
+      "runtimeArgs": [
+        "EXPO_PUBLIC_MAP_PROVIDER=svg",
+        "npm",
+        "--prefix",
+        "test",
+        "run",
+        "web"
+      ],
+      "port": 8090
+    },
+    {
+      "name": "young-trip-server",
+      "runtimeExecutable": "env",
+      "runtimeArgs": [
+        "DATABASE_URL=postgresql://youngtrip:youngtrip-dev@127.0.0.1:5432/youngtrip",
+        "PORT=8787",
+        "AUTH_DEV_OUTBOX=1",
+        "npm",
+        "--prefix",
+        "test",
+        "run",
+        "server"
+      ],
+      "port": 8787
     }
   ]
 }

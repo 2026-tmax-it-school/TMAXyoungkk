@@ -1,13 +1,26 @@
 name: CI
 
+# GitFlow: main(배포, 태그) · develop(통합) · feature/** · release/** · hotfix/**
+# PR은 feature → develop, release·hotfix → main 다음 develop 으로만 연다(CONTRIBUTING.md Branching model)
 on:
   pull_request:
     branches: [main, develop]
     types: [opened, synchronize, reopened, ready_for_review]
   push:
-    branches: [main]
+    branches: [main, develop, 'dh/**', 'yj/**']
+
+# CI에는 키를 넣지 않는다. 저장소 secret을 쓰지 않는다
+permissions:
+  contents: read
+
+# PR이 열린 feature 브랜치는 push 한 번에 push·pull_request 두 번 돈다. 같은 이벤트·같은 ref에서 새로 돌면 지나간 실행을 끊는다
+# main·develop push는 머지마다 결과가 남아야 한다. 그룹을 같이 쓰면 GitHub이 기다리던 실행을 취소하므로 커밋마다 따로 그룹을 준다
+concurrency:
+  group: ci-${{ github.event_name }}-${{ github.ref }}${{ (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop') && format('-{0}', github.sha) || '' }}
+  cancel-in-progress: true
 
 jobs:
+  # 잡 이름 check와 db는 main·develop 규칙의 필수 검사다. 이름을 바꾸거나 잡 name:을 달지 않는다
   check:
     runs-on: ubuntu-latest
     # 앱이 레포 루트에 있으면 이 줄을 지운다
@@ -40,3 +53,57 @@ jobs:
       - name: 웹 번들 폰트는 ttf 4개
         run: test "$(find /tmp/yt-export -name '*.ttf' | wc -l | tr -d ' ')" = "4"
 
+  # 서버 DB 테스트를 실 PostgreSQL로 한 번 더 돈다. 평소(npm test)에는 같은 SQL을 PGlite(WASM)로 돈다
+  db:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: test
+
+    services:
+      postgres:
+        image: postgres:17-alpine
+        # 이 잡 안에서만 쓰고 버리는 계정이다(키 아님)
+        env:
+          POSTGRES_USER: yt
+          POSTGRES_PASSWORD: yt
+          POSTGRES_DB: yt_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U yt -d yt_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+
+    env:
+      YT_TEST_DATABASE_URL: postgres://yt:yt@localhost:5432/yt_test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: test/package-lock.json
+
+      - name: 의존성 설치
+        run: npm ci
+
+      # 같은 DB를 함께 쓰므로 파일을 하나씩 돈다. 화면에는 spec, 아래 두 검사용 TAP은 파일로 남긴다
+      - name: 서버 DB 테스트(실 PostgreSQL)
+        run: node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./tests/setup/resolve-ts.mjs --test --test-concurrency=1 --test-reporter=spec --test-reporter-destination=stdout --test-reporter=tap --test-reporter-destination=/tmp/yt-db.tap "tests/wp2-*.test.ts"
+
+      # 실 DB 묶음(이름에 '실제 PostgreSQL') 안에서 건너뛴 묶음·테스트가 있거나, 실 DB 주소(YT_TEST_DATABASE_URL) 때문에 건너뛴 테스트가 있으면 실 PostgreSQL로 다 돌지 않은 것이다
+      # PGlite에서만 건너뛰는 테스트(실제 드라이버로만 도는 openPostgresStore)는 실 DB 묶음 밖이라 보지 않는다
+      # 요약의 skipped는 건너뛴 describe를 세지 않아 TAP을 본다. 묶음의 하위 줄은 '# Subtest:' 줄과 그 묶음의 ok 줄 사이에 더 깊게 들여 쓰인다
+      # TAP 파일이 비었거나 없어도 실패한다(빈 파일이면 awk는 걸리는 줄이 없어 지나가므로)
+      - name: 건너뛴 서버 DB 테스트가 없는지
+        run: if ! test -s /tmp/yt-db.tap || ! awk '{ n = match($0, /[^ ]/) } /^ *[#] Subtest/ { if (!d && index($0, "실제 PostgreSQL")) d = n; next } /^ *(not )?ok [0-9]+ - / { s = match($0, / [#] SKIP/); if (s && (d || index(substr($0, s), "YT_TEST_DATABASE_URL"))) { print; bad = 1 } if (n == d) d = 0 } END { exit bad }' /tmp/yt-db.tap; then echo "TAP이 없거나, 실 DB 묶음 안이나 실 DB 주소 때문에 건너뛴 테스트가 있다. 실 PostgreSQL로 다 돌지 않았다"; exit 1; fi
+
+      # 실 DB 테스트가 빠지면(주석만 남거나, 잡이 돌리지 않는 파일로 옮기거나, 이름이 바뀌면) 위 두 단계는 초록이다. 그래서 실행 결과를 본다
+      # 실 DB 묶음은 이름에 '실제 PostgreSQL'을 넣는다(tests/wp2-db.test.ts). TAP에 그 묶음이 SKIP 없이 통과한 줄이 있어야 한다
+      - name: 실 PostgreSQL 묶음이 통과했는지
+        run: grep -qE '^ *ok [0-9]+ - [^#]*실제 PostgreSQL[^#]*$' /tmp/yt-db.tap || { echo "TAP에 통과한 '실제 PostgreSQL' 묶음이 없다. 실 DB 테스트가 빠졌다"; exit 1; }

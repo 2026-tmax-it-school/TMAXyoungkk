@@ -9,8 +9,11 @@ import type { MapMarkerInput, MapPolylineInput } from './layout';
  * - 확정 스팟은 그날 방문 순번이 박힌 로즈 핀, 기점은 속 빈 링, 제외 스팟은 흰 핀('제외')이다.
  * - 선 색은 날짜 순서로 잉크, 청회색, 초록, 앰버(core/constants dayColor)다. '전체' 보기에서는 핀 면도 그날 선 색이다
  *   (날마다 순번이 1부터라 핀 색이 없으면 어느 날짜 핀인지 구별할 수 없다).
- * - 구간 모양은 routes.route()의 polyline을 쓰고, estimated이거나 모양이 없으면 직선으로 잇는다(FR-802 예외).
+ * - 구간 모양은 routes.route()의 polyline을 쓴다. 실제 길 모양(road)이면 시간이 추정이어도 그 모양이고,
+ *   그 밖에는 estimated이거나 모양이 없으면 직선으로 잇는다(FR-802 예외).
  *   지도의 route() 호출은 buildPlan의 routeCalls(08 수치)에 넣지 않는다(03 회의 C9).
+ * - 복귀 구간(마지막 스팟 → 기점)의 수단·추정은 계획의 DayPlan.returnLeg 값이다(구간 지정, 경로 없음 대체 수단, 직선 추정).
+ *   그래야 13 길찾기의 수단 칩·'추정' 칩과 선 모양(그 수단의 경로)이 계획과 맞는다. returnLeg가 없는 예전 계획은 마지막 도착 구간 수단이다.
  */
 
 export interface MapLeg {
@@ -70,7 +73,8 @@ export function dayLegs(day: DayPlan, coordOf: CoordOf, tripTransport: Transport
   });
   if (base && !day.noReturn && prev && prev.id !== 'base') {
     const last = day.items[day.items.length - 1];
-    const transport = last?.legTransport ?? tripTransport;
+    // 복귀 구간의 수단·추정은 계획의 복귀 구간 값이다(구간 지정·경로 없음 대체·직선 추정). 예전 계획처럼 없으면 마지막 도착 구간 수단
+    const transport = day.returnLeg?.transport ?? last?.legTransport ?? tripTransport;
     out.push({
       index: day.items.length,
       key: legGeometryKey(prev.coord, base.coord, transport),
@@ -81,17 +85,27 @@ export function dayLegs(day: DayPlan, coordOf: CoordOf, tripTransport: Transport
       from: prev.coord,
       to: base.coord,
       transport,
-      estimated: false,
+      estimated: day.returnLeg?.estimated ?? false,
       minutes: day.returnMin,
     });
   }
   return out;
 }
 
-/** 구간 모양. estimated이거나 route가 없으면 직선이다. */
+const sameSpot = (a: LatLng, b: LatLng) =>
+  a.latitude.toFixed(5) === b.latitude.toFixed(5) && a.longitude.toFixed(5) === b.longitude.toFixed(5);
+
+/**
+ * 구간 모양. 실제 길 모양(road)이면 시간이 추정이어도 그 모양을 쓴다. 그 밖에는 estimated이거나 route가 없으면 직선이다.
+ * 길 경로는 가까운 길 위에서 시작·끝나므로 핀과 떨어져 있으면 핀까지 짧게 잇는다.
+ */
 export function legShape(leg: MapLeg, geo: RouteLeg | null | undefined): LatLng[] {
-  if (leg.estimated || !geo || geo.estimated || geo.polyline.length < 2) return [leg.from, leg.to];
-  return geo.polyline;
+  if (!geo || geo.polyline.length < 2) return [leg.from, leg.to];
+  if (!geo.road && (leg.estimated || geo.estimated)) return [leg.from, leg.to];
+  const line = geo.polyline;
+  const out = sameSpot(line[0], leg.from) ? [...line] : [leg.from, ...line];
+  if (!sameSpot(out[out.length - 1], leg.to)) out.push(leg.to);
+  return out;
 }
 
 /** 하루 선 하나. 구간 모양을 이어 붙인다. */
@@ -227,6 +241,36 @@ export function legProgress(from: LatLng, to: LatLng, pos: LatLng): number {
   if (total <= 0) return 1;
   const left = haversineKm(pos, to);
   return Math.min(1, Math.max(0, 1 - left / total));
+}
+
+/**
+ * 길 모양을 따라 잰 구간 진행률(0~1). 지금 위치에서 가장 가까운 선 위 지점까지 온 거리 ÷ 선 전체 길이다.
+ * 짧은 구간이라 위도 한 점 기준 평면 근사로 잰다. 선이 두 점 미만이면 legProgress처럼 직선으로 잰다.
+ */
+export function polylineProgress(line: LatLng[], pos: LatLng): number {
+  if (line.length < 2) return line.length === 1 ? 1 : 0;
+  const kx = Math.cos((pos.latitude * Math.PI) / 180);
+  const xy = (c: LatLng) => ({ x: (c.longitude - pos.longitude) * kx, y: c.latitude - pos.latitude });
+  let total = 0;
+  let best = Infinity;
+  let bestAlong = 0;
+  for (let i = 0; i + 1 < line.length; i += 1) {
+    const a = xy(line[i]);
+    const b = xy(line[i + 1]);
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const len = Math.hypot(dx, dy);
+    // 지금 위치가 원점이다. 선분 위 가장 가까운 점까지의 비율
+    const t = len > 0 ? Math.min(1, Math.max(0, -(a.x * dx + a.y * dy) / (len * len))) : 0;
+    const d = Math.hypot(a.x + dx * t, a.y + dy * t);
+    if (d < best) {
+      best = d;
+      bestAlong = total + len * t;
+    }
+    total += len;
+  }
+  if (total <= 0) return 1;
+  return Math.min(1, Math.max(0, bestAlong / total));
 }
 
 /* ---------- 11 하단 시트 ---------- */

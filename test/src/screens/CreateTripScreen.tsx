@@ -46,7 +46,8 @@ import {
  * - 15일 이상이면 확인 창을 한 번 띄우고 확인하면 만든다.
  * - 기점은 선택 입력이다. 검색 0건이면 '결과 없음'을 알리고 기점 없이(base null) 만들 수 있다. 그날 첫 스팟이 기점이 된다.
  * - 대중교통은 2차 기능이다. 칸이 좁아(110px) 아이콘을 빼고 ScopeBadge는 '주 이동수단' 라벨 줄에 둔다.
- * 다음 버튼은 14 멤버 초대로 간다('2 / 3 단계'). 판정은 core/trip/create(wp2-trip 테스트).
+ * 다음 버튼은 14 멤버 초대로 간다. 단계 표시는 '1 / 2 단계'다(여행방 만들기 → 멤버 초대). 목업 04의 '2 / 3 단계'는
+ * 앞 단계가 있던 시안의 숫자라 첫 화면에서 2로 시작해 어색했다(2026-10-09 웹 실행). 판정은 core/trip/create(wp2-trip 테스트).
  */
 export default function CreateTripScreen({ navigation }: RootScreenProps<'CreateTrip'>) {
   const createTrip = useTrips((s) => s.createTrip);
@@ -98,7 +99,7 @@ export default function CreateTripScreen({ navigation }: RootScreenProps<'Create
       days: buildDays(range.start, range.end, base ?? null),
       hostNickname: session?.nickname || profileName || '나',
     });
-    navigation.replace('Members', { tripId });
+    navigation.replace('Members', { tripId, fromCreate: true });
   };
 
   const next = () => {
@@ -117,7 +118,7 @@ export default function CreateTripScreen({ navigation }: RootScreenProps<'Create
     <Screen>
       <Header
         back={navigation.canGoBack() ? navigation.goBack : undefined}
-        step="2 / 3 단계"
+        step="1 / 2 단계"
         title="여행방 만들기"
       />
       <Body scroll>

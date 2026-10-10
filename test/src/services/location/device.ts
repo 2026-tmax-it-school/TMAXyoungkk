@@ -13,7 +13,7 @@ import {
 } from '../../core/live/throttle';
 
 /**
- * expo-location 어댑터(WP5 소유). 전경 권한만 쓴다. 백그라운드 상시 추적은 범위 밖이다.
+ * expo-location 어댑터(WP5 소유). 전경 권한만 쓴다. 화면 밖 기록은 사용자가 켜는 옵션이고 background.ts가 맡는다.
  * - 웹 watchPosition은 간격을 보장하지 않고 coords.accuracy가 null일 수 있다. 그래서 30초 간격은
  *   core/live/throttle.ts의 throttleSample로 JS에서 거른다(네이티브 timeInterval은 힌트일 뿐이다).
  * - 정지가 2분 이어지면(nextWatchProfile) 20m 넘게 움직일 때만 갱신받도록 다시 구독한다(NFR 배터리).

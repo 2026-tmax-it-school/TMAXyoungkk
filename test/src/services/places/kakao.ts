@@ -1,10 +1,14 @@
 import type { Category, LatLng, Place } from '../../types';
-import type { FetchLike, PlaceProvider, Region } from '../../core/ports';
+import type { FetchLike, PlaceProvider, ProviderId, Region } from '../../core/ports';
 import { createKakaoClient } from '../kakaoHttp';
 
 /**
  * 카카오 로컬 장소 검색 어댑터(WP3 소유, 순수). 프로토타입 가정 · 국내 SDK 선정 미결정.
- * EXPO_PUBLIC_KAKAO_REST_KEY가 있을 때만 registry가 켠다. REST 키가 번들에 들어가므로 시연 한정이다.
+ * registry가 켜는 경우는 둘이다.
+ * - EXPO_PUBLIC_API_URL(apiUrl): 키 없이 키 숨기는 서버를 거친다(kakaoHttp). registry가 fallback(로컬 장소 사전)을 준다.
+ *   서버에 닿지 못하거나 서버·카카오가 실패하면(서버에 카카오 키 없음 503, 시간 초과, 429·5xx 등) 그 호출을 fallback으로 넘긴다.
+ *   그동안 id는 'local'이다(마지막 응답을 어디서 받았는지. 화면이 예시 데이터 표시를 이 값으로 정한다). 다시 되면 'kakao'다.
+ * - EXPO_PUBLIC_KAKAO_REST_KEY(key): 시연 한정 직접 호출. REST 키가 번들에 들어간다. 실패하면 던진다.
  *
  * 카카오 개발자 문서(developers.kakao.com/docs/ko/local/dev-guide, 2026-09-26 다시 확인) 기준:
  * - 키워드 검색 GET https://dapi.kakao.com/v2/local/search/keyword.json
@@ -13,7 +17,7 @@ import { createKakaoClient } from '../kakaoHttp';
  *   그래서 키워드 검색은 두 단계다. 먼저 지역 중심·반경(min(지역 반경, 20km))으로 찾고, 0건일 때만 반경 없이 다시 찾는다.
  * - 카테고리 검색 GET https://dapi.kakao.com/v2/local/search/category.json
  *   category_group_code(필수) + x·y·radius
- * - 인증 헤더 'Authorization: KakaoAK {REST 키}'(kakaoHttp가 붙인다)
+ * - 인증 헤더 'Authorization: KakaoAK {REST 키}'(직접 호출은 kakaoHttp가, 서버 경유는 서버가 붙인다)
  * - 응답 documents[]: id, place_name, category_name, category_group_code, address_name, road_address_name, x, y, distance
  * 실키 동작과 웹 브라우저 CORS 허용 여부는 확인하지 못했다(추적표). 실패하면 던지고, 호출 쪽이 '검색 실패'로 안내한다.
  */
@@ -97,7 +101,14 @@ function radiusOf(m: number): number {
   return Math.max(1, Math.min(KAKAO_MAX_RADIUS_M, Math.round(m)));
 }
 
-export function createKakaoPlaces(opts: { key: string; fetch: FetchLike }): PlaceProvider {
+export function createKakaoPlaces(opts: {
+  key?: string;
+  apiUrl?: string;
+  fetch: FetchLike;
+  fallback?: PlaceProvider;
+  /** 요청 하나의 시간 제한(기본 kakaoHttp의 KAKAO_TIMEOUT_MS) */
+  timeoutMs?: number;
+}): PlaceProvider {
   const client = createKakaoClient(opts);
 
   async function byCategory(coord: LatLng, radiusM: number, code: string, size: number): Promise<(Place & { d: number })[]> {
@@ -117,7 +128,7 @@ export function createKakaoPlaces(opts: { key: string; fetch: FetchLike }): Plac
       .filter((x): x is Place & { d: number } => x != null);
   }
 
-  return {
+  const kakao: PlaceProvider = {
     id: 'kakao',
     async search(query: string, region: Region, bias?: LatLng): Promise<Place[]> {
       const q = query.trim();
@@ -173,5 +184,42 @@ export function createKakaoPlaces(opts: { key: string; fetch: FetchLike }): Plac
       const { d: _d, ...p } = best;
       return p;
     },
+  };
+
+  const fallback = opts.fallback;
+  if (!fallback) return kakao;
+  /** 마지막 응답의 출처. 서버 경유에서 대체로 넘어가면 'local'이다 */
+  let served: ProviderId = 'kakao';
+  /** 카카오 호출이 실패하면(어떤 이유든) 그 호출을 fallback으로 넘긴다 */
+  async function orFallback<T>(run: () => Promise<T>, alt: () => Promise<T>): Promise<T> {
+    let out: T;
+    try {
+      out = await run();
+    } catch {
+      served = 'local';
+      return alt();
+    }
+    served = 'kakao';
+    return out;
+  }
+  return {
+    get id() {
+      return served;
+    },
+    search: (query, region, bias) =>
+      orFallback(
+        () => kakao.search(query, region, bias),
+        () => fallback.search(query, region, bias),
+      ),
+    nearby: (coord, radiusM, o) =>
+      orFallback(
+        () => kakao.nearby(coord, radiusM, o),
+        () => fallback.nearby(coord, radiusM, o),
+      ),
+    at: (coord, radiusM) =>
+      orFallback(
+        () => kakao.at(coord, radiusM),
+        () => fallback.at(coord, radiusM),
+      ),
   };
 }

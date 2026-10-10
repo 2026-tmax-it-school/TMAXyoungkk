@@ -252,6 +252,19 @@ test('08 단계 행은 받은 onStep만으로 만든다(가짜 진행률 없음)
   assert.ok(planningStepRows([...steps, { key: 'reasons', label: '', done: 3, total: 3, ms: 0 }], false, 14, true).every((r) => r.state === 'done'));
 });
 
+test('08 이동시간 조회가 진행 중이면 끝난 구간 수가 보이고 진행 막대에도 들어간다(대기 중 0구간으로 멈춰 보이지 않게)', () => {
+  const steps: PlanStep[] = [
+    { key: 'locate', label: '위치 확인', done: 14, total: 14, ms: 400 },
+    { key: 'matrix', label: '이동시간 조회', done: 37, total: 100, ms: 0 },
+  ];
+  const rows = planningStepRows(steps, true, 14, true);
+  assert.equal(rows[1].state, 'active');
+  assert.equal(rows[1].count, '37 / 100구간');
+  assert.ok(Math.abs(planningProgress(rows, steps) - (1 + 0.37) / 4) < 1e-9);
+  const done = planningStepRows([{ ...steps[0] }, { ...steps[1], done: 100, ms: 1200 }, { key: 'allocate', label: '', done: 14, total: 14, ms: 0 }], true, 14, true);
+  assert.equal(done[1].count, '100구간', '끝난 단계는 전처럼 구간 수만');
+});
+
 test('12 차이 칩: 느리면 +분 warn, 빠르면 ok, 경로 없으면 없음', () => {
   assert.deepEqual(deltaChip(58), { text: '+58분', tone: 'warn' });
   assert.deepEqual(deltaChip(-5), { text: '-5분', tone: 'ok' });
