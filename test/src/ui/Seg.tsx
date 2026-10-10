@@ -3,12 +3,12 @@ import { Pressable, View } from 'react-native';
 
 import { Icon, type IconName } from './Icon';
 import { Txt } from './Txt';
-import { E, lineC, R, SP, surfaceC } from './tokens';
+import { lineC, SP } from './tokens';
 
 /**
- * 카테고리 알약(숙박 앱 홈의 '전체·숙소·체험' 줄). 켜진 항목은 연회색 면에 잉크 글씨, 꺼진 항목은 흰 면에
- * 옅은 그림자. 개수는 라벨 옆에 같은 색으로 붙는다('진행중 1').
- * 넘치면 다음 줄로 내린다(날짜가 많은 시간표는 화면이 가로 스크롤로 감싼다).
+ * 카테고리 탭(DS CategoryTabs). 하나만 고르는 거르기(여행 상태, 확정/제외, 날짜).
+ * icon이 있으면 아이콘 위·라벨 아래, 없으면 글자만. 켜진 칸만 잉크 글자와 잉크 밑줄 2px, 꺼진 칸은 muted.
+ * 줄 아래에 1px line. 개수는 라벨 뒤 muted. 칸이 많은 시간표는 화면이 가로 스크롤로 감싼다.
  */
 export function Seg<K extends string>({
   items,
@@ -20,7 +20,7 @@ export function Seg<K extends string>({
   onChange: (key: K) => void;
 }) {
   return (
-    <View style={{ flexDirection: 'row', flexWrap: 'wrap', paddingVertical: SP.xs, gap: SP.m }}>
+    <View style={{ flexDirection: 'row', gap: SP.section - 4, borderBottomWidth: 1, borderBottomColor: lineC.line }}>
       {items.map((it) => {
         const on = it.key === value;
         return (
@@ -29,32 +29,27 @@ export function Seg<K extends string>({
             accessibilityRole="tab"
             accessibilityState={{ selected: on }}
             onPress={() => onChange(it.key)}
-            style={[
-              {
-                flexDirection: 'row',
-                alignItems: 'center',
-                gap: SP.s,
-                height: 40,
-                paddingHorizontal: SP.xl + 1,
-                borderRadius: R.chip,
-                borderWidth: 1,
-              },
-              on
-                ? { backgroundColor: surfaceC.soft, borderColor: lineC.faint }
-                : { backgroundColor: surfaceC.card, borderColor: lineC.line, ...E.pill },
-            ]}
+            style={{
+              alignItems: 'center',
+              gap: SP.s,
+              paddingTop: SP.m,
+              paddingBottom: SP.l,
+              marginBottom: -1,
+              borderBottomWidth: 2,
+              borderBottomColor: on ? lineC.ink : 'transparent',
+            }}
           >
-            {it.icon ? <Icon name={it.icon} size={15} color={on ? 'ink' : 'muted'} /> : null}
-            <Txt v="seg" c={on ? 'ink' : 'muted'}>
-              {it.label}
-            </Txt>
-            {it.count != null ? (
-              <View style={{ minWidth: 20, paddingHorizontal: 6, borderRadius: R.chip, backgroundColor: on ? surfaceC.ink : surfaceC.soft }}>
-                <Txt v="chip" c={on ? 'onInk' : 'muted'} center>
+            {it.icon ? <Icon name={it.icon} size={24} color={on ? 'ink' : 'muted'} stroke={on ? 2 : 1.6} /> : null}
+            <View style={{ flexDirection: 'row', gap: SP.xs }}>
+              <Txt v={it.icon ? 'cat' : 'seg'} c={on ? 'ink' : 'muted'}>
+                {it.label}
+              </Txt>
+              {it.count != null ? (
+                <Txt v={it.icon ? 'cat' : 'seg'} c="muted">
                   {String(it.count)}
                 </Txt>
-              </View>
-            ) : null}
+              ) : null}
+            </View>
           </Pressable>
         );
       })}

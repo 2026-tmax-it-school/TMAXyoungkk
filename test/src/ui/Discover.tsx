@@ -1,28 +1,16 @@
 import React from 'react';
 import { Pressable, View, type StyleProp, type ViewStyle } from 'react-native';
 
-import { Chip } from './Chip';
 import { Icon, type IconName } from './Icon';
 import { Txt } from './Txt';
-import { E, H, lineC, R, SP, surfaceC, type SurfaceColorKey } from './tokens';
+import { H, lineC, R, SP, surfaceC } from './tokens';
 
 /**
- * 홈·프로필 리디자인 조각(2026-10-10). 여행 앱의 원형 빠른 메뉴,
- * 사진 대신 색 면을 쓰는 여행지 표지, 프로필 머리 카드와 목록 줄이다.
- * 그림자와 가운데 정렬이 필요한 모양이라 화면이 아니라 여기(src/ui)에 둔다.
+ * 홈·프로필 조각(Young Trip 디자인 시스템: TripCard, ListRow와 빠른 메뉴·프로필 머리).
+ * 가운데 정렬이 필요한 모양이라 화면이 아니라 여기(src/ui)에 둔다. 그림자는 쓰지 않는다.
  */
 
-/** 여행지 표지 면. 지역 id로 하나를 고른다(같은 지역은 늘 같은 색) */
-const COVERS: SurfaceColorKey[] = ['coverSea', 'coverTeal', 'coverPlum', 'coverForest', 'coverClay', 'coverNavy'];
-
-export function coverFor(seed: string | number): SurfaceColorKey {
-  if (typeof seed === 'number') return COVERS[seed % COVERS.length];
-  let h = 0;
-  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0;
-  return COVERS[h % COVERS.length];
-}
-
-/** 구역 제목. 오른쪽에 원형 화살표 버튼(더 보기)을 둘 수 있다 */
+/** 구역 제목(DS title 22). 오른쪽에 원형 화살표 버튼(더 보기)을 둘 수 있다 */
 export function SectionTitle({ title, onMore, moreLabel }: { title: string; onMore?: () => void; moreLabel?: string }) {
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: SP.l }}>
@@ -35,22 +23,23 @@ export function SectionTitle({ title, onMore, moreLabel }: { title: string; onMo
           accessibilityLabel={moreLabel ?? `${title} 더 보기`}
           onPress={onMore}
           style={{
-            width: 34,
-            height: 34,
+            width: 32,
+            height: 32,
             borderRadius: R.chip,
-            backgroundColor: surfaceC.soft,
+            borderWidth: 1,
+            borderColor: lineC.line,
             alignItems: 'center',
             justifyContent: 'center',
           }}
         >
-          <Icon name="right" size={15} color="ink" />
+          <Icon name="right" size={14} color="ink" stroke={2} />
         </Pressable>
       ) : null}
     </View>
   );
 }
 
-/** 원형 빠른 메뉴(여행 앱 홈의 '숙소·항공권' 줄). disabled면 회색 원, scope는 원 위 작은 배지 */
+/** 원형 빠른 메뉴. brand-soft 원에 brand-ink 아이콘, disabled면 회색 원. badge는 원 위 작은 배지 */
 export function QuickAction({
   icon,
   label,
@@ -73,7 +62,7 @@ export function QuickAction({
       accessibilityState={{ disabled: !!disabled }}
       disabled={disabled}
       onPress={onPress}
-      style={{ flex: 1, alignItems: 'center', gap: SP.s }}
+      style={{ flex: 1, alignItems: 'center', gap: SP.m }}
     >
       <View
         style={{
@@ -85,10 +74,23 @@ export function QuickAction({
           justifyContent: 'center',
         }}
       >
-        <Icon name={icon} size={26} color={disabled ? 'faint' : 'accentDeep'} stroke={1.9} />
+        <Icon name={icon} size={24} color={disabled ? 'faint' : 'accentDeep'} stroke={1.75} />
         {badge ? (
-          <View style={{ position: 'absolute', top: -4, right: -10 }}>
-            <Chip text={badge} tone="line" />
+          <View
+            style={{
+              position: 'absolute',
+              top: -4,
+              right: -12,
+              paddingHorizontal: SP.s,
+              borderRadius: R.tag,
+              borderWidth: 1,
+              borderColor: lineC.line,
+              backgroundColor: surfaceC.card,
+            }}
+          >
+            <Txt v="chip" c="muted">
+              {badge}
+            </Txt>
           </View>
         ) : null}
       </View>
@@ -105,11 +107,12 @@ export function QuickAction({
 }
 
 /**
- * 여행지 표지 타일(사진 자리). 색 면 위 핀 아이콘과 큰 지역 이름, 아래에 이름·설명 두 줄.
- * size 'lg'는 내 여행 카드, 'sm'은 추천 여행지 줄이다.
+ * 여행 카드(DS TripCard). 사진 자리가 주인공이고 카드 테두리·그림자는 없다. 사진 모서리만 radius-lg.
+ * 사진이 없으면 연회색(surface-soft) 자리에 핀과 장소 이름만 둔다. 색 면이나 무늬로 사진을 흉내 내지 않는다.
+ * 사진 위에는 왼쪽 위 badge 하나. 선택된 카드는 사진 자리에 잉크 2px 테두리.
+ * size 'lg'는 홈 가로 줄의 내 여행(20:19), 'sm'은 추천 여행지(정사각).
  */
 export function CoverTile({
-  seed,
   place,
   badge,
   title,
@@ -120,8 +123,6 @@ export function CoverTile({
   footer,
   style,
 }: {
-  /** 표지 색을 고르는 값. 문자열은 해시, 숫자는 순번(나란한 타일끼리 색이 겹치지 않게) */
-  seed: string | number;
   place: string;
   badge?: string;
   title: string;
@@ -133,9 +134,9 @@ export function CoverTile({
   style?: StyleProp<ViewStyle>;
 }) {
   const lg = size === 'lg';
-  const width = lg ? 260 : 132;
+  const width = lg ? 272 : 148;
   return (
-    <View style={[{ width, gap: SP.m }, style]}>
+    <View style={[{ width, gap: SP.xl }, style]}>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={`${title} 열기`}
@@ -143,35 +144,41 @@ export function CoverTile({
         onPress={onPress}
         style={{
           width,
-          height: lg ? 172 : 132,
-          borderRadius: R.cover,
-          backgroundColor: surfaceC[coverFor(seed)],
-          padding: SP.xl,
-          justifyContent: 'space-between',
+          height: lg ? Math.round((width * 19) / 20) : width,
+          borderRadius: R.photo,
+          backgroundColor: surfaceC.soft,
+          borderWidth: selected ? 2 : 0,
+          borderColor: lineC.ink,
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: SP.m,
           overflow: 'hidden',
-          borderWidth: selected ? 3 : 0,
-          borderColor: lineC.accent,
-          ...E.card,
         }}
       >
-        {/* 사진 자리 장식: 오른쪽 아래 큰 나침반을 옅게 깐다 */}
-        <View
-          importantForAccessibility="no-hide-descendants"
-          accessibilityElementsHidden
-          style={{ position: 'absolute', right: lg ? -18 : -14, bottom: lg ? -22 : -16, opacity: 0.16 }}
-        >
-          <Icon name="compass" size={lg ? 150 : 96} color="onAccent" stroke={1.2} />
-        </View>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-          {badge ? <Chip text={badge} tone="card" /> : <View />}
-          <Icon name="pin" size={lg ? 22 : 18} color="onAccent" stroke={1.8} />
-        </View>
-        <Txt v={lg ? 'cover' : 'nmLg'} c="onAccent" numberOfLines={1}>
+        <Icon name="pin" size={lg ? 28 : 24} color="muted" stroke={1.6} />
+        <Txt v="btnSm" c="muted" numberOfLines={1}>
           {place}
         </Txt>
+        {badge ? (
+          <View
+            style={{
+              position: 'absolute',
+              top: SP.xl,
+              left: SP.xl,
+              paddingHorizontal: SP.l,
+              paddingVertical: SP.xs,
+              borderRadius: R.chip,
+              borderWidth: 1,
+              borderColor: lineC.line,
+              backgroundColor: surfaceC.card,
+            }}
+          >
+            <Txt v="chip">{badge}</Txt>
+          </View>
+        ) : null}
       </Pressable>
       <View style={{ gap: 2 }}>
-        <Txt v={lg ? 'nmLg' : 'nm'} numberOfLines={1}>
+        <Txt v="nm" numberOfLines={1}>
           {title}
         </Txt>
         {lines.map((l) => (
@@ -185,7 +192,7 @@ export function CoverTile({
   );
 }
 
-/** 프로필 머리 카드. 연보라 원 안 머리글자, 큰 이름, 그 아래 한 줄(게스트·계정) */
+/** 프로필 머리 카드. brand-soft 원 안 머리글자, 이름, 그 아래 한 줄(게스트·계정). 1px line 테두리 */
 export function ProfileHero({ name, sub, onPress }: { name: string; sub: string; onPress?: () => void }) {
   return (
     <Pressable
@@ -193,13 +200,14 @@ export function ProfileHero({ name, sub, onPress }: { name: string; sub: string;
       accessibilityLabel={`${name} 프로필 보기`}
       onPress={onPress}
       style={{
-        borderRadius: R.sheet,
+        borderRadius: R.photo,
+        borderWidth: 1,
+        borderColor: lineC.line,
         backgroundColor: surfaceC.card,
-        paddingVertical: 28,
+        paddingVertical: SP.section - 8,
         paddingHorizontal: SP.xxl,
         alignItems: 'center',
         gap: SP.xs,
-        ...E.card,
       }}
     >
       <View
@@ -207,13 +215,13 @@ export function ProfileHero({ name, sub, onPress }: { name: string; sub: string;
           width: H.monogram,
           height: H.monogram,
           borderRadius: R.chip,
-          backgroundColor: surfaceC.lavender,
+          backgroundColor: surfaceC.accentTint,
           alignItems: 'center',
           justifyContent: 'center',
-          marginBottom: SP.l,
+          marginBottom: SP.m,
         }}
       >
-        <Txt v="monogram" c="lavenderInk">
+        <Txt v="monogram" c="accentDeep">
           {name.slice(0, 1) || '?'}
         </Txt>
       </View>
@@ -227,7 +235,7 @@ export function ProfileHero({ name, sub, onPress }: { name: string; sub: string;
   );
 }
 
-/** 프로필 아래 두 칸 타일(이전 여행·인연 자리). 큰 원형 아이콘과 굵은 라벨 */
+/** 프로필 아래 두 칸 타일. brand-soft 원 아이콘과 라벨, 1px line 테두리 */
 export function FeatureTile({
   icon,
   label,
@@ -250,41 +258,57 @@ export function FeatureTile({
       onPress={onPress}
       style={{
         flex: 1,
-        minHeight: 150,
+        minHeight: 136,
         borderRadius: R.card,
+        borderWidth: 1,
+        borderColor: lineC.line,
         backgroundColor: surfaceC.card,
         padding: SP.xxl,
         alignItems: 'center',
         justifyContent: 'center',
         gap: SP.xl,
-        ...E.card,
       }}
     >
       {badge ? (
-        <View style={{ position: 'absolute', top: SP.l, right: SP.l }}>
-          <Chip text={badge} tone="line" />
+        <View
+          style={{
+            position: 'absolute',
+            top: SP.l,
+            right: SP.l,
+            paddingHorizontal: SP.s,
+            borderRadius: R.tag,
+            borderWidth: 1,
+            borderColor: lineC.line,
+          }}
+        >
+          <Txt v="chip" c="muted">
+            {badge}
+          </Txt>
         </View>
       ) : null}
       <View
         style={{
-          width: 64,
-          height: 64,
+          width: 56,
+          height: 56,
           borderRadius: R.chip,
           backgroundColor: disabled ? surfaceC.soft : surfaceC.accentTint,
           alignItems: 'center',
           justifyContent: 'center',
         }}
       >
-        <Icon name={icon} size={30} color={disabled ? 'faint' : 'accentDeep'} stroke={1.7} />
+        <Icon name={icon} size={26} color={disabled ? 'faint' : 'accentDeep'} stroke={1.7} />
       </View>
-      <Txt v="nmLg" c={disabled ? 'muted' : 'ink'} center>
+      <Txt v="nm" c={disabled ? 'muted' : 'ink'} center>
         {label}
       </Txt>
     </Pressable>
   );
 }
 
-/** 설정 목록 한 줄(아이콘, 라벨, 오른쪽 꺾쇠). 구분선은 위에 둔다(first면 없음) */
+/**
+ * 목록 한 줄(DS ListRow). 아이콘 24(선 1.5), 라벨 본문 16, 오른쪽 꺾쇠. 카드로 감싸지 않고 구분선으로 나눈다.
+ * 구분선은 위에 둔다(first면 없음). sub는 현재 값만(설명 문장 금지).
+ */
 export function ListRow({
   icon,
   label,
@@ -312,7 +336,8 @@ export function ListRow({
       style={{
         flexDirection: 'row',
         alignItems: 'center',
-        gap: SP.xl + 2,
+        gap: SP.xxl,
+        minHeight: 64,
         paddingVertical: SP.xxl,
         borderTopWidth: first ? 0 : 1,
         borderTopColor: lineC.line,
@@ -320,13 +345,13 @@ export function ListRow({
     >
       {icon ? <Icon name={icon} size={24} color={disabled ? 'faint' : 'ink'} stroke={1.5} /> : null}
       <View style={{ flex: 1, gap: 2 }}>
-        <Txt v="nmLg" c={disabled ? 'muted' : 'ink'}>
+        <Txt v="body" c={disabled ? 'muted' : 'ink'}>
           {label}
         </Txt>
-        {sub ? <Txt v="mtTight">{sub}</Txt> : null}
+        {sub ? <Txt v="mt">{sub}</Txt> : null}
       </View>
       {right}
-      <Icon name="right" size={16} color={disabled ? 'faint' : 'muted'} />
+      <Icon name="right" size={18} color={disabled ? 'faint' : 'muted'} stroke={2} />
     </Pressable>
   );
 }
