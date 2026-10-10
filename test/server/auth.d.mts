@@ -114,6 +114,8 @@ export interface AuthServiceOptions {
   log?: (message: string) => void;
   /** 실제 소셜 로그인(구글·카카오 OAuth). 키가 없는 제공자는 503이다 */
   oauth?: OAuthClientOptions;
+  /** 계정 탈퇴 뒤 부른다(커뮤니티가 그 계정의 글을 지운다) */
+  onAccountRemoved?: (accountId: string) => Promise<unknown> | unknown;
 }
 
 export interface AuthService {
@@ -126,6 +128,8 @@ export interface AuthService {
     ip: string;
   }): Promise<{ status: number; body: unknown }>;
   purge(): Promise<void>;
+  /** Bearer 토큰이 유효하면 {account}, 아니면 null */
+  authenticate(headers: Record<string, string | string[] | undefined>): Promise<{ account: AuthAccountRecord } | null>;
   outbox(): OutboxMail[];
 }
 

@@ -256,6 +256,8 @@ export type OAuthStateResult =
 export interface AuthProvider {
   /** local: 이 기기 모의 인증, server: 계정 서버(server/auth.mjs). 없으면 local로 본다 */
   readonly id?: 'local' | 'server';
+  /** 이 기기에 둔 세션 토큰(Bearer). 커뮤니티 글쓰기가 서버에 보여 준다. 모의 인증은 없다 */
+  bearer?(accountId: string): Promise<string | undefined>;
   signUp(input: {
     email: string;
     password: string;
@@ -360,4 +362,62 @@ export interface PickedPhoto {
 export interface PhotoProvider {
   id: 'sim' | 'device';
   pick(opts: { multiple: boolean }): Promise<PickedPhoto[]>;
+}
+
+/* ---------- 커뮤니티(사진·일기 글) ---------- */
+
+export type CommunityKind = 'photo' | 'diary';
+
+export interface CommunityPhoto {
+  id: string;
+  /** 서버면 '/community/media/…'(서버 주소를 앞에 붙인다), 이 기기 모의면 data: 주소 */
+  url: string;
+}
+
+export interface CommunityPost {
+  id: string;
+  kind: CommunityKind;
+  title: string;
+  body: string;
+  authorId: string;
+  authorNickname: string;
+  /** 올린 시각(ms) */
+  createdAt: number;
+  photos: CommunityPhoto[];
+  /** 내가 쓴 글(지울 수 있다) */
+  mine: boolean;
+}
+
+/** 올릴 사진 한 장. data는 base64(앞의 data: 머리말 없이) */
+export interface CommunityPhotoInput {
+  mime: string;
+  data: string;
+}
+
+export interface CommunityDraft {
+  kind: CommunityKind;
+  title: string;
+  body: string;
+  photos: CommunityPhotoInput[];
+}
+
+export type CommunityFail = 'loginRequired' | 'badPost' | 'tooMany' | 'tooLarge' | 'unreachable' | 'notFound';
+
+export type CommunityResult<T> = { ok: true; value: T } | { ok: false; code: CommunityFail; detail?: string };
+
+/** 누가 부르는지. token은 계정 서버 Bearer(모의면 없다), userId·nickname은 이 기기 로그인 정보 */
+export interface CommunityCtx {
+  token?: string;
+  userId?: string;
+  nickname?: string;
+}
+
+export interface CommunityProvider {
+  /** local: 이 기기 모의(서버가 없을 때, 새로 고치면 사라진다), server: 계정 서버(server/community.mjs) */
+  readonly id: 'local' | 'server';
+  list(q: { before?: string | null; kind?: CommunityKind | null }, ctx: CommunityCtx): Promise<CommunityResult<{ posts: CommunityPost[]; next: string | null }>>;
+  create(draft: CommunityDraft, ctx: CommunityCtx): Promise<CommunityResult<CommunityPost>>;
+  remove(postId: string, ctx: CommunityCtx): Promise<CommunityResult<true>>;
+  /** 글 사진의 화면용 주소(서버면 서버 주소를 붙인다) */
+  photoUri(photo: CommunityPhoto): string;
 }

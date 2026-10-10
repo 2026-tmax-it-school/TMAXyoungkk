@@ -20,6 +20,7 @@ import { INVITE_OP_TYPES, lookupInTrips } from '../invites.mjs';
 import { NICKNAME_OP_TYPES, REDACT_TRIGGER_TYPES, redactLog } from '../redact.mjs';
 import { ORPHAN_RETENTION_MS, ROUTE_CACHE_TTL_MS, retentionUntil } from '../retention.mjs';
 import { createPgAuthStore } from './auth-store.mjs';
+import { createPgCommunityStore } from './community-store.mjs';
 import { migrate } from './migrate.mjs';
 import { emptyView, legKey, projectOps } from './projection.mjs';
 
@@ -393,6 +394,8 @@ export function createPostgresStore(db, { close = async () => {}, warn = (m) => 
     kind: 'postgres',
     /** 계정·로그인 표(auth_*). 같은 DB를 쓴다(server/auth.mjs) */
     authStore: createPgAuthStore(db),
+    /** 커뮤니티 글·사진 표(community_*). 같은 DB를 쓴다(server/community.mjs) */
+    communityStore: createPgCommunityStore(db),
 
     async push(tripId, ops, now = Date.now()) {
       if (!storableId(tripId)) return [];
@@ -488,6 +491,7 @@ export function createPostgresStore(db, { close = async () => {}, warn = (m) => 
 
     async reset() {
       await db.query('TRUNCATE trips, trip_ops, invite_codes, trip_spots, trip_days, trip_legs RESTART IDENTITY');
+      await db.query('TRUNCATE community_photos, community_posts');
     },
 
     /**

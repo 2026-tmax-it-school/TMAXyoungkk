@@ -5,6 +5,8 @@ import React from 'react';
 
 import CandidatesScreen from '../screens/CandidatesScreen';
 import ChatScreen from '../screens/ChatScreen';
+import CommunityComposeScreen from '../screens/CommunityComposeScreen';
+import CommunityScreen from '../screens/CommunityScreen';
 import CreateTripScreen from '../screens/CreateTripScreen';
 import DirectionsScreen from '../screens/DirectionsScreen';
 import DiaryScreen from '../screens/DiaryScreen';
@@ -73,6 +75,7 @@ function MainTabs() {
       <Tabs.Screen name="Candidates" component={CandidatesScreen} />
       <Tabs.Screen name="Schedule" component={ScheduleScreen} />
       <Tabs.Screen name="Map" component={MapScreen} />
+      <Tabs.Screen name="Community" component={CommunityScreen} />
       <Tabs.Screen name="More" component={MoreScreen} />
     </Tabs.Navigator>
   );
@@ -100,6 +103,7 @@ export function RootNavigator({ hasSession }: { hasSession: boolean }) {
           <Stack.Screen name="Diary" component={DiaryScreen} />
           <Stack.Screen name="RecordMap" component={RecordMapScreen} />
           <Stack.Screen name="Profile" component={ProfileScreen} />
+          <Stack.Screen name="CommunityCompose" component={CommunityComposeScreen} />
         </>
       ) : (
         <Stack.Screen name="Onboarding" component={OnboardingScreen} />

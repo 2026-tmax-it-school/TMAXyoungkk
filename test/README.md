@@ -187,6 +187,20 @@ node scripts/gate-scope.mjs WP3   # tsc 중 WP3 파일 오류 0, tests/wp3-*.tes
 - 좌표는 기기 안에서만 쓴다. 서버로 보내거나 저장하지 않고, 길찾기의 출발·도착도 바꾸지 않는다. 지도 SDK가 받는 타일 범위만큼만
   보는 곳이 드러난다(손으로 지도를 옮길 때와 같다). 규칙은 `src/core/map/locate.ts`, 위치 공급은 `src/components/map/useMyLocation.ts`.
 
+## 커뮤니티 · 사진과 일기 (2026-10-10)
+
+하단 탭 「커뮤니티」(지도와 프로필 사이). 여행에서 찍은 사진과 쓴 일기를 앱 사용자 모두와 나눈다. 글은 서버에 저장된다.
+
+- **보기:** 누구나(로그인 없이). 전체·사진·일기로 거르고 최신순이다. 쪽은 「더 보기」로 이어 받는다. 탭을 열 때마다 새로 받는다.
+- **글쓰기:** 로그인한 계정만(게스트는 로그인 안내). 사진 글은 사진 1~4장, 일기 글은 본문이 있어야 한다. 제목 60자, 본문 4000자. 「내 여행 일기 불러오기」로 이 여행방의 일기 한 편을 본문에 채울 수 있다.
+- **사진:** 버튼을 누른 뒤에만 고르기를 열고, 화질을 낮춰(0.45) 한 장 1.5MB 아래로 올린다. 위치·촬영 정보(EXIF)는 올리지 않는다. 서버는 파일 머리글로 JPEG·PNG·WebP만 받는다.
+- **지우기:** 내 글만(확인 1회). 사진도 같이 지워진다. 계정을 탈퇴하면 그 계정의 글과 사진이 모두 지워진다.
+- **제한:** 한 계정이 한 시간에 20개까지.
+- **서버:** `GET/POST /community/posts`, `POST /community/posts/:id/delete`, `GET /community/media/:id`(server/community.mjs). 표는 `community_posts`·`community_photos`(마이그레이션 `005_community.sql`; 번호가 5인 이유는 같은 개발 DB에 다른 작업의 004가 이미 적용돼 있어서다). 사진 원본은 bytea로 둔다(프로토타입).
+- **서버 주소가 없으면** 이 기기 모의 커뮤니티로 돌아온다(앱을 새로 열면 사라진다). 화면에 그렇게 안내한다.
+- **한계:** 댓글·좋아요·신고·글 수정은 없다. 사진 저장을 서버 DB로 둔 것은 프로토타입 가정이다(용량이 커지면 객체 저장소로 옮긴다).
+- 코드: 화면 `CommunityScreen`·`CommunityComposeScreen`, 규칙 `src/core/community`, 서비스 `src/services/community`(http·local·picker), 스토어 `src/store/community.ts`. 테스트 `wp2-community`(서버 · 메모리·PGlite), `wp6-community`(앱 · 실제 서버와 맞물림).
+
 ## 길찾기
 
 길찾기는 두 가지다.

@@ -16,6 +16,7 @@ import { pickMapEngine } from '../core/map/engine';
 import { SERVICE_KV_PREFIX, type ServiceKvArea } from '../core/constants';
 import type {
   AuthProvider,
+  CommunityProvider,
   Clock,
   DiaryWriter,
   ExtractionProvider,
@@ -32,6 +33,7 @@ import type {
   SyncTransport,
 } from '../core/ports';
 import { createAuthProvider } from './auth';
+import { createCommunityProvider } from './community';
 import { isClockOverridden, liveClock, systemClock } from './clock';
 import { createDiaryWriter } from './diary';
 import { createExtractionProvider } from './extraction';
@@ -77,6 +79,8 @@ export interface Services {
   recommend: RecommendProvider;
   diary: DiaryWriter;
   auth: AuthProvider;
+  /** 커뮤니티(사진·일기 글). 서버 주소가 있으면 서버, 없으면 이 기기 모의 */
+  community: CommunityProvider;
   sync: SyncTransport;
   location: LocationProvider;
   photos: PhotoProvider;
@@ -125,6 +129,7 @@ function build(): Services {
       serverUrl: AUTH_URL || undefined,
       fetch: appFetch,
     }),
+    community: createCommunityProvider({ serverUrl: AUTH_URL || undefined, fetch: appFetch, clock: liveClock, ids }),
     sync: createSyncTransport({ syncUrl: SYNC_URL || undefined, fetch: appFetch, clock: liveClock, kv: kvFor('sync') }),
     location: createDeviceLocation(),
     photos: createDevicePhotoProvider(),
@@ -293,6 +298,11 @@ export function describeServices(): ServiceStatus[] {
     s.auth.id === 'server'
       ? { key: 'auth', label: '계정 · 계정 서버', mode: 'real', note: '메일 발송 없음(개발 서버 보낸편지함) · 세션 토큰은 앱 저장소', via: 'server' }
       : { key: 'auth', label: '계정 · 모의 인증', mode: 'mock', note: '프로토타입 · 단말 저장' },
+  );
+  out.push(
+    s.community.id === 'server'
+      ? { key: 'community', label: '커뮤니티 · 서버', mode: 'real', note: '글·사진은 서버에 저장되고 앱 사용자 모두가 봅니다', via: 'server' }
+      : { key: 'community', label: '커뮤니티 · 이 기기 모의', mode: 'mock', note: '프로토타입 · 앱을 새로 열면 사라집니다' },
   );
   out.push(
     s.sync.id === 'http'

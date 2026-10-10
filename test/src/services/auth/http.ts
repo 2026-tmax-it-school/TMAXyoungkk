@@ -174,6 +174,7 @@ export function createHttpAuth(opts: { url: string; fetch: FetchLike; kv: KV; ti
 
   return {
     id: 'server',
+    bearer: (accountId) => tokenOf(accountId),
 
     signUp: async (input) => toResult(await call('/auth/signup', { body: input })),
 
