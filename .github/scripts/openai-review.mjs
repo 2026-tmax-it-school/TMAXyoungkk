@@ -3,6 +3,9 @@ import { readFile } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
 export const MODEL = 'gpt-6-luna';
 export const LIMITS = { files: 20, bytes: 32000, output: 2000, findings: 5 };
+// GitHub lists at most 3,000 files per PR; larger PRs still get a bounded partial review.
+// https://docs.github.com/en/rest/pulls/pulls#list-pull-requests-files (2026-10-10)
+const GITHUB_FILE_LIMIT = 3000;
 const schema = { type: 'object', additionalProperties: false, required: ['findings'], properties: {
   findings: { type: 'array', maxItems: 5, items: { type: 'object', additionalProperties: false,
     required: ['path', 'line', 'severity', 'title', 'body'], properties: { path: { type: 'string' },
@@ -83,7 +86,9 @@ export async function runReview(env, event, fetcher = fetch, log = console.log) 
   const pull = await api(`/pulls/${number}`);
   const eligible = p => p.state === 'open' && !p.draft && p.head?.repo?.id === event.repository.id
     && p.base?.repo?.id === event.repository.id && p.head.sha === run.head_sha
-    && p.base.ref === event.repository.default_branch && p.user?.type === 'User';
+    && [event.repository.default_branch, 'develop'].includes(p.base.ref)
+    && p.base.ref === run.pull_requests[0].base?.ref
+    && p.base.ref === pull.base.ref && p.user?.type === 'User';
   if (!eligible(pull) || !/^[a-f0-9]{40}$/.test(pull.head.sha)) return skip('ineligible or stale PR');
   const permission = await api(`/collaborators/${encodeURIComponent(pull.user.login)}/permission`);
   if (!['admin', 'maintain', 'write'].includes(permission.permission)) return skip('author lacks write permission');
@@ -94,10 +99,18 @@ export async function runReview(env, event, fetcher = fetch, log = console.log) 
     if (reviews.length < 100) break;
     if (page === 5) return skip('review history exceeds safe bound');
   }
-  if (!Number.isSafeInteger(pull.changed_files) || pull.changed_files > 100) return skip('PR exceeds 100 files');
-  const files = await api(`/pulls/${number}/files?per_page=100`);
-  if (files.length !== pull.changed_files) return skip('incomplete file list');
+  if (!Number.isSafeInteger(pull.changed_files) || pull.changed_files < 0) return skip('invalid file count');
+  const files = [], paths = new Set(), available = Math.min(pull.changed_files, GITHUB_FILE_LIMIT);
+  for (let page = 1; files.length < available; page++) {
+    const batch = await api(`/pulls/${number}/files?per_page=100&page=${page}`);
+    if (!Array.isArray(batch) || batch.length !== Math.min(100, available - files.length)) return skip('incomplete file list');
+    for (const file of batch) {
+      if (!file || typeof file.filename !== 'string' || paths.has(file.filename)) return skip('invalid file list');
+      paths.add(file.filename); files.push(file);
+    }
+  }
   const { selected, skipped } = selectFiles(files);
+  const unlisted = pull.changed_files - files.length;
   if (!selected.length) return skip('no eligible diff');
   const request = makeRequest(selected);
   if (Buffer.byteLength(JSON.stringify(request)) > 40000) return skip('request exceeds bound');
@@ -121,7 +134,9 @@ export async function runReview(env, event, fetcher = fetch, log = console.log) 
     }
     const details = findings.map(f => `- [${f.severity}] ${clean(f.path, 250)}:${f.line}: ${clean(f.title, 140)}\n  ${clean(f.body, 700)}`).join('\n');
     await finish(`OpenAI 코드리뷰 · ${MODEL} · ${sha.slice(0, 7)}\n\n${details || '선택한 diff에서 확실한 high/medium 결함을 찾지 못했습니다.'}`
-      + `\n\n범위: ${selected.length}개 파일의 제공된 diff, 제외 ${skipped}개. 전체 검토 또는 승인 결과가 아니며 사람의 확인이 필요합니다.`);
+      + `\n\n범위: 전체 ${pull.changed_files}개 중 ${selected.length}개 파일의 제공된 diff. `
+      + `조회한 파일 중 필터·크기·개수 제한으로 제외 ${skipped}개, GitHub 파일 목록 한도로 미조회 ${unlisted}개. `
+      + '최대 20개 파일/32,000바이트만 검토합니다. 전체 검토 또는 승인 결과가 아니며 사람의 확인이 필요합니다.');
     log('OpenAI review completed'); return 'reviewed';
   } catch {
     // Never log API response bodies, source patches, or credentials.
@@ -133,3 +148,4 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   try { await runReview(process.env, JSON.parse(await readFile(process.env.GITHUB_EVENT_PATH, 'utf8'))); }
   catch { console.error('OpenAI review stopped safely; no API retry.'); process.exitCode = 1; }
 }
+

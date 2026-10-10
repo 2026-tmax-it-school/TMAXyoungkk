@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import { addedLines, selectFiles, validateFindings, makeRequest, runReview, clean } from './openai-review.mjs';
 const sha = 'a'.repeat(40), repo = 'example/project';
 const event = { repository: { id: 1, full_name: repo, default_branch: 'main' }, workflow_run: { id: 7 } };
@@ -12,7 +13,8 @@ function harness(options = {}) {
   const pull = { state: 'open', draft: false, changed_files: 1, user: { login: 'member', type: 'User' },
     head: { sha, repo: { id: 1 } }, base: { ref: 'main', repo: { id: 1 } }, ...options.pull };
   const run = { event: 'pull_request', conclusion: 'success', status: 'completed', repository: { id: 1 },
-    head_repository: { id: 1 }, path: '.github/workflows/ci.yml', name: 'CI', head_sha: sha, pull_requests: [{ number: 2 }], ...options.run };
+    head_repository: { id: 1 }, path: '.github/workflows/ci.yml', name: 'CI', head_sha: sha,
+    pull_requests: [{ number: 2, base: { ref: pull.base.ref } }], ...options.run };
   const fetcher = async (url, init) => {
     const body = init.body && JSON.parse(init.body); calls.push({ url, ...init, body });
     let data;
@@ -21,10 +23,17 @@ function harness(options = {}) {
       data = options.result ?? { status: 'completed', output: [{ type: 'message', content: [{ type: 'output_text',
         text: JSON.stringify({ findings: [{ path: 'src/code.ts', line: 2, severity: 'high', title: '오류', body: '조건 확인' }] }) }] }] };
     } else if (url.endsWith('/actions/runs/7')) data = run;
-    else if (url.endsWith('/pulls/2')) { reads++; data = options.stale && reads >= options.stale ? { ...pull, draft: true } : pull; }
+    else if (url.endsWith('/pulls/2')) {
+      reads++;
+      data = options.stale && reads >= options.stale ? { ...pull, draft: true }
+        : options.retarget && reads >= options.retarget ? { ...pull, base: { ...pull.base, ref: 'develop' } } : pull;
+    }
     else if (url.endsWith('/permission')) data = { permission: options.permission ?? 'write' };
     else if (url.includes('/reviews?')) data = options.reviewPages?.[Number(new URL(url).searchParams.get('page')) - 1] ?? options.reviews ?? [];
-    else if (url.includes('/files?')) data = options.files ?? files;
+    else if (url.includes('/files?')) {
+      const page = Number(new URL(url).searchParams.get('page'));
+      data = options.filePages?.[page - 1] ?? (options.files ?? files).slice((page - 1) * 100, page * 100);
+    }
     else if (url.endsWith('/reviews') && init.method === 'POST') { if (options.failReservation) throw Error('reservation failed'); data = { id: 4 }; }
     else if (url.endsWith('/reviews/4') && init.method === 'PUT') data = { id: 4 };
     else throw Error(`Unexpected URL: ${url}`);
@@ -33,6 +42,10 @@ function harness(options = {}) {
   return { calls, execute: overrides => runReview({ ...env, ...overrides }, event, fetcher, () => {}) };
 }
 const paid = h => h.calls.filter(c => c.url.startsWith('https://api.openai.com/'));
+test('the trusted CI trigger includes main and develop PRs', async () => {
+  const workflow = await readFile(new URL('../workflows/ci.yml', import.meta.url), 'utf8');
+  assert.match(workflow, /pull_request:\s*\n\s+branches: \[main, develop\]/);
+});
 test('added lines use RIGHT line numbers across deleted/context lines and hunks', () => {
   assert.deepEqual([...addedLines(patch + '\n@@ -8 +12 @@\n-a\n+b')], [2, 3, 12]);
 });
@@ -62,10 +75,10 @@ test('all activation gates fail before any network access', async () => {
     const h = harness(); await h.execute(overrides); assert.equal(h.calls.length, 0);
   }
 });
-test('forks, bots, drafts, closed, stale heads and non-default bases never spend', async () => {
+test('forks, bots, drafts, closed, stale heads and unsupported bases never spend', async () => {
   for (const pull of [{ draft: true }, { state: 'closed' }, { user: { type: 'Bot' } },
     { head: { sha, repo: { id: 9 } } }, { head: { sha: 'b'.repeat(40), repo: { id: 1 } } },
-    { base: { ref: 'develop', repo: { id: 1 } } }]) {
+    { base: { ref: 'release/next', repo: { id: 1 } } }, { base: { ref: 'develop', repo: { id: 9 } } }]) {
     const h = harness({ pull }); await h.execute(); assert.equal(paid(h).length, 0);
   }
 });
@@ -83,9 +96,57 @@ test('SHA reservation deduplicates failed/completed attempts, ignoring forged us
   const fake = harness({ reviews: [{ body, user: { login: 'someone' } }] });
   assert.equal(await fake.execute(), 'reviewed'); assert.equal(paid(fake).length, 1);
 });
-test('large/incomplete diffs and stale PR before request never spend', async () => {
-  for (const options of [{ pull: { changed_files: 101 } }, { files: [] }, { files: [{ filename: 'x.png' }] }, { stale: 2 }]) {
+test('invalid/incomplete diffs and stale PR before request never spend', async () => {
+  for (const options of [{ pull: { changed_files: 101 } }, { pull: { changed_files: -1 } },
+    { pull: { changed_files: 1.5 } }, { files: [] }, { files: [{ filename: 'x.png' }] }, { stale: 2 }, { retarget: 2 }]) {
     const h = harness(options); await h.execute(); assert.equal(paid(h).length, 0);
+  }
+});
+test('main and develop PRs are eligible, while forks into develop never spend', async () => {
+  for (const ref of ['main', 'develop']) {
+    const h = harness({ pull: { base: { ref, repo: { id: 1 } } } });
+    assert.equal(await h.execute(), 'reviewed'); assert.equal(paid(h).length, 1);
+  }
+  const fork = harness({ pull: { base: { ref: 'develop', repo: { id: 1 } }, head: { sha, repo: { id: 9 } } } });
+  await fork.execute(); assert.equal(paid(fork).length, 0);
+});
+test('CI for a different target branch cannot authorize the current PR', async () => {
+  for (const [ciBase, currentBase] of [['main', 'develop'], ['develop', 'main'], [undefined, 'develop']]) {
+    const h = harness({ run: { pull_requests: [{ number: 2, base: { ref: ciBase } }] },
+      pull: { base: { ref: currentBase, repo: { id: 1 } } } });
+    assert.equal(await h.execute(), 'ineligible or stale PR'); assert.equal(paid(h).length, 0);
+  }
+});
+test('PRs above 100 files paginate, including eligible code after the first page', async () => {
+  for (const count of [101, 160, 200, 3000, 3001]) {
+    const listed = Array.from({ length: Math.min(count, 3000) }, (_, i) => ({ filename: `docs/${i}.md`, patch }));
+    listed[100] = files[0];
+    const h = harness({ pull: { changed_files: count, base: { ref: 'develop', repo: { id: 1 } } }, files: listed });
+    assert.equal(await h.execute(), 'reviewed'); assert.equal(paid(h).length, 1);
+    const pages = h.calls.filter(c => c.url.includes('/files?'));
+    assert.equal(pages.length, Math.ceil(listed.length / 100));
+    pages.forEach((c, i) => assert.equal(new URL(c.url).search, `?per_page=100&page=${i + 1}`));
+    assert.equal(JSON.parse(paid(h)[0].body.input)[0].path, 'src/code.ts');
+    assert.match(h.calls.at(-1).body.body, new RegExp(`전체 ${count}개 중 1개`));
+    assert.match(h.calls.at(-1).body.body, new RegExp(`미조회 ${count - listed.length}개`));
+  }
+});
+test('large PRs keep 20-file, 32,000-byte and single-request limits', async () => {
+  const many = Array.from({ length: 160 }, (_, i) => ({ filename: `src/${i}.ts`, patch }));
+  const h = harness({ pull: { changed_files: many.length }, files: many });
+  assert.equal(await h.execute(), 'reviewed'); assert.equal(paid(h).length, 1);
+  const input = JSON.parse(paid(h)[0].body.input);
+  assert.equal(input.length, 20);
+  assert.ok(input.reduce((bytes, file) => bytes + Buffer.byteLength(JSON.stringify(file)), 0) <= 32000);
+  assert.ok(Buffer.byteLength(JSON.stringify(paid(h)[0].body)) <= 40000);
+  assert.match(h.calls.at(-1).body.body, /제외 140개.*미조회 0개/);
+});
+test('incomplete, duplicate or malformed later file pages fail before spending', async () => {
+  const first = Array.from({ length: 100 }, (_, i) => ({ filename: `docs/${i}.md`, patch }));
+  for (const second of [[], [first[0]], [null], [{}], { files }]) {
+    const h = harness({ pull: { changed_files: 101 }, filePages: [first, second] });
+    assert.match(await h.execute(), /^(incomplete|invalid) file list$/);
+    assert.equal(paid(h).length, 0);
   }
 });
 test('one COMMENT reservation precedes one API call and a bounded result update', async () => {
@@ -103,9 +164,11 @@ test('timeout/refusal/incomplete/invalid output never retry and safely update re
     assert.match(h.calls.at(-1).body.body, /자동 재시도하지/);
   }
 });
-test('head changes during request suppress stale findings', async () => {
-  const h = harness({ stale: 3 }); assert.equal(await h.execute(), 'stale');
-  assert.equal(paid(h).length, 1); assert.doesNotMatch(h.calls.at(-1).body.body, /src\/code/);
+test('state or target changes during request suppress stale findings', async () => {
+  for (const options of [{ stale: 3 }, { retarget: 3 }]) {
+    const h = harness(options); assert.equal(await h.execute(), 'stale');
+    assert.equal(paid(h).length, 1); assert.doesNotMatch(h.calls.at(-1).body.body, /src\/code/);
+  }
 });
 test('GitHub run paths may include an @ref suffix', async () => {
   const good = harness({ run: { path: '.github/workflows/ci.yml@refs/pull/2/merge' } });
@@ -118,3 +181,4 @@ test('failed reservation prevents billing; dedup searches later pages', async ()
   const later = harness({ reviewPages: [Array(100).fill({ body: '', user: {} }), [{ body: `<!-- openai-review:v1:${sha} -->`, user: { login: 'github-actions[bot]' } }]] });
   assert.equal(await later.execute(), 'already attempted'); assert.equal(paid(later).length, 0);
 });
+
