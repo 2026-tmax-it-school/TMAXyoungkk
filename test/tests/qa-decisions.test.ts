@@ -12,7 +12,8 @@ import { listFiles, read, stripComments } from './setup/scan';
 /**
  * QA(로직): 확정 결정이 코드에서 되돌려지지 않았는지 본다(02 설계 리뷰, plan.json decisions).
  * - 1단계 수단은 도보·자동차뿐이다. 대중교통은 2차 모의 모델이라 언제나 추정(estimated)이고 외부 호출이 없다.
- * - 국내 전용·SDK 중립: 구글 경로·장소 호출은 없다(구글은 바탕 지도만).
+ * - 국내 전용: 바탕 지도는 카카오맵이 기본이다(2026-10-10 결정). 구글 지도는 선택 대체이고 구글 경로·장소 호출은 없다.
+ *   카카오·구글 지도 SDK는 각자 어댑터 파일 안에서만 쓴다.
  * - 실제 길 시간(2026-10-09 결정): 도로 경로 서버(roadShapes, OpenStreetMap OSRM)를 켜면 도보·자동차 시간도 실제 길에서 받는다
  *   (계획 행렬은 OSRM table. wp4-road-time). 자동차는 카카오가 있으면 카카오가 먼저다. 끄면(테스트·골든) 외부 호출이 없다.
  *   예전 결정 '도보·대중교통은 외부로 묻지 않는다'는 도로 경로 서버가 꺼졌을 때만 남는다.
@@ -67,18 +68,28 @@ test('도로 경로 서버를 켜면 도보 시간도 실제 길(OSRM table)에�
   assert.equal(car.minutes[0][0], 10);
 });
 
-test('국내 전용: 구글은 바탕 지도로만 쓴다(구글 경로·장소 API 호출 없음, 지도 SDK는 어댑터 안에서만)', () => {
-  const adapters = ['src/components/map/GoogleMapView.tsx', 'src/components/map/GoogleMapView.web.tsx', 'src/components/map/googleScript.ts'];
+test('국내 전용: 바탕 지도는 카카오가 기본, 구글은 선택 대체(구글 경로·장소 API 호출 없음, 지도 SDK는 어댑터 안에서만)', () => {
+  const googleAdapters = ['src/components/map/GoogleMapView.tsx', 'src/components/map/GoogleMapView.web.tsx', 'src/components/map/googleScript.ts'];
+  const kakaoAdapters = [
+    'src/components/map/KakaoMapView.tsx',
+    'src/components/map/KakaoMapView.web.tsx',
+    'src/components/map/kakaoScript.ts',
+    'src/components/map/kakaoHtml.ts',
+  ];
   const apiHits: string[] = [];
   const sdkHits: string[] = [];
+  const kakaoSdkHits: string[] = [];
   for (const f of listFiles('src', ['.ts', '.tsx'])) {
     const code = stripComments(read(f));
     // 구글 길찾기·장소·지오코딩은 국내 도보·자동차 경로를 주지 않거나 제공자 두 벌이 된다
     if (/googleapis\.com\/maps\/api\/(directions|place|distancematrix|geocode)|(routes|places)\.googleapis\.com/.test(code)) apiHits.push(f);
-    if (!adapters.includes(f) && /maps\.googleapis\.com|['"]react-native-maps['"]/.test(code)) sdkHits.push(f);
+    if (!googleAdapters.includes(f) && /maps\.googleapis\.com|['"]react-native-maps['"]/.test(code)) sdkHits.push(f);
+    // 카카오맵 SDK(주소, kakao.maps 전역, 앱 WebView)는 카카오 어댑터 안에서만
+    if (!kakaoAdapters.includes(f) && /\/v2\/maps\/sdk\.js|\bkakao\.maps\b|['"]react-native-webview['"]/.test(code)) kakaoSdkHits.push(f);
   }
   assert.deepEqual(apiHits, []);
   assert.deepEqual(sdkHits, []);
+  assert.deepEqual(kakaoSdkHits, []);
 });
 
 test('자동 선별: 사용자 확정 단계 없이 계산 한 번으로 확정 스팟과 제외 스팟이 모두 나온다', async () => {

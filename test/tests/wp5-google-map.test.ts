@@ -162,6 +162,7 @@ test('구글 지도 스크립트 주소: 비동기 로딩·콜백·한국어·�
 test('핀 읽기 이름은 기본 지도와 같고, 미리보기 묶음은 누를 수 없다고 읽는다', () => {
   assert.equal(pinName({ kind: 'spot', label: '1', title: '불국사' }), '1번 불국사');
   assert.equal(pinName({ kind: 'spot', title: '불국사' }), '불국사');
+  assert.equal(pinName({ kind: 'spot', label: '출발', title: '불국사' }), '출발 불국사', '글자 라벨(길찾기)은 번을 붙이지 않는다');
   assert.equal(pinName({ kind: 'base', title: '라한셀렉트 경주' }), '기점 라한셀렉트 경주');
   assert.equal(pinName({ kind: 'excluded', label: '제외', title: '동궁과 월지' }), '제외 스팟 동궁과 월지');
   assert.equal(clusterName(3), '3곳 묶음 · 눌러서 확대');

@@ -5,6 +5,7 @@ import {
   GOOGLE_MAPS_API_KEY,
   HAS_KAKAO_KEY,
   KAKAO_KEY_IGNORED,
+  KAKAO_MAP_JS_KEY,
   KAKAO_REST_KEY,
   MAP_PROVIDER,
   ROAD_SHAPES,
@@ -54,7 +55,8 @@ import { createSyncTransport } from './sync';
  *   넘어가고 그 결과는 캐시에 두지 않는다. 그동안 제공자 id는 'local'이다(마지막 응답 출처. 화면의 예시 데이터 표시와 아래 상태).
  *   서버 경유 장소는 카카오 어댑터에 로컬 장소 사전을 대체로 붙여 여기서 만든다(places 팩토리는 직접 키만 받는다).
  * - 아니고 EXPO_PUBLIC_KAKAO_REST_KEY가 있으면 장소·경로가 앱에서 바로 카카오(시연 한정, 키가 번들에 들어간다). 없으면 로컬.
- *   구글은 바탕 지도로만 쓴다(EXPO_PUBLIC_GOOGLE_MAPS_API_KEY, components/map). 장소·경로 제공자에는 없다.
+ *   바탕 지도는 카카오맵(EXPO_PUBLIC_KAKAO_MAP_JS_KEY, 기본) 또는 구글 지도(EXPO_PUBLIC_GOOGLE_MAPS_API_KEY, 선택 대체)다(components/map).
+ *   구글은 바탕 지도로만 쓴다. 장소·경로 제공자에는 없다.
  *   구글 길찾기가 국내 도보·자동차 경로를 주지 않아서다. 프로토타입 가정 · 국내 SDK 선정 미결정.
  * - 도보·자동차 선 모양과 시간은 기본으로 OpenStreetMap 경로 서버(OSRM)에서 받는다(키 불필요). 시연 구간은 예시 구간표가
  *   우선이고, 자동차는 카카오가 있으면 카카오가 먼저다. 경로 캐시는 실제 시계(systemClock)로 24시간 둔다.
@@ -181,7 +183,15 @@ const KAKAO_SERVER_NOTE = KAKAO_KEY_IGNORED
 export function describeServices(): ServiceStatus[] {
   const s = getServices();
   const out: ServiceStatus[] = [];
-  if (pickMapEngine({ key: GOOGLE_MAPS_API_KEY, override: MAP_PROVIDER }) === 'google') {
+  const engine = pickMapEngine({ kakaoKey: KAKAO_MAP_JS_KEY, key: GOOGLE_MAPS_API_KEY, override: MAP_PROVIDER });
+  if (engine === 'kakao') {
+    out.push({
+      key: 'map',
+      label: '지도 · 카카오맵',
+      mode: 'real',
+      note: 'JavaScript 키 · 등록한 Web 도메인에서만 · 못 불러오면 기본 지도',
+    });
+  } else if (engine === 'google') {
     out.push({
       key: 'map',
       label: '지도 · 구글 지도',
@@ -189,7 +199,7 @@ export function describeServices(): ServiceStatus[] {
       note: '웹 월 1만 회 무료 · 앱 무제한 · 못 불러오면 기본 지도',
     });
   } else {
-    out.push({ key: 'map', label: '지도 · 기본 지도', mode: 'mock', note: '구글 키를 넣으면 구글 지도' });
+    out.push({ key: 'map', label: '지도 · 기본 지도', mode: 'mock', note: '카카오 JavaScript 키를 넣으면 카카오맵' });
   }
   if (viaServer.has(s.places)) {
     // 서버 경유의 id는 마지막 응답 출처다. 서버가 카카오를 못 쓰면(키 없음·실패) 'local'이다

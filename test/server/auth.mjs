@@ -21,6 +21,14 @@
  * - 소셜(모의): 앱 26 동의 화면의 scenario(ok·fail·sameEmail)를 그대로 받는다. 제공자 신원은 기기 토큰의 해시로 흉내 낸다
  *   (기기 하나에 제공자 신원 하나). 같은 이메일은 늘 같은 linkRequired 응답이고, 연동 확인 토큰은 그 이메일로 보낸
  *   연결 확인 메일(보낸편지함)에만 있다 → /auth/social/confirm. 모의 소셜은 mockSocial(기본 devOutbox)일 때만 열고 아니면 404다
+ * - 실제 소셜(구글·카카오 OAuth, server/oauth.mjs): 앱이 POST /auth/oauth/state로 일회용 state를 받아 제공자 로그인 창을 열고,
+ *   돌아온 인가 코드를 POST /auth/oauth/<제공자>로 보낸다. 서버가 state(제공자·돌아올 주소 일치, 10분, 한 번)와 돌아올 주소 허용 목록을
+ *   보고 코드를 제공자와 직접 바꿔 신원을 확인한다. 제공자 신원(auth_identities)이 있으면 그 계정, 제공자가 인증한 같은 이메일의 인증된
+ *   계정이 있으면 조용히 붙이지 않고 연결 확인 메일(linkRequired, /auth/oauth/confirm)로만, 아니면 새 계정(닉네임은 제공자 이름, 겹치면 숫자)이다.
+ *   같은 이메일의 인증 전 가입은 이메일 주인이 아닐 수 있으므로(가입 선점) 지우고 새 계정을 만든다
+ *   키가 없으면 503이다. 모의 소셜과 달리 devOutbox와 상관없이 열린다
+ * - 로그인 아이디: 이메일 또는 닉네임(닉네임은 계정마다 하나). 없는 아이디도 같은 계산·같은 오류 문구다.
+ *   연속 실패 잠금은 이메일 칸과 닉네임 칸이 따로다(공개된 닉네임만으로 이메일 로그인까지 잠그지 못하게)
  * - 메일은 보내지 않는다(SMTP 없음). 개발용 보낸편지함에만 쌓고, devOutbox일 때만 GET /auth/outbox로 읽는다
  *   (앱 모의 메일함이 그대로 돈다). 실제 메일 발송은 추후 과제다
  * - 비밀번호·토큰·요청 본문은 로그에 남기지 않는다
@@ -28,7 +36,7 @@
  *   POST /auth/signup            {email, password, nickname, userId?, deviceToken?(userId면 필수)} → AuthResult(토큰 없음, 인증 메일 발송)
  *   POST /auth/verify            {token}                                      → AuthResult + {token, expiresAt}
  *   POST /auth/resend            {email}                                      → {ok:true}
- *   POST /auth/signin            {email, password, deviceToken?}              → AuthResult + {token, expiresAt}
+ *   POST /auth/signin            {email(이메일 또는 닉네임), password, deviceToken?} → AuthResult + {token, expiresAt}
  *   POST /auth/signout           Bearer                                       → {ok:true}
  *   GET  /auth/session           Bearer                                       → AuthResult + {expiresAt} | 401
  *   GET  /auth/nickname?nickname=…  (Bearer면 자기 계정은 뺀다)              → {taken}
@@ -38,9 +46,14 @@
  *   POST /auth/password/confirm  {token, password}                            → {ok:true} | 실패
  *   POST /auth/social            {provider, scenario, deviceToken, providerEmail?, link?}(link면 Bearer) → AuthResult(+토큰)
  *   POST /auth/social/confirm    {linkToken(연결 확인 메일), accept}          → AuthResult(+토큰)
+ *   POST /auth/oauth/state       {provider, redirectUri}                      → {ok, state, expiresAt} | 503(키 없음)
+ *   POST /auth/oauth/google|kakao {code, codeVerifier?, redirectUri, state, clientId?, deviceToken} → AuthResult(+토큰) | linkRequired{providerEmail}
+ *   POST /auth/oauth/confirm     {linkToken, accept}                           → AuthResult(+토큰) (/auth/social/confirm과 같다, 늘 열림)
  *   GET  /auth/outbox                                                         → {mails} | 404(devOutbox 아님)
  */
 import { createHash, randomBytes, scrypt as scryptCb, timingSafeEqual } from 'node:crypto';
+
+import { createOAuthClient, normalizeRedirectUri } from './oauth.mjs';
 
 /* ---------- 앱과 같은 값(src/core/constants.ts, tests/wp2-auth가 맞춰 본다) ---------- */
 
@@ -61,6 +74,10 @@ export const MAIL_LIMIT = 10;
 export const VERIFY_TTL_MS = DAY;
 export const RESET_TTL_MS = 30 * MIN;
 export const LINK_TTL_MS = 10 * MIN;
+/** OAuth 요청 확인값(state) 유효 시간 */
+export const OAUTH_STATE_TTL_MS = 10 * MIN;
+/** IP 기준 OAuth 시작(state 발급) 10분 상한 */
+export const OAUTH_STATE_LIMIT = 30;
 /** 개발용 보낸편지함에 두는 메일 수 */
 export const OUTBOX_LIMIT = 200;
 
@@ -99,6 +116,8 @@ export function nicknameProblem(nickname) {
   const n = String(nickname ?? '').trim();
   if (n.length === 0) return '닉네임을 입력해 주세요';
   if (n.length > NICKNAME_MAX) return `닉네임은 ${NICKNAME_MAX}자까지입니다`;
+  // 로그인 아이디로 닉네임을 쓰므로 이메일과 헷갈리지 않게 한다
+  if (n.includes('@')) return '닉네임에는 @를 쓸 수 없습니다';
   return null;
 }
 
@@ -155,6 +174,7 @@ export function createMemoryAuthStore() {
   let sessions = new Map();
   let tokens = new Map();
   let attempts = new Map();
+  let oauthStates = new Map();
   const live = () => [...accounts.values()].filter((a) => a.deletedAt == null);
   const copy = (a) => (a ? structuredClone(a) : null);
   const conflictOf = (rec, exceptId) => {
@@ -171,6 +191,7 @@ export function createMemoryAuthStore() {
     accountById: (id) => copy(live().find((a) => a.accountId === id)),
     accountByEmail: (email) => copy(live().find((a) => a.email != null && a.email.toLowerCase() === email.toLowerCase())),
     accountByUserId: (userId) => copy(live().find((a) => a.userId === userId)),
+    accountByNickname: (nickname) => copy(live().find((a) => a.nickname != null && nickKey(a.nickname) === nickKey(nickname))),
     nicknameTaken: (nickname, exceptId) => live().some((a) => a.accountId !== exceptId && a.nickname != null && nickKey(a.nickname) === nickKey(nickname)),
     insertAccount(rec) {
       const c = conflictOf(rec);
@@ -231,6 +252,15 @@ export function createMemoryAuthStore() {
     dropTokens(accountId, kind) {
       for (const [k, v] of tokens) if (v.accountId === accountId && (kind == null || v.kind === kind)) tokens.delete(k);
     },
+    putOAuthState(st) {
+      oauthStates.set(st.stateHash, { ...st, usedAt: null });
+    },
+    useOAuthState(hash, provider, now) {
+      const st = oauthStates.get(hash);
+      if (!st || st.provider !== provider || st.usedAt != null || st.expiresAt <= now) return null;
+      st.usedAt = now;
+      return { redirectUri: st.redirectUri };
+    },
     hit(key, now, windowMs) {
       const cur = attempts.get(key);
       const fresh = !cur || cur.windowStart <= now - windowMs;
@@ -259,6 +289,7 @@ export function createMemoryAuthStore() {
     purge(now) {
       for (const [k, v] of sessions) if (v.expiresAt <= now) sessions.delete(k);
       for (const [k, v] of tokens) if (v.expiresAt <= now || v.usedAt != null) tokens.delete(k);
+      for (const [k, v] of oauthStates) if (v.expiresAt <= now || v.usedAt != null) oauthStates.delete(k);
       for (const [k, v] of attempts) {
         if (v.windowStart <= now - DAY && (v.lockedUntil == null || v.lockedUntil <= now)) attempts.delete(k);
       }
@@ -269,6 +300,7 @@ export function createMemoryAuthStore() {
       sessions = new Map();
       tokens = new Map();
       attempts = new Map();
+      oauthStates = new Map();
     },
   };
 }
@@ -302,13 +334,17 @@ function cleanProfilePatch(p) {
 
 const fail = (status, code, detail, extra = {}) => ({ status, body: { ok: false, code, ...(detail ? { detail } : {}), ...extra } });
 const okBody = (body = {}) => ({ status: 200, body: { ok: true, ...body } });
-const BAD_LOGIN = '이메일이나 비밀번호가 맞지 않습니다';
+const BAD_LOGIN = '아이디(이메일·닉네임)나 비밀번호가 맞지 않습니다';
+/** 실제 소셜 로그인에서 제공자가 인증한 이메일로 가입해 인증까지 마친 계정이 있을 때(연결 확인 메일을 실제로 보낸 뒤에만 쓴다) */
+const OAUTH_LINK_SENT = (label, email) =>
+  `${email}로 가입한 Young Trip 계정이 있습니다. 그 이메일로 연결 확인 메일을 보냈습니다. 메일에서 확인해야 ${label} 로그인이 연결됩니다`;
 const SESSION_GONE = '로그인이 만료됐습니다. 다시 로그인해 주세요';
 
 /**
  * 인증 서비스. store는 메모리 또는 PostgreSQL 저장소, now는 시계(테스트 주입), devOutbox면 GET /auth/outbox를 연다.
  * mockSocial(기본 devOutbox와 같다)이면 모의 소셜 경로를 연다. 아니면 /auth/social…은 404다(실제 제공자 검증이 없기 때문).
  * passwordCost는 scrypt N(테스트만 줄인다).
+ * oauth는 실제 소셜 로그인 설정(server/oauth.mjs createOAuthClient 옵션: google, kakao, redirectUris, fetch)이다. 키가 없으면 그 제공자는 503.
  */
 export function createAuthService({
   store = createMemoryAuthStore(),
@@ -317,7 +353,9 @@ export function createAuthService({
   mockSocial = devOutbox,
   passwordCost = 16384,
   log = () => {},
+  oauth = {},
 } = {}) {
+  const oauthClient = createOAuthClient({ now, ...oauth });
   /** 개발용 보낸편지함(메모리). 토큰 원문은 여기에만 있고 DB에는 해시만 간다 */
   let outbox = [];
   const dummyHash = hashPassword('dummy-password-0', { cost: passwordCost });
@@ -412,6 +450,144 @@ export function createAuthService({
     return null;
   }
 
+  /** 연결 확인 메일의 토큰으로 지금 계정에 제공자 신원을 붙이고 로그인한다(모의·실제 소셜 공통) */
+  async function confirmLink({ body }) {
+    const used = await store.useToken(tokenHash(String(body.linkToken ?? '')), 'link', now());
+    if (!used) return fail(400, 'invalidToken', '연동 확인 시간이 지났습니다. 소셜 로그인을 다시 시작해 주세요');
+    if (!body.accept) return fail(409, 'linkRequired', '연결하지 않았습니다. 기존 계정은 이메일로 로그인할 수 있습니다');
+    const acc = await store.accountById(used.accountId);
+    if (!acc) return fail(404, 'notFound', '계정을 찾지 못했습니다');
+    if (acc.verifiedAt == null) return fail(403, 'unverified', '이 이메일 계정은 아직 인증 전입니다. 인증을 마친 뒤 연결해 주세요');
+    const { provider, subject, deviceToken } = used.data;
+    const bad = await addProvider(acc, provider, subject);
+    if (bad) return bad;
+    const fresh = await store.accountById(acc.accountId);
+    const s = await openSession(fresh, deviceToken);
+    return okBody({ account: toPublic(fresh), ...s });
+  }
+
+  const oauthProvider = (p) => (p === 'google' || p === 'kakao' ? p : null);
+
+  /** 키가 없거나(503) 돌아올 주소가 허용 목록 밖이면(400) 실패 응답, 아니면 null */
+  function oauthUnready(provider, redirectUri) {
+    const label = PROVIDER_LABEL[provider];
+    if (!oauthClient.configured(provider)) {
+      return fail(503, 'providerFailed', `서버에 ${label} 로그인 키가 설정되지 않았습니다. 관리자가 server/.env에 키를 넣어야 합니다`, {
+        unconfigured: true,
+      });
+    }
+    if (typeof redirectUri !== 'string' || !oauthClient.redirectAllowed(redirectUri)) {
+      return fail(400, 'providerFailed', '허용하지 않은 돌아올 주소입니다. 서버 OAUTH_REDIRECT_URIS에 이 주소를 넣어야 합니다');
+    }
+    return null;
+  }
+
+  /** 제공자 이름 → 닉네임 후보. @와 앞뒤 공백을 빼고, 숫자를 붙일 자리(3자)를 남긴다. 없으면 '<제공자>여행자' */
+  function providerNickname(provider, raw) {
+    const n = String(raw ?? '').replace(/[@\s]+/g, ' ').trim().slice(0, NICKNAME_MAX - 3).trim();
+    return n.length > 0 ? n : `${PROVIDER_LABEL[provider]}여행자`;
+  }
+
+  /** 실제 소셜 로그인: state 확인 → 코드 교환·신원 확인(제공자) → 기존 신원 / 같은 이메일 연결 확인 / 새 계정 → 세션 */
+  async function oauthSignIn(provider, { body }) {
+    const label = PROVIDER_LABEL[provider];
+    const unready = oauthUnready(provider, body.redirectUri);
+    if (unready) return unready;
+    const code = typeof body.code === 'string' && body.code.length > 0 && body.code.length <= 4096 ? body.code : null;
+    if (!code) return fail(400, 'providerFailed', `${label} 인가 코드가 없습니다. 다시 로그인해 주세요`);
+    const verifier = typeof body.codeVerifier === 'string' && /^[\w.~-]{43,128}$/.test(body.codeVerifier) ? body.codeVerifier : undefined;
+    const st = await store.useOAuthState(tokenHash(String(body.state ?? '')), provider, now());
+    if (!st || st.redirectUri !== normalizeRedirectUri(body.redirectUri)) {
+      return fail(400, 'invalidToken', '로그인 요청이 만료됐거나 맞지 않습니다. 다시 로그인해 주세요');
+    }
+    const device = typeof body.deviceToken === 'string' && body.deviceToken.length > 0 ? body.deviceToken.slice(0, 64) : null;
+    let id;
+    try {
+      id = await oauthClient.exchange(provider, {
+        code,
+        codeVerifier: verifier,
+        redirectUri: body.redirectUri.trim(),
+        clientId: typeof body.clientId === 'string' ? body.clientId : undefined,
+      });
+    } catch (e) {
+      // 코드·토큰은 남기지 않는다. 단계와 제공자 상태 코드만
+      log(`${label} 로그인 확인 실패(${e?.kind ?? 'error'}${e?.status ? ` ${e.status}` : ''})`);
+      return fail(502, 'providerFailed', `${label} 로그인을 확인하지 못했습니다. 잠시 뒤 다시 시도해 주세요`);
+    }
+
+    const existing = await store.identity(provider, id.subject);
+    if (existing) {
+      const acc = await store.accountById(existing);
+      if (acc) {
+        const s = await openSession(acc, device);
+        return okBody({ account: toPublic(acc), ...s });
+      }
+    }
+
+    // 제공자가 인증한 이메일만 믿는다. 같은 이메일의 인증된 계정이 있으면 조용히 붙이지 않고 그 메일함으로 연결 확인 메일을 보낸다
+    const email = id.emailVerified && isEmailLike(id.email) && id.email.length <= EMAIL_MAX ? normalizeEmail(id.email) : null;
+    const linkRequired = async (target) => {
+      const linkToken = newToken();
+      await store.putToken({
+        tokenHash: tokenHash(linkToken),
+        kind: 'link',
+        accountId: target.accountId,
+        data: { provider, subject: id.subject, deviceToken: device },
+        createdAt: now(),
+        expiresAt: now() + LINK_TTL_MS,
+      });
+      sendMail('link', target.email, linkToken);
+      return fail(409, 'linkRequired', OAUTH_LINK_SENT(label, email), { providerEmail: email });
+    };
+    /**
+     * 같은 이메일로 인증을 마치지 않은 가입이 있으면, 제공자가 이 이메일의 주인임을 확인했으므로 그 가입을 지운다.
+     * 남이 먼저 그 이메일로 가입해 두고(비밀번호는 그 사람이 정한다) 주인이 나중에 인증·연결하면
+     * 그 비밀번호로 계정을 가로챌 수 있기 때문이다(가입 선점). 그 가입의 인증 메일도 무효로 한다
+     */
+    const dropSquatter = async (target) => {
+      await store.removeAccount(target.accountId);
+      for (const m of outbox) if (m.to === target.email) m.invalidated = true;
+      log(`${label} 로그인: 인증 전 같은 이메일 가입을 정리했습니다`);
+    };
+    if (email) {
+      const target = await store.accountByEmail(email);
+      if (target && target.verifiedAt != null) return linkRequired(target);
+      if (target) await dropSquatter(target);
+    }
+
+    const nickname = await freeNickname(providerNickname(provider, id.nickname));
+    const rec = {
+      accountId: newId('acc'),
+      userId: newId('u'),
+      email,
+      nickname,
+      passwordHash: null,
+      verifiedAt: now(),
+      providers: [provider],
+      profile: { nickname, tags: [] },
+      createdAt: now(),
+      deletedAt: null,
+    };
+    const ins = await store.insertAccount(rec);
+    if (ins === 'email') {
+      // 그사이 같은 이메일 계정이 생겼다. 인증된 계정이면 연결 확인, 아니면 다시 시도하게 한다
+      const raced = email ? await store.accountByEmail(email) : null;
+      if (raced && raced.verifiedAt != null) return linkRequired(raced);
+      return fail(409, 'providerFailed', `${label} 계정을 만들지 못했습니다. 다시 시도해 주세요`);
+    }
+    if (ins !== 'ok') return fail(409, 'providerFailed', `${label} 계정을 만들지 못했습니다. 다시 시도해 주세요`);
+    if ((await store.putIdentity(provider, id.subject, rec.accountId, now())) !== 'ok') {
+      // 같은 신원으로 동시에 들어온 다른 요청이 먼저 만들었다. 이 계정은 지우고 그쪽으로 로그인한다
+      await store.removeAccount(rec.accountId);
+      const winner = await store.accountById((await store.identity(provider, id.subject)) ?? '');
+      if (!winner) return fail(409, 'providerFailed', `${label} 계정을 만들지 못했습니다. 다시 시도해 주세요`);
+      const s = await openSession(winner, device);
+      return okBody({ account: toPublic(winner), ...s });
+    }
+    const s = await openSession(rec, device);
+    return okBody({ account: toPublic(rec), ...s });
+  }
+
   const routes = {
     async 'POST signup'({ body, ip }) {
       const email = normalizeEmail(body.email);
@@ -496,24 +672,33 @@ export function createAuthService({
     },
 
     async 'POST signin'({ body, ip }) {
-      const email = normalizeEmail(body.email);
+      // 아이디는 이메일 또는 닉네임이다. 이메일 모양이면 이메일로, 아니면 닉네임으로 찾는다
+      const ident = String(body.email ?? '').trim().slice(0, EMAIL_MAX + 1);
+      const byEmail = isEmailLike(ident);
+      const key = byEmail ? normalizeEmail(ident) : nickKey(ident);
       const password = String(body.password ?? '').slice(0, PASSWORD_MAX + 1);
       const at = now();
       const ipRetry = await limited(`ip:${ip}`, IP_ATTEMPT_LIMIT);
-      const pairRetry = await limited(`email-ip:${email}|${ip}`, EMAIL_IP_ATTEMPT_LIMIT);
+      const pairRetry = await limited(`email-ip:${key}|${ip}`, EMAIL_IP_ATTEMPT_LIMIT);
       if (ipRetry || pairRetry) {
         return fail(429, 'deviceLimited', '10분 안에 로그인을 너무 많이 시도했습니다. 잠시 뒤 다시 시도해 주세요', {
           retryAt: Math.max(ipRetry ?? 0, pairRetry ?? 0),
         });
       }
+      const acc = byEmail
+        ? await store.accountByEmail(key)
+        : key.length > 0 && nicknameProblem(ident) == null
+          ? await store.accountByNickname(ident)
+          : null;
       // 연속 실패는 비밀번호를 확인하기 전에 한 칸 먼저 올린다(원자적). 동시에 여러 IP에서 보내도 5번까지만 확인한다.
-      // 맞으면 아래에서 0으로 되돌린다
-      const lockKey = `acct:${email}`;
+      // 이메일 아이디(acct:이메일)와 닉네임 아이디(acct-nick:닉네임)는 칸이 따로다. 닉네임은 여행방·채팅에서 남에게 보이므로
+      // 닉네임으로 틀린 횟수가 이메일 로그인까지 잠그면, 이메일을 모르는 사람도 주인을 10분씩 막을 수 있다.
+      // 닉네임 칸이 잠기면 닉네임 로그인만 막히고 이메일 로그인은 된다. 없는 아이디도 같은 규칙이라 가입 여부는 드러나지 않는다
+      const lockKey = byEmail ? `acct:${key}` : `acct-nick:${key}`;
       const r = await store.bumpFail(lockKey, at, LOGIN_MAX_FAILS, LOGIN_LOCK_MS);
       if (r.count > LOGIN_MAX_FAILS) {
         return fail(423, 'locked', '5회 연속 틀려 10분 동안 잠겼습니다', { retryAt: r.lockedUntil ?? at + LOGIN_LOCK_MS });
       }
-      const acc = isEmailLike(email) ? await store.accountByEmail(email) : null;
       // 없는 계정·소셜 전용 계정도 같은 계산을 한다(응답 시간으로 가입 여부가 드러나지 않게)
       const good = acc?.passwordHash ? await verifyPassword(password, acc.passwordHash) : (await verifyPassword(password, await dummyHash), false);
       if (!good) {
@@ -590,6 +775,7 @@ export function createAuthService({
       await store.dropSessions(acc.accountId);
       await store.dropTokens(acc.accountId, 'reset');
       await store.setLock(`acct:${acc.email}`, { fails: 0, lockedUntil: null }, now());
+      if (acc.nickname) await store.setLock(`acct-nick:${nickKey(acc.nickname)}`, { fails: 0, lockedUntil: null }, now());
       for (const m of outbox) if (m.to === acc.email && m.kind === 'reset') m.invalidated = true;
       return okBody();
     },
@@ -670,20 +856,31 @@ export function createAuthService({
     },
 
     /** 연결 확인 메일의 토큰으로만 연결한다(메일을 받을 수 있어야 그 계정에 소셜 로그인을 붙인다) */
-    async 'POST social/confirm'({ body }) {
-      const used = await store.useToken(tokenHash(String(body.linkToken ?? '')), 'link', now());
-      if (!used) return fail(400, 'invalidToken', '연동 확인 시간이 지났습니다. 소셜 로그인을 다시 시작해 주세요');
-      if (!body.accept) return fail(409, 'linkRequired', '연결하지 않았습니다. 기존 계정은 이메일로 로그인할 수 있습니다');
-      const acc = await store.accountById(used.accountId);
-      if (!acc) return fail(404, 'notFound', '계정을 찾지 못했습니다');
-      if (acc.verifiedAt == null) return fail(403, 'unverified', '이 이메일 계정은 아직 인증 전입니다. 인증을 마친 뒤 연결해 주세요');
-      const { provider, subject, deviceToken } = used.data;
-      const bad = await addProvider(acc, provider, subject);
-      if (bad) return bad;
-      const fresh = await store.accountById(acc.accountId);
-      const s = await openSession(fresh, deviceToken);
-      return okBody({ account: toPublic(fresh), ...s });
+    'POST social/confirm': (ctx) => confirmLink(ctx),
+    /** 실제 소셜 로그인의 연결 확인. 모의 소셜이 닫혀 있어도 열린다(토큰은 연결 확인 메일에만 있다) */
+    'POST oauth/confirm': (ctx) => confirmLink(ctx),
+
+    async 'POST oauth/state'({ body, ip }) {
+      const provider = oauthProvider(body.provider);
+      if (!provider) return fail(400, 'providerFailed', '모르는 제공자입니다');
+      const unready = oauthUnready(provider, body.redirectUri);
+      if (unready) return unready;
+      const retryAt = await limited(`oauth:${ip}`, OAUTH_STATE_LIMIT);
+      if (retryAt) return fail(429, 'deviceLimited', '잠시 뒤 다시 시도해 주세요', { retryAt });
+      const state = newToken();
+      const expiresAt = now() + OAUTH_STATE_TTL_MS;
+      await store.putOAuthState({
+        stateHash: tokenHash(state),
+        provider,
+        redirectUri: normalizeRedirectUri(body.redirectUri),
+        createdAt: now(),
+        expiresAt,
+      });
+      return okBody({ state, expiresAt });
     },
+
+    'POST oauth/google': (ctx) => oauthSignIn('google', ctx),
+    'POST oauth/kakao': (ctx) => oauthSignIn('kakao', ctx),
 
     async 'GET outbox'() {
       if (!devOutbox) return { status: 404, body: { error: 'notFound' } };

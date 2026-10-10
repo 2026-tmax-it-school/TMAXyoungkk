@@ -18,6 +18,7 @@ import {
  *   core/live/throttle.ts의 throttleSample로 JS에서 거른다(네이티브 timeInterval은 힌트일 뿐이다).
  * - 정지가 2분 이어지면(nextWatchProfile) 20m 넘게 움직일 때만 갱신받도록 다시 구독한다(NFR 배터리).
  *   움직임이 잡히면 30초 간격으로 돌아온다. 웹은 distanceInterval을 무시할 수 있다(추적표 가정).
+ *   opts.adaptive === false(지도 '내 위치')면 바꾸지 않고 1초·거리 조건 없이 계속 받는다.
  * - 비보안 출처(http)에서는 브라우저가 위치를 막는다. 그때는 권한 거부처럼 동작한다(수동 진행 모드).
  */
 export function createExpoLocation(): LocationProvider {
@@ -39,7 +40,7 @@ export function createExpoLocation(): LocationProvider {
         return 'denied';
       }
     },
-    watch(onSample: (s: GpsSample) => void, opts: { intervalMs: number }) {
+    watch(onSample: (s: GpsSample) => void, opts: { intervalMs: number; adaptive?: boolean }) {
       let sub: Location.LocationSubscription | undefined;
       let stopped = false;
       let throttle: ThrottleState = {};
@@ -65,7 +66,7 @@ export function createExpoLocation(): LocationProvider {
             throttle = r.state;
             if (!r.decision.emit) return;
             onSample(sample);
-            const np = nextWatchProfile(profile, r.decision);
+            const np = nextWatchProfile(profile, r.decision, opts.adaptive !== false);
             profile = np.state;
             if (np.changed && !stopped) subscribe(profile.profile);
           },

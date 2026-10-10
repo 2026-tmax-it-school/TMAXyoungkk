@@ -40,6 +40,9 @@ import {
  * - 마커를 누르면 스팟 상세(07). 하단 시트에 날짜 Seg, 순서 목록, 제외 스팟의 사유와 되돌리기.
  * - '전체' 보기는 핀 면도 그날 선 색이고, 시트에 날짜별 색 점(범례)을 둔다.
  * - 여행 진행 중인 방이면 현재 위치를 함께 그린다(FR-601).
+ * - 오른쪽 아래 '내 위치' 버튼(MapCanvas locate): 누를 때만 위치를 읽고 내 자리로 옮긴다. 한 번 더 누르면 따라가기, 또 누르면 끈다.
+ *   여행 진행 중이면 그 위치를 쓴다. 위치는 기기 안에서만 쓴다(FR-801).
+ * - 위 칩 줄의 '길찾기'는 27 자유 길찾기(아무 두 지점), 시트의 '구간 안내'는 13 계획 구간 내비다. 여행방이 없어도 머리줄에서 길찾기를 연다.
  * - 상단 칩 줄은 목업처럼 그림자가 없다. 날짜 칩은 흰 면·경계선에 accentDeep 굵은 글자다.
  */
 
@@ -65,7 +68,10 @@ export default function MapScreen({ navigation, route }: TabScreenProps<'Map'>) 
   if (!trip) {
     return (
       <Screen>
-        <Header title="지도" />
+        <Header
+          title="지도"
+          right={<IconBtn icon="nav" label="길찾기" onPress={() => navigation.navigate('Directions', undefined)} />}
+        />
         <Empty
           title="여행방이 없습니다"
           action={{ label: '여행방 만들기', onPress: () => navigation.navigate('CreateTrip') }}
@@ -117,12 +123,22 @@ export default function MapScreen({ navigation, route }: TabScreenProps<'Map'>) 
             user={liveLast ? { coord: liveLast.coord, accuracyM: liveLast.accuracyM } : undefined}
             onMarkerPress={openSpot}
             overlayBottom={R.sheet}
+            locate
           >
             <View style={{ position: 'absolute', top: 14, left: SP.gutter, right: SP.gutter }}>
               <Row gap={SP.m}>
                 <Chip text={day ? `${dayShort(day.date)} ${WEEK[weekday(day.date)]}` : '전체 날짜'} tone="card" />
                 <Chip text={TRANSPORT_LABEL[transport]} tone="line" />
                 <View style={{ flex: 1 }} />
+                {/* 27 자유 길찾기(아무 두 지점 · 수단 비교). 아래 '구간 안내'는 13 계획 구간 내비다 */}
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="길찾기"
+                  onPress={() => navigation.navigate('Directions', { tripId })}
+                  style={{ minHeight: H.iconBtn, justifyContent: 'center' }}
+                >
+                  <Chip text="길찾기" tone="card" icon="nav" />
+                </Pressable>
                 <IconBtn icon="list" label={expanded ? '목록 접기' : '목록 펼치기'} onPress={() => setExpanded((v) => !v)} />
               </Row>
             </View>
@@ -229,7 +245,7 @@ export default function MapScreen({ navigation, route }: TabScreenProps<'Map'>) 
           <Row gap={SP.m}>
             <View style={{ flex: 1 }}>
               <Btn
-                title="길찾기"
+                title="구간 안내"
                 icon="nav"
                 size="sm"
                 variant="quiet"

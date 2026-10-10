@@ -15,6 +15,7 @@ import {
   deviceAttemptCheck,
   isEmailLike,
   isLocked,
+  nicknameProblem,
   normalizeEmail,
   passwordViolations,
   pruneAttempts,
@@ -29,6 +30,8 @@ import { base64url, makeIdGen } from '../../core/util';
  * 모의 인증(FR-101~104, WP1 소유). 서버가 없어 이 기기 KV에만 저장한다(프로토타입 · 단말 저장).
  * - 비밀번호는 salt(16바이트) + SHA-256(순수 구현, 주입 hasher)으로만 저장한다. 원문은 어디에도 두지 않는다.
  * - 인증 메일은 모의 메일함(outbox)에 쌓인다. 재발송하면 그 주소의 이전 메일 토큰이 무효가 된다.
+ * - 로그인 아이디는 이메일 또는 닉네임이다(닉네임은 계정마다 하나, 공백·대소문자 무시).
+ * - 실제 소셜 로그인(OAuth)은 계정 서버가 있어야 한다. 여기에는 oauthState·oauthSignIn이 없고 화면이 모의 동의로 안내한다.
  * - 로그인 제한: 계정 기준 5회 연속 실패 시 10분 잠금 + 기기 토큰 기준 10분 20회(IP 대신 기기 토큰, 가정).
  * - 소셜: 모의 동의 화면(26)의 scenario로 성공·실패·동일 이메일을 고른다. 동일 이메일은 모의 제공자가 돌려준
  *   이메일(providerEmail)과 정확히 같은 이메일 계정만 대상이고, linkRequired 뒤 confirmLink로 확인해야만 연결한다
@@ -87,6 +90,8 @@ const LINK_TTL_MS = 10 * 60 * 1000;
 /** 비밀번호 재설정 메일 유효 시간(계정 서버 RESET_TTL_MS와 같다) */
 const RESET_TTL_MS = 30 * 60 * 1000;
 const isReset = (m: MockMail) => m.kind === 'reset';
+/** 로그인 실패 문구. 아이디가 없든 비밀번호가 틀렸든 같다(계정 서버와 같은 문구) */
+const BAD_LOGIN = '아이디(이메일·닉네임)나 비밀번호가 맞지 않습니다';
 
 function emptyDb(): AuthDb {
   return { accounts: [], mails: [], links: [], attempts: {}, socialAccounts: {} };
@@ -202,6 +207,8 @@ export function createLocalAuth(opts: { clock: Clock; rng: Rng; hasher: Hasher; 
       if (violations.length > 0) {
         return { ok: false, code: 'weakPassword', detail: '비밀번호 규칙을 지켜 주세요', violations };
       }
+      const nickProblem = nicknameProblem(nickname);
+      if (nickProblem) return { ok: false, code: 'badCredentials', detail: nickProblem };
       if (nicknameTaken(db, nickname, prior?.accountId)) {
         return { ok: false, code: 'nicknameTaken', detail: '이미 쓰는 닉네임입니다' };
       }
@@ -269,10 +276,16 @@ export function createLocalAuth(opts: { clock: Clock; rng: Rng; hasher: Hasher; 
       }
       db.attempts[deviceToken] = [...pruneAttempts(db.attempts[deviceToken] ?? [], now), now];
 
-      const acc = db.accounts.find((a) => a.email === normalizeEmail(email));
+      // 아이디는 이메일 또는 닉네임이다(닉네임은 계정마다 하나). 이메일 모양이면 이메일로 찾는다
+      const ident = email.trim();
+      const acc = isEmailLike(ident)
+        ? db.accounts.find((a) => a.email === normalizeEmail(ident))
+        : ident.length > 0
+          ? db.accounts.find((a) => sameNickname(a.nickname, ident))
+          : undefined;
       if (!acc) {
         await save(db);
-        return { ok: false, code: 'badCredentials', detail: '이메일이나 비밀번호가 맞지 않습니다' };
+        return { ok: false, code: 'badCredentials', detail: BAD_LOGIN };
       }
       acc.lock = settleLock(acc.lock, now);
       if (isLocked(acc.lock, now)) {
@@ -292,7 +305,7 @@ export function createLocalAuth(opts: { clock: Clock; rng: Rng; hasher: Hasher; 
         return {
           ok: false,
           code: 'badCredentials',
-          detail: `이메일이나 비밀번호가 맞지 않습니다(연속 ${acc.lock.fails}회, 5회면 10분 잠금)`,
+          detail: `${BAD_LOGIN}(연속 ${acc.lock.fails}회, 5회면 10분 잠금)`,
         };
       }
       acc.lock = { fails: 0 };

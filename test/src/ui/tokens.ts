@@ -36,6 +36,8 @@ export const textC = {
   onInk: '#FFFFFF',
   /** 연한 연두 면(accentTint) 위 글자·아이콘 */
   accentDeep: '#3A6E14',
+  /** 카카오 로그인 버튼 글씨(카카오 디자인 가이드: 검정 85%를 흰 바탕에 합성한 값) */
+  onKakao: '#191919',
 } as const;
 export type TextColorKey = keyof typeof textC;
 
@@ -65,6 +67,8 @@ export const surfaceC = {
   ink: '#222222',
   /** brand-soft. 빠른 메뉴 원, 빈 상태 원, 좋은 상태 배지 바탕 */
   accentTint: '#EFF6E6',
+  /** 카카오 로그인 버튼 면(카카오 디자인 가이드 컨테이너 색) */
+  kakao: '#FEE500',
 } as const;
 export type SurfaceColorKey = keyof typeof surfaceC;
 
@@ -82,6 +86,20 @@ export type LineColorKey = keyof typeof lineC;
 
 /** 아이콘 색. 글자색에 faint를 더한다(꺼진 탭 아이콘, 드래그 손잡이). */
 export const iconC = { ...textC, faint: '#A1A1AA' } as const;
+
+/**
+ * 소셜 로그인 브랜드 색. 15 로그인의 카카오·구글 버튼과 로고(ui/BrandLogo)에서만 쓴다. 장식용으로 다른 곳에 쓰지 않는다.
+ * 카카오: 말풍선 심볼은 검정. 구글: 'G' 네 색과 흰 버튼의 회색 테두리(구글 로그인 브랜드 가이드).
+ */
+export const brandC = {
+  kakaoSymbol: '#000000',
+  googleBlue: '#4285F4',
+  googleRed: '#EA4335',
+  googleYellow: '#FBBC05',
+  googleGreen: '#34A853',
+  googleLine: '#747775',
+} as const;
+export type BrandColorKey = keyof typeof brandC;
 export type IconColorKey = keyof typeof iconC;
 
 /**
@@ -186,6 +204,8 @@ export const T = {
   mtSemi: { fontFamily: F.semibold, fontSize: 12.5, lineHeight: 18 },
   /** 경고 카드 설명 문장(목업 10, 행간 1.6) */
   mtLoose: { fontFamily: F.regular, fontSize: 12.5, lineHeight: 20 },
+  /** 15 로그인·16 회원가입 가운데 큰 제목 */
+  authTitle: { fontFamily: F.title, fontSize: 28, lineHeight: 36, letterSpacing: -0.7 },
 } as const satisfies Record<string, TypeStyle>;
 export type TypeKey = keyof typeof T;
 
@@ -230,6 +250,8 @@ export const R = {
   bubble: 16,
   /** 말풍선 장소 강조 */
   hl: 3,
+  /** 15 로그인·16 회원가입 입력 칸과 버튼(작은 라운드의 직사각형) */
+  auth: 6,
   /** radius-pill. 검색창, 필터 칩, 사진 위 배지 */
   chip: 999,
 } as const;
@@ -257,6 +279,10 @@ export const H = {
   fieldSm: 44,
   /** 시트 안 목록의 최대 높이(24 동명 장소 선택) */
   sheetList: 360,
+  /** 15 로그인·16 회원가입 입력 칸과 버튼 높이 */
+  auth: 48,
+  /** 소셜 로그인 버튼 로고 크기 */
+  brandLogo: 20,
 } as const;
 
 /**
@@ -303,6 +329,7 @@ export const TEXT_ON_SURFACE_PAIRS: { text: TextColorKey; surface: SurfaceColorK
   { text: 'accentDeep', surface: 'accentTint' },
   { text: 'accent', surface: 'accentTint' },
   { text: 'ink', surface: 'accentTint' },
+  { text: 'onKakao', surface: 'kakao' },
 ];
 
 /**

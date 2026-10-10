@@ -2,6 +2,8 @@
  * auth.mjs의 타입 선언(WP2 소유). 테스트가 '../server/auth.mjs'를 확장자까지 적어 import할 때 쓴다.
  */
 
+import type { OAuthClientOptions } from './oauth.mjs';
+
 type Awaitable<T> = T | Promise<T>;
 
 export const SESSION_TTL_MS: number;
@@ -17,6 +19,8 @@ export const VERIFY_TTL_MS: number;
 export const RESET_TTL_MS: number;
 export const LINK_TTL_MS: number;
 export const OUTBOX_LIMIT: number;
+export const OAUTH_STATE_TTL_MS: number;
+export const OAUTH_STATE_LIMIT: number;
 
 export function normalizeEmail(email: unknown): string;
 export function isEmailLike(email: unknown): boolean;
@@ -59,6 +63,8 @@ export interface AuthStore {
   accountById(id: string): Awaitable<AuthAccountRecord | null>;
   accountByEmail(email: string): Awaitable<AuthAccountRecord | null>;
   accountByUserId(userId: string): Awaitable<AuthAccountRecord | null>;
+  /** 닉네임(공백·대소문자 무시)으로 찾는다. 아이디 로그인용 */
+  accountByNickname(nickname: string): Awaitable<AuthAccountRecord | null>;
   nicknameTaken(nickname: string, exceptId?: string): Awaitable<boolean>;
   insertAccount(rec: AuthAccountRecord): Awaitable<AccountConflict>;
   updateAccount(id: string, patch: Partial<AuthAccountRecord>): Awaitable<AccountConflict>;
@@ -74,6 +80,9 @@ export interface AuthStore {
   putToken(t: { tokenHash: string; kind: 'verify' | 'reset' | 'link'; accountId: string; data?: Record<string, unknown>; createdAt: number; expiresAt: number }): Awaitable<void>;
   useToken(hash: string, kind: 'verify' | 'reset' | 'link', now: number): Awaitable<{ accountId: string; data: Record<string, any> } | null>;
   dropTokens(accountId: string, kind?: 'verify' | 'reset' | 'link'): Awaitable<void>;
+  putOAuthState(st: { stateHash: string; provider: 'google' | 'kakao'; redirectUri: string; createdAt: number; expiresAt: number }): Awaitable<void>;
+  /** 한 번만 쓴다. 제공자가 다르거나 만료·사용한 값이면 null */
+  useOAuthState(hash: string, provider: 'google' | 'kakao', now: number): Awaitable<{ redirectUri: string } | null>;
   hit(key: string, now: number, windowMs: number): Awaitable<{ count: number; windowStart: number }>;
   bumpFail(key: string, now: number, max: number, lockMs: number): Awaitable<{ count: number; lockedUntil: number | null }>;
   setLock(key: string, lock: { fails: number; lockedUntil: number | null }, now: number): Awaitable<void>;
@@ -103,6 +112,8 @@ export interface AuthServiceOptions {
   /** scrypt N(테스트만 줄인다. 기본 16384) */
   passwordCost?: number;
   log?: (message: string) => void;
+  /** 실제 소셜 로그인(구글·카카오 OAuth). 키가 없는 제공자는 503이다 */
+  oauth?: OAuthClientOptions;
 }
 
 export interface AuthService {

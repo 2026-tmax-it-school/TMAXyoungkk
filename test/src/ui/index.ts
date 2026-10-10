@@ -9,6 +9,8 @@ export { Txt } from './Txt';
 export { Body, Col, Foot, Header, Row, Screen } from './layout';
 export { Card, type CardVariant } from './Card';
 export { Btn, IconBtn, type BtnVariant } from './Btn';
+export { AuthBtn, AuthTitle, Divider, TextLink, type AuthBtnVariant } from './Auth';
+export { BrandLogo } from './BrandLogo';
 export { Chip, type ChipTone } from './Chip';
 export { Seg } from './Seg';
 export { Choice, Field, Tag } from './Field';
