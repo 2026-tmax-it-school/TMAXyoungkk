@@ -1,6 +1,6 @@
 # 인계 문서 — Young Trip
 
-작성 2026-09-19 · 갱신 2026-10-10 (세션 3: 세션 2 결과 재검사, 독립 리뷰 3개로 찾은 문제 20여 건 수정). 다른 계정이나 세션에서 이어서 작업할 때 **이 파일의 "지금 상태"부터** 읽는다.
+작성 2026-09-19 · 갱신 2026-10-10 저녁 (세션 4: 카카오맵 교체 마무리, 자유 길찾기 화면 27, 지도 내 위치 버튼, 카카오 키를 Stray-Cat-App으로 교체) · 세션 5: 디자인 병합(TMAXyoungkk). 다른 계정이나 세션에서 이어서 작업할 때 **이 파일의 "지금 상태"부터** 읽는다.
 아래쪽 "이전 인계 기록"은 2026-09 명세·목업 단계 기록이다.
 
 ## 지금 상태 (2026-10-10) — 여기부터 읽기
@@ -8,9 +8,11 @@
 ### 한 줄 요약
 
 전 기능 Expo 프로토타입(`test/`) 위에 구글 바탕 지도, 실제 도로 경로 선, 한동관 담당 기능 6개를 얹는 일이 **끝났다**.
-문서(README·FR-추적표)도 반영했다. **git에는 아직 하나도 커밋하지 않았다**(develop 브랜치, 마지막 커밋 `d2a485e 테스트`).
+문서(README·FR-추적표)도 반영했다. 커밋 `68ccf76`까지 학교 레포 PR [#4](https://github.com/2026-tmax-it-school/TMAXyoungkk/pull/4)로 올렸다(포크 경유). 그 뒤 변경은 아직 커밋 전이다.
 2026-10-10 세션 3이 세션 2 결과를 다시 검사하고 독립 리뷰로 찾은 문제를 고쳤다. **`docs/handoff/2026-10-10/session-3-검사.md`**가 최신이다.
-다음 일은 그 파일의 남은 코드 문제 7건과 사람이 할 일이다. 세션 2 상세는 `docs/handoff/2026-10-09/session-2-이어하기.md`.
+그 뒤 이어서 한 일은 `docs/handoff/2026-10-10/session-3-이어서.md`, 카카오맵 마무리와 자유 길찾기는 **`docs/handoff/2026-10-10/session-4-길찾기.md`**(가장 최신)에 있다.
+**2026-10-10 밤 세션 5: 디자인 브랜치(origin/develop)와 기능 작업을 `/Users/handong-gwan/TMAXyoungkk`의 `feature/dh/merge-design-features`에 합쳤다(커밋 전). 이제 TMAXyoungkk에서 이어 작업한다. 상세는 TMAXyoungkk의 `docs/handoff/2026-10-10/session-5-디자인-병합.md`.**
+다음 일은 session-5 파일의 "남은 일", 그다음 session-4 파일의 "남은 일"이다. 세션 2 상세는 `docs/handoff/2026-10-09/session-2-이어하기.md`.
 
 ### 진행 표
 
@@ -28,19 +30,22 @@
 | 웹 실행 테스트 오류 1(경로 계산 90초) | 수정·웹 확인(세션 2) | 공개 OSRM 429 뒤 60초 쉬기, 직접 table 4초. `osm.ts` |
 | 웹 실행 테스트 오류 2(조정안 늦게 뜸) | 수정·웹 확인(세션 2) | 조정안 계산 전에 시뮬레이터 멈춤. `store/live.ts` |
 | 웹 실행 작은 문제 8건 | 수정(세션 2) | 안내 문구, 토스트 위치, 단계 표시, 엔터 검색, 일기 주어, 웹 SVG 경고, expo 패치, 계산 진행 숫자 |
+| 카카오 바탕 지도(웹 JS SDK, 앱 WebView) | 완료 · 웹 확인(세션 4) | 구현·리뷰·수정. 키는 Stray-Cat-App(카카오맵 무료 쿼터 앱). 앱 WebView는 기기 미확인 |
+| 자유 길찾기(화면 27) | 완료 · 웹 확인(세션 4) | 지도 탭·스팟 상세에서 진입. 출발·도착 검색·내 위치·지도 선택, 자동차·대중교통·도보 비교 |
+| 지도 내 위치 버튼(GPS) | 완료 · 웹 일부 확인(세션 4) | 지도 탭·길찾기. 누를 때만 GPS, 이동 → 따라가기 → 끄기. 실제 이동은 화면 미확인 |
 | 세션 3 재검사·리뷰 수정 | 완료(2026-10-10) | 웹 SVG 지도 누르기 전부 죽음(blocker) 수정, 경로 캐시 v2·요청 묶기·카카오 꺼짐 쉬기, 길 기준 ETA·U턴, 조정안 멈춤. `session-3-검사.md` |
 
 워크플로 `wf_53f42247-d41`은 사용량 한도로 기능 3·5 리뷰·수정과 문서 단계에서 끊겼다. 끊긴 에이전트는 파일을 건드리지 않았다(transcript tool_use 0건).
 남은 일은 세션 2가 직접 마쳤으므로 **이 워크플로를 다시 돌리지 않는다.**
 
-마지막으로 확인한 검사(2026-10-10, 세션 3 끝): `npx tsc --noEmit` 오류 0, `npm test` 836개 중 835 통과·실패 0·건너뜀 1(실 Postgres, `YT_TEST_DATABASE_URL` 없을 때),
+마지막으로 확인한 검사(2026-10-10, 세션 4 끝): `npx tsc --noEmit` 오류 0, `npm test` 981개 중 980 통과·실패 0·건너뜀 1(실 Postgres, `YT_TEST_DATABASE_URL` 없을 때),
 `node scripts/gate-scope.mjs WP1`~`WP6` 모두 통과. 웹 시나리오 채우기·지도·길찾기·시뮬레이터 재생 JS 오류 0.
 
 ### 메인 책임 결정 (2026-10, 되돌리지 말 것)
 
 | 항목 | 결정 |
 | --- | --- |
-| 바탕 지도 | 구글 지도. 키가 있을 때만(`EXPO_PUBLIC_GOOGLE_MAPS_API_KEY`), 없으면 SVG 기본 지도 |
+| 바탕 지도 | **카카오맵**(2026-10-10 사용자 결정). `EXPO_PUBLIC_KAKAO_MAP_JS_KEY`(JavaScript 키)가 있으면 기본, 구글은 선택 대체(`EXPO_PUBLIC_MAP_PROVIDER=google`), 키가 없으면 SVG 기본 지도. 카카오맵 무료 쿼터는 계정의 첫 앱(Stray-Cat-App)에만 있어 그 앱 키를 쓴다 |
 | 경로 선 모양 | OpenStreetMap 공개 OSRM(routing.openstreetmap.de). 구글 길찾기는 국내 도보·자동차 미지원. `EXPO_PUBLIC_ROAD_SHAPE=off`면 직선 |
 | DB | **PostgreSQL**. 서버는 `test/server`(Node 24, node:http, 드라이버 pg). 테스트는 PGlite(WASM Postgres). 로컬 실 DB는 docker compose(postgres:17-alpine). `DATABASE_URL` 없으면 메모리 저장 |
 | 위치 공유 | 만들지 않는다. 서버에 위치를 올리지 않는다 |
@@ -107,7 +112,7 @@ npm run server                    # 동기화·중계 서버(server/.env를 읽�
 
 ```
 /Users/handong-gwan/IT희망학교 여행계획 프로젝트/HANDOFF.md 의 "지금 상태"를 읽고 이어서 작업해줘.
-기능 6개와 세션 3 재검사는 끝났다. docs/handoff/2026-10-10/session-3-검사.md 의 "남은 문제 (코드)"부터 처리한다.
+docs/handoff/2026-10-10/session-3-이어서.md 의 "진행 중"(카카오맵 교체)과 "남은 일"부터 처리한다.
 test/.env, test/server/.env 는 읽지 않는다. 커밋은 내가 요청할 때만 한다.
 ```
 

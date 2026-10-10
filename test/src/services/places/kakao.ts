@@ -128,24 +128,31 @@ export function createKakaoPlaces(opts: {
       .filter((x): x is Place & { d: number } => x != null);
   }
 
+  /**
+   * 1단계: 지역 중심·반경으로 거른다. 전국에 흔한 이름('중앙시장', 'OO 카페')이 다른 지역 결과로 밀려
+   * matchPhrase의 inRegion에서 전부 버려지는 일을 막는다. 반경의 중심은 bias가 아니라 지역 중심이다.
+   */
+  async function nearRegion(q: string, region: Region): Promise<Place[]> {
+    return toPlaces(
+      await client.get(KAKAO_KEYWORD_URL, {
+        query: q,
+        x: region.center.longitude,
+        y: region.center.latitude,
+        radius: radiusOf(region.radiusKm * 1000),
+        sort: 'accuracy',
+        size: 15,
+      }),
+    );
+  }
+
   const kakao: PlaceProvider = {
     id: 'kakao',
-    async search(query: string, region: Region, bias?: LatLng): Promise<Place[]> {
+    async search(query: string, region: Region, bias?: LatLng, opts?: { anywhere?: boolean }): Promise<Place[]> {
       const q = query.trim();
       if (q.length < 2) return [];
       const center = bias ?? region.center;
-      // 1단계: 지역 중심·반경으로 거른다. 전국에 흔한 이름('중앙시장', 'OO 카페')이 다른 지역 결과로 밀려
-      // matchPhrase의 inRegion에서 전부 버려지는 일을 막는다. 반경의 중심은 bias가 아니라 지역 중심이다.
-      const near = toPlaces(
-        await client.get(KAKAO_KEYWORD_URL, {
-          query: q,
-          x: region.center.longitude,
-          y: region.center.latitude,
-          radius: radiusOf(region.radiusKm * 1000),
-          sort: 'accuracy',
-          size: 15,
-        }),
-      );
+      // anywhere(자유 길찾기, 여행방 지역 없음)면 지역 반경 단계를 건너뛰고 전국에서 찾는다
+      const near = opts?.anywhere ? [] : await nearRegion(q, region);
       if (near.length > 0) return near;
       // 2단계: 0건이면 반경 없이 다시 찾는다. 카카오 반경 상한이 20km라 경주(30km)의 감은사지 삼층석탑(중심에서 약 26km)은
       // 1단계에서 오지 않고, FR-202의 '목적지 밖 확인 뒤 등록'도 여기서 나온 결과로 한다.
@@ -206,10 +213,10 @@ export function createKakaoPlaces(opts: {
     get id() {
       return served;
     },
-    search: (query, region, bias) =>
+    search: (query, region, bias, opts) =>
       orFallback(
-        () => kakao.search(query, region, bias),
-        () => fallback.search(query, region, bias),
+        () => kakao.search(query, region, bias, opts),
+        () => fallback.search(query, region, bias, opts),
       ),
     nearby: (coord, radiusM, o) =>
       orFallback(

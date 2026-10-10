@@ -14,6 +14,7 @@ const LINE_H = T.field.lineHeight;
  * - hideLabel: 라벨을 화면에 그리지 않는다. 접근성 이름은 label 그대로다(05 입력줄처럼 라벨 없는 한 줄).
  * - size 'sm': 높이 44(H.fieldSm). 옆의 44 아이콘 버튼과 줄을 맞춘다.
  * - multiline: 여러 줄 입력(21 일기 문단). minLines 줄만큼 높이를 잡고 글자는 위에서 시작한다.
+ * - look 'auth': 15 로그인·16 회원가입 모양(높이 48, 작은 라운드 6). 소셜 버튼(ui/Auth AuthBtn)과 줄을 맞춘다.
  */
 export function Field({
   label,
@@ -30,6 +31,7 @@ export function Field({
   multiline,
   minLines = 3,
   onSubmitEditing,
+  look = 'default',
 }: {
   label: string;
   value: string;
@@ -45,11 +47,14 @@ export function Field({
   multiline?: boolean;
   minLines?: number;
   onSubmitEditing?: () => void;
+  look?: 'default' | 'auth';
 }) {
   const [focus, setFocus] = useState(false);
   // DS TextField: 라벨이 칸 안 위쪽(작은 muted 글자). 라벨을 숨기면 44/56 한 줄 칸이다.
-  const inside = !hideLabel;
-  const boxH = size === 'sm' ? H.fieldSm : H.field;
+  // look auth(15·16)는 라벨을 칸 안에 그리지 않고 높이 48·라운드 6이다(안내문만 보인다).
+  const auth = look === 'auth';
+  const inside = !hideLabel && !auth;
+  const boxH = auth ? H.auth : size === 'sm' ? H.fieldSm : H.field;
   const padV = inside ? 0 : size === 'sm' ? 8 : 10;
   const ring = focus ? lineC.ink : lineC.strong;
   return (
@@ -67,7 +72,7 @@ export function Field({
           paddingVertical: inside ? (focus || error ? 7 : 8) : 0,
           borderWidth: focus || error ? 2 : 1,
           borderColor: error ? surfaceC.amber : ring,
-          borderRadius: R.field,
+          borderRadius: auth ? R.auth : R.field,
           backgroundColor: surfaceC.card,
           justifyContent: multiline ? 'flex-start' : 'center',
         }}

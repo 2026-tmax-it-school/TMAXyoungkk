@@ -1,14 +1,26 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, View, type GestureResponderEvent, type LayoutChangeEvent } from 'react-native';
 import Svg, { Circle, G, Line, Polyline, Rect } from 'react-native-svg';
 
 import type { LatLng } from '../../types';
 import { focusOptions, layoutMap, unproject, type MapCluster } from '../../core/map/layout';
+import { pinName } from '../../core/map/engine';
 import { useUi } from '../../store/ui';
 import { lineC, mapC, R, SvgLabel } from '../../ui';
 import { MAP_ENGINE } from './engine';
 import { GOOGLE_VIEW_READY, GoogleMapView } from './GoogleMapView';
-import { ClusterListSheet, FitAllButton, MapChildren, mapHeight, type MapCanvasProps, type MapFailReason } from './parts';
+import { KAKAO_VIEW_READY, KakaoMapView } from './KakaoMapView';
+import {
+  ClusterListSheet,
+  FitAllButton,
+  LocateButton,
+  MapChildren,
+  mapHeight,
+  type MapCanvasProps,
+  type MapFailReason,
+  type MapViewProps,
+} from './parts';
+import { useMyLocation } from './useMyLocation';
 
 const IS_WEB = Platform.OS === 'web';
 
@@ -30,9 +42,11 @@ export type { MapCanvasProps } from './parts';
 
 /**
  * 공통 지도(WP5 소유). 07, 11, 13, 19, 22가 같은 컴포넌트를 쓴다. 화면은 어느 지도인지 모른다.
- * - 구글 키(EXPO_PUBLIC_GOOGLE_MAPS_API_KEY)가 있으면 GoogleMapView(웹 Maps JavaScript API, 앱 react-native-maps)를 그린다.
- *   키가 거부되거나 스크립트를 못 받으면 이 세션은 기본 지도로 돌아온다. 타일이 시한 안에 안 오면 그 지도 하나만 돌아온다.
+ * - 카카오 JavaScript 키(EXPO_PUBLIC_KAKAO_MAP_JS_KEY)가 있으면 KakaoMapView(웹 카카오맵 SDK, 앱 WebView 안의 같은 SDK)가 기본이다.
+ * - 카카오 키가 없거나 EXPO_PUBLIC_MAP_PROVIDER=google이면, 구글 키(EXPO_PUBLIC_GOOGLE_MAPS_API_KEY)가 있을 때
+ *   GoogleMapView(웹 Maps JavaScript API, 앱 react-native-maps)를 그린다(선택 대체).
  *   앱은 구글 지도를 띄울 수 있는 빌드일 때만(GOOGLE_VIEW_READY) 쓴다.
+ * - 어느 SDK든 키가 거부되거나 스크립트를 못 받으면 이 세션은 기본 지도로 돌아온다. 타일이 시한 안에 안 오면 그 지도 하나만 돌아온다.
  * - 없으면 기본 지도(SvgMapCanvas)다. react-native-svg 한 벌로 웹·iOS·안드로이드를 그리고 키가 필요 없다.
  * 투영·클러스터·선 계산은 core/map/layout.ts(순수)가 하고 여기서는 그리기만 한다.
  *
@@ -50,36 +64,77 @@ export type { MapCanvasProps } from './parts';
 const GRID_PX = 56;
 
 /** 키 거부·스크립트 실패면 이 세션 동안 다른 지도도 기본 지도로 그린다(화면마다 다시 실패하지 않게). */
-let googleDown = false;
+let sdkDown = false;
 /** 안내는 세션에 한 번만 띄운다 */
 let failToastShown = false;
 
 /** react-native-svg의 accessible은 웹에서 그대로 DOM 속성이 되어 경고가 난다. 웹은 accessibilityLabel만 쓴다 */
 const SVG_ACCESSIBLE = Platform.OS === 'web' ? undefined : true;
 
+const SDK_NAME = { kakao: '카카오 지도', google: '구글 지도' } as const;
+
+type Engine = 'kakao' | 'google' | 'svg';
+
+/**
+ * 내 위치 버튼(locate)이 있는 지도. 버튼을 누를 때만 위치를 읽고(useMyLocation), 그 위치를 user로 합쳐 같은 파랑 점으로 그린다.
+ * 미리보기(compact)는 버튼이 없다. 화면이 user(여행 진행 위치)를 주면 그 위치가 먼저다.
+ */
+function LocatingMap({ engine, ...props }: MapCanvasProps & { engine: Engine }) {
+  const loc = useMyLocation(props.user ?? undefined);
+  // 카카오·구글은 로고·약관 줄 위로 올린다('전체 보기'와 같은 높이)
+  const bottom = (props.overlayBottom ?? 0) + (engine === 'svg' ? 0 : 24);
+  const view: MapViewProps = {
+    ...props,
+    user: loc.user,
+    // 화면이 준 live 위치가 아니면 버튼의 점이다. 맞춤에는 넣지 않는다
+    locateUser: !props.user && !!loc.user,
+    center: loc.center,
+    holdFit: loc.mode === 'follow',
+    onUserMove: loc.onUserMove,
+    children: (
+      <>
+        {props.children}
+        <LocateButton mode={loc.mode} bottom={bottom} onPress={loc.onTap} />
+      </>
+    ),
+  };
+  return <EngineMap engine={engine} {...view} />;
+}
+
 export function MapCanvas(props: MapCanvasProps) {
-  const [down, setDown] = useState(googleDown);
-  if (MAP_ENGINE === 'google' && GOOGLE_VIEW_READY && !down) {
-    return (
-      <GoogleMapView
-        {...props}
-        onFail={(reason: MapFailReason) => {
-          if (!failToastShown) {
-            failToastShown = true;
-            useUi.getState().showToast('구글 지도를 불러오지 못해 기본 지도로 보여 드려요', 'warn');
-          }
-          if (reason !== 'tiles') googleDown = true;
-          setDown(true);
-        }}
-      />
-    );
+  const engine: Engine = MAP_ENGINE === 'kakao' && KAKAO_VIEW_READY ? 'kakao' : MAP_ENGINE === 'google' && GOOGLE_VIEW_READY ? 'google' : 'svg';
+  if (props.locate && !props.compact) return <LocatingMap engine={engine} {...props} />;
+  return <EngineMap engine={engine} {...props} />;
+}
+
+function EngineMap({ engine, ...props }: MapViewProps & { engine: Engine }) {
+  const [down, setDown] = useState(sdkDown);
+  if (engine !== 'svg' && !down) {
+    const onFail = (reason: MapFailReason) => {
+      if (!failToastShown) {
+        failToastShown = true;
+        useUi.getState().showToast(`${SDK_NAME[engine]}를 불러오지 못해 기본 지도로 보여 드려요`, 'warn');
+      }
+      if (reason !== 'tiles') sdkDown = true;
+      setDown(true);
+    };
+    return engine === 'kakao' ? <KakaoMapView {...props} onFail={onFail} /> : <GoogleMapView {...props} onFail={onFail} />;
   }
   return <SvgMapCanvas {...props} />;
 }
 
-function SvgMapCanvas(props: MapCanvasProps) {
+function SvgMapCanvas(props: MapViewProps) {
   const [width, setWidth] = useState(0);
   const [focus, setFocus] = useState<LatLng[] | undefined>(undefined);
+  // 내 위치 버튼: 요청마다 그 점 둘레(약 220m)로 당긴다. 따라가기면 걸을 때마다 다시 당긴다(루트 전체로는 맞추지 않는다)
+  const centerSeq = props.center?.seq;
+  const centerRef = useRef(props.center);
+  centerRef.current = props.center;
+  useEffect(() => {
+    const c = centerRef.current;
+    if (c) setFocus([c.coord]);
+  }, [centerSeq]);
+  // 당긴 자리(focus)가 있으면 그것이 먼저라 따라가기 중 마커·선이 바뀌어도 루트 전체로 다시 맞추지 않는다
   const [group, setGroup] = useState<MapCluster | undefined>(undefined);
   const height = mapHeight(props);
   const compact = !!props.compact;
@@ -137,7 +192,10 @@ function SvgMapCanvas(props: MapCanvasProps) {
   const pressCluster = (c: MapCluster) => {
     // 확대한 뒤에도 묶여 있으면 무리 목록에서 고른다(마커를 누르면 스팟 상세라는 규칙을 지킨다).
     if (focus && props.onMarkerPress) setGroup(c);
-    else setFocus(c.coords);
+    else {
+      setFocus(c.coords);
+      props.onUserMove?.();
+    }
   };
   // 순번 글자는 목업 11의 13px(pinLg), 작은 지도는 9.5px(pinSm)
   const label = compact ? ('pinSm' as const) : ('pinLg' as const);
@@ -204,7 +262,7 @@ function SvgMapCanvas(props: MapCanvasProps) {
               );
             }
             return (
-              <G key={m.id} {...tap(press)} accessible={SVG_ACCESSIBLE} accessibilityLabel={`${m.label}번 ${m.title}`}>
+              <G key={m.id} {...tap(press)} accessible={SVG_ACCESSIBLE} accessibilityLabel={pinName(m)}>
                 <Circle cx={m.x} cy={m.y} r={pinR} fill={mapC[m.color ?? 'ink']} stroke={mapC.white} strokeWidth={2} />
                 <SvgLabel x={m.x} y={m.y + labelDy} text={m.label} v={label} c="onAccent" />
               </G>
@@ -231,7 +289,15 @@ function SvgMapCanvas(props: MapCanvasProps) {
           ) : null}
         </Svg>
       ) : null}
-      {focus ? <FitAllButton overlayBottom={props.overlayBottom} onPress={() => setFocus(undefined)} /> : null}
+      {focus ? (
+        <FitAllButton
+          overlayBottom={props.overlayBottom}
+          onPress={() => {
+            setFocus(undefined);
+            props.onUserMove?.();
+          }}
+        />
+      ) : null}
       <ClusterListSheet
         memberIds={group?.memberIds}
         titleOf={titleOf}

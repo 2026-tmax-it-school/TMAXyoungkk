@@ -111,6 +111,7 @@
   "WP5": [
     "src/screens/MapScreen.tsx",
     "src/screens/NavigateScreen.tsx",
+    "src/screens/DirectionsScreen.tsx",
     "src/screens/LiveTripScreen.tsx",
     "src/components/map/**",
     "src/features/live/**",

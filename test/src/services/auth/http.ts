@@ -1,4 +1,4 @@
-import type { AccountPublic, AuthAck, AuthFail, AuthProvider, AuthResult, FetchLike, KV, MockMail } from '../../core/ports';
+import type { AccountPublic, AuthAck, AuthFail, AuthProvider, AuthResult, FetchLike, KV, MockMail, OAuthStateResult } from '../../core/ports';
 
 /**
  * 계정 서버 인증(WP1 소유, 2026-10-10). server/auth.mjs(/auth/…)와 짝이다.
@@ -14,7 +14,12 @@ import type { AccountPublic, AuthAck, AuthFail, AuthProvider, AuthResult, FetchL
  * - 같은 이메일 소셜 연결은 서버가 연결 확인 메일로만 토큰을 준다. 개발 서버면 그 메일을 대신 열어 26 확인 화면으로 넘긴다.
  *   모의 소셜 자체가 개발 서버(AUTH_DEV_OUTBOX=1 등)에서만 열린다. 아니면 404 → providerFailed다.
  * - 게스트 승격 가입은 이 기기 토큰을 같이 보낸다(서버가 같은 게스트인지 본다). 토큰 원문은 서버에 해시로만 남는다.
- * - 비밀번호·토큰은 로그에 남기지 않는다.
+ * - 실제 소셜 로그인(구글·카카오 OAuth): oauthState로 서버가 준 일회용 state를 받아 제공자 로그인 창을 열고(화면 훅
+ *   features/account/useOAuthLogin), 돌아온 인가 코드를 oauthSignIn으로 서버에 넘긴다. 서버가 제공자와 직접 바꾸고 세션 토큰을 준다.
+ *   같은 이메일 계정이 있으면 서버는 연결 확인 메일만 보내고 providerEmail을 돌려준다. 개발 서버면 그 메일을 대신 열어 확인 단계로 넘긴다.
+ *   연결 확인은 /auth/oauth/confirm(모의 소셜이 닫혀 있어도 열림)으로 보낸다.
+ * - 로그인 아이디(signIn email)는 이메일 또는 닉네임이다. 서버가 구분한다.
+ * - 비밀번호·토큰·인가 코드는 로그에 남기지 않는다.
  */
 
 const UNREACHABLE = '계정 서버에 닿지 못했습니다. 잠시 뒤 다시 시도해 주세요';
@@ -149,6 +154,24 @@ export function createHttpAuth(opts: { url: string; fetch: FetchLike; kv: KV; ti
 
   const sessionGone = (): AuthResult => ({ ok: false, code: 'invalidToken', detail: SESSION_GONE });
 
+  /**
+   * 같은 이메일 연결: 서버는 연결 확인 토큰을 응답에 싣지 않고 그 이메일로 메일만 보낸다(가입 여부를 숨긴다).
+   * 개발 서버면 그 메일을 앱 모의 메일함(보낸편지함)에서 대신 열어 확인 단계로 넘긴다. 메일이 없으면 서버 문구 그대로다
+   */
+  async function openLinkMail(result: AuthResult, email: string | undefined): Promise<AuthResult> {
+    if (result.ok || result.code !== 'linkRequired' || result.linkToken || !email) return result;
+    const to = email.trim().toLowerCase();
+    const mail = (await readOutbox())
+      .filter((m) => m.kind === 'link' && !m.invalidated && m.to.toLowerCase() === to)
+      .sort((a, b) => b.sentAt - a.sentAt)[0];
+    if (!mail) return result;
+    return {
+      ...result,
+      linkToken: mail.token,
+      detail: `${to} 계정으로 온 연결 확인 메일을 열었습니다(개발용 메일함). 이 계정에 소셜 로그인을 연결할까요?`,
+    };
+  }
+
   return {
     id: 'server',
 
@@ -175,25 +198,42 @@ export function createHttpAuth(opts: { url: string; fetch: FetchLike; kv: KV; ti
         token,
       });
       const result = await keep(r);
-      // 같은 이메일: 서버는 연결 확인 토큰을 응답에 싣지 않고 그 이메일로 메일만 보낸다(가입 여부를 숨긴다).
-      // 개발 서버면 그 메일을 앱 모의 메일함(보낸편지함)에서 대신 열어 확인 단계로 넘긴다. 메일이 없으면 서버 문구 그대로다
-      if (!result.ok && result.code === 'linkRequired' && !result.linkToken && input.scenario === 'sameEmail' && input.providerEmail) {
-        const to = input.providerEmail.trim().toLowerCase();
-        const mail = (await readOutbox())
-          .filter((m) => m.kind === 'link' && !m.invalidated && m.to.toLowerCase() === to)
-          .sort((a, b) => b.sentAt - a.sentAt)[0];
-        if (mail) {
-          return {
-            ...result,
-            linkToken: mail.token,
-            detail: `${to} 계정으로 온 연결 확인 메일을 열었습니다(개발용 메일함). 이 계정에 소셜 로그인을 연결할까요?`,
-          };
-        }
-      }
-      return result;
+      return input.scenario === 'sameEmail' ? openLinkMail(result, input.providerEmail) : result;
     },
 
-    confirmLink: async ({ linkToken, accept }) => keep(await call('/auth/social/confirm', { body: { linkToken, accept } })),
+    confirmLink: async ({ linkToken, accept }) => keep(await call('/auth/oauth/confirm', { body: { linkToken, accept } })),
+
+    async oauthState({ provider, redirectUri }): Promise<OAuthStateResult> {
+      const r = await call('/auth/oauth/state', { body: { provider, redirectUri } });
+      if (r?.body.ok === true && typeof r.body.state === 'string' && typeof r.body.expiresAt === 'number') {
+        return { ok: true, state: r.body.state, expiresAt: r.body.expiresAt };
+      }
+      const ack = toAck(r);
+      return {
+        ok: false,
+        code: ack.ok ? 'providerFailed' : ack.code,
+        ...(!ack.ok && ack.detail ? { detail: ack.detail } : {}),
+        ...(r?.status === 503 ? { unconfigured: true } : {}),
+      };
+    },
+
+    async oauthSignIn(input) {
+      const r = await call(`/auth/oauth/${input.provider}`, {
+        body: {
+          code: input.code,
+          redirectUri: input.redirectUri,
+          state: input.state,
+          deviceToken: input.deviceToken,
+          ...(input.codeVerifier ? { codeVerifier: input.codeVerifier } : {}),
+          ...(input.clientId ? { clientId: input.clientId } : {}),
+        },
+        // 서버가 제공자와 두 번 주고받는다
+        timeoutMs: Math.max(timeoutMs, 20_000),
+      });
+      const result = await keep(r);
+      const email = typeof r?.body.providerEmail === 'string' ? r.body.providerEmail : undefined;
+      return openLinkMail(result, email);
+    },
 
     async isNicknameTaken(nickname, exceptAccountId) {
       const r = await call(`/auth/nickname?nickname=${encodeURIComponent(nickname)}`, { token: await tokenOf(exceptAccountId) });

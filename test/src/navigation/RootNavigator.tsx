@@ -6,6 +6,7 @@ import React from 'react';
 import CandidatesScreen from '../screens/CandidatesScreen';
 import ChatScreen from '../screens/ChatScreen';
 import CreateTripScreen from '../screens/CreateTripScreen';
+import DirectionsScreen from '../screens/DirectionsScreen';
 import DiaryScreen from '../screens/DiaryScreen';
 import HomeScreen from '../screens/HomeScreen';
 import InviteAcceptScreen from '../screens/InviteAcceptScreen';
@@ -93,6 +94,7 @@ export function RootNavigator({ hasSession }: { hasSession: boolean }) {
           <Stack.Screen name="ScheduleEdit" component={ScheduleEditScreen} />
           <Stack.Screen name="LegTransport" component={LegTransportScreen} />
           <Stack.Screen name="Navigate" component={NavigateScreen} />
+          <Stack.Screen name="Directions" component={DirectionsScreen} />
           <Stack.Screen name="LiveTrip" component={LiveTripScreen} />
           <Stack.Screen name="Photos" component={PhotosScreen} />
           <Stack.Screen name="Diary" component={DiaryScreen} />

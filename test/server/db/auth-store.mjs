@@ -1,6 +1,6 @@
 /**
  * 계정·로그인 PostgreSQL 저장소(WP2 소유). server/auth.mjs createMemoryAuthStore와 메서드·결과가 같다.
- * 표는 마이그레이션 002_auth.sql의 auth_*다. db는 postgres-store.mjs sqlDb()로 감싼 pg.Pool 또는 PGlite다.
+ * 표는 마이그레이션 002_auth.sql의 auth_*와 003_oauth_states.sql의 auth_oauth_states다. db는 postgres-store.mjs sqlDb()로 감싼 pg.Pool 또는 PGlite다.
  * 고유 색인 충돌(23505)은 던지지 않고 'email' | 'nickname' | 'userId'로 돌려준다(동시에 같은 이메일로 가입한 경우 등).
  */
 
@@ -61,6 +61,15 @@ export function createPgAuthStore(db) {
     async accountByEmail(email) {
       return rowToAccount(
         await one(`SELECT ${ACCOUNT_COLS} FROM auth_accounts WHERE lower(email) = lower($1) AND deleted_at IS NULL`, [email]),
+      );
+    },
+    /** 닉네임(앞뒤 공백 무시, 대소문자 무시)으로 찾는다. 아이디 로그인용 */
+    async accountByNickname(nickname) {
+      return rowToAccount(
+        await one(
+          `SELECT ${ACCOUNT_COLS} FROM auth_accounts WHERE lower(nickname) = lower(btrim($1)) AND deleted_at IS NULL LIMIT 1`,
+          [String(nickname ?? '')],
+        ),
       );
     },
     async accountByUserId(userId) {
@@ -186,6 +195,23 @@ export function createPgAuthStore(db) {
       else await db.query('DELETE FROM auth_tokens WHERE account_id = $1 AND kind = $2', [accountId, kind]);
     },
 
+    async putOAuthState(st) {
+      await db.query(
+        `INSERT INTO auth_oauth_states (state_hash, provider, redirect_uri, created_at, expires_at) VALUES ($1, $2, $3, $4, $5)`,
+        [st.stateHash, st.provider, st.redirectUri, iso(st.createdAt), iso(st.expiresAt)],
+      );
+    },
+    /** 한 번만 쓴다. 제공자가 다르거나 만료·사용한 값이면 null */
+    async useOAuthState(hash, provider, now) {
+      const r = await one(
+        `UPDATE auth_oauth_states SET used_at = $3
+          WHERE state_hash = $1 AND provider = $2 AND used_at IS NULL AND expires_at > $3
+          RETURNING redirect_uri`,
+        [hash, provider, iso(now)],
+      );
+      return r ? { redirectUri: r.redirect_uri } : null;
+    },
+
     /** 고정 창 카운터를 하나 올린다. 창이 지났으면 1부터 다시 */
     async hit(key, now, windowMs) {
       const r = await one(
@@ -231,13 +257,14 @@ export function createPgAuthStore(db) {
       const at = iso(now);
       await db.query('DELETE FROM auth_sessions WHERE expires_at <= $1', [at]);
       await db.query('DELETE FROM auth_tokens WHERE expires_at <= $1 OR used_at IS NOT NULL', [at]);
+      await db.query('DELETE FROM auth_oauth_states WHERE expires_at <= $1 OR used_at IS NOT NULL', [at]);
       await db.query(
         `DELETE FROM auth_attempts WHERE window_start <= $1 AND (locked_until IS NULL OR locked_until <= $2)`,
         [iso(now - 24 * 60 * 60 * 1000), at],
       );
     },
     async reset() {
-      await db.query('TRUNCATE auth_attempts, auth_tokens, auth_sessions, auth_identities, auth_accounts');
+      await db.query('TRUNCATE auth_attempts, auth_oauth_states, auth_tokens, auth_sessions, auth_identities, auth_accounts');
     },
   };
 }

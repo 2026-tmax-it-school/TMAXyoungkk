@@ -3,20 +3,32 @@ import type { MapDotInput, MapMarkerInput, MapPolylineInput } from './layout';
 
 /**
  * 지도 엔진 고르기와 화면 맞춤 좌표(WP5 소유, 순수).
- * - 'google': 구글 지도. 웹은 Maps JavaScript API, 앱은 react-native-maps(안드로이드 구글, iOS Expo Go는 Apple 지도).
+ * - 'kakao': 카카오맵(2026-10-10 결정, 기본). 웹은 Maps JavaScript SDK, 앱은 WebView 안에서 같은 SDK를 띄운다.
+ * - 'google': 구글 지도(선택 대체). 웹은 Maps JavaScript API, 앱은 react-native-maps(안드로이드 구글, iOS Expo Go는 Apple 지도).
  * - 'svg': MapCanvas 기본 지도(react-native-svg 격자). 키가 필요 없다.
- * 구글 길찾기는 국내 도보·자동차 경로를 주지 않는다. 그래서 구글은 바탕 지도로만 쓰고 선 모양은 기존 경로 제공자가 준다.
+ * 어느 바탕 지도든 선 모양은 기존 경로 제공자(OpenStreetMap OSRM·카카오모빌리티)가 준다.
  */
 
-export type MapEngine = 'google' | 'svg';
+export type MapEngine = 'kakao' | 'google' | 'svg';
 
 /**
- * 키가 있을 때만 구글이다. override가 svg면 키가 있어도 기본 지도다.
- * 키 없는 구글 지도는 고르지 않는다. 구글이 키 없는 요청을 ApiProjectMapError로 막아 빈 화면이 된다.
+ * 고르는 순서
+ * 1. override가 svg면 키가 있어도 기본 지도
+ * 2. override가 google이고 구글 키가 있으면 구글
+ * 3. 카카오 키(JavaScript 키)가 있으면 카카오
+ * 4. 구글 키가 있으면 구글
+ * 5. 그 밖은 기본 지도
+ * 키 없는 지도는 고르지 않는다. 구글은 키 없는 요청을 ApiProjectMapError로, 카카오는 appkey 없는 SDK 요청을 막아 빈 화면이 된다.
+ * key는 구글 키다(예전 호출 모양을 지킨다). override 'kakao'는 비운 것과 같다(카카오 키가 있으면 카카오가 기본이다).
  */
-export function pickMapEngine(o: { key: string; override: string }): MapEngine {
-  if (o.override.trim().toLowerCase() === 'svg') return 'svg';
-  return o.key.trim().length > 0 ? 'google' : 'svg';
+export function pickMapEngine(o: { key: string; override: string; kakaoKey?: string }): MapEngine {
+  const override = o.override.trim().toLowerCase();
+  const google = o.key.trim().length > 0;
+  const kakao = (o.kakaoKey ?? '').trim().length > 0;
+  if (override === 'svg') return 'svg';
+  if (override === 'google' && google) return 'google';
+  if (kakao) return 'kakao';
+  return google ? 'google' : 'svg';
 }
 
 export interface FitInput {
@@ -50,12 +62,22 @@ export function fitKey(coords: LatLng[]): string {
 /** 좌표가 하나도 없을 때 보여 줄 곳(경주 중심). layout.makeProjection과 같다. */
 export const DEFAULT_MAP_CENTER: LatLng = { latitude: 35.8562, longitude: 129.2247 };
 
+/* 배율은 구글 zoom(클수록 가까움) 기준이다. 카카오는 kakaoLevel로 바꿔 쓴다. */
+
 /** 맞춘 뒤 이보다 더 당기지 않는다. 약 1.1km 폭(layout MIN_SPAN_DEG)에 가깝다. */
 export const FIT_MAX_ZOOM = 16;
 /** 묶음을 눌러 당길 때 한도. 29~77m 붙은 쌍도 이 배율에서 떨어진다. */
 export const FOCUS_MAX_ZOOM = 19;
 /** 이 배율 이상인데도 묶여 있으면 더 당기지 않고 목록을 띄운다 */
 export const GROUP_LIST_ZOOM = 18;
+
+/**
+ * 구글 zoom을 카카오 레벨로 바꾼다. 카카오는 1(가장 가까움)~14이고 한 단계가 2배라 약 20 - zoom이다.
+ * FIT_MAX_ZOOM 16은 4, GROUP_LIST_ZOOM 18은 2, FOCUS_MAX_ZOOM 19는 1, 처음 13은 7이다.
+ */
+export function kakaoLevel(zoom: number): number {
+  return Math.min(14, Math.max(1, Math.round(20 - zoom)));
+}
 
 /* ---------- 지도 SDK 어댑터가 같이 쓰는 순수 계산 ---------- */
 
@@ -78,7 +100,7 @@ function shrink(a: number, b: number, total: number): [number, number] {
 }
 
 /**
- * 화면 맞춤 여백(px, dp). 구글 로고와 '지도 데이터' 표기가 아래쪽에 있어 아래를 더 비운다.
+ * 화면 맞춤 여백(px, dp). 구글·카카오 로고와 저작권 표기가 아래쪽에 있어 아래를 더 비운다.
  * - compact(미리보기): 16, 아래 30
  * - flat(11·13 화면 가득): 위에 칩·안내 카드가 떠 있어 위 96
  * - 그 밖: 40, 아래 48
@@ -102,7 +124,9 @@ export function focusPadding(size: { width: number; height: number }): number {
 export function pinName(m: Pick<MapMarkerInput, 'kind' | 'label' | 'title'>): string {
   if (m.kind === 'base') return `기점 ${m.title}`;
   if (m.kind === 'excluded') return `제외 스팟 ${m.title}`;
-  return m.label ? `${m.label}번 ${m.title}` : m.title;
+  if (!m.label) return m.title;
+  // 순번이면 'N번', 글자 라벨(길찾기의 '출발'·'도착')이면 그대로 앞에 붙인다
+  return /^\d+$/.test(m.label) ? `${m.label}번 ${m.title}` : `${m.label} ${m.title}`;
 }
 
 export function clusterName(count: number, pressable = true): string {

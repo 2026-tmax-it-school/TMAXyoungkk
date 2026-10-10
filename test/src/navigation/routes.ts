@@ -39,6 +39,8 @@ export type RootStackParamList = {
   /** legIndex 0은 기점 → 첫 스팟 */
   LegTransport: { tripId: string; date: string; legIndex: number };
   Navigate: { tripId: string; date: string; legIndex: number };
+  /** 자유 길찾기. 여행방 없이도 연다(검색·지도 선택만). fromSpotId·toSpotId는 처음 채울 스팟 */
+  Directions: { tripId?: string; fromSpotId?: string; toSpotId?: string } | undefined;
   LiveTrip: { tripId: string; date?: string };
   Photos: { tripId: string };
   Diary: { tripId: string; date?: string };
@@ -131,4 +133,5 @@ export const SCREEN_META: Record<Exclude<RootRouteName, 'Main'> | TabRouteName |
   Recommend: { no: '23', title: '여행지 추천', fr: 'FR-404', wp: 'WP3' },
   TripSettings: { no: '25', title: '여행방 설정 · 날짜별 기점', fr: 'FR-201·205·204', wp: 'WP2' },
   SocialConsent: { no: '26', title: '소셜 로그인 동의', fr: 'FR-103', wp: 'WP1' },
+  Directions: { no: '27', title: '길찾기', fr: 'FR-601~603', wp: 'WP5' },
 };

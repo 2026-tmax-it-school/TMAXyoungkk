@@ -32,7 +32,7 @@ import {
 import type { LatLng } from '../../types';
 import { GOOGLE_MAP_STYLE, lineC, mapC, mapPinSvg, R, type PinSpec } from '../../ui';
 import { googleScriptUrl } from './googleScript';
-import { ClusterListSheet, FitAllButton, MapChildren, mapHeight, type MapCanvasProps, type MapFailReason } from './parts';
+import { ClusterListSheet, FitAllButton, MapChildren, mapHeight, type MapFailReason, type MapViewProps } from './parts';
 
 /**
  * 구글 지도(웹, WP5 소유). Maps JavaScript API를 스크립트로 한 번 불러와 MapCanvas와 같은 props를 그린다.
@@ -52,6 +52,8 @@ import { ClusterListSheet, FitAllButton, MapChildren, mapHeight, type MapCanvasP
  *   타일 시한(TILE_TIMEOUT_MS)은 문서가 보이고 지도 칸에 크기가 있을 때만 흐른다. 숨은 탭·display:none 화면에서는 멈춘다.
  *   타일 요청이 네트워크에서 실패해도 구글은 tilesloaded를 보낸다(2026-10 확인). 그때는 회색 바탕 위에 핀·선이 그대로 보이고,
  *   시한은 tilesloaded가 아예 오지 않는 경우(인증 콜백 없는 거부, 그려지지 못하는 지도)만 잡는다.
+ * - 내 위치(center): 첫 요청은 LOCATE_ZOOM까지 당기며(이미 더 가까우면 그대로) setCenter, 따라가기는 panTo로 옮긴다.
+ *   손짓·묶음 누르기·'전체 보기'는 onUserMove로 알려 따라가기를 푼다. 따라가기 중(holdFit)에는 루트 전체로 다시 맞추지 않는다.
  * 구글 로고와 약관 표기는 가리지 않는다. 하단 시트가 덮는 높이(overlayBottom)만큼 지도 영역을 줄이고 '전체 보기'를 로고 위로 올린다.
  */
 
@@ -447,7 +449,7 @@ function watchTiles(map: google.maps.Map, el: HTMLElement, onTimeout: () => void
   };
 }
 
-export function GoogleMapView(props: MapCanvasProps & { onFail: (reason: MapFailReason) => void }) {
+export function GoogleMapView(props: MapViewProps & { onFail: (reason: MapFailReason) => void }) {
   const host = useRef<View>(null);
   const st = useRef<MapState>({ lines: [], cleanups: [] });
   const latest = useRef(props);
@@ -459,14 +461,20 @@ export function GoogleMapView(props: MapCanvasProps & { onFail: (reason: MapFail
     movedRef.current = v;
     setMovedState(v);
   };
+  /** 사용자가 손으로 움직였다. 코드가 옮길 때(fit·center)는 부르지 않는다 */
+  const userMoved = () => {
+    setMoved(true);
+    latest.current.onUserMove?.();
+  };
   const [group, setGroup] = useState<string[] | undefined>(undefined);
   const height = mapHeight(props);
   const compact = !!props.compact;
   const bottomCover = props.overlayBottom ?? 0;
 
-  const hasUser = !!props.user;
+  // 내 위치 버튼의 점(locateUser)은 맞춤에 넣지 않는다
+  const hasUser = !!props.user && !props.locateUser;
   const fitList = useMemo(
-    () => fitCoords({ markers: props.markers, polylines: props.polylines, fitTo: props.fitTo, user: latest.current.user }),
+    () => fitCoords({ markers: props.markers, polylines: props.polylines, fitTo: props.fitTo, user: latest.current.locateUser ? undefined : latest.current.user }),
     // 현재 위치가 움직여도 다시 맞추지 않는다. 있고 없고만 본다.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [props.markers, props.polylines, props.fitTo, hasUser],
@@ -531,7 +539,7 @@ export function GoogleMapView(props: MapCanvasProps & { onFail: (reason: MapFail
     for (const x of c.coords) b.extend(toG(x));
     map.fitBounds(b, focusPadding(hostSize()));
     settle(FOCUS_MAX_ZOOM);
-    setMoved(true);
+    userMoved();
   };
 
   // 지도는 한 번만 만든다. 바뀌는 값은 latest로 읽는다.
@@ -571,8 +579,8 @@ export function GoogleMapView(props: MapCanvasProps & { onFail: (reason: MapFail
         layer.setMap(map);
         s.layer = layer;
 
-        map.addListener('dragstart', () => setMoved(true));
-        s.cleanups.push(bindGestures(el, () => setMoved(true), !p.compact && !p.flat));
+        map.addListener('dragstart', () => userMoved());
+        s.cleanups.push(bindGestures(el, () => userMoved(), !p.compact && !p.flat));
 
         const tiles = watchTiles(map, el, () => {
           console.warn('구글 지도 타일을 받지 못해 이 지도를 기본 지도로 바꿔요(키·결제·API 사용 설정·하루 한도 확인)');
@@ -692,9 +700,25 @@ export function GoogleMapView(props: MapCanvasProps & { onFail: (reason: MapFail
 
   // 처음과 마커·선이 바뀔 때 화면을 맞춘다. 크기 변화는 ResizeObserver가 맡는다
   useEffect(() => {
-    if (ready) fit();
+    if (ready && !latest.current.holdFit) fit();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, key]);
+
+  // 내 위치로 옮기기. 요청(seq)마다 한 번. 첫 요청만 당기고 따라가기는 panTo로 부드럽게 옮긴다
+  const centerSeq = props.center?.seq;
+  useEffect(() => {
+    const map = st.current.map;
+    const c = latest.current.center;
+    if (!ready || !map || !c) return;
+    if (c.zoom != null) {
+      if ((map.getZoom() ?? 0) < c.zoom) map.setZoom(c.zoom);
+      map.setCenter(toG(c.coord));
+    } else {
+      map.panTo(toG(c.coord));
+    }
+    setMoved(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, centerSeq]);
 
   const titleOf = useMemo(() => new Map(props.markers.map((m) => [m.id, m.title])), [props.markers]);
 
@@ -707,7 +731,15 @@ export function GoogleMapView(props: MapCanvasProps & { onFail: (reason: MapFail
       ]}
     >
       <View ref={host} style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: bottomCover }} />
-      {moved && !compact ? <FitAllButton overlayBottom={bottomCover + 24} onPress={fit} /> : null}
+      {moved && !compact ? (
+        <FitAllButton
+          overlayBottom={bottomCover + 24}
+          onPress={() => {
+            fit();
+            latest.current.onUserMove?.();
+          }}
+        />
+      ) : null}
       <ClusterListSheet
         memberIds={group}
         titleOf={titleOf}

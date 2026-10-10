@@ -9,7 +9,7 @@ import { clusterName, DEFAULT_MAP_CENTER, fitCoords, fitKey, mapPadding, pinName
 import { clusterMarkers, DEFAULT_CLUSTER_PX, type MapCluster, type MapMarkerInput, type XY } from '../../core/map/layout';
 import type { LatLng } from '../../types';
 import { GOOGLE_MAP_STYLE, lineC, mapC, mapPinSvg, R, type PinSpec } from '../../ui';
-import { ClusterListSheet, FitAllButton, MapChildren, mapHeight, type MapCanvasProps, type MapFailReason } from './parts';
+import { ClusterListSheet, FitAllButton, MapChildren, mapHeight, type MapFailReason, type MapViewProps } from './parts';
 
 /**
  * 구글 지도(앱, WP5 소유). react-native-maps로 MapCanvas와 같은 props를 그린다. 웹은 GoogleMapView.web.tsx다.
@@ -24,6 +24,8 @@ import { ClusterListSheet, FitAllButton, MapChildren, mapHeight, type MapCanvasP
  * - 구글 제공자는 onMapReady 뒤 10초 안에 onMapLoaded(타일 다 그림)가 안 오면 onFail('tiles')로 기본 지도에 넘긴다.
  *   Apple 지도는 onMapLoaded를 주지 않아 시한을 두지 않는다.
  * - '전체 보기': 구글은 isGesture로, Apple은 '코드가 맞춘 직후의 첫 변화'를 빼고 나머지 변화를 사용자 조작으로 본다.
+ * - 내 위치(center): animateCamera로 옮긴다. 첫 요청은 LOCATE_ZOOM까지 당기고 따라가기는 중심만 옮긴다.
+ *   끌기(onPanDrag)·구글 손짓·묶음 누르기·'전체 보기'는 onUserMove로 알려 따라가기를 푼다. 따라가기 중(holdFit)에는 다시 맞추지 않는다.
  */
 
 const extra = (Constants.expoConfig?.extra ?? {}) as { androidGoogleMaps?: boolean; iosGoogleMaps?: boolean };
@@ -94,7 +96,10 @@ function PinMarker({ coord, spec, name, onPress }: { coord: LatLng; spec: PinSpe
   );
 }
 
-export function GoogleMapView(props: MapCanvasProps & { onFail: (reason: MapFailReason) => void }) {
+/** Apple 지도에서 내 위치로 처음 옮길 때 영역 폭(도). LOCATE_ZOOM 17과 비슷하다 */
+const APPLE_LOCATE_DELTA = 0.004;
+
+export function GoogleMapView(props: MapViewProps & { onFail: (reason: MapFailReason) => void }) {
   const ref = useRef<MapView>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
   const [region, setRegion] = useState<Region | undefined>(undefined);
@@ -107,9 +112,10 @@ export function GoogleMapView(props: MapCanvasProps & { onFail: (reason: MapFail
   const compact = !!props.compact;
   const bottomCover = props.overlayBottom ?? 0;
 
-  const hasUser = !!props.user;
+  // 내 위치 버튼의 점(locateUser)은 맞춤에 넣지 않는다
+  const hasUser = !!props.user && !props.locateUser;
   const fitList = useMemo(
-    () => fitCoords({ markers: props.markers, polylines: props.polylines, fitTo: props.fitTo, user: props.user }),
+    () => fitCoords({ markers: props.markers, polylines: props.polylines, fitTo: props.fitTo, user: props.locateUser ? undefined : props.user }),
     // 현재 위치가 움직여도 다시 맞추지 않는다. 있고 없고만 본다.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [props.markers, props.polylines, props.fitTo, hasUser],
@@ -135,9 +141,36 @@ export function GoogleMapView(props: MapCanvasProps & { onFail: (reason: MapFail
   };
 
   useEffect(() => {
-    if (ready && size.width > 0) fit();
+    // 따라가기 중(holdFit)에는 크기·내용이 바뀌어도 루트 전체로 다시 맞추지 않는다
+    if (ready && size.width > 0 && !props.holdFit) fit();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, key, height, bottomCover, size.width, size.height]);
+
+  // 내 위치로 옮기기(animateCamera). 요청(seq)마다 한 번. 첫 요청만 당기고(이미 더 가까우면 그대로) 따라가기는 중심만 옮긴다
+  const centerSeq = props.center?.seq;
+  useEffect(() => {
+    const map = ref.current;
+    const c = props.center;
+    if (!ready || !map || !c) return;
+    fitting.current = true;
+    setTimeout(() => {
+      fitting.current = false;
+    }, 1500);
+    if (c.zoom == null) {
+      map.animateCamera({ center: c.coord }, { duration: 400 });
+    } else if (!IS_GOOGLE) {
+      // Apple 지도는 camera zoom을 받지 않는다. 약 400m 폭 영역으로 옮긴다
+      map.animateToRegion({ ...c.coord, latitudeDelta: APPLE_LOCATE_DELTA, longitudeDelta: APPLE_LOCATE_DELTA }, 0);
+    } else {
+      const zoom = c.zoom;
+      void map
+        .getCamera()
+        .then((cam) => map.animateCamera({ center: c.coord, zoom: (cam.zoom ?? 0) < zoom ? zoom : cam.zoom }, { duration: 0 }))
+        .catch(() => map.animateCamera({ center: c.coord, zoom }, { duration: 0 }));
+    }
+    setMoved(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, centerSeq]);
 
   // 구글 제공자: 지도가 준비된 뒤 타일을 다 그렸다는 신호가 시한 안에 안 오면 기본 지도로 넘긴다(앱이 앞에 있을 때만 잰다)
   const [loaded, setLoaded] = useState(false);
@@ -177,7 +210,10 @@ export function GoogleMapView(props: MapCanvasProps & { onFail: (reason: MapFail
   const pressCluster = (c: MapCluster) => {
     // 약 170m보다 좁게 당겼는데도 묶여 있으면 목록에서 고른다
     if (region && region.latitudeDelta < 0.0015 && props.onMarkerPress) setGroup(c.memberIds);
-    else fit(c.coords, true);
+    else {
+      fit(c.coords, true);
+      props.onUserMove?.();
+    }
   };
 
   const mPerPx = region && size.height > 0 ? (region.latitudeDelta * M_PER_DEG_LAT) / size.height : 5;
@@ -210,10 +246,14 @@ export function GoogleMapView(props: MapCanvasProps & { onFail: (reason: MapFail
             fitting.current = false;
             return;
           }
-          if (IS_GOOGLE ? d?.isGesture : true) setMoved(true);
+          if (IS_GOOGLE ? d?.isGesture : true) {
+            setMoved(true);
+            if (IS_GOOGLE) props.onUserMove?.();
+          }
         }}
         onPanDrag={() => {
           if (!moved) setMoved(true);
+          props.onUserMove?.();
         }}
         onPress={(e) => props.onPressMap?.(e.nativeEvent.coordinate)}
         scrollEnabled={!compact}
@@ -278,7 +318,15 @@ export function GoogleMapView(props: MapCanvasProps & { onFail: (reason: MapFail
         ))}
         {u ? <PinMarker coord={u.coord} spec={{ kind: 'user', compact }} name={userName(faint)} /> : null}
       </MapView>
-      {moved && !compact ? <FitAllButton overlayBottom={bottomCover + 24} onPress={() => fit()} /> : null}
+      {moved && !compact ? (
+        <FitAllButton
+          overlayBottom={bottomCover + 24}
+          onPress={() => {
+            fit();
+            props.onUserMove?.();
+          }}
+        />
+      ) : null}
       <ClusterListSheet
         memberIds={group}
         titleOf={titleOf}

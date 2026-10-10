@@ -60,6 +60,7 @@ export function Txt({
   numberOfLines,
   style,
   center,
+  underline,
   children,
 }: {
   v: TypeKey;
@@ -68,13 +69,15 @@ export function Txt({
   style?: StyleProp<TxtLayoutStyle>;
   /** 가운데 정렬. 스플래시·Empty·지도 안 글자에만 쓴다(디자인 규칙). */
   center?: boolean;
+  /** 밑줄(15 로그인 '계정찾기' 같은 글자 링크). ui/Auth TextLink가 쓴다 */
+  underline?: boolean;
   children?: React.ReactNode;
 }) {
   const color = textC[c ?? DEFAULT_COLOR[v] ?? 'ink'];
   return (
     <Text
       numberOfLines={numberOfLines}
-      style={[T[v], { color }, TABULAR_NUMS.includes(v) ? TABULAR : null, center ? { textAlign: 'center' } : null, style]}
+      style={[T[v], { color }, TABULAR_NUMS.includes(v) ? TABULAR : null, center ? { textAlign: 'center' } : null, underline ? { textDecorationLine: 'underline' } : null, style]}
     >
       {children}
     </Text>

@@ -14,7 +14,8 @@
  *   GET  /health                                    → {ok, db:'postgres'|'memory'}(DB에 못 닿으면 503)
  *   POST /reset                                     → 204(시연 리셋) | 403 {error:'resetDisabled'}
  *   GET  /kakao/…, /osrm/…                          → 키 숨기는 중계(server/proxy.mjs). 카카오 장소·자동차 길찾기, OSRM 길
- *   /auth/…                                         → 계정·로그인(server/auth.mjs. 가입·인증·로그인·세션·프로필·탈퇴·재설정·모의 소셜)
+ *   /auth/…                                         → 계정·로그인(server/auth.mjs. 가입·인증·로그인·세션·프로필·탈퇴·재설정·모의 소셜·
+ *                                                      구글·카카오 OAuth(server/oauth.mjs))
  *   OPTIONS *                                       → 204(CORS 사전 요청)
  *
  * 시연 리셋은 서버의 여행방을 모두 지운다. 메모리 저장소는 늘 허용하고, PostgreSQL은 SYNC_ALLOW_RESET=1일 때만 허용한다
@@ -40,6 +41,7 @@ import { createAuthService, createMemoryAuthStore, devOutboxFromEnv, isAuthPath 
 import { projectOps } from './db/projection.mjs';
 import { storableId } from './ids.mjs';
 import { judgeInvite, lookupInTrips } from './invites.mjs';
+import { describeOAuth, oauthOptionsFromEnv } from './oauth.mjs';
 import { createApiProxy, isProxyPath, proxyOptionsFromEnv } from './proxy.mjs';
 import { REDACT_TRIGGER_TYPES, redactLog } from './redact.mjs';
 import { ORPHAN_RETENTION_MS, PURGE_EVERY_MS, ROUTE_CACHE_TTL_MS, retentionUntil } from './retention.mjs';
@@ -367,19 +369,22 @@ async function main() {
   // 보낸편지함·모의 소셜은 서버 변수(SYNC_ALLOW_RESET=1 또는 AUTH_DEV_OUTBOX=1)로만 연다. 메모리 저장소라고 열지 않는다
   const devOutbox = devOutboxFromEnv(process.env);
   const proxy = proxyOptionsFromEnv(process.env);
+  // 실제 소셜 로그인 키(GOOGLE_OAUTH_*, KAKAO_OAUTH_*)와 돌아올 주소 허용 목록(OAUTH_REDIRECT_URIS). 값은 로그에 남기지 않는다
+  const oauth = oauthOptionsFromEnv(process.env);
   const server = await startSyncServer({
     port,
     host: '0.0.0.0',
     store,
     allowReset,
     proxy,
-    auth: { devOutbox },
+    auth: { devOutbox, oauth },
     log: (m) => console.log(m),
   });
   console.log(
     `sync-server ${server.url} (저장: ${store.kind === 'postgres' ? 'PostgreSQL' : '메모리'}, 시연 리셋: ${allowReset ? '허용' : '막음'})`,
   );
   console.log(`계정: 메일 발송 없음, 개발용 보낸편지함·모의 소셜 ${devOutbox ? '열림(GET /auth/outbox, /auth/social)' : '닫힘(AUTH_DEV_OUTBOX=1로 연다)'}`);
+  console.log(`소셜 로그인(OAuth): ${describeOAuth(oauth)}`);
   console.log(
     `중계: 카카오 ${proxy.kakaoKey ? '켜짐' : '꺼짐(KAKAO_REST_KEY 없음, 503)'}, OSRM ${new URL(proxy.osrmUrl).host}`,
   );

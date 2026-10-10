@@ -1,6 +1,6 @@
 import type { Session, Trip } from '../../types';
 import { planAccountDeletion, planAccountLink } from '../../core/auth';
-import type { AccountPublic, AuthAck, AuthResult, Profile } from '../../core/ports';
+import type { AccountPublic, AuthAck, AuthResult, OAuthCodeInput, OAuthProviderKind, OAuthStateResult, Profile } from '../../core/ports';
 import { sessionExpiryNotice } from '../../core/session';
 import { appClock } from '../../services/clock';
 import type { SocialInput } from '../../services/auth';
@@ -21,7 +21,8 @@ import { judgeSocial, type SocialIntent, type SocialJudgement } from './social';
  * - 로그아웃·탈퇴는 signOutFlow로 세션·프로필과 지금 여행방(ui.currentTripId), 세션 사진 원본을 같이 비운다.
  *   계정 서버를 쓰면 서버 세션도 끊는다(AuthProvider.signOut. 기다리지 않고, 실패해도 이 기기는 로그아웃한다).
  * - 앱 시작 때 계정 세션이 서버에서 끊겼으면(만료·재설정·탈퇴) 로그아웃하고 다시 로그인하라고 알린다(restoreAccountSession).
- * - 비밀번호 재설정(requestPasswordResetFlow, confirmPasswordResetFlow): 제공자 계약은 있고 화면은 아직 없다(추적표 남은 일).
+ * - 비밀번호 재설정(requestPasswordResetFlow, confirmPasswordResetFlow): 15 로그인의 '계정찾기' 시트(FindAccountSheet)가 쓴다.
+ * - 실제 소셜 로그인(oauthStateFlow, oauthSignInFlow): 계정 서버가 있을 때만. 결과는 소셜과 같은 판정(judgeSocial)이다.
  * - 탈퇴(17): planAccountDeletion 초안을 방마다 본인 멤버 이름으로 보내고(actingAs를 따르지 않는다),
  *   AuthProvider.deleteAccount 뒤 로그아웃한다.
  */
@@ -133,6 +134,28 @@ export async function socialFlow(
   };
   const result = await getServices().auth.social(input);
   const j = judgeSocial(intent, result, currentAccountId);
+  if (j.kind === 'signIn' && result.ok) await completeAuth(result.account);
+  return { ...j, account: result.ok ? result.account : undefined };
+}
+
+const NO_OAUTH = '실제 소셜 로그인은 계정 서버가 있어야 합니다';
+
+/** 실제 소셜 로그인 시작용 일회용 state(계정 서버). 서버에 키가 없으면 unconfigured */
+export async function oauthStateFlow(provider: OAuthProviderKind, redirectUri: string): Promise<OAuthStateResult> {
+  const auth = getServices().auth;
+  if (!auth.oauthState) return { ok: false, code: 'providerFailed', detail: NO_OAUTH };
+  return auth.oauthState({ provider, redirectUri });
+}
+
+/**
+ * 실제 소셜 로그인 마무리. 인가 코드를 계정 서버로 넘기고 소셜과 같은 규칙으로 판정한다
+ * (성공이면 로그인, 같은 이메일이면 연결 확인 단계, 아니면 실패). 기기 토큰은 이 기기 것이다.
+ */
+export async function oauthSignInFlow(input: Omit<OAuthCodeInput, 'deviceToken'>): Promise<SocialFlowResult> {
+  const auth = getServices().auth;
+  if (!auth.oauthSignIn) return { kind: 'fail', result: { ok: false, code: 'providerFailed', detail: NO_OAUTH } };
+  const result = await auth.oauthSignIn({ ...input, deviceToken: useSession.getState().ensureDeviceToken() });
+  const j = judgeSocial('login', result);
   if (j.kind === 'signIn' && result.ok) await completeAuth(result.account);
   return { ...j, account: result.ok ? result.account : undefined };
 }

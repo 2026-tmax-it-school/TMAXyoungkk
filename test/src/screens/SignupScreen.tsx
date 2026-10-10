@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { View } from 'react-native';
 
 import { NICKNAME_MAX, PASSWORD_MIN_LENGTH } from '../core/constants';
 import { isEmailLike, nicknameProblem, normalizeEmail, passwordViolations } from '../core/auth';
@@ -11,7 +12,7 @@ import type { RootScreenProps } from '../navigation/routes';
 import { getServices } from '../services/registry';
 import { useSession } from '../store/session';
 import { useUi } from '../store/ui';
-import { Body, Btn, Card, Chip, Col, Field, Header, Icon, Notice, Row, Screen, Txt } from '../ui';
+import { AuthBtn, AuthTitle, Body, Btn, Card, Chip, Col, Field, Icon, IconBtn, Notice, Row, Screen, SP, Txt } from '../ui';
 
 const RULES = [`${PASSWORD_MIN_LENGTH}자 이상`, '영문 포함', '숫자 포함'];
 
@@ -22,6 +23,8 @@ const RULES = [`${PASSWORD_MIN_LENGTH}자 이상`, '영문 포함', '숫자 포�
  * - 게스트로 쓰는 중이면 그 userId로 가입해 승격한다(userId 유지 · 이관 범위 미결정 · 이 기기 데이터 유지).
  * - 규칙 칩: 입력 전은 line, 지킨 규칙은 ok, 어긴 규칙은 앰버(warn). 제출은 막지 않고, 인증 제공자가 돌려준
  *   violations를 칩과 앰버 Notice에 그대로 반영한다(제공자 규칙이 기준이다).
+ * - 모양은 15 로그인과 같다(2026-10-10 사용자 시안): 가운데 큰 제목, 높이 48·라운드 6 입력 칸과 잉크 버튼.
+ * - 닉네임은 로그인 아이디로도 쓴다(계정마다 하나, @ 불가).
  */
 export default function SignupScreen({ navigation }: RootScreenProps<'Signup'>) {
   const session = useSession((s) => s.session);
@@ -107,15 +110,27 @@ export default function SignupScreen({ navigation }: RootScreenProps<'Signup'>) 
 
   return (
     <Screen>
-      <Header
-        back={navigation.canGoBack() ? navigation.goBack : undefined}
-        eyebrow={promoting ? `게스트 · ${session?.nickname ?? ''} · 계정으로` : 'Young Trip 계정'}
-        title={promoting ? '게스트를 계정으로' : '이메일로 가입'}
-      />
+      {navigation.canGoBack() ? (
+        <View style={{ paddingTop: SP.s, paddingHorizontal: SP.gutter }}>
+          <Row>
+            <IconBtn icon="back" label="뒤로" onPress={navigation.goBack} />
+          </Row>
+        </View>
+      ) : null}
       <Body scroll>
-        <Field label="이메일" value={email} onChangeText={setEmail} placeholder="you@example.com" keyboardType="email-address" />
+        <AuthTitle title={promoting ? '게스트를 계정으로' : '회원가입'} />
+        <Txt v="sub">{promoting ? '지금 쓰던 여행방을 그대로 두고 계정으로 바꿉니다.' : '인증 메일을 확인하면 가입이 끝납니다.'}</Txt>
+        {promoting ? (
+          <Notice
+            icon="user"
+            title={`게스트 ${session?.nickname ?? ''} 승격`}
+            text="지금 쓰던 여행방과 채팅, 제안은 그대로 이 계정으로 옮겨져요."
+          />
+        ) : null}
+        <Field look="auth" label="이메일" value={email} onChangeText={setEmail} placeholder="you@example.com" keyboardType="email-address" />
         <Col gap={6}>
           <Field
+            look="auth"
             label="비밀번호"
             value={password}
             onChangeText={(v) => {
@@ -134,15 +149,17 @@ export default function SignupScreen({ navigation }: RootScreenProps<'Signup'>) 
           </Row>
         </Col>
         <Field
-          label="닉네임"
+          look="auth"
+          label="닉네임(로그인 아이디)"
           value={nickname}
           onChangeText={setNickname}
           maxLength={NICKNAME_MAX}
           placeholder="예: 민지"
+          help="로그인할 때 이메일 대신 쓸 수 있어요. 다른 사람과 겹칠 수 없어요."
           error={nickname.length > 0 && nickProblem ? nickProblem : undefined}
         />
         {fail ? <Notice tone="warn" icon="alert" title={fail.title} text={fail.text} /> : null}
-        <Btn title={busy ? '보내는 중' : '가입하고 인증 메일 받기'} disabled={!canSubmit} onPress={() => void submit()} />
+        <AuthBtn title={busy ? '보내는 중' : '가입하고 인증 메일 받기'} disabled={!canSubmit} onPress={() => void submit()} />
         {sentTo ? (
           <Notice icon="mail" title="인증 메일을 보냈어요" text={`${sentTo}로 보냈어요. 아래 메일함에서 인증하기를 눌러 주세요.`} />
         ) : null}
