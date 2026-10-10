@@ -117,13 +117,11 @@ export interface HomeMenuCell {
   disabled: boolean;
   /** 비활성 이유(칸 안에 적는다) */
   reason?: string;
-  /** 2·3차 기능 표시 */
-  scope?: '2차' | '3차';
 }
 
 /**
  * 메뉴 6칸(목업 03). 여행방이 없으면 만들기만 열린다. 개인 모드면 채팅 칸이 비활성이고 이유를 적는다.
- * 길찾기는 2차 기능이지만 여행 시뮬레이터로 동작하므로 활성에 ScopeBadge '2차'를 단다.
+ * 길찾기는 여행 시뮬레이터로 동작하므로 활성이다.
  */
 export function homeMenu(trip: Trip | undefined, plan?: Plan): HomeMenuCell[] {
   const noTrip = '여행방을 먼저 골라 주세요';
@@ -166,7 +164,6 @@ export function homeMenu(trip: Trip | undefined, plan?: Plan): HomeMenuCell[] {
       icon: 'nav',
       disabled: !trip,
       reason: trip ? undefined : noTrip,
-      scope: '2차',
     },
   ];
   return cells;

@@ -11,7 +11,7 @@ import type { RootScreenProps } from '../navigation/routes';
 import { getServices } from '../services/registry';
 import { useSession } from '../store/session';
 import { useUi } from '../store/ui';
-import { Body, Btn, Card, Chip, Col, Field, Header, Icon, Notice, Row, Screen, ScopeBadge, Txt } from '../ui';
+import { Body, Btn, Card, Chip, Col, Field, Header, Icon, Notice, Row, Screen, Txt } from '../ui';
 
 const RULES = [`${PASSWORD_MIN_LENGTH}자 이상`, '영문 포함', '숫자 포함'];
 
@@ -111,7 +111,6 @@ export default function SignupScreen({ navigation }: RootScreenProps<'Signup'>) 
         back={navigation.canGoBack() ? navigation.goBack : undefined}
         eyebrow={promoting ? `게스트 · ${session?.nickname ?? ''} · 계정으로` : 'Young Trip 계정'}
         title={promoting ? '게스트를 계정으로' : '이메일로 가입'}
-        right={<ScopeBadge phase="2차" />}
       />
       <Body scroll>
         <Field label="이메일" value={email} onChangeText={setEmail} placeholder="you@example.com" keyboardType="email-address" />

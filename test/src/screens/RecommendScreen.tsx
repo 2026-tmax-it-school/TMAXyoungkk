@@ -27,7 +27,7 @@ import {
   Notice,
   Row,
   Screen,
-  ScopeBadge,
+ 
   SP,
   Tag,
   Txt,
@@ -127,7 +127,6 @@ export default function RecommendScreen({ navigation, route }: RootScreenProps<'
         sub={region.name}
         right={
           <Row gap={SP.s}>
-            <ScopeBadge phase="2차" />
           </Row>
         }
       />

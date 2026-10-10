@@ -7,7 +7,7 @@ import { useAuthDone } from '../features/account/useAuthDone';
 import type { RootScreenProps } from '../navigation/routes';
 import { useSession } from '../store/session';
 import { useUi } from '../store/ui';
-import { Body, Btn, Card, Choice, Col, Field, Foot, Header, lineC, Notice, Row, Screen, ScopeBadge, Txt } from '../ui';
+import { Body, Btn, Card, Choice, Col, Field, Foot, Header, lineC, Notice, Row, Screen, Txt } from '../ui';
 
 type Scenario = 'ok' | 'fail' | 'sameEmail';
 
@@ -87,7 +87,6 @@ export default function SocialConsentScreen({ navigation, route }: RootScreenPro
         close={navigation.canGoBack() ? navigation.goBack : undefined}
         eyebrow={linking ? `내 계정 · ${label} 연결` : `${label} 로그인`}
         title={linking ? `${label} 로그인을 연결할까요` : `${label} 계정으로 계속할까요`}
-        right={<ScopeBadge phase="2차" />}
       />
       <Body scroll>
         {!linking && session?.kind === 'guest' ? (

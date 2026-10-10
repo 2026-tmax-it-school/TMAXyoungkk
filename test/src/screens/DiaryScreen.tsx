@@ -35,7 +35,7 @@ import {
   Notice,
   Row,
   Screen,
-  ScopeBadge,
+ 
   Sheet,
   SP,
   surfaceC,
@@ -149,7 +149,7 @@ export default function DiaryScreen({ navigation, route }: RootScreenProps<'Diar
 
   return (
     <Screen>
-      <Header back={back} eyebrow={trip.title} title="일기" sub={dayLabel(date)} right={<ScopeBadge phase="3차" />} />
+      <Header back={back} eyebrow={trip.title} title="일기" sub={dayLabel(date)} />
       <Body scroll>
         <DateSeg trip={trip} value={date} onChange={setDate} counts={counts} />
         <Row gap={SP.s} wrap>

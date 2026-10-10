@@ -28,7 +28,7 @@ import {
   Notice,
   Row,
   Screen,
-  ScopeBadge,
+ 
   Sheet,
   SP,
   Txt,
@@ -118,7 +118,6 @@ export default function PhotosScreen({ navigation, route }: RootScreenProps<'Pho
         eyebrow={trip.title}
         title="사진"
         sub={`사진 ${trip.photos.length}장`}
-        right={<ScopeBadge phase="3차" />}
       />
       <Body scroll>
         <Row>
