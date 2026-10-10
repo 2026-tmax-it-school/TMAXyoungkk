@@ -1,0 +1,13 @@
+<!-- @dsCard group="Navigation" height=96 -->
+<!doctype html>
+<html lang="ko">
+<head><meta charset="utf-8"><title>TabBar</title><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gothic+A1:wght@400;600;700;800&display=swap"></head>
+<body>
+<div id="root" class=""></div>
+<script>
+  var Y = window.YoungTrip, h = React.createElement;
+  function Demo(){ var s = React.useState('home'); return h(Y.TabBar, { value: s[0], onChange: s[1], items: [{key:'home',label:'홈',icon:'home'},{key:'cand',label:'후보',icon:'heart'},{key:'sched',label:'시간표',icon:'cal'},{key:'map',label:'지도',icon:'map'},{key:'me',label:'프로필',icon:'user'}] }); }
+  ReactDOM.createRoot(document.getElementById('root')).render(h(Demo));
+</script>
+</body>
+</html>

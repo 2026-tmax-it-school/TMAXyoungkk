@@ -1,0 +1,13 @@
+<!-- @dsCard group="Content" height=340 -->
+<!doctype html>
+<html lang="ko">
+<head><meta charset="utf-8"><title>TripCard</title><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gothic+A1:wght@400;600;700;800&display=swap"><style>.yt-demo{align-items:flex-start}</style></head>
+<body>
+<div id="root" class="yt-demo"></div>
+<script>
+  var Y = window.YoungTrip, h = React.createElement;
+  function Demo(){ var s = React.useState(false); return h(React.Fragment, null, h(Y.TripCard, { size: 'lg', place: '경주', title: '경주 2박 3일', badge: 'D-16', lines: ['10월 17일 – 19일 · 자동차', '후보 14곳 · 확정 11'], saved: s[0], onToggleSave: function(){ s[1](!s[0]); } }), h(Y.TripCard, { place: '불국사', title: '불국사', lines: ['사찰 · 체류 90분'] })); }
+  ReactDOM.createRoot(document.getElementById('root')).render(h(Demo));
+</script>
+</body>
+</html>

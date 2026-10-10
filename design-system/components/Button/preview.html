@@ -1,0 +1,12 @@
+<!-- @dsCard group="Actions" height=88 -->
+<!doctype html>
+<html lang="ko">
+<head><meta charset="utf-8"><title>Button</title><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gothic+A1:wght@400;600;700;800&display=swap"></head>
+<body>
+<div id="root" class="yt-demo"></div>
+<script>
+  var Y = window.YoungTrip, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById('root')).render(h(React.Fragment, null, h(Y.Button, null, '여행방 만들기'), h(Y.Button, { variant: 'secondary' }, '시간표 보기'), h(Y.Button, { variant: 'text' }, '나중에'), h(Y.Button, { size: 'sm', variant: 'secondary', icon: 'plus' }, '장소 담기'), h(Y.Button, { disabled: true }, '바뀐 내용 없음')));
+</script>
+</body>
+</html>

@@ -1,0 +1,55 @@
+<!-- @dsCard height=288 -->
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>Young Trip</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gothic+A1:wght@400;800&display=swap">
+<style>
+  html, body { margin:0; height:100%; }
+  body { background:var(--surface); color:var(--ink); font-family:var(--font-sans); overflow:hidden; }
+  .cover { position:relative; width:960px; height:288px; overflow:hidden; }
+  .art { position:absolute; top:0; left:480px; width:480px; height:288px; overflow:hidden; }
+  .art svg { display:block; width:480px; height:288px; }
+  .brand { fill:var(--brand); }
+  .tint { fill:var(--brand-soft); }
+  .deep { fill:var(--ink); }
+  .ground { fill:var(--surface); }
+  .blk { rx:var(--radius-lg); }
+  .pill { rx:8px; }
+  .words { position:absolute; left:var(--space-5); bottom:var(--space-5); max-width:440px; }
+  .name { margin:0; font-size:104px; line-height:.94; font-weight:800; letter-spacing:-.03em; color:var(--ink); }
+  .tag { margin:var(--space-2) 0 0 4px; font-size:14px; line-height:20px; color:var(--ink-muted); }
+</style>
+</head>
+<body>
+<div class="cover">
+<div class="art" aria-hidden="true">
+<svg viewBox="0 0 480 288" width="480" height="288">
+<!--
+  blocks      brand 168×240 slab bleeding off the top (the one colour the app is known by) · brand-soft 136×200 tint · ink 152×240 bleeding off the right edge — about 40% of 960×288
+  arrangement one tall brand slab with two satellites, bottoms on one line space-5 above the edge, space-4 gutters
+  pattern     pills and discs, from "radius-pill for search, chips and round buttons": a route of 16-tall pills at a space-5 pitch climbing the tint, ending in ground-cut discs on the ink block like stops on a map
+  scales      sides in space-2 multiples; gutters space-4; pitch space-5; block corners radius-lg; pills rx half of 16; discs r 8 (half of space-4)
+-->
+<rect class="brand blk" x="24" y="-24" width="168" height="240" rx="16"/>
+<rect class="tint blk" x="208" y="64" width="136" height="200" rx="16"/>
+<rect class="deep blk" x="360" y="24" width="152" height="240" rx="16"/>
+<rect class="brand pill" x="224" y="232" width="56" height="16" rx="8"/>
+<rect class="brand pill" x="248" y="208" width="40" height="16" rx="8"/>
+<rect class="brand pill" x="264" y="184" width="64" height="16" rx="8"/>
+<rect class="brand pill" x="288" y="160" width="40" height="16" rx="8"/>
+<rect class="tint pill" x="48" y="160" width="40" height="16" rx="8"/>
+<rect class="tint pill" x="48" y="184" width="88" height="16" rx="8"/>
+<circle class="ground" cx="392" cy="136" r="8"/>
+<circle class="ground" cx="424" cy="104" r="8"/>
+<circle class="ground" cx="456" cy="72" r="8"/>
+</svg>
+</div>
+<div class="words">
+<p class="name">Young<br>Trip</p>
+<p class="tag">채팅에서 나온 곳을 여행 루트로</p>
+</div>
+</div>
+</body>
+</html>
