@@ -191,6 +191,21 @@ test('react-native-maps는 앱 구글 지도 어댑터에서만 쓴다(화면은
   check(eachLine(FILES.filter((f) => !allowed.includes(f)), 'react-native-maps', /['"]react-native-maps['"]/));
 });
 
+test('react-native-webview는 앱 카카오 지도 어댑터에서만 쓴다', () => {
+  const allowed = ['src/components/map/KakaoMapView.tsx'];
+  check(eachLine(FILES.filter((f) => !allowed.includes(f)), 'react-native-webview', /['"]react-native-webview['"]/));
+});
+
+test('카카오 지도 SDK는 카카오 어댑터 파일 안에서만 부른다', () => {
+  const allowed = [
+    'src/components/map/KakaoMapView.tsx',
+    'src/components/map/KakaoMapView.web.tsx',
+    'src/components/map/kakaoScript.ts',
+    'src/components/map/kakaoHtml.ts',
+  ];
+  check(eachLine(FILES.filter((f) => !allowed.includes(f)), 'kakao-maps-sdk', /\/v2\/maps\/sdk\.js|\bkakao\.maps\./));
+});
+
 test('구글 지도 SDK는 components/map 안에서만 부른다', () => {
   const inMap = (f: string) => f.startsWith('src/components/map/');
   check(eachLine(FILES.filter((f) => !inMap(f)), 'google-maps-sdk', /maps\.googleapis\.com|google\.maps\./));

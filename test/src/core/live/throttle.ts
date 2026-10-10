@@ -98,8 +98,17 @@ export interface WatchProfileState {
 
 export const initialWatchProfile: WatchProfileState = { profile: 'active', stillCount: 0 };
 
-export function nextWatchProfile(st: WatchProfileState, decision: ThrottleDecision): { state: WatchProfileState; changed: boolean } {
+/**
+ * adaptive가 false면(지도 '내 위치' 따라가기) 정지로 봐도 active에 머문다. 걸음 속도로는 1초 샘플이 늘 20m 안이라
+ * 정지용(20m 갱신)으로 바뀌면 파랑 점과 따라가기가 20m씩 끊겨 움직인다.
+ */
+export function nextWatchProfile(
+  st: WatchProfileState,
+  decision: ThrottleDecision,
+  adaptive = true,
+): { state: WatchProfileState; changed: boolean } {
   if (!decision.emit) return { state: st, changed: false };
+  if (!adaptive) return { state: initialWatchProfile, changed: st.profile !== 'active' };
   if (decision.stationary) {
     const stillCount = st.stillCount + 1;
     const profile: WatchProfile = stillCount >= STATIONARY_SWITCH_SAMPLES ? 'stationary' : st.profile;

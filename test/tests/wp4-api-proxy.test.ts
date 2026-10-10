@@ -204,6 +204,11 @@ test('장소 서버 경유: 실패하면(서버에 키 없음 503, 일시 503·4
     ['kakao:101'],
   );
   assert.ok(ok.calls[0].url.startsWith(`${API}/kakao/local/keyword?`));
+  // anywhere(자유 길찾기, 여행방 지역 없음)면 지역 반경 단계 없이 전국에서 한 번만 찾는다
+  const anywhere = serverFetch({ body: KAKAO_DOCS });
+  await createKakaoPlaces({ apiUrl: API, fetch: anywhere, fallback: local }).search('황남빵', region, undefined, { anywhere: true });
+  assert.equal(anywhere.calls.length, 1);
+  assert.ok(!anywhere.calls[0].url.includes('radius='));
   await places.nearby(coord('gj-bulguksa'), 800);
   assert.ok(ok.calls.slice(1).every((c) => c.url.startsWith(`${API}/kakao/local/category?`)));
   assertNoKey(ok.calls);

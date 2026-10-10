@@ -3,7 +3,8 @@ import { Pressable, View } from 'react-native';
 
 import { isSeeding, resetDemo, seedScenario, type SeedProgress } from '../demo/tools';
 import type { ScenarioStage } from '../demo/scenarioSteps';
-import { NOTIFY_ROWS, PERMISSION_LABEL, retentionText, sessionSummary } from '../features/account/settings';
+import { signOutFlow } from '../features/account/flows';
+import { NOTIFY_ROWS, PERMISSION_LABEL, providerNotice, retentionText, sessionSummary } from '../features/account/settings';
 import { SCREEN_META, type RootStackParamList, type TabScreenProps } from '../navigation/routes';
 import { useNow } from '../services/clock';
 import { describeServices } from '../services/registry';
@@ -118,6 +119,7 @@ export default function MoreScreen({ navigation }: TabScreenProps<'More'>) {
   const [stage, setStage] = useState<ScenarioStage>('all');
   const [seeding, setSeeding] = useState<SeedProgress | null>(null);
   const [confirmReset, setConfirmReset] = useState(false);
+  const [confirmSignOut, setConfirmSignOut] = useState(false);
   const [showScreens, setShowScreens] = useState(false);
 
   const summary = sessionSummary(session, now);
@@ -202,20 +204,26 @@ export default function MoreScreen({ navigation }: TabScreenProps<'More'>) {
           <Txt v="section" style={{ marginTop: SP.l }}>
             계정
           </Txt>
-          <ListRow
-            first
-            icon="user"
-            label="프로필 보기"
-            sub={[summary.title, ...summary.lines].join(' · ')}
-            right={summary.soon ? <Chip text="곧 만료" tone="warn" /> : undefined}
-            onPress={() => navigation.navigate('Profile')}
-          />
-          {session?.kind === 'guest' ? (
-            <>
-              <ListRow icon="mail" label="회원가입으로 승격" onPress={() => navigation.navigate('Signup')} />
-              <ListRow icon="pinlock" label="다른 계정으로 로그인" onPress={() => navigation.navigate('Login')} />
-            </>
-          ) : null}
+          {/* 계정 메뉴는 로그인·로그아웃만 둔다(2026-10-10). 게스트는 로그인, 계정은 로그아웃. sub는 지금 세션 */}
+          {session?.kind === 'account' ? (
+            <ListRow
+              first
+              icon="x"
+              label="로그아웃"
+              sub={summary.title}
+              right={summary.soon ? <Chip text="곧 만료" tone="warn" /> : undefined}
+              onPress={() => setConfirmSignOut(true)}
+            />
+          ) : (
+            <ListRow
+              first
+              icon="pinlock"
+              label="로그인"
+              sub={summary.title}
+              right={summary.soon ? <Chip text="곧 만료" tone="warn" /> : undefined}
+              onPress={() => navigation.navigate('Login')}
+            />
+          )}
         </Col>
 
         {/* 알림 */}
@@ -350,6 +358,19 @@ export default function MoreScreen({ navigation }: TabScreenProps<'More'>) {
           ) : null}
         </Col>
       </Body>
+
+      <ConfirmSheet
+        visible={confirmSignOut}
+        title="로그아웃할까요"
+        text="같은 계정으로 다시 로그인하면 여행방을 이어서 쓸 수 있어요."
+        confirmLabel="로그아웃"
+        onConfirm={() => {
+          setConfirmSignOut(false);
+          signOutFlow();
+          showToast('로그아웃했습니다. 같은 계정으로 다시 로그인하면 여행방을 이어 씁니다');
+        }}
+        onCancel={() => setConfirmSignOut(false)}
+      />
 
       <ConfirmSheet
         visible={confirmReset}

@@ -286,7 +286,7 @@ for (const backend of BACKENDS) {
       const ghost = 'ghost@example.com';
       now += ATTEMPT_WINDOW_MS;
       const [gs, g] = await call('/auth/signin', { email: ghost, password: 'wrongpass1' });
-      assert.deepEqual([gs, g.code, g.detail], [401, 'badCredentials', '이메일이나 비밀번호가 맞지 않습니다(연속 1회, 5회면 10분 잠금)']);
+      assert.deepEqual([gs, g.code, g.detail], [401, 'badCredentials', '아이디(이메일·닉네임)나 비밀번호가 맞지 않습니다(연속 1회, 5회면 10분 잠금)']);
       for (let i = 2; i < LOGIN_MAX_FAILS; i += 1) await call('/auth/signin', { email: ghost, password: 'wrongpass1' });
       assert.equal((await call('/auth/signin', { email: ghost, password: 'wrongpass1' }))[1].code, 'locked');
     });

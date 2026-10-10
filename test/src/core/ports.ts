@@ -15,7 +15,8 @@ import type {
  * 외부 의존(지도·경로·AI·위치·사진·인증·동기화)은 전부 이 뒤에 숨는다.
  * 기본은 로컬 모의 제공자이고, 키가 있으면 services/registry가 실제 제공자로 바꾼다.
  * 명세: 국내 전용, 지도 SDK 1종, 두 벌을 유지하지 않는다. 구글은 장소·경로 ProviderId에 없다.
- * 구글 지도는 바탕 지도로만 쓴다(components/map, 국내 도보·자동차 길찾기를 주지 않음).
+ * 바탕 지도는 카카오맵이 기본이고(2026-10-10 결정) 구글 지도는 선택 대체다(components/map). 구글은 바탕 지도로만 쓴다
+ * (국내 도보·자동차 길찾기를 주지 않음).
  */
 
 export interface Clock {
@@ -62,8 +63,11 @@ export interface Region {
 
 export interface PlaceProvider {
   id: ProviderId;
-  /** 동명 장소가 여러 건이면 그대로 여러 건을 돌려준다. 결과가 없으면 빈 배열. */
-  search(query: string, region: Region, bias?: LatLng): Promise<Place[]>;
+  /**
+   * 동명 장소가 여러 건이면 그대로 여러 건을 돌려준다. 결과가 없으면 빈 배열.
+   * anywhere면 지역 반경으로 먼저 거르지 않고 전국에서 찾는다(여행방 없이 쓰는 자유 길찾기). bias는 정렬에만 쓴다.
+   */
+  search(query: string, region: Region, bias?: LatLng, opts?: { anywhere?: boolean }): Promise<Place[]>;
   nearby(
     coord: LatLng,
     radiusM: number,
@@ -224,6 +228,27 @@ export interface MockMail {
   kind?: 'verify' | 'reset' | 'link';
 }
 
+/** 실제 소셜 로그인(OAuth) 제공자 */
+export type OAuthProviderKind = 'kakao' | 'google';
+
+/** 제공자 로그인 창에서 돌아온 인가 코드. 계정 서버가 제공자와 직접 바꾼다(앱은 제공자 토큰을 보지 않는다) */
+export interface OAuthCodeInput {
+  provider: OAuthProviderKind;
+  code: string;
+  /** PKCE code_verifier(expo-auth-session이 만든 값) */
+  codeVerifier?: string;
+  redirectUri: string;
+  /** 계정 서버가 준 일회용 state(POST /auth/oauth/state) */
+  state: string;
+  /** 구글 앱 빌드 클라이언트 ID(안드로이드·iOS). 웹은 서버 설정 ID를 쓴다 */
+  clientId?: string;
+  deviceToken: string;
+}
+
+export type OAuthStateResult =
+  | { ok: true; state: string; expiresAt: number }
+  | { ok: false; code: AuthFail; detail?: string; /** 서버에 그 제공자 키가 없다(503) */ unconfigured?: boolean };
+
 export interface AuthProvider {
   /** local: 이 기기 모의 인증, server: 계정 서버(server/auth.mjs). 없으면 local로 본다 */
   readonly id?: 'local' | 'server';
@@ -237,6 +262,7 @@ export interface AuthProvider {
   }): Promise<AuthResult>;
   resendVerification(email: string): Promise<AuthAck>;
   verifyEmail(token: string): Promise<AuthResult>;
+  /** email은 로그인 아이디다(이메일 또는 닉네임. 닉네임은 계정마다 하나) */
   signIn(input: { email: string; password: string; deviceToken: string }): Promise<AuthResult>;
   social(input: {
     provider: 'kakao' | 'google';
@@ -266,6 +292,13 @@ export interface AuthProvider {
   requestPasswordReset?(email: string): Promise<AuthAck>;
   /** 재설정 메일의 토큰으로 새 비밀번호를 정한다. 그 계정의 다른 세션은 끊긴다 */
   confirmPasswordReset?(input: { token: string; password: string }): Promise<AuthAck & { violations?: string[] }>;
+  /**
+   * 실제 소셜 로그인 시작. 계정 서버가 일회용 state를 준다(제공자·돌아올 주소에 묶이고 10분). 계정 서버에만 있다
+   * (모의 인증은 실제 OAuth를 하지 않는다)
+   */
+  oauthState?(input: { provider: OAuthProviderKind; redirectUri: string }): Promise<OAuthStateResult>;
+  /** 실제 소셜 로그인 마무리. 결과는 social()과 같다(같은 이메일 계정이 있으면 linkRequired → confirmLink) */
+  oauthSignIn?(input: OAuthCodeInput): Promise<AuthResult>;
 }
 
 /* ---------- 그룹 동기화 ---------- */
@@ -299,8 +332,11 @@ export interface LocationProvider {
   id: 'sim' | 'device';
   permission(): Promise<LocationPermission>;
   request(): Promise<'granted' | 'denied'>;
-  /** 반환값을 부르면 감시를 멈춘다. */
-  watch(onSample: (s: GpsSample) => void, opts: { intervalMs: number }): () => void;
+  /**
+   * 반환값을 부르면 감시를 멈춘다.
+   * adaptive가 false면 정지 판정으로 감시 방식(20m 갱신)을 바꾸지 않는다. 지도 '내 위치' 따라가기처럼 촘촘히 받아야 할 때 쓴다.
+   */
+  watch(onSample: (s: GpsSample) => void, opts: { intervalMs: number; adaptive?: boolean }): () => void;
 }
 
 /* ---------- 사진 (3차) ---------- */

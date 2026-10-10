@@ -39,6 +39,8 @@ export function nicknameProblem(nickname: string): string | null {
   const n = nickname.trim();
   if (n.length === 0) return '닉네임을 입력해 주세요';
   if (n.length > NICKNAME_MAX) return `닉네임은 ${NICKNAME_MAX}자까지입니다`;
+  // 닉네임은 로그인 아이디로도 쓰므로 이메일과 헷갈리지 않게 @를 막는다(계정 서버와 같은 규칙)
+  if (n.includes('@')) return '닉네임에는 @를 쓸 수 없습니다';
   return null;
 }
 
