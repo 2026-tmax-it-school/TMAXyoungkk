@@ -32,7 +32,7 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           repository: 2026-tmax-it-school/TMAXyoungkk
-          ref: 5873bc170cd390f4202f25394c6b28cf4f3cc079
+          ref: e9d115e5c84d22918d41ff656c63088a29da7fbd
           persist-credentials: false
           sparse-checkout: .github/scripts
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
@@ -46,3 +46,4 @@ jobs:
           OPENAI_REVIEW_BUDGET_CONFIRMED: ${{ vars.OPENAI_REVIEW_BUDGET_CONFIRMED }}
           OPENAI_REVIEW_CI_NAME: ${{ inputs.ci-name }}
           OPENAI_REVIEW_CI_PATH: ${{ inputs.ci-path }}
+
