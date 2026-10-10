@@ -87,11 +87,6 @@ export default function SocialConsentScreen({ navigation, route }: RootScreenPro
         close={navigation.canGoBack() ? navigation.goBack : undefined}
         eyebrow={linking ? `내 계정 · ${label} 연결` : `${label} 로그인`}
         title={linking ? `${label} 로그인을 연결할까요` : `${label} 계정으로 계속할까요`}
-        sub={
-          linking
-            ? '지금 계정에 로그인 방법만 더해요. 로그인한 계정은 그대로예요.'
-            : `시연용 화면이에요. 실제 ${label} 로그인은 연결되지 않아요.`
-        }
         right={<ScopeBadge phase="2차" />}
       />
       <Body scroll>
@@ -150,7 +145,6 @@ export default function SocialConsentScreen({ navigation, route }: RootScreenPro
             }}
             placeholder="you@example.com"
             keyboardType="email-address"
-            help="이미 이메일로 가입한 주소를 넣으면 그 계정에 연결할지 묻습니다"
           />
         ) : null}
 

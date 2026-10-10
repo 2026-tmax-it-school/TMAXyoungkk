@@ -790,7 +790,7 @@ export const useLive = create<LiveState>()(
         for (const s of doc.spots) categories[s.id] = s.category;
         if (requested === 'device' && isClockOverridden()) {
           // 가상 시각(시뮬레이터·시각 점프·시나리오)이 앱 시계인데 기기 샘플은 실제 시각이다. 섞으면 도착·지연이 틀어진다.
-          toast('가상 시각이 켜져 있어 기기 위치로 시작하지 않습니다. 더보기에서 시연을 처음 상태로 되돌린 뒤 시작해 주세요', 'warn');
+          toast('가상 시각이 켜져 있어 기기 위치로 시작하지 않습니다. 프로필 탭에서 시연을 처음 상태로 되돌린 뒤 시작해 주세요', 'warn');
           set({ mode: 'off' });
           return;
         }

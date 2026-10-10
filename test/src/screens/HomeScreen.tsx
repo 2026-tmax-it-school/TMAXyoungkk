@@ -1,11 +1,13 @@
 import React, { useMemo, useState } from 'react';
-import { Pressable, View } from 'react-native';
+import { Pressable, ScrollView, View } from 'react-native';
 
 import type { Trip } from '../types';
 import type { TripStatus } from '../core/tripStatus';
 import { kstDate } from '../core/util';
+import { regionById } from '../data/regions';
 import {
   defaultSegment,
+  HOME_PICKS,
   homeMenu,
   homeSegments,
   SEGMENT_ORDER,
@@ -21,20 +23,20 @@ import { useMyTrips, useTrips } from '../store/trips';
 import { useUi } from '../store/ui';
 import {
   AvatarStack,
-  Body,
   Card,
-  Chip,
   Col,
+  CoverTile,
   Empty,
   Icon,
   IconBtn,
-  lineC,
+  QuickAction,
   Row,
   Screen,
-  ScopeBadge,
+  SectionTitle,
   Seg,
   SP,
   Txt,
+  type IconName,
 } from '../ui';
 
 /**
@@ -43,8 +45,7 @@ import {
  * - 여행방 카드(D-일, 아바타, 후보·확정·제외 수) 다음에 메뉴 6칸(목업 03 순서).
  * - 개인 모드면 채팅 칸이 비활성이고 이유를 적는다. 길찾기 칸은 활성에 ScopeBadge '2차'.
  * - 여행방이 없으면 생성 유도 Empty.
- * - 머리말은 목업 03 .hd-row: 한 줄에 eyebrow·제목과 오른쪽 아이콘 버튼 두 개. 목업의 검색 자리는
- *   홈 검색이 명세에 없어 프로필로 바꿨고, 멤버(users)는 지금 여행방 멤버 화면을 연다.
+ * - 2026-10-10 리디자인(숙박·여행 앱 레퍼런스): 카테고리 알약(세그먼트), 내 여행 표지 카드 가로 줄, 원형 빠른 메뉴 6칸, 추천 여행지 가로 줄 순서다.
  * - 쓰는 동안 세션을 유지한다(useSessionKeepAlive: 연장, 만료 폐기, 만료 3일 전 알림 한 번).
  * 판정은 features/account/home.ts(순수, wp1-home 테스트)에 있다.
  */
@@ -89,69 +90,115 @@ export default function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
 
   return (
     <Screen>
-      <View style={{ paddingTop: SP.s, paddingHorizontal: SP.gutter, paddingBottom: 14, gap: SP.xl }}>
-        <Row gap={10}>
-          <Col gap={4} grow>
-            {who ? <Txt v="eyebrow">{who}</Txt> : null}
-            <Txt v="ttl">내 여행</Txt>
-          </Col>
-          <IconBtn icon="user" label="프로필" onPress={() => navigation.navigate('Profile')} />
-          {current ? (
-            <IconBtn
-              icon="users"
-              label={`${current.title} 멤버`}
-              onPress={() => {
-                setCurrentTrip(current.id);
-                navigation.navigate('Members', { tripId: current.id });
-              }}
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: SP.section * 2 }}>
+        <View style={{ paddingTop: SP.l, paddingHorizontal: SP.gutter, gap: SP.xxl }}>
+          <Row gap={10}>
+            <Col gap={2} grow>
+              {who ? <Txt v="eyebrow">{who}</Txt> : null}
+            </Col>
+            <IconBtn icon="user" label="프로필" onPress={() => navigation.navigate('Profile')} />
+            {current ? (
+              <IconBtn
+                icon="users"
+                label={`${current.title} 멤버`}
+                onPress={() => {
+                  setCurrentTrip(current.id);
+                  navigation.navigate('Members', { tripId: current.id });
+                }}
+              />
+            ) : null}
+          </Row>
+          {trips.length > 0 ? (
+            <Seg
+              items={SEGMENT_ORDER.map((k) => ({ key: k, label: STATUS_LABEL[k], count: seg.counts[k], icon: SEG_ICON[k] }))}
+              value={active}
+              onChange={setPicked}
             />
           ) : null}
-        </Row>
-        {trips.length > 0 ? (
-          <Seg
-            items={SEGMENT_ORDER.map((k) => ({ key: k, label: STATUS_LABEL[k], count: seg.counts[k] }))}
-            value={active}
-            onChange={setPicked}
-          />
-        ) : null}
-      </View>
-      <Body scroll>
-        {trips.length === 0 ? (
-          <Card>
-            <Empty
-              title="아직 여행방이 없습니다"
-              text="여행방을 만들고 친구를 초대하면 채팅에서 나온 곳이 후보와 시간표가 됩니다."
-              action={{ label: '여행방 만들기', onPress: () => navigation.navigate('CreateTrip') }}
-            />
-          </Card>
-        ) : list.length === 0 ? (
-          <Card>
-            <Empty title={`${STATUS_LABEL[active]}인 여행방이 없습니다`} text="다른 칸을 눌러 보세요." />
-          </Card>
-        ) : (
-          list.map((t) => (
-            <TripCard
-              key={t.id}
-              trip={t}
-              selected={t.id === current?.id}
-              info={tripCardInfo(t, plans[t.id], now)}
-              onPress={() => setCurrentTrip(t.id)}
-              onSchedule={() => {
-                setCurrentTrip(t.id);
-                navigation.navigate('Schedule', {});
-              }}
-            />
-          ))
-        )}
+        </View>
 
-        <Txt v="eyebrow" style={{ marginTop: 2 }}>
-          {current ? `메인 메뉴 · ${current.title}` : '메인 메뉴'}
-        </Txt>
-        <MenuGrid cells={homeMenu(current, current ? plans[current.id] : undefined)} onPress={openMenu} />
-      </Body>
+        {/* 내 여행 */}
+        <View style={{ marginTop: SP.section, gap: SP.xl }}>
+          <View style={{ paddingHorizontal: SP.gutter }}>
+            <SectionTitle
+              title="내 여행"
+              moreLabel="여행방 만들기"
+              onMore={trips.length > 0 ? () => navigation.navigate('CreateTrip') : undefined}
+            />
+          </View>
+          {trips.length === 0 ? (
+            <View style={{ paddingHorizontal: SP.gutter }}>
+              <Card>
+                <Empty
+                  icon="compass"
+                  title="다음 여행을 계획해 보세요"
+                  action={{ label: '여행방 만들기', onPress: () => navigation.navigate('CreateTrip') }}
+                />
+              </Card>
+            </View>
+          ) : list.length === 0 ? (
+            <View style={{ paddingHorizontal: SP.gutter }}>
+              <Card>
+                <Empty icon="cal" title={`${STATUS_LABEL[active]}인 여행방이 없습니다`} />
+              </Card>
+            </View>
+          ) : (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ paddingHorizontal: SP.gutter, paddingVertical: SP.s, gap: SP.xxl }}
+            >
+              {list.map((t) => (
+                <TripCard
+                  key={t.id}
+                  trip={t}
+                  selected={t.id === current?.id}
+                  info={tripCardInfo(t, plans[t.id], now)}
+                  onPress={() => setCurrentTrip(t.id)}
+                  onSchedule={() => {
+                    setCurrentTrip(t.id);
+                    navigation.navigate('Schedule', {});
+                  }}
+                />
+              ))}
+            </ScrollView>
+          )}
+        </View>
+
+        {/* 빠른 메뉴 */}
+        <View style={{ marginTop: SP.section, paddingHorizontal: SP.gutter, gap: SP.xxl }}>
+          <SectionTitle title="빠른 메뉴" />
+          <MenuGrid cells={homeMenu(current, current ? plans[current.id] : undefined)} onPress={openMenu} />
+        </View>
+
+        {/* 추천 여행지 */}
+        <View style={{ marginTop: SP.section + SP.m, gap: SP.xl }}>
+          <View style={{ paddingHorizontal: SP.gutter }}>
+            <SectionTitle title="추천 여행지" />
+          </View>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ paddingHorizontal: SP.gutter, paddingVertical: SP.s, gap: SP.xl }}
+          >
+            {HOME_PICKS.map((p, i) => (
+              <CoverTile
+                key={p.id}
+                seed={i}
+                place={p.name}
+                title={p.name}
+                lines={[p.blurb]}
+                onPress={() => navigation.navigate('CreateTrip')}
+              />
+            ))}
+          </ScrollView>
+        </View>
+      </ScrollView>
     </Screen>
   );
 }
+
+const SEG_ICON: Record<TripStatus, IconName> = { ongoing: 'play', upcoming: 'cal', done: 'check' };
 
 function TripCard({
   trip,
@@ -166,67 +213,51 @@ function TripCard({
   onPress: () => void;
   onSchedule: () => void;
 }) {
-  // 카드 전체를 버튼으로 두면 안의 "시간표 보기"가 버튼 속 버튼이 된다(웹에서 button 중첩).
-  // 카드는 틀만 두고, 여행방 열기와 시간표 보기를 나란한 두 버튼으로 나눈다.
+  // 표지(여행방 고르기)와 '시간표 보기'를 나란한 두 버튼으로 둔다(웹에서 button 중첩을 피한다).
   return (
-    <Card variant={selected ? 'selected' : 'default'}>
-      <Pressable accessibilityRole="button" accessibilityLabel={`${trip.title} 열기`} onPress={onPress}>
-        <Row top>
-          <Col gap={4} grow>
-            <Chip text={info.badge} />
-            <Txt v="nmLg" style={{ marginTop: 2 }}>
-              {info.title}
-            </Txt>
-            <Txt v="mt">{info.dateText}</Txt>
-          </Col>
+    <CoverTile
+      size="lg"
+      seed={trip.region}
+      place={regionById(trip.region)?.name ?? trip.title}
+      badge={info.badge}
+      title={info.title}
+      lines={[info.dateText, info.countsText]}
+      selected={selected}
+      onPress={onPress}
+      footer={
+        <Row style={{ justifyContent: 'space-between' }}>
           <AvatarStack names={info.memberNames.slice(0, 4)} />
+          <Pressable accessibilityRole="button" accessibilityLabel={`${trip.title} 시간표 보기`} onPress={onSchedule}>
+            <Row gap={4}>
+              <Txt v="btnSm" c="accent">
+                시간표 보기
+              </Txt>
+              <Icon name="right" size={14} color="accent" stroke={2.2} />
+            </Row>
+          </Pressable>
         </Row>
-      </Pressable>
-      <View style={{ height: 1, backgroundColor: lineC.line, marginVertical: 4 }} />
-      <Row style={{ justifyContent: 'space-between' }}>
-        <Pressable style={{ flex: 1 }} accessibilityRole="button" accessibilityLabel={`${trip.title} 열기`} onPress={onPress}>
-          <Txt v="mt">{info.countsText}</Txt>
-        </Pressable>
-        <Pressable accessibilityRole="button" accessibilityLabel={`${trip.title} 시간표 보기`} onPress={onSchedule}>
-          <Row gap={4}>
-            <Txt v="btnSm" c="accent">
-              시간표 보기
-            </Txt>
-            <Icon name="right" size={14} color="accent" stroke={2.2} />
-          </Row>
-        </Pressable>
-      </Row>
-    </Card>
+      }
+    />
   );
 }
 
+/** 원형 빠른 메뉴 3칸씩 두 줄(여행 앱 홈의 아이콘 줄) */
 function MenuGrid({ cells, onPress }: { cells: HomeMenuCell[]; onPress: (c: HomeMenuCell) => void }) {
   const rows: HomeMenuCell[][] = [];
-  for (let i = 0; i < cells.length; i += 2) rows.push(cells.slice(i, i + 2));
+  for (let i = 0; i < cells.length; i += 3) rows.push(cells.slice(i, i + 3));
   return (
-    <Col gap={9}>
+    <Col gap={SP.section}>
       {rows.map((r) => (
-        <Row key={r.map((c) => c.key).join('-')} gap={9} top>
+        <Row key={r.map((c) => c.key).join('-')} gap={SP.m} top>
           {r.map((c) => (
-            <Col key={c.key} grow>
-              <Card
-                variant={c.disabled ? 'excluded' : 'default'}
-                onPress={c.disabled ? undefined : () => onPress(c)}
-                style={{ minHeight: 92, gap: 9 }}
-              >
-                <Row style={{ justifyContent: 'space-between' }}>
-                  <Icon name={c.icon} size={22} color={c.disabled ? 'faint' : 'accent'} />
-                  {c.scope ? <ScopeBadge phase={c.scope} /> : null}
-                </Row>
-                <Col gap={4}>
-                  <Txt v="btnSm" c={c.disabled ? 'muted' : 'ink'}>
-                    {c.label}
-                  </Txt>
-                  {c.sub ? <Txt v="mtTight">{c.sub}</Txt> : null}
-                  {c.disabled && c.reason ? <Txt v="mtTight">{c.reason}</Txt> : null}
-                </Col>
-              </Card>
-            </Col>
+            <QuickAction
+              key={c.key}
+              icon={c.icon}
+              label={c.label}
+              badge={c.scope}
+              disabled={c.disabled}
+              onPress={() => onPress(c)}
+            />
           ))}
         </Row>
       ))}

@@ -9,7 +9,7 @@ import { lineC, R, SP, surfaceC } from './tokens';
 
 /**
  * 안내 한 줄. line은 범위·시뮬레이터·가정 안내, warn(앰버)은 오류 문구다.
- * 로즈를 오류에 쓰지 않는다.
+ * 주색을 오류에 쓰지 않는다.
  */
 export function Notice({
   icon,
@@ -119,28 +119,48 @@ export function WarnCard({
   );
 }
 
-/** 빈 상태. 가운데 정렬은 여기와 스플래시, 지도 안 글자에만 쓴다. */
+/**
+ * 빈 상태(숙박 앱의 '메시지가 없습니다'처럼). icon이 있으면 연한 연두 원 안에 크게 그린다.
+ * 가운데 정렬은 여기와 스플래시, 지도 안 글자에만 쓴다. 버튼은 주색(연두) 주 버튼 하나를 가운데 둔다.
+ */
 export function Empty({
   title,
   text,
+  icon,
   action,
 }: {
   title: string;
   text?: string;
+  icon?: IconName;
   action?: { label: string; onPress: () => void };
 }) {
   return (
-    <View style={{ paddingVertical: 26, paddingHorizontal: SP.xxl, alignItems: 'center', gap: SP.m }}>
-      <Txt v="nm" center>
+    <View style={{ paddingVertical: 30, paddingHorizontal: SP.xxl, alignItems: 'center', gap: SP.m }}>
+      {icon ? (
+        <View
+          style={{
+            width: 96,
+            height: 96,
+            borderRadius: R.chip,
+            backgroundColor: surfaceC.accentTint,
+            alignItems: 'center',
+            justifyContent: 'center',
+            marginBottom: SP.l,
+          }}
+        >
+          <Icon name={icon} size={44} color="accentDeep" stroke={1.5} />
+        </View>
+      ) : null}
+      <Txt v="ttlSm" center>
         {title}
       </Txt>
       {text ? (
-        <Txt v="mt" center>
+        <Txt v="body" c="muted" center>
           {text}
         </Txt>
       ) : null}
       {action ? (
-        <View style={{ marginTop: SP.s, alignSelf: 'stretch' }}>
+        <View style={{ marginTop: SP.l }}>
           <Btn title={action.label} onPress={action.onPress} />
         </View>
       ) : null}

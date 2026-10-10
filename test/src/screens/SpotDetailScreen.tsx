@@ -105,7 +105,7 @@ export default function SpotDetailScreen({ navigation, route }: RootScreenProps<
       <Screen>
         <Header back={back} title="스팟 상세" />
         <Body>
-          <Empty title="후보를 찾을 수 없습니다" text="지워졌거나 되돌려진 후보입니다." />
+          <Empty title="후보를 찾을 수 없습니다" />
         </Body>
       </Screen>
     );
@@ -168,7 +168,7 @@ export default function SpotDetailScreen({ navigation, route }: RootScreenProps<
             <Txt v="nm" c="muted">
               제외 스팟
             </Txt>
-            <Txt v="mt">{`${detail.excluded?.reason ?? '사용자가 직접 뺌'}. 되돌리면 고정 스팟이 되고, 수용량을 넘는 만큼 다른 후보가 이유와 함께 빠집니다.`}</Txt>
+            <Txt v="mt">{detail.excluded?.reason ?? '사용자가 직접 뺌'}</Txt>
             <Btn
               title="되돌리기"
               size="sm"
@@ -253,7 +253,7 @@ export default function SpotDetailScreen({ navigation, route }: RootScreenProps<
       </Foot>
 
       <Sheet visible={sheet === 'stay'} onClose={() => setSheet(undefined)} title="체류 시간">
-        <Txt v="mt">{`지금 ${spot.stayMin}분. 바꾸면 루트를 다시 계산합니다.`}</Txt>
+        <Txt v="mt">{`지금 ${spot.stayMin}분`}</Txt>
         <Row wrap gap={SP.s}>
           {STAY_OPTIONS.map((m) => (
             <Btn
@@ -271,7 +271,6 @@ export default function SpotDetailScreen({ navigation, route }: RootScreenProps<
       </Sheet>
 
       <Sheet visible={sheet === 'date'} onClose={() => setSheet(undefined)} title="날짜 지정">
-        <Txt v="mt">날짜를 지정하면 그날에만 배치되고 고정처럼 자동 제외되지 않습니다.</Txt>
         <Col gap={SP.s}>
           {dateRange(trip.startDate, trip.endDate).map((d) => (
             <Btn

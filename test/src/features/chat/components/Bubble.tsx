@@ -8,7 +8,7 @@ import { bubbleSegments } from '../view';
 /**
  * 말풍선(05, WP3 소유). 장소는 밑줄 대신 연핑크 면으로 강조한다(원문을 해치지 않는다).
  * Txt에는 면색을 줄 수 없어서 어절 단위 조각을 줄바꿈 가능한 가로 줄로 늘어놓는다(한국어는 어절에서 줄이 바뀐다).
- * 강조는 굵은 글씨(bubbleBold)다. 남의 말풍선은 연핑크 면에 roseDeep 글씨(목업 .msg .hl, 대비 8.33:1),
+ * 강조는 굵은 글씨(bubbleBold)다. 남의 말풍선은 연핑크 면에 accentDeep 글씨(목업 .msg .hl, 대비 8.33:1),
  * 내 말풍선은 로즈 위 흰 22% 합성 면(onRoseHl)에 흰 글씨(4.74:1)다(목업 .msg.me .hl).
  */
 function tokens(text: string): string[] {

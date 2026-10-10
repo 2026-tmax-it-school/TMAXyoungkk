@@ -22,7 +22,6 @@ import {
   H,
   Header,
   IconBtn,
-  Col,
   lineC,
   mapC,
   R,
@@ -41,7 +40,7 @@ import {
  * - 마커를 누르면 스팟 상세(07). 하단 시트에 날짜 Seg, 순서 목록, 제외 스팟의 사유와 되돌리기.
  * - '전체' 보기는 핀 면도 그날 선 색이고, 시트에 날짜별 색 점(범례)을 둔다.
  * - 여행 진행 중인 방이면 현재 위치를 함께 그린다(FR-601).
- * - 상단 칩 줄은 목업처럼 그림자가 없다. 날짜 칩은 흰 면·경계선에 roseDeep 굵은 글자다.
+ * - 상단 칩 줄은 목업처럼 그림자가 없다. 날짜 칩은 흰 면·경계선에 accentDeep 굵은 글자다.
  */
 
 const WEEK = ['일', '월', '화', '수', '목', '금', '토'];
@@ -69,7 +68,6 @@ export default function MapScreen({ navigation, route }: TabScreenProps<'Map'>) 
         <Header title="지도" />
         <Empty
           title="여행방이 없습니다"
-          text="여행방을 만들면 지도에 루트가 나옵니다."
           action={{ label: '여행방 만들기', onPress: () => navigation.navigate('CreateTrip') }}
         />
       </Screen>
@@ -190,24 +188,21 @@ export default function MapScreen({ navigation, route }: TabScreenProps<'Map'>) 
               <Txt v="mt">이 날은 확정 스팟이 없습니다.</Txt>
             )
           ) : map.model?.unplanned ? (
-            <Txt v="mt">루트를 계산하면 날짜별 순번과 선이 나옵니다. 지금은 후보 위치만 보입니다.</Txt>
+            <Txt v="mt">지금은 후보 위치만 보입니다.</Txt>
           ) : (
-            <Col gap={SP.s}>
-              <Row gap={SP.xl} wrap>
-                {(plan?.days ?? []).map((d, i) =>
-                  d.items.length > 0 ? (
-                    <Row key={d.date} gap={SP.s}>
-                      <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: mapC[dayColor(i)] }} />
-                      <Txt v="mtTight">{`${dayShort(d.date)} · ${d.items.length}곳`}</Txt>
-                    </Row>
-                  ) : null,
-                )}
-              </Row>
-              <Txt v="mtTight">날짜를 고르면 그날 순서가 보입니다.</Txt>
-            </Col>
+            <Row gap={SP.xl} wrap>
+              {(plan?.days ?? []).map((d, i) =>
+                d.items.length > 0 ? (
+                  <Row key={d.date} gap={SP.s}>
+                    <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: mapC[dayColor(i)] }} />
+                    <Txt v="mtTight">{`${dayShort(d.date)} · ${d.items.length}곳`}</Txt>
+                  </Row>
+                ) : null,
+              )}
+            </Row>
           )}
           {!expanded && rows.length > COLLAPSED_ROWS ? (
-            <Txt v="mtTight">{`이후 ${rows.length - COLLAPSED_ROWS}곳 · 목록을 펼쳐 보기`}</Txt>
+            <Txt v="mtTight">{`이후 ${rows.length - COLLAPSED_ROWS}곳`}</Txt>
           ) : null}
 
           {expanded && excluded.length > 0 ? (
@@ -246,12 +241,7 @@ export default function MapScreen({ navigation, route }: TabScreenProps<'Map'>) 
             </View>
           </Row>
         ) : null}
-        {!day && plan && excluded.length > 0 && !expanded ? (
-          <Txt v="mtTight">{`제외 스팟 ${excluded.length}곳은 흰 핀입니다. 목록을 펼치면 사유와 되돌리기가 보입니다`}</Txt>
-        ) : null}
-        {day && excluded.length > 0 && !expanded ? (
-          <Txt v="mtTight">{`제외 스팟 ${excluded.length}곳 · 목록을 펼치면 사유와 되돌리기`}</Txt>
-        ) : null}
+        {excluded.length > 0 && !expanded ? <Txt v="mtTight">{`제외 스팟 ${excluded.length}곳`}</Txt> : null}
       </View>
     </Screen>
   );

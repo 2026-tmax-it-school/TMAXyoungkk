@@ -70,7 +70,7 @@ export function TimeRange({
       <Sheet visible={open} onClose={() => setOpen(false)} title={title}>
         <StepRow label="시작" value={start} minus={canMove('start', -30)} plus={canMove('start', 30)} onMove={(d) => move('start', d)} />
         <StepRow label="끝" value={end} minus={canMove('end', -30)} plus={canMove('end', 30)} onMove={(d) => move('end', d)} />
-        <Txt v="mtTight">{`${hoursLabel(start, end)} · 30분 단위, 05:00부터 24:00까지`}</Txt>
+        <Txt v="mtTight">{hoursLabel(start, end)}</Txt>
         <Btn title="완료" onPress={() => setOpen(false)} />
       </Sheet>
     </>

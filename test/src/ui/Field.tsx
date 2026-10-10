@@ -10,7 +10,7 @@ const LINE_H = T.field.lineHeight;
 
 /**
  * 입력 칸(목업 .field). 안내문(placeholder)은 muted다. 목업의 #9C8B92는 대비 미달이라 올렸다.
- * 오류는 로즈가 아니라 앰버 글씨로 쓴다.
+ * 오류는 주색이 아니라 앰버 글씨로 쓴다.
  * - hideLabel: 라벨을 화면에 그리지 않는다. 접근성 이름은 label 그대로다(05 입력줄처럼 라벨 없는 한 줄).
  * - size 'sm': 높이 44(H.fieldSm). 옆의 44 아이콘 버튼과 줄을 맞춘다.
  * - multiline: 여러 줄 입력(21 일기 문단). minLines 줄만큼 높이를 잡고 글자는 위에서 시작한다.
@@ -101,7 +101,7 @@ export function Field({
 }
 
 /**
- * 선택 상자 묶음(목업 04 이동수단). btn sm 모양(38/9)이다. 켜진 것은 로즈 면에 흰 글씨,
+ * 선택 상자 묶음(목업 04 이동수단). btn sm 모양(38/9)이다. 켜진 것은 주색(연두) 면에 흰 글씨,
  * 안 고른 것은 quiet(흰 면·line 테두리), 비활성은 Btn off와 같은 면과 글씨다. badge에는 ScopeBadge 등을 넣는다.
  */
 export function Choice<K extends string>({
@@ -150,7 +150,7 @@ export function Choice<K extends string>({
   );
 }
 
-/** 켜고 끄는 태그(성향 태그 등). 켜진 태그는 로즈 면. */
+/** 켜고 끄는 태그(성향 태그 등). 켜진 태그는 주색(연두) 면. */
 export function Tag({ label, on, onPress }: { label: string; on: boolean; onPress: () => void }) {
   return (
     <Pressable
