@@ -8,12 +8,12 @@ This file is for the two developers, 한동관 (dh) and 최윤재 (yj), and the 
 
 | Rule | Daily standard |
 | --- | --- |
-| Branch | `<initials>/<type>-<scope>` from `main`, e.g. `dh/feat-route-finding`, `yj/fix-chat-order`; types `feat` `fix` `refactor` `chore` `docs`; one branch per feature, never per person; English only |
+| Branch | `<initials>/<type>-<scope>` from the target branch (`main` or `develop`), e.g. `dh/feat-route-finding`, `yj/fix-chat-order`; types `feat` `fix` `refactor` `chore` `docs`; one branch per feature, never per person; English only |
 | Commit and PR title | `type(scope): 한국어 명사형 설명`, ≤50 chars, e.g. `feat(route): 도보 구간 이동 시간 계산 추가`; types add `test` `style` (commits only; a PR title's type equals the branch type); hook `.githooks/commit-msg` |
 | PR size and age | ≤400 insertions + deletions (lockfile, `test/assets` excluded; shared-file PR ≤100); first commit to merge ≤72 h; Draft PR the day the branch is cut |
 | Before `gh pr ready` (in `test/`) | `npm run gate:wp -- WP<n>` for each work package you changed (skip if only FOUNDATION or root files), then `npm run typecheck && npm test && npm run export:web`, ttf count = 4 |
 | Review deadline | First review 24 h (phases 7–8: 6 h); re-review 4 h (2 h); revert 30 min |
-| Merge | Squash only; 1 approval from the other developer; CI `check` green; threads resolved; `gh pr merge --squash --delete-branch` |
+| Merge | Rebase only; 1 approval from the other developer; CI `check` green; threads resolved; `gh pr merge --rebase --delete-branch` |
 | `main` red | Post in team chat; fix or revert within 30 min, revert merged within 60 min; phases 7–8 revert only |
 | Never commit | `.env`, `.env*.local`, `*.key`, any key value; AI provider keys live only on the proxy; every `EXPO_PUBLIC_*` value is public |
 | Dependencies | `npx expo install <pkg>` in `test/`, separate PR, never `npm install <pkg>` |
@@ -86,7 +86,7 @@ Change a rule that is wrong or broken twice; do not ignore it. Branch `<initials
 
 ## Branching model
 
-GitHub Flow. Only `main` lives long: no `develop`, `release/*`, `hotfix/*`, or per-person branches (`dh/main`); one branch per feature (decided, do not reopen). Releases are tags `v0.1.0`, `v0.2.0`, `v0.9.0`, `v1.0.0`. `main` is always runnable: no direct pushes, PR only, 1 approval from the other developer, green CI, **squash merge only**. Repo settings: [Repository settings](#repository-settings).
+`main` is the release branch and `develop` is the development integration branch. Both accept PRs and run CI and the configured OpenAI reviewer; one branch per feature, never a per-person branch (`dh/main`). Releases are tags `v0.1.0`, `v0.2.0`, `v0.9.0`, `v1.0.0`. `main` is always runnable: no direct pushes, PR only, 1 approval from the other developer, green CI, **rebase merge only**. Repo settings: [Repository settings](#repository-settings).
 
 ### Names
 
@@ -133,19 +133,22 @@ The carry-over gets its own issue; rebase it after the front merges. No green co
 
 ### Create, sync, delete
 
+Choose `develop` for development or `main` for release/workflow maintenance; use that target in every sync command.
+
 ```bash
-git switch main && git pull --ff-only
+TARGET=develop  # main for release/workflow maintenance
+git switch "$TARGET" && git pull --ff-only
 git switch -c dh/feat-route-finding
 git commit --allow-empty -m "chore(route): 초안 PR 열기"
 git push -u origin HEAD
-gh pr create --draft --base main --title "feat(route): 경로 탐색" --body-file .github/pull_request_template.md
+gh pr create --draft --base "$TARGET" --title "feat(route): 경로 탐색" --body-file .github/pull_request_template.md
 ```
 
 Then fill the template body, including `Closes #12`, with `gh pr edit --body`.
 
 - `--ff-only` fails (local commits on `main`): `git switch -c <initials>/chore-<scope> && git switch main && git reset --hard origin/main`.
-- Sync while Draft: `git fetch && git rebase origin/main && git push --force-with-lease`. Never `--force`. In review (after `gh pr ready`), never rebase: run `gh pr update-branch <n>` (a merge, hidden by the squash); conflicts: [Resolving conflicts](#resolving-conflicts).
-- Rebase over 3 conflicting files or 10 min: `git rebase --abort && git merge origin/main && git push`; note it in the PR body, tell the other developer today.
+- Sync while Draft: `git fetch && git rebase origin/main && git push --force-with-lease` (use `origin/develop` for a develop-target PR). Never `--force`. In review, coordinate with the reviewer before rebasing, then rerun checks and request review again; conflicts: [Resolving conflicts](#resolving-conflicts). Do not add merge commits to the feature branch as a sync shortcut.
+- Rebase over 3 conflicting files or 10 min: `git rebase --abort`; note the conflict in the PR body and resolve it with the other developer before continuing.
 - After merge: [Merging](#6-merging). Remote branches auto-delete: [Repository settings](#repository-settings).
 
 ### Tags and phases
@@ -156,13 +159,13 @@ Initials name the owner in [역할분담.md](역할분담.md), e.g. `yj/feat-pho
 
 - Phases 5, 7: `fix-<scope>`, `fix-perf-<scope>`; the finder files a bug issue; who fixes: see [Ownership map](#ownership-map).
 - Phase 6: one screen = one issue = one branch, each assigned in the milestone first; `yj/feat-ui-tokens` merges before any screen branch.
-- Phase 4: leads (AI API yj, DB dh) first merge a wiring-only branch (≤ 200 lines, within 24 h) for `src/types.ts`, `src/core/ports.ts`, `src/services/registry.ts`, `.env.example` in `test/`; the other developer then branches. Can't wait: branch from `main`, edit none of those four files, and build on the mock providers; after the wiring PR merges, `git fetch && git rebase origin/main && git push --force-with-lease`. Every PR's base is `main`; never `--base <other-branch>`.
+- Phase 4: leads (AI API yj, DB dh) first merge a wiring-only branch (≤ 200 lines, within 24 h) for `src/types.ts`, `src/core/ports.ts`, `src/services/registry.ts`, `.env.example` in `test/`; the other developer then branches. Can't wait: branch from `main`, edit none of those four files, and build on the mock providers; after the wiring PR merges, `git fetch && git rebase origin/main && git push --force-with-lease`. Use the intended target branch: `develop` for development integration, `main` for release or workflow maintenance.
 
 ---
 
 ## Commit conventions
 
-Conventional Commits. `main` gets one squash commit per PR, titled by the PR title. See [Branching model](#branching-model), [Pull requests](#pull-requests-and-review).
+Conventional Commits. Rebase merging preserves each commit as a new commit on the target branch. Every commit must meet the conventions; the PR title does not replace commit subjects. See [Branching model](#branching-model), [Pull requests](#pull-requests-and-review).
 
 ### Format
 
@@ -213,8 +216,8 @@ Copy these into the PR's `## 무엇을 했나`. `Closes #N` goes in the PR body 
 
 - One change per commit. Stage by path or `git add -p`, never `git add .`/`-A`.
 - Dependencies: [Shared files](#shared-files); commit both package files together.
-- Squash message setting: see [Repository settings](#repository-settings). The required body lines above live in the PR description, not in the squash commit.
-- Pushed a wrong message: fix the PR title (`gh pr edit --title`); never rewrite `main`.
+- Rebase-only setting: see [Repository settings](#repository-settings). Keep the required body lines above in both the relevant commit and the PR description.
+- Fix incorrect commit messages on the feature branch before review; changing the PR title alone does not fix them. Coordinate any history rewrite with the reviewer, rerun checks, and request review again. Never rewrite `main` or `develop`.
 
 ### Enforcement
 
@@ -254,17 +257,17 @@ Git mechanics: [Branching model](#branching-model).
 
 ### Repository settings
 
-- **Settings → General → Pull Requests**: merge commits **off**, rebase merging **off**, squash **on** (default message **Pull request title**), auto-delete head branches **on**.
+- **Settings → General → Pull Requests**: merge commits **off**, rebase merging **on**, squash **off**, auto-delete head branches **on**.
 - **Settings → Rules → Rulesets**, default branch, **Active**: restrict deletions; block force pushes; require PR (approvals **1**, dismiss stale approvals **off**, conversation resolution **on**); require status check `check`, up to date **on**. Bypass: **Repository admin**, **For pull requests only**.
 
-Private repository on GitHub Free: rulesets are unavailable and Draft PRs may be refused. The repository owner either claims GitHub Pro through the GitHub Student Developer Pack or makes the repository public (nothing secret is committed), then applies the ruleset. Until then, open normal PRs titled `WIP …` instead of Drafts, and after every merge run `git log origin/main --format=%s | grep -vE '\(#[0-9]+\)$|^Initial commit$'`; any output is a direct push: post it in team chat and revert it through a PR.
+Private repository on GitHub Free: rulesets are unavailable and Draft PRs may be refused. The repository owner either claims GitHub Pro through the GitHub Student Developer Pack or makes the repository public (nothing secret is committed), then applies the ruleset. Until then, open normal PRs titled `WIP …` instead of Drafts, and after every merge verify the landed commit range against the merged PR. Rebased commit subjects do not necessarily contain a PR number; missing `(#N)` is not proof of a direct push.
 
 ### 1. Open and describe the PR
 
 - Create the branch and Draft PR: [Create, sync, delete](#create-sync-delete).
-- **Title** = squash commit subject ([Commit conventions](#commit-conventions)), max 50 characters, type equals the branch type.
+- **Title** follows the commit-subject format ([Commit conventions](#commit-conventions)), max 50 characters, type equals the branch type.
 - **Body**: fill every template part. `무엇을 했나`: 1–2 lines with why, written by the human author. **Closes #**: required, except revert PRs and the exemptions in [Issue first](#issue-first). `어떻게 확인했나`: screen, taps, platform; "잘 됨" counts as empty. `화면`: screenshots or delete.
-- **Size**: insertions + deletions ≤ 400 in `git diff --shortstat origin/main...HEAD -- ':(top)' ':(top,exclude)test/package-lock.json' ':(top,exclude)test/assets'` (same result from the root or `test/`). Over: split mechanical changes into an earlier PR. Unsplittable: first body line `크기 사유: …`, no FOUNDATION files, at most 1 per milestone; tell the other developer.
+- **Size**: insertions + deletions ≤ 400 in `git diff --shortstat origin/<target>...HEAD -- ':(top)' ':(top,exclude)test/package-lock.json' ':(top,exclude)test/assets'` (same result from the root or `test/`). Over: split mechanical changes into an earlier PR. Unsplittable: first body line `크기 사유: …`, no FOUNDATION files, at most 1 per milestone; tell the other developer.
 
 `.github/pull_request_template.md` holds exactly this ([setup checklist](#one-time-setup-checklist) row 7):
 
@@ -315,7 +318,7 @@ Tick template checkboxes only after steps 2–3. Red CI: do not mark ready.
 
 Run `gh pr ready && gh pr edit --add-reviewer <other-github-id>` (IDs: [Team](#team)), then post the link and deadline in team chat (`#12 리뷰 부탁. 내일 21시까지`); the clock starts there. Deadlines: first review 24 h (phases 7–8: 6 h), re-review 4 h (2 h), revert 30 min. Cannot make it: say so in chat with a time. Deadline passed, no response:
 
-- `chore`, `docs`: 24 h after the chat post in every phase (the phase 7–8 6 h deadline does not shorten this), if `check` is green and no `[필수]` is open, comment `SLA 경과 리뷰 없음, self-merge`, then `gh pr merge --squash --delete-branch --admin`. Refused: wait. Never for a PR that edits the other developer's area ([Editing outside your area](#editing-outside-your-area)).
+- `chore`, `docs`: 24 h after the chat post in every phase (the phase 7–8 6 h deadline does not shorten this), if `check` is green and no `[필수]` is open, comment `SLA 경과 리뷰 없음, self-merge`, then `gh pr merge --rebase --delete-branch --admin`. Refused: wait. Never for a PR that edits the other developer's area ([Editing outside your area](#editing-outside-your-area)).
 - `feat`, `fix`, `refactor`: never self-merge. At 48 h, agree a time directly; no agreement: `gh pr ready --undo`.
 
 ### 4. Review comments
@@ -341,18 +344,19 @@ No style comments, not even `[제안]`.
 The author merges after approval, `check` green, threads resolved, branch up to date.
 
 ```bash
-gh pr merge --squash --delete-branch
-git switch main && git pull --prune
+TARGET=$(gh pr view --json baseRefName --jq .baseRefName)
+gh pr merge --rebase --delete-branch
+git switch "$TARGET" && git pull --prune
 (cd test && npm start)    # from the root; fails: see section 7
 ```
 
-Add 1–3 lines of *why* to the squash message only if useful later.
+Before merging, check every commit subject and body. Rebase merge keeps individual commits and changes their SHAs; record the landed first/last SHA when a later rollback may be needed.
 
 ### 7. When main breaks
 
 Never push to `main` or disable a ruleset. Timeline and actions: [When main goes red](#when-main-goes-red).
 
-Revert = a `<initials>/fix-revert-<scope>` branch from `main` that reverts the squash commit, PR titled `fix(<scope>): #<PR> 되돌림`; commands: [Rolling back](#rolling-back). The PR is exempt from the issue and size rules only; branch naming and 1 approval still apply.
+Revert = a `<initials>/fix-revert-<scope>` branch from `main` that reverts all commits landed by that PR, PR titled `fix(<scope>): #<PR> 되돌림`; commands: [Rolling back](#rolling-back). The PR is exempt from the issue and size rules only; branch naming and 1 approval still apply.
 
 Freeze: see [Presentation day](#presentation-day).
 
@@ -413,11 +417,11 @@ Separate PR; body names the file and why in one sentence. Phases 1–4: ≤20 ch
 
 ### Limits
 
-Update when `git rev-list --count HEAD..origin/main` reaches 5: before `gh pr ready`, rebase; in review, run `gh pr update-branch <n>` (merge, hidden by the squash). Line caps use the [PR §1](#1-open-and-describe-the-pr) size command (shared-file PR: 100; Phase 4 wiring PR: 200). Age and size: [Lifetime](#lifetime-72-hours), [PR §1](#1-open-and-describe-the-pr).
+Update when `git rev-list --count HEAD..origin/main` reaches 5: before `gh pr ready`, rebase; in review, coordinate the rebase, rerun checks, and request review again. Use the actual target branch (`main` or `develop`) for this comparison. Line caps use the [PR §1](#1-open-and-describe-the-pr) size command (shared-file PR: 100; Phase 4 wiring PR: 200). Age and size: [Lifetime](#lifetime-72-hours), [PR §1](#1-open-and-describe-the-pr).
 
 ### Resolving conflicts
 
-Draft PR: rebase as below. In review, if `gh pr update-branch` reports a conflict: `git fetch origin && git merge origin/main`, resolve each file by the rules below, then `git commit --no-edit && git push`.
+Draft PR: rebase as below, using `origin/develop` instead of `origin/main` when it is the target. In review, coordinate with the reviewer first. Resolve each file by the rules below, continue the rebase, push with `--force-with-lease`, rerun checks, and request review again.
 
 ```bash
 git branch -f "backup/$(git branch --show-current)"  # undo: git reset --hard backup/<branch>
@@ -549,7 +553,7 @@ Copy labels, milestones, `Status` options, headings and markers verbatim.
 
 ### Issue first
 
-Order: issue → branch → Draft PR → review → squash merge; PR body `Closes #<n>`. Exempt: `docs`/`chore` PRs ≤5 added lines; `[필수]` fixes. Forgot: create it before `gh pr ready`, or post-merge, then `gh issue close <n> -c "Done in #<pr>"`.
+Order: issue → branch → Draft PR → review → rebase merge; PR body `Closes #<n>`. Exempt: `docs`/`chore` PRs ≤5 added lines; `[필수]` fixes. Forgot: create it before `gh pr ready`, or post-merge, then `gh issue close <n> -c "Done in #<pr>"`.
 
 - `작업` (never worked on `main`): ≥2 boxes in `## 끝났다고 볼 조건`; FR and 핑크 캔버스 screen 01–14 in `## 참고`.
 - `버그` (worked before): numbered repro steps, device, last good commit. No repro in 3 tries: close.
@@ -609,7 +613,7 @@ Setup (dh, once): Projects board `Young Trip`; `Status` exactly `할 일`, `진�
 
 ### What CI runs
 
-`.github/workflows/ci.yml` job `check` (Node 24, in `test/`) runs on every PR into `main` and every push to `main`:
+`.github/workflows/ci.yml` job `check` (Node 24, in `test/`) runs on every PR into `main` or `develop` and every push to `main`:
 
 | Step | Red means |
 | --- | --- |
@@ -702,12 +706,12 @@ Never move or delete a pushed tag; cut `v0.1.1`. Tag ruleset `release-tags`: `v*
 
 ### Rolling back
 
-From the root. Title ≤50 chars (append ` — <what broke>` if it fits); `revert-<scope>` ≤20 chars:
+From the root. Title ≤50 chars (append ` — <what broke>` if it fits); `revert-<scope>` ≤20 chars. Verify the PR’s first and last landed commit SHAs on the target branch; GitHub rebase merge rewrites the source SHAs. The contiguous range must contain only this PR’s commits:
 
 ```bash
 git switch main && git pull --ff-only
 git switch -c <initials>/fix-revert-<scope>
-git revert --no-commit <squash-sha> && git commit -m "fix(<scope>): #<PR> 되돌림"
+git revert --no-commit <first-rebased-sha>^..<last-rebased-sha> && git commit -m "fix(<scope>): #<PR> 되돌림"
 git push -u origin HEAD
 gh pr create --base main --title "fix(<scope>): #<PR> 되돌림" --body "Reverts #<PR>"
 ```
@@ -806,4 +810,5 @@ git clean -nd  # -fd only if every path is agent output
 
 ### Not delegated to agents
 
-Locked decisions (GitHub Flow with no `develop`/`release/*`/`hotfix/*`, `<initials>/<type>-<scope>` branch names, one branch per feature, squash merge only, PR-only `main` with 1 approval, release tags, Conventional Commits with Korean descriptions, `.env` never committed, CI `check`) and the 400-line PR limit; this document (`docs` PR, 한동관 (dh) breaks ties); spec product rules; phase 8 slide numbers, each measured in phase 7 and recorded in an issue.
+Locked decisions (`main` for releases and `develop` for development integration, `<initials>/<type>-<scope>` branch names, one branch per feature, rebase merge only, PR-only `main` with 1 approval, release tags, Conventional Commits with Korean descriptions, `.env` never committed, CI `check`) and the 400-line PR limit; this document (`docs` PR, 한동관 (dh) breaks ties); spec product rules; phase 8 slide numbers, each measured in phase 7 and recorded in an issue.
+
