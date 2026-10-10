@@ -1,0 +1,12 @@
+<!-- @dsCard group="Content" height=80 -->
+<!doctype html>
+<html lang="ko">
+<head><meta charset="utf-8"><title>Badge</title><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gothic+A1:wght@400;600;700;800&display=swap"><style>.ph{display:inline-flex;padding:12px;border-radius:var(--radius-lg);background:var(--ink-muted)}</style></head>
+<body>
+<div id="root" class="yt-demo"></div>
+<script>
+  var Y = window.YoungTrip, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById('root')).render(h(React.Fragment, null, h(Y.Badge, null, '제안자 4'), h(Y.Badge, { tone: 'brand' }, '확정'), h(Y.Badge, { tone: 'warn' }, '목적지 밖'), h('span', { className: 'ph' }, h(Y.Badge, { tone: 'photo' }, '친구 추천'))));
+</script>
+</body>
+</html>

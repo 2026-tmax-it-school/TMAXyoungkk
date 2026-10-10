@@ -1,0 +1,12 @@
+<!-- @dsCard group="Navigation" height=104 -->
+<!doctype html>
+<html lang="ko">
+<head><meta charset="utf-8"><title>SearchBar</title><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gothic+A1:wght@400;600;700;800&display=swap"></head>
+<body>
+<div id="root" class="yt-demo-col"></div>
+<script>
+  var Y = window.YoungTrip, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById('root')).render(h(React.Fragment, null, h(Y.SearchBar, { label: '어디로 떠나세요?' }), h(Y.SearchBar, { label: '경주 2박 3일', hint: '10월 17일 – 19일 · 4명' })));
+</script>
+</body>
+</html>
