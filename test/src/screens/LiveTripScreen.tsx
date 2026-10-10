@@ -23,7 +23,7 @@ import { backgroundRecordBlock, useLive, useSimBanner, useVisitStatuses } from '
 import { useSession } from '../store/session';
 import { usePlan, useTripDoc, useTrips } from '../store/trips';
 import { useUi } from '../store/ui';
-import { Body, Btn, Card, Chip, Col, Empty, H, Header, Icon, Notice, Row, Screen, ScopeBadge, Seg, SP, Txt } from '../ui';
+import { Body, Btn, Card, Chip, Col, Empty, H, Header, Icon, Notice, Row, Screen, Seg, SP, Txt } from '../ui';
 
 /**
  * 19 여행 진행 · 시뮬레이터(FR-601~604, WP5 소유).
@@ -131,7 +131,7 @@ export default function LiveTripScreen({ navigation, route }: RootScreenProps<'L
 
   return (
     <Screen>
-      <Header back={back} eyebrow="여행 진행" title={date ? dayLabel(date) : '여행 진행'} sub={trip.title} right={<ScopeBadge phase="2차" />} />
+      <Header back={back} eyebrow="여행 진행" title={date ? dayLabel(date) : '여행 진행'} sub={trip.title} />
       <Body scroll>
         {simBanner ? <SimBanner /> : null}
         {!running && dateItems.length > 1 ? <Seg items={dateItems} value={date} onChange={setPicked} /> : null}

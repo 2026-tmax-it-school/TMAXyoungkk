@@ -43,8 +43,3 @@ export function Chip({ text, tone = 'soft', icon }: { text: string; tone?: ChipT
     </View>
   );
 }
-
-/** 2·3차 기능 표시. 비활성 문구 대신 이 배지를 단다(line 칩). */
-export function ScopeBadge({ phase }: { phase: '2차' | '3차' }) {
-  return <Chip text={phase} tone="line" />;
-}

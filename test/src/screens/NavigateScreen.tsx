@@ -30,7 +30,7 @@ import {
   R,
   Row,
   Screen,
-  ScopeBadge,
+ 
   SP,
   surfaceC,
   Txt,
@@ -89,7 +89,7 @@ export default function NavigateScreen({ navigation, route }: RootScreenProps<'N
   if (!trip || !day || !leg) {
     return (
       <Screen>
-        <Header back={back} title="길찾기" right={<ScopeBadge phase="2차" />} />
+        <Header back={back} title="길찾기" />
         <Empty title="안내할 구간이 없습니다" />
       </Screen>
     );
@@ -146,7 +146,6 @@ export default function NavigateScreen({ navigation, route }: RootScreenProps<'N
           <Txt v="eyebrow" numberOfLines={1} style={{ flex: 1 }}>
             {`길찾기 · ${dayLabel(date)}`}
           </Txt>
-          <ScopeBadge phase="2차" />
         </Row>
       </View>
       {simBanner ? (

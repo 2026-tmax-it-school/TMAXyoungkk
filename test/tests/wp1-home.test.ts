@@ -134,10 +134,9 @@ describe('메뉴 6칸', () => {
     assert.equal(homeMenu(alone).find((c) => c.key === 'chat')?.disabled, true);
   });
 
-  test('길찾기 칸은 활성이고 ScopeBadge 2차다', () => {
+  test('길찾기 칸은 활성이다(여행 시뮬레이터로 동작)', () => {
     const nav = homeMenu(trip('a', '2026-10-17', '2026-10-19')).find((c) => c.key === 'navigate');
     assert.equal(nav?.disabled, false);
-    assert.equal(nav?.scope, '2차');
   });
 
   test('여행방이 없으면 만들기만 열린다', () => {

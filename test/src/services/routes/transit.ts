@@ -125,7 +125,7 @@ export function withTransitModel(
         meters,
         polyline: [a, b],
         steps,
-        note: '대중교통 모의 모델(2차) · 실제 노선 아님',
+        note: '대중교통 모의 모델 · 실제 노선 아님',
         estimated: true,
       };
       // 버스도 찻길로 다니므로 선 모양은 자동차 도로 모양을 빌린다(노선 자체는 아니다). 시간·안내 줄은 모의 모델 그대로다

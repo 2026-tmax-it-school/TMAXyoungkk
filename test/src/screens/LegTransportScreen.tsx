@@ -15,12 +15,12 @@ import type { RootScreenProps } from '../navigation/routes';
 import { appClock } from '../services/clock';
 import { getServices } from '../services/registry';
 import { usePlan, useTripDoc, useTrips } from '../store/trips';
-import { Body, Btn, Card, Chip, Col, Empty, Foot, Header, Icon, IconBtn, lineC, Notice, Row, Screen, ScopeBadge, SP, Txt } from '../ui';
+import { Body, Btn, Card, Chip, Col, Empty, Foot, Header, Icon, IconBtn, lineC, Notice, Row, Screen, SP, Txt } from '../ui';
 
 /**
  * 12 이동수단 · 경로 비교(FR-504, WP4 소유). 목업 12.
  * - route()로 자동차·도보·대중교통을 모두 조회해 결과를 먼저 보여주고 고르게 한다. 차이 칩은 느리면 +분(warn)
- * - 대중교통은 2차 기능(모의 모델: 도보 접근 + 배차 대기 + 승차 + 환승 벌점)이라 ScopeBadge '2차'를 단다
+ * - 대중교통은 모의 모델(도보 접근 + 배차 대기 + 승차 + 환승 벌점)이다
  * - 경로가 없는 수단은 제외 면 카드에 대체 수단 안내를 적는다
  * - 고른 수단으로 '바꾸면 이렇게 됩니다'(previewOps, 문서를 바꾸지 않는다)를 이 구간만·하루 전체 두 경우로 보여준다
  * - '이 구간만'은 그날 지금 순서를 수동 순서로 굳히고(schedule/reorder) schedule/setLegTransport를 보낸다(legDrafts).
@@ -141,7 +141,6 @@ export default function LegTransportScreen({ navigation, route }: RootScreenProp
                 <Txt v="nm" c="muted">
                   {TRANSPORT_LABEL[o.transport]}
                 </Txt>
-                {transit ? <ScopeBadge phase="2차" /> : null}
               </Row>
               <Txt v="mtTight">{o.fallbackText ?? '경로가 없습니다'}</Txt>
             </Col>
@@ -160,7 +159,6 @@ export default function LegTransportScreen({ navigation, route }: RootScreenProp
           <Col grow gap={SP.xs}>
             <Row gap={SP.s}>
               <Txt v="nm">{TRANSPORT_LABEL[o.transport]}</Txt>
-              {transit ? <ScopeBadge phase="2차" /> : null}
             </Row>
             <Txt v="mtTight">{sub}</Txt>
             {o.leg.note ? <Txt v="mtTight">{o.leg.note}</Txt> : null}

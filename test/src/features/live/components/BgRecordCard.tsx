@@ -2,7 +2,7 @@ import React from 'react';
 import { Pressable, View } from 'react-native';
 
 import type { BgRecordBlock } from '../../../core/live/background';
-import { Card, Chip, Col, Row, ScopeBadge, Txt } from '../../../ui';
+import { Card, Chip, Col, Row, Txt } from '../../../ui';
 import { BG_RECORD_LABEL, bgRecordSub } from '../bgRecordText';
 
 /**
@@ -43,10 +43,7 @@ export function BgRecordCard({
       >
         <Row top>
           <Col gap={2} grow>
-            <Row gap={6}>
-              <Txt v="nm">{BG_RECORD_LABEL}</Txt>
-              <ScopeBadge phase="3차" />
-            </Row>
+            <Txt v="nm">{BG_RECORD_LABEL}</Txt>
             <Txt v="mtTight">{sub}</Txt>
           </Col>
           <View importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>

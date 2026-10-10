@@ -8,7 +8,7 @@ import type { RootScreenProps } from '../navigation/routes';
 import { getServices } from '../services/registry';
 import { useSession } from '../store/session';
 import { useUi } from '../store/ui';
-import { Body, Btn, Col, Field, Foot, Header, Notice, Row, Screen, ScopeBadge, Txt } from '../ui';
+import { Body, Btn, Col, Field, Foot, Header, Notice, Row, Screen, Txt } from '../ui';
 
 /**
  * 15 로그인 · 소셜 로그인(FR-102·103, WP1 소유, 2차).
@@ -64,7 +64,6 @@ export default function LoginScreen({ navigation }: RootScreenProps<'Login'>) {
         back={navigation.canGoBack() ? navigation.goBack : undefined}
         eyebrow={session ? `${session.kind === 'guest' ? '게스트' : '계정'} · ${session.nickname}` : 'Young Trip 계정'}
         title="계정으로 로그인"
-        right={<ScopeBadge phase="2차" />}
       />
       <Body scroll>
         {session?.kind === 'guest' ? (

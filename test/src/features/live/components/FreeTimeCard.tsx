@@ -4,7 +4,7 @@ import { View } from 'react-native';
 import type { FreeTime, LatLng } from '../../../types';
 import { distanceText } from '../../../core/map/model';
 import { haversineKm, kstHHMM } from '../../../core/util';
-import { Btn, Card, Col, Icon, Row, ScopeBadge, SP, Txt } from '../../../ui';
+import { Btn, Card, Col, Icon, Row, SP, Txt } from '../../../ui';
 
 /**
  * 빈 시간 추천(FR-604, 3차, WP5 소유). 다음 일정까지 30분 이상 남을 때만 뜬다.
@@ -32,7 +32,6 @@ export function FreeTimeCard({
           <View style={{ flex: 1 }}>
             <Txt v="nm">{`다음 일정까지 ${leftMin}분`}</Txt>
           </View>
-          <ScopeBadge phase="3차" />
         </Row>
         <Txt v="mt">{`${kstHHMM(freeTime.until)} 전까지 걸어서 다녀올 만한 곳`}</Txt>
         <Col gap={SP.s}>

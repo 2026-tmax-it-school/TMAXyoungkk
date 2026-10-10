@@ -27,7 +27,7 @@ import {
   Notice,
   R,
   Row,
-  ScopeBadge,
+ 
   Screen,
   Sheet,
   SP,
@@ -192,7 +192,6 @@ export default function MembersScreen({ navigation, route }: RootScreenProps<'Me
             <Row>
               <Row gap={SP.s} style={{ flex: 1 }}>
                 <Txt v="nm">초대 권한</Txt>
-                <ScopeBadge phase="2차" />
               </Row>
               <Tag
                 label={menuFor.canInvite ? '켜짐' : '꺼짐'}
@@ -207,7 +206,6 @@ export default function MembersScreen({ navigation, route }: RootScreenProps<'Me
             <Row>
               <Row gap={SP.s} style={{ flex: 1 }}>
                 <Txt v="nm">내보내기</Txt>
-                <ScopeBadge phase="2차" />
               </Row>
               <Btn title="내보내기" variant="quiet" size="sm" onPress={() => setConfirm('remove')} />
             </Row>

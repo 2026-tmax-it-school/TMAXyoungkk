@@ -150,7 +150,7 @@ export const T = {
   eyebrow: { fontFamily: F.semibold, fontSize: 12, lineHeight: 16 },
   /** DS caption. 배지 */
   chip: { fontFamily: F.semibold, fontSize: 12, lineHeight: 16 },
-  /** line 칩(ScopeBadge, '예시 데이터')은 목업 .chip.line처럼 SemiBold */
+  /** line 칩('예시 데이터')은 목업 .chip.line처럼 SemiBold */
   chipLine: { fontFamily: F.semibold, fontSize: 12, lineHeight: 16 },
   /** 목업 .sub(헤더 보조 줄) */
   sub: { fontFamily: F.regular, fontSize: 14, lineHeight: 20 },

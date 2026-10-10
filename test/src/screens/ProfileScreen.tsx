@@ -29,7 +29,7 @@ import {
   R,
   Row,
   Screen,
-  ScopeBadge,
+ 
   Tag,
   Txt,
 } from '../ui';
@@ -140,7 +140,6 @@ export default function ProfileScreen({ navigation }: RootScreenProps<'Profile'>
         back={navigation.canGoBack() ? navigation.goBack : undefined}
         eyebrow={session ? `${isAccount ? '계정' : '게스트'} · ${savedName}` : '프로필'}
         title="내 프로필"
-        right={<ScopeBadge phase="2차" />}
       />
       <Body scroll>
         <Card>

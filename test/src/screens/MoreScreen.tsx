@@ -28,7 +28,7 @@ import {
   ProgressBar,
   Row,
   Screen,
-  ScopeBadge,
+ 
   SP,
   Txt,
   type IconName,
@@ -49,15 +49,15 @@ type TripRoute =
   | 'Members'
   | 'TripSettings';
 
-/** 여행방 진입점(목업 18). 2·3차 기능은 ScopeBadge로 표시한다. */
-const TRIP_ENTRIES: { route: TripRoute; label: string; icon: IconName; scope?: '2차' | '3차' }[] = [
+/** 여행방 진입점(목업 18). */
+const TRIP_ENTRIES: { route: TripRoute; label: string; icon: IconName }[] = [
   { route: 'Members', label: '멤버 · 초대 링크', icon: 'users' },
   { route: 'TripSettings', label: '여행방 설정 · 날짜별 기점', icon: 'gear' },
-  { route: 'LiveTrip', label: '여행 진행 · 시뮬레이터', icon: 'play', scope: '2차' },
-  { route: 'Recommend', label: '여행지 추천', icon: 'search', scope: '2차' },
-  { route: 'Photos', label: '사진', icon: 'camera', scope: '3차' },
-  { route: 'Diary', label: '일기', icon: 'book', scope: '3차' },
-  { route: 'RecordMap', label: '기록 지도', icon: 'map', scope: '3차' },
+  { route: 'LiveTrip', label: '여행 진행 · 시뮬레이터', icon: 'play' },
+  { route: 'Recommend', label: '여행지 추천', icon: 'search' },
+  { route: 'Photos', label: '사진', icon: 'camera' },
+  { route: 'Diary', label: '일기', icon: 'book' },
+  { route: 'RecordMap', label: '기록 지도', icon: 'map' },
 ];
 
 /** 시연 도구의 화면 목록(번호순). 위 진입점에 없는 화면까지 전부 연다. */
@@ -174,7 +174,6 @@ export default function MoreScreen({ navigation }: TabScreenProps<'More'>) {
           <FeatureTile
             icon="play"
             label="여행 진행"
-            badge="2차"
             disabled={!trip}
             onPress={() => open('LiveTrip')}
           />
@@ -192,8 +191,7 @@ export default function MoreScreen({ navigation }: TabScreenProps<'More'>) {
               first={i === 0}
               icon={e.icon}
               label={e.label}
-              right={e.scope ? <ScopeBadge phase={e.scope} /> : undefined}
-              disabled={!trip}
+                            disabled={!trip}
               onPress={() => open(e.route)}
             />
           ))}
@@ -209,13 +207,13 @@ export default function MoreScreen({ navigation }: TabScreenProps<'More'>) {
             icon="user"
             label="프로필 보기"
             sub={[summary.title, ...summary.lines].join(' · ')}
-            right={summary.soon ? <Chip text="곧 만료" tone="warn" /> : <ScopeBadge phase="2차" />}
+            right={summary.soon ? <Chip text="곧 만료" tone="warn" /> : undefined}
             onPress={() => navigation.navigate('Profile')}
           />
           {session?.kind === 'guest' ? (
             <>
-              <ListRow icon="mail" label="회원가입으로 승격" right={<ScopeBadge phase="2차" />} onPress={() => navigation.navigate('Signup')} />
-              <ListRow icon="pinlock" label="다른 계정으로 로그인" right={<ScopeBadge phase="2차" />} onPress={() => navigation.navigate('Login')} />
+              <ListRow icon="mail" label="회원가입으로 승격" onPress={() => navigation.navigate('Signup')} />
+              <ListRow icon="pinlock" label="다른 계정으로 로그인" onPress={() => navigation.navigate('Login')} />
             </>
           ) : null}
         </Col>
@@ -230,7 +228,6 @@ export default function MoreScreen({ navigation }: TabScreenProps<'More'>) {
                 first={i === 0}
                 label={r.label}
                 sub={r.sub}
-                scope={r.scope}
                 on={notifyPrefs[r.kind]}
                 onChange={(on) => setNotifyPref(r.kind, on)}
               />
@@ -252,7 +249,6 @@ export default function MoreScreen({ navigation }: TabScreenProps<'More'>) {
             <ToggleRow
               label="기기 위치 사용"
               sub="끄면 여행 시뮬레이터나 수동 진행만 씁니다. 웹은 HTTPS에서만 위치를 받습니다."
-              scope="2차"
               on={useDeviceLocation}
               onChange={setUseDeviceLocation}
             />
@@ -374,14 +370,12 @@ export default function MoreScreen({ navigation }: TabScreenProps<'More'>) {
 function EntryRow({
   icon,
   label,
-  scope,
   disabled,
   first,
   onPress,
 }: {
   icon?: IconName;
   label: string;
-  scope?: '2차' | '3차';
   disabled?: boolean;
   first?: boolean;
   onPress: () => void;
@@ -400,7 +394,6 @@ function EntryRow({
         <Txt v="nm" c={disabled ? 'muted' : 'ink'} style={{ flex: 1 }}>
           {label}
         </Txt>
-        {scope ? <ScopeBadge phase={scope} /> : null}
         <Icon name="right" size={14} color="faint" />
       </Row>
     </Pressable>
@@ -410,7 +403,6 @@ function EntryRow({
 function ToggleRow({
   label,
   sub,
-  scope,
   on,
   onChange,
   first,
@@ -419,7 +411,6 @@ function ToggleRow({
 }: {
   label: string;
   sub?: string;
-  scope?: '2차' | '3차';
   on: boolean;
   onChange: (on: boolean) => void;
   first?: boolean;
@@ -438,7 +429,6 @@ function ToggleRow({
       <Row>
         <Row gap={6} style={{ flex: 1 }}>
           <Txt v="nm">{label}</Txt>
-          {scope ? <ScopeBadge phase={scope} /> : null}
         </Row>
         <View importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
           <Chip text={on ? onLabel : offLabel} tone={on ? 'soft' : 'line'} icon={on ? 'check' : undefined} />
