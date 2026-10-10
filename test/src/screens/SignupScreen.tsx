@@ -154,7 +154,6 @@ export default function SignupScreen({ navigation }: RootScreenProps<'Signup'>) 
           value={nickname}
           onChangeText={setNickname}
           maxLength={NICKNAME_MAX}
-          placeholder="예: 민지"
           help="로그인할 때 이메일 대신 쓸 수 있어요. 다른 사람과 겹칠 수 없어요."
           error={nickname.length > 0 && nickProblem ? nickProblem : undefined}
         />

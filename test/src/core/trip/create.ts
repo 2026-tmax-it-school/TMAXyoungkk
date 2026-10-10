@@ -38,7 +38,7 @@ export function checkTripForm(f: TripForm): TripFormCheck {
   const title = f.title.trim();
   if (title.length === 0) errors.title = '여행방 이름을 입력해 주세요';
   else if (title.length > TITLE_MAX) errors.title = `여행방 이름은 ${TITLE_MAX}자까지입니다`;
-  if (!regionById(f.regionId)) errors.region = '국내 지역 목록에서 골라 주세요';
+  if (!regionById(f.regionId)) errors.region = '국내 지역을 골라 주세요';
   let days = 0;
   if (!f.startDate || !f.endDate) errors.dates = '달력에서 시작일과 종료일을 골라 주세요';
   else if (f.endDate < f.startDate) errors.order = '종료일이 시작일보다 앞설 수 없습니다';

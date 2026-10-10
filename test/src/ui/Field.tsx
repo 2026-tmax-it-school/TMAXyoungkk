@@ -9,7 +9,8 @@ import { H, lineC, R, SP, surfaceC, T, textC } from './tokens';
 const LINE_H = T.field.lineHeight;
 
 /**
- * 입력 칸(DS TextField). 라벨이 칸 안 위쪽에 붙고 높이 56, 라운드 8, line-strong 1px.
+ * 입력 칸(DS TextField). 높이 56, 라운드 8, line-strong 1px. 라벨은 칸 안의 안내문으로 보인다(선택 상자 PickerBox와 같은 모양,
+ *   입력하면 사라진다). 글자 수 제한이 있으면 오른쪽 끝에 센다.
  * 포커스는 잉크 2px, 오류는 앰버 2px 테두리와 아래 한 줄(주색을 오류에 쓰지 않는다). 안내문(placeholder)은 muted.
  * - hideLabel: 라벨을 화면에 그리지 않는다. 접근성 이름은 label 그대로다(05 입력줄처럼 라벨 없는 한 줄).
  * - size 'sm': 높이 44(H.fieldSm). 옆의 44 아이콘 버튼과 줄을 맞춘다.
@@ -50,12 +51,12 @@ export function Field({
   look?: 'default' | 'auth';
 }) {
   const [focus, setFocus] = useState(false);
-  // DS TextField: 라벨이 칸 안 위쪽(작은 muted 글자). 라벨을 숨기면 44/56 한 줄 칸이다.
-  // look auth(15·16)는 라벨을 칸 안에 그리지 않고 높이 48·라운드 6이다(안내문만 보인다).
+  // DS TextField: 라벨이 칸 안 안내문이다. 라벨을 숨기면 44/56 한 줄 칸에 placeholder만 보인다.
+  // look auth(15·16)는 높이 48·라운드 6이다(안내문만 보인다).
   const auth = look === 'auth';
   const inside = !hideLabel && !auth;
   const boxH = auth ? H.auth : size === 'sm' ? H.fieldSm : H.field;
-  const padV = inside ? 0 : size === 'sm' ? 8 : 10;
+  const padV = multiline ? 8 : size === 'sm' ? 8 : 10;
   const ring = focus ? lineC.ink : lineC.strong;
   return (
     <View style={{ gap: SP.s }}>
@@ -66,29 +67,23 @@ export function Field({
       ) : null}
       <View
         style={{
-          minHeight: multiline ? Math.max(boxH, LINE_H * minLines + 16 + (inside ? 18 : 0)) : boxH,
+          minHeight: multiline ? Math.max(boxH, LINE_H * minLines + 16) : boxH,
           // 포커스 때 테두리가 1 → 2로 굵어지는 만큼 안쪽 여백을 줄여 글자가 밀리지 않게 한다.
           paddingHorizontal: focus || error ? 11 : 12,
-          paddingVertical: inside ? (focus || error ? 7 : 8) : 0,
+          paddingVertical: 0,
           borderWidth: focus || error ? 2 : 1,
           borderColor: error ? surfaceC.amber : ring,
           borderRadius: auth ? R.auth : R.field,
           backgroundColor: surfaceC.card,
-          justifyContent: multiline ? 'flex-start' : 'center',
+          flexDirection: 'row',
+          alignItems: multiline ? 'flex-start' : 'center',
+          gap: SP.m,
         }}
       >
-        {inside ? (
-          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            <View style={{ flex: 1 }}>
-              <Txt v="mtTight">{label}</Txt>
-            </View>
-            {maxLength ? <Txt v="mtTight">{`${value.length} / ${maxLength}`}</Txt> : null}
-          </View>
-        ) : null}
         <TextInput
           value={value}
           onChangeText={onChangeText}
-          placeholder={placeholder}
+          placeholder={inside ? label : placeholder}
           placeholderTextColor={textC.muted}
           maxLength={maxLength}
           secureTextEntry={secure}
@@ -100,10 +95,15 @@ export function Field({
           accessibilityLabel={label}
           style={[
             T.field,
-            { color: textC.ink, paddingVertical: padV },
+            { flex: 1, minWidth: 0, color: textC.ink, paddingVertical: padV, outlineWidth: 0, outlineStyle: 'solid' },
             multiline ? { minHeight: LINE_H * minLines, textAlignVertical: 'top' } : null,
           ]}
         />
+        {inside && maxLength ? (
+          <View style={{ paddingTop: multiline ? padV : 0 }}>
+            <Txt v="mtTight">{`${value.length} / ${maxLength}`}</Txt>
+          </View>
+        ) : null}
       </View>
       {error ? (
         <Txt v="mtTight" c="warn">

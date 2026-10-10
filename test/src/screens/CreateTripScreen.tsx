@@ -1,7 +1,7 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { View } from 'react-native';
 
-import type { DayBase, Transport } from '../types';
+import type { DayBase, Transport, TripCover } from '../types';
 import {
   buildDays,
   checkTripForm,
@@ -15,6 +15,7 @@ import { kstDate } from '../core/util';
 import { regionById } from '../data/regions';
 import { BaseSearchSheet } from '../features/trip/components/BaseSearchSheet';
 import { CalendarRange } from '../features/trip/components/CalendarRange';
+import { CoverPicker } from '../features/trip/components/CoverPicker';
 import { PickerBox } from '../features/trip/components/PickerBox';
 import { RegionSheet } from '../features/trip/components/RegionSheet';
 import { TimeRange } from '../features/trip/components/TimeRange';
@@ -56,6 +57,7 @@ export default function CreateTripScreen({ navigation }: RootScreenProps<'Create
   const today = kstDate(appClock().now());
 
   const [title, setTitle] = useState('');
+  const [cover, setCover] = useState<TripCover | undefined>(undefined);
   const [titleTouched, setTitleTouched] = useState(false);
   const [regionId, setRegionId] = useState('');
   const [range, setRange] = useState<DateRangeSel>({});
@@ -98,6 +100,7 @@ export default function CreateTripScreen({ navigation }: RootScreenProps<'Create
       dayEnd: hours.end,
       days: buildDays(range.start, range.end, base ?? null),
       hostNickname: session?.nickname || profileName || '나',
+      cover,
     });
     navigation.replace('Members', { tripId, fromCreate: true });
   };
@@ -122,6 +125,7 @@ export default function CreateTripScreen({ navigation }: RootScreenProps<'Create
         title="여행방 만들기"
       />
       <Body scroll>
+        <CoverPicker value={cover} onChange={(c) => setCover(c ?? undefined)} />
         <Field
           label="여행방 이름"
           value={shownTitle}
@@ -130,14 +134,13 @@ export default function CreateTripScreen({ navigation }: RootScreenProps<'Create
             setTitleTouched(true);
           }}
           maxLength={TITLE_MAX}
-          placeholder="예: 경주 2박 3일"
           error={err.title}
         />
         <PickerBox
           label="지역"
           icon="pin"
           value={region?.label}
-          placeholder="국내 지역 목록에서 고르기"
+          placeholder="지역 검색 또는 지도에서 고르기"
           onPress={() => setSheet('region')}
           error={err.region}
         />

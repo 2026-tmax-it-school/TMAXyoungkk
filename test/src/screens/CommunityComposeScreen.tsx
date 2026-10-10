@@ -118,7 +118,7 @@ export default function CommunityComposeScreen({ navigation, route }: RootScreen
             setProblem(undefined);
           }}
         />
-        <Field label="제목 · 선택" value={title} onChangeText={setTitle} maxLength={TITLE_MAX} placeholder="예: 불국사 새벽 산책" />
+        <Field label="제목 · 선택" value={title} onChangeText={setTitle} maxLength={TITLE_MAX} />
         <Field
           label={kind === 'photo' ? '사진 설명 · 선택' : '일기'}
           value={body}
@@ -169,7 +169,14 @@ export default function CommunityComposeScreen({ navigation, route }: RootScreen
         </Col>
       </Body>
       <Foot>
-        {problem ? <Notice tone="warn" icon="alert" text={problem} /> : null}
+        {problem ? (
+          <Notice tone="warn" icon="alert" text={problem} />
+        ) : !check.ok && (title || body || photos.length > 0) ? (
+          // 올리기가 꺼진 까닭(사진이 너무 큼 등)을 바로 알린다
+          <Txt v="mtTight" c="warn">
+            {check.problem}
+          </Txt>
+        ) : null}
         <Btn title={busy ? '올리는 중' : '올리기'} disabled={busy || !check.ok} onPress={() => void submit()} />
       </Foot>
 

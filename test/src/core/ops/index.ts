@@ -5,6 +5,7 @@ import * as journal from './journal';
 import * as members from './members';
 import * as schedule from './schedule';
 import * as spots from './spots';
+import { coverProblem } from '../trip/cover';
 import * as trip from './trip';
 
 /**
@@ -14,7 +15,7 @@ import * as trip from './trip';
  * 2. 중복은 foldOps와 outbox가 op.id로 거른다. applyOp는 op 하나만 적용하고 중복을 모른다.
  * 3. lastSeq는 applyOp가 max(doc.lastSeq, op.seq ?? 0)로 올린다.
  * 4. 필드 LWW는 ops/lww.ts(patchSpot·patchDay)만 쓴다.
- * 5. 종료일이 지나면 편집 op를 거부한다. 예외는 LOCK_EXEMPT다.
+ * 5. 종료일이 지나면 편집 op를 거부한다. 예외는 LOCK_EXEMPT와, 이름·표지만 바꾸는 trip/update다(trip.TRIP_PATCH_KEYS_AFTER_END).
  */
 
 export type ReducerKey = 'trip' | 'members' | 'chat' | 'spots' | 'schedule' | 'journal';
@@ -122,11 +123,15 @@ export const LOCKED_REASON = '여행이 끝나 편집할 수 없습니다. 일�
 /** 잠금 검사 뒤 기능 validate. 삭제된 방에는 아무 op도 받지 않는다. */
 export function validateOp(doc: Trip | undefined, op: Op): ValidateResult {
   if (op.type === 'trip/create') {
-    return doc ? { ok: false, reason: '이미 있는 여행방입니다' } : { ok: true };
+    if (doc) return { ok: false, reason: '이미 있는 여행방입니다' };
+    const bad = op.trip.cover != null ? coverProblem(op.trip.cover) : null;
+    return bad ? { ok: false, reason: bad } : { ok: true };
   }
   if (!doc) return { ok: false, reason: '여행방을 찾을 수 없습니다' };
   if (doc.deletedAt != null) return { ok: false, reason: '삭제된 여행방입니다' };
-  if (isEditLocked(doc, op.at) && !LOCK_EXEMPT.has(op.type)) {
+  const cosmetic =
+    op.type === 'trip/update' && !!op.patch && Object.keys(op.patch).every((k) => trip.TRIP_PATCH_KEYS_AFTER_END.has(k));
+  if (isEditLocked(doc, op.at) && !LOCK_EXEMPT.has(op.type) && !cosmetic) {
     return { ok: false, reason: LOCKED_REASON };
   }
   const reason = REDUCERS[OP_OWNER[op.type]].validate(doc, op);

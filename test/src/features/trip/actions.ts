@@ -1,4 +1,5 @@
 import type { Trip } from '../../types';
+import { INVITE_BASE_URL } from '../../config';
 import { inviteUrl, newInvite } from '../../core/trip/invite';
 import { appClock } from '../../services/clock';
 import { getServices } from '../../services/registry';
@@ -17,7 +18,7 @@ export function issueInvite(tripId: string): boolean {
 }
 
 function inviteMessage(trip: Trip, code: string): string {
-  return `${trip.title} 여행방에 초대합니다. 가입 없이 게스트로 들어올 수 있어요.\n${inviteUrl(code)}\n초대 코드 ${code}`;
+  return `${trip.title} 여행방에 초대합니다. 가입 없이 게스트로 들어올 수 있어요.\n${inviteUrl(code, INVITE_BASE_URL)}\n초대 코드 ${code}`;
 }
 
 /** 링크 공유. 공유 시트가 안 되는 브라우저에서는 복사로 대체하고 토스트로 알린다. */
@@ -35,7 +36,7 @@ export async function copyInvite(trip: Trip): Promise<void> {
   const code = trip.invite?.code;
   if (!code) return;
   const toast = useUi.getState().showToast;
-  const r = await copyText(inviteUrl(code));
+  const r = await copyText(inviteUrl(code, INVITE_BASE_URL));
   if (r === 'copied') toast('초대 링크를 복사했습니다');
   else toast('복사하지 못했습니다. 초대 코드를 직접 알려 주세요', 'warn');
 }

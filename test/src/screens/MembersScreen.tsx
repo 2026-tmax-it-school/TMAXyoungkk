@@ -3,6 +3,7 @@ import { Pressable, View } from 'react-native';
 
 import { activeMembers, canIssueInvite, isHost } from '../core/group';
 import { dateLongShort } from '../core/trip/format';
+import { INVITE_BASE_URL } from '../config';
 import { inviteStatus, inviteUrlShort, seatsLeft, INVITE_ERROR_TEXT } from '../core/trip/invite';
 import { memberRows, type MemberRow } from '../core/trip/members';
 import { copyInvite, issueInvite, shareInvite } from '../features/trip/actions';
@@ -128,7 +129,7 @@ export default function MembersScreen({ navigation, route }: RootScreenProps<'Me
                   <Icon name="link" size={16} />
                   <View style={{ flex: 1, minWidth: 0 }}>
                     <Txt v="body" numberOfLines={1}>
-                      {inviteUrlShort(inv.code)}
+                      {inviteUrlShort(inv.code, INVITE_BASE_URL)}
                     </Txt>
                   </View>
                   <Pressable

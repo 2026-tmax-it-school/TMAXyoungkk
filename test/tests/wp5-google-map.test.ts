@@ -234,7 +234,7 @@ test('웹 기본 지도(SVG) 누르기: onClick과 함께 onPress: null을 줘�
 test('웹 구글 지도: 핀은 노드를 다시 쓰고, 스크롤 화면 안에서는 cooperative, 타일 시한은 보일 때만 잰다', () => {
   const src = readFileSync('src/components/map/GoogleMapView.web.tsx', 'utf8');
   assert.doesNotMatch(src, /replaceChildren/, '핀을 매번 통째로 갈아 끼우면 포커스와 누르는 중인 핀이 사라진다');
-  assert.match(src, /gestureHandling: p\.compact \? 'none' : p\.flat \? 'greedy' : 'cooperative'/);
+  assert.match(src, /gestureHandling: p\.compact \? 'none' : p\.flat \|\| p\.wheelZoom \? 'greedy' : 'cooperative'/);
   assert.match(src, /document\.visibilityState === 'visible'/);
   assert.match(src, /fail\('tiles'\)/);
   // 이동 점은 화면 읽기에서 숨긴다

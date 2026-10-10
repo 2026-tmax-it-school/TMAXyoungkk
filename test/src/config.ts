@@ -7,6 +7,7 @@
  *                               기본 주소도 이 서버의 /osrm이 된다. 서버에 카카오 키가 없으면(503) 로컬 장소 사전·추정 경로다.
  *                               http(s) 주소가 아니면 없는 것으로 본다. 서버에 닿지 못하거나 서버·카카오가 실패해도 로컬 대체다.
  *                               빈 시간 추천(주변 장소)은 지금 위치를 이 서버를 거쳐 카카오에 묻는다(남은 문제, 서버는 두지 않는다).
+ *   EXPO_PUBLIC_INVITE_BASE_URL 초대 링크 주소(앱이 열리는 웹 주소). 없으면 웹은 지금 앱 주소, 앱은 예약 도메인 youngtrip.app.
  *   EXPO_PUBLIC_KAKAO_REST_KEY  시연 한정 직접 호출. 있으면 장소 검색·자동차 경로가 앱에서 바로 카카오로 간다.
  *                               프로토타입 가정 · 국내 SDK 선정 미결정. REST 키가 번들에 들어가므로 시연 한정이다.
  *                               EXPO_PUBLIC_API_URL이 있으면 쓰지 않는다(값이 있으면 번들에는 들어가니 비워 둔다.
@@ -40,6 +41,7 @@
  * 이 파일은 순수 영역(src/core 등)에서 import하지 않는다. registry와 components/map/engine만 읽는다.
  * 고르는 규칙은 순수 함수(parseApiUrl, pickKakaoKey, parseRoadShapes, roadShapeSource)로 두어 테스트가 본다.
  */
+import { pickInviteBase } from './core/trip/invite';
 
 /** 서버 주소 값 → 끝 '/'를 뗀 주소. http(s) 주소(호스트 있음)가 아니면 빈 값 */
 export function parseApiUrl(raw: string | undefined): string {
@@ -103,6 +105,15 @@ export function pickOAuthClientId(provider: 'google' | 'kakao', platform: string
   if (platform === 'ios') return ids.google.ios;
   return ids.google.web;
 }
+
+/**
+ * 초대 링크 주소(끝 '/' 없음). EXPO_PUBLIC_INVITE_BASE_URL(예: 같은 와이파이의 휴대폰용 http://192.168.0.10:8090, 배포 주소),
+ * 없으면 웹에서 지금 열린 앱 주소, 앱(네이티브)이면 undefined(예약 도메인 youngtrip.app)
+ */
+export const INVITE_BASE_URL = pickInviteBase(
+  process.env.EXPO_PUBLIC_INVITE_BASE_URL,
+  (globalThis as { location?: { origin?: string } }).location?.origin,
+);
 
 /** 키 숨기는 서버 주소(끝 '/' 없음). http(s) 주소가 아니면 빈 값 */
 export const API_URL = parseApiUrl(process.env.EXPO_PUBLIC_API_URL);

@@ -2,6 +2,7 @@ import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import type { CompositeScreenProps, LinkingOptions, NavigatorScreenParams } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 
+import { INVITE_BASE_URL } from '../config';
 import { APP_SCHEME, INVITE_HOST } from '../core/constants';
 
 /**
@@ -73,7 +74,8 @@ export const ALWAYS_ROUTES = ['InviteAccept', 'Login', 'Signup', 'SocialConsent'
 
 /** 딥링크. youngtrip://j/코드, https://youngtrip.app/j/코드 → 02 초대 수락 */
 export const linking: LinkingOptions<RootStackParamList> = {
-  prefixes: [`${APP_SCHEME}://`, `https://${INVITE_HOST}`],
+  // 초대 링크 주소(INVITE_BASE_URL)로 열려도 초대 수락으로 간다(웹은 지금 앱 주소, 설정하면 그 주소)
+  prefixes: [`${APP_SCHEME}://`, `https://${INVITE_HOST}`, ...(INVITE_BASE_URL ? [INVITE_BASE_URL] : [])],
   config: {
     screens: {
       InviteAccept: 'j/:code',

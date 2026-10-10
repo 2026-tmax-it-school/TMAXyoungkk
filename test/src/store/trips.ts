@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
-import type { DaySetting, Member, Op, OpDraft, Plan, PlanStep, Transport, Trip } from '../types';
+import type { DaySetting, Member, Op, OpDraft, Plan, PlanStep, Transport, Trip, TripCover } from '../types';
 import { RECOMPUTE_DEBOUNCE_MS, STORAGE_KEYS, STORAGE_VERSION } from '../core/constants';
 import { activeMembers } from '../core/group';
 import { lastOpAt, stampAt, validateOp } from '../core/ops';
@@ -62,6 +62,8 @@ export interface CreateTripInput {
   /** base는 null 가능(기점 없이 만들기 → 그날 첫 스팟이 기점) */
   days: DaySetting[];
   hostNickname: string;
+  /** 표지 이미지(선택) */
+  cover?: TripCover;
 }
 
 /**
@@ -421,6 +423,7 @@ export const useTrips = create<TripsState>()(
             transport: input.transport,
             dayStart: input.dayStart,
             dayEnd: input.dayEnd,
+            ...(input.cover ? { cover: input.cover } : {}),
             days: input.days,
             legs: [],
             members: [host],

@@ -1,7 +1,9 @@
 import React, { useMemo, useState } from 'react';
-import { Pressable, ScrollView, View } from 'react-native';
+import { ScrollView, View } from 'react-native';
 
 import type { Trip } from '../types';
+import { isHost } from '../core/group';
+import { coverUri } from '../core/trip/cover';
 import type { TripStatus } from '../core/tripStatus';
 import { kstDate } from '../core/util';
 import { regionById } from '../data/regions';
@@ -16,10 +18,11 @@ import {
   type HomeMenuCell,
 } from '../features/account/home';
 import { useSessionKeepAlive } from '../features/account/useSessionKeepAlive';
+import { TripEditSheet } from '../features/trip/components/TripEditSheet';
 import type { TabScreenProps } from '../navigation/routes';
 import { useNow } from '../services/clock';
 import { useSession } from '../store/session';
-import { useMyTrips, useTrips } from '../store/trips';
+import { myMemberId, useMyTrips, useTrips } from '../store/trips';
 import { useUi } from '../store/ui';
 import {
   AvatarStack,
@@ -27,7 +30,6 @@ import {
   Col,
   CoverTile,
   Empty,
-  Icon,
   IconBtn,
   QuickAction,
   Row,
@@ -47,6 +49,7 @@ import {
  * - 여행방이 없으면 생성 유도 Empty.
  * - 2026-10-10 리디자인(숙박·여행 앱 레퍼런스): 카테고리 알약(세그먼트), 내 여행 표지 카드 가로 줄, 원형 빠른 메뉴 6칸, 추천 여행지 가로 줄 순서다.
  * - 쓰는 동안 세션을 유지한다(useSessionKeepAlive: 연장, 만료 폐기, 만료 3일 전 알림 한 번).
+ * - 방장은 여행 카드의 '수정'으로 표지·이름·날짜를 바로 고친다(features/trip TripEditSheet, 2026-10-10).
  * 판정은 features/account/home.ts(순수, wp1-home 테스트)에 있다.
  */
 export default function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
@@ -56,6 +59,7 @@ export default function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
   const session = useSession((s) => s.session);
   const currentTripId = useUi((s) => s.currentTripId);
   const setCurrentTrip = useUi((s) => s.setCurrentTrip);
+  const [editing, setEditing] = useState<string | undefined>(undefined);
 
   const seg = useMemo(() => homeSegments(trips, now), [trips, now]);
   const [picked, setPicked] = useState<TripStatus | undefined>(undefined);
@@ -154,11 +158,11 @@ export default function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
                   trip={t}
                   selected={t.id === current?.id}
                   info={tripCardInfo(t, plans[t.id], now)}
-                  onPress={() => setCurrentTrip(t.id)}
                   onSchedule={() => {
                     setCurrentTrip(t.id);
                     navigation.navigate('Schedule', {});
                   }}
+                  onEdit={() => setEditing(t.id)}
                 />
               ))}
             </ScrollView>
@@ -193,6 +197,14 @@ export default function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
           </ScrollView>
         </View>
       </ScrollView>
+      <TripEditSheet
+        tripId={editing}
+        onClose={() => setEditing(undefined)}
+        onMore={(id) => {
+          setEditing(undefined);
+          navigation.navigate('TripSettings', { tripId: id });
+        }}
+      />
     </Screen>
   );
 }
@@ -203,38 +215,31 @@ function TripCard({
   trip,
   info,
   selected,
-  onPress,
   onSchedule,
+  onEdit,
 }: {
   trip: Trip;
   info: ReturnType<typeof tripCardInfo>;
   selected: boolean;
-  onPress: () => void;
   onSchedule: () => void;
+  onEdit: () => void;
 }) {
-  // 표지(여행방 고르기)와 '시간표 보기'를 나란한 두 버튼으로 둔다(웹에서 button 중첩을 피한다).
+  const me = myMemberId(trip);
+  const host = !!me && isHost(trip, me);
+  // 상자를 누르면 시간표로 간다. 방장은 상자 오른쪽 위 '수정'으로 표지·이름·날짜를 고친다
   return (
     <CoverTile
       size="lg"
       place={regionById(trip.region)?.name ?? trip.title}
+      image={coverUri(trip.cover)}
       badge={info.badge}
       title={info.title}
       lines={[info.dateText, info.countsText]}
       selected={selected}
-      onPress={onPress}
-      footer={
-        <Row style={{ justifyContent: 'space-between' }}>
-          <AvatarStack names={info.memberNames.slice(0, 4)} />
-          <Pressable accessibilityRole="button" accessibilityLabel={`${trip.title} 시간표 보기`} onPress={onSchedule}>
-            <Row gap={4}>
-              <Txt v="btnSm" c="accent">
-                시간표 보기
-              </Txt>
-              <Icon name="right" size={14} color="accent" stroke={2.2} />
-            </Row>
-          </Pressable>
-        </Row>
-      }
+      onPress={onSchedule}
+      pressLabel={`${trip.title} 시간표 보기`}
+      corner={host ? { label: '수정', a11y: `${trip.title} 수정`, onPress: onEdit } : undefined}
+      footer={<AvatarStack names={info.memberNames.slice(0, 4)} />}
     />
   );
 }

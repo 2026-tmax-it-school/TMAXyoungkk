@@ -1,5 +1,5 @@
 import React from 'react';
-import { Pressable, View, type StyleProp, type ViewStyle } from 'react-native';
+import { Image, Pressable, View, type StyleProp, type ViewStyle } from 'react-native';
 
 import { Icon, type IconName } from './Icon';
 import { Txt } from './Txt';
@@ -120,9 +120,14 @@ export function CoverTile({
   selected,
   size = 'sm',
   onPress,
+  pressLabel,
+  corner,
   footer,
   style,
+  image,
 }: {
+  /** 표지 이미지 주소(data URI 등). 있으면 지역 이름 대신 사진을 꽉 채운다 */
+  image?: string;
   place: string;
   badge?: string;
   title: string;
@@ -130,37 +135,88 @@ export function CoverTile({
   selected?: boolean;
   size?: 'sm' | 'lg';
   onPress?: () => void;
+  /** 상자를 눌렀을 때 하는 일(접근성 이름). 없으면 '제목 열기' */
+  pressLabel?: string;
+  /** 상자 오른쪽 위 작은 버튼(예: 수정). 상자 버튼과 겹치지 않게 형제로 둔다(웹 button 중첩 방지) */
+  corner?: { label: string; a11y: string; onPress: () => void };
   footer?: React.ReactNode;
   style?: StyleProp<ViewStyle>;
 }) {
   const lg = size === 'lg';
   const width = lg ? 272 : 148;
+  const height = lg ? Math.round((width * 19) / 20) : width;
+  // lg(내 여행)는 제목·날짜·개수를 상자 안 아래 흰 판에 담는다. sm(추천)은 상자 아래에 둔다
+  const inside = lg;
+  const info = (
+    <View style={{ gap: 2 }}>
+      <Txt v="nm" numberOfLines={1}>
+        {title}
+      </Txt>
+      {lines.map((l) => (
+        <Txt key={l} v="mt" numberOfLines={lg ? 1 : 2}>
+          {l}
+        </Txt>
+      ))}
+    </View>
+  );
   return (
     <View style={[{ width, gap: SP.xl }, style]}>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={`${title} 열기`}
-        accessibilityState={{ selected: !!selected }}
-        onPress={onPress}
+      <View
         style={{
           width,
-          height: lg ? Math.round((width * 19) / 20) : width,
+          height,
           borderRadius: R.photo,
           backgroundColor: surfaceC.soft,
           borderWidth: selected ? 2 : 0,
           borderColor: lineC.ink,
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: SP.m,
           overflow: 'hidden',
         }}
       >
-        <Icon name="pin" size={lg ? 28 : 24} color="muted" stroke={1.6} />
-        <Txt v="btnSm" c="muted" numberOfLines={1}>
-          {place}
-        </Txt>
+        {image ? (
+          <Image
+            source={{ uri: image }}
+            resizeMode="cover"
+            accessibilityIgnoresInvertColors
+            style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
+          />
+        ) : null}
+        <View pointerEvents="none" style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: SP.m }}>
+          {image ? null : (
+            <>
+              <Icon name="pin" size={lg ? 28 : 24} color="muted" stroke={1.6} />
+              <Txt v="btnSm" c="muted" numberOfLines={1}>
+                {place}
+              </Txt>
+            </>
+          )}
+        </View>
+        {inside ? (
+          <View
+            pointerEvents="none"
+            style={{
+              marginHorizontal: SP.m,
+              marginBottom: SP.m,
+              paddingHorizontal: SP.l,
+              paddingVertical: SP.m,
+              borderRadius: R.card,
+              borderWidth: 1,
+              borderColor: lineC.line,
+              backgroundColor: surfaceC.card,
+            }}
+          >
+            {info}
+          </View>
+        ) : null}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={pressLabel ?? `${title} 열기`}
+          accessibilityState={{ selected: !!selected }}
+          onPress={onPress}
+          style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
+        />
         {badge ? (
           <View
+            pointerEvents="none"
             style={{
               position: 'absolute',
               top: SP.xl,
@@ -176,17 +232,29 @@ export function CoverTile({
             <Txt v="chip">{badge}</Txt>
           </View>
         ) : null}
-      </Pressable>
-      <View style={{ gap: 2 }}>
-        <Txt v="nm" numberOfLines={1}>
-          {title}
-        </Txt>
-        {lines.map((l) => (
-          <Txt key={l} v="mt" numberOfLines={lg ? 1 : 2}>
-            {l}
-          </Txt>
-        ))}
+        {corner ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={corner.a11y}
+            hitSlop={8}
+            onPress={corner.onPress}
+            style={{
+              position: 'absolute',
+              top: SP.xl,
+              right: SP.xl,
+              paddingHorizontal: SP.l,
+              paddingVertical: SP.xs,
+              borderRadius: R.chip,
+              borderWidth: 1,
+              borderColor: lineC.line,
+              backgroundColor: surfaceC.card,
+            }}
+          >
+            <Txt v="chip">{corner.label}</Txt>
+          </Pressable>
+        ) : null}
       </View>
+      {inside ? null : info}
       {footer}
     </View>
   );

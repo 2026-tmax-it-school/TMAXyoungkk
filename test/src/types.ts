@@ -257,6 +257,8 @@ export interface Trip {
   /** 'HH:MM'. 하루 기본 활동시간. 날짜별 값이 있으면 그것이 우선이다. */
   dayStart: string;
   dayEnd: string;
+  /** 표지 이미지(여행방을 알아보게). 줄인 JPEG 등 base64. 없으면 지역 이름 표지 */
+  cover?: TripCover;
   days: DaySetting[];
   legs: LegOverride[];
   members: Member[];
@@ -440,9 +442,17 @@ export interface Session {
 /* Op (A3). OpBody 유니온 전체는 여기에만 있고 동결한다.               */
 /* ------------------------------------------------------------------ */
 
+/** 여행방 표지 이미지. 크기·형식 규칙은 core/trip/cover */
+export interface TripCover {
+  mime: string;
+  /** base64(머리 'data:' 없이) */
+  data: string;
+}
+
+/** cover: null이면 표지를 뺀다 */
 export type TripPatch = Partial<
   Pick<Trip, 'title' | 'region' | 'startDate' | 'endDate' | 'transport' | 'dayStart' | 'dayEnd'>
->;
+> & { cover?: TripCover | null };
 export type DayPatch = Partial<Pick<DaySetting, 'base' | 'noReturn' | 'dayStart' | 'dayEnd'>>;
 
 export type OpBody =

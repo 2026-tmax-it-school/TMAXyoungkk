@@ -24,6 +24,11 @@ export interface MapCanvasProps {
   onPressMap?: (coord: LatLng) => void;
   /** 모서리·테두리 없이 화면 가득(11·13 지도 탭) */
   flat?: boolean;
+  /**
+   * 웹에서 그냥 마우스 휠로 확대·축소한다(flat 지도와 같은 손짓). 스크롤할 페이지가 없는 곳(바닥 시트 안 지도)에서 켠다.
+   * 끄면(기본) 스크롤 화면 안의 지도는 Ctrl·Cmd+휠, 더블클릭, 두 손가락으로만 확대한다(페이지 스크롤을 막지 않게)
+   */
+  wheelZoom?: boolean;
   /** 지도 위에 띄우는 칩·버튼(절대 배치) */
   children?: React.ReactNode;
   /** 지도 아래쪽을 덮는 요소(11 하단 시트) 높이. '전체 보기' 버튼을 그만큼 올린다 */

@@ -171,7 +171,6 @@ export default function InviteAcceptScreen({ navigation, route }: RootScreenProp
             label="초대 코드"
             value={codeInput}
             onChangeText={setCodeInput}
-            placeholder="예: 7K2D-9MQX"
             error={codeError}
           />
           {!online ? <Notice tone="warn" icon="alert" text="오프라인입니다. 이 기기에 없는 여행방은 연결된 뒤에 확인할 수 있습니다." /> : null}
@@ -250,7 +249,6 @@ export default function InviteAcceptScreen({ navigation, route }: RootScreenProp
             value={nickname}
             onChangeText={setNickname}
             maxLength={NICKNAME_MAX}
-            placeholder="예: 지우"
             error={joinError}
           />
         )}

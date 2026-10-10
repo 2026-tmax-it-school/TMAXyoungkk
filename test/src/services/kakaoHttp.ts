@@ -20,6 +20,8 @@ import type { FetchLike } from '../core/ports';
 export const KAKAO_PROXY_PATHS: Readonly<Record<string, string>> = {
   'https://dapi.kakao.com/v2/local/search/keyword.json': '/kakao/local/keyword',
   'https://dapi.kakao.com/v2/local/search/category.json': '/kakao/local/category',
+  'https://dapi.kakao.com/v2/local/search/address.json': '/kakao/local/address',
+  'https://dapi.kakao.com/v2/local/geo/coord2regioncode.json': '/kakao/local/region',
   'https://apis-navi.kakaomobility.com/v1/directions': '/kakao/navi/directions',
 };
 const PROXY_PATH = new Map(Object.entries(KAKAO_PROXY_PATHS));

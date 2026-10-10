@@ -76,6 +76,8 @@
     "src/core/ops/members.ts",
     "src/core/trip/**",
     "src/services/sync/**",
+    "src/services/regions.ts",
+    "src/services/tripCover.ts",
     "server/**",
     "tests/wp2-*.test.ts"
   ],

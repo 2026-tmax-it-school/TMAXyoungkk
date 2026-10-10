@@ -14,6 +14,7 @@ import { dateRange, dayLabel, josa } from '../core/util';
 import { regionById } from '../data/regions';
 import { BaseSearchSheet } from '../features/trip/components/BaseSearchSheet';
 import { CalendarRange } from '../features/trip/components/CalendarRange';
+import { CoverPicker } from '../features/trip/components/CoverPicker';
 import { PickerBox } from '../features/trip/components/PickerBox';
 import { RegionSheet } from '../features/trip/components/RegionSheet';
 import { TimeRange } from '../features/trip/components/TimeRange';
@@ -46,6 +47,7 @@ import {
  * - 날짜별 기점: 지정(장소 검색), 직전 날짜와 같음('inherit'), 기점 없음(첫 스팟 사용, null), 복귀 없음, 날짜별 활동시간.
  *   전부 trip/setDay{date,patch}이고 전 멤버가 바꿀 수 있다. 하루 이동수단(transport)은 건드리지 않는다(시간표 12 화면).
  * - 이름·지역·날짜·주 이동수단·기본 활동시간은 trip/update라 방장만(프로토타입 가정). 만든 뒤에도 방장이 바꿀 수 있다(2026-10-10).
+ * - 표지 이미지도 방장이 바꾼다. 이름·표지는 여행이 끝난 뒤에도 바꿀 수 있다(core/ops TRIP_PATCH_KEYS_AFTER_END).
  *   지역을 바꾸면 장소로 정한 날짜별 기점을 비운다(확인 1회). 기간이 줄어 빠지는 날짜가 있으면 확인 1회 뒤 바꾼다.
  *   바꾸면 루트를 다시 계산한다(needsRecompute). 그룹원에게는 값만 보인다.
  * - 방장은 삭제(확인 1회), 그룹원은 나가기(확인 1회). 방장에게는 나가기 버튼 없이 '방장 위임 미결정' 안내만 처음부터 보인다
@@ -149,7 +151,10 @@ export default function TripSettingsScreen({ navigation, route }: RootScreenProp
 
         <Txt v="eyebrow">기본 정보</Txt>
         <Card>
-          {host && !locked ? (
+          {host ? (
+            <CoverPicker value={trip.cover} onChange={(cover) => dispatch(trip.id, { type: 'trip/update', patch: { cover } })} />
+          ) : null}
+          {host ? (
             <Col gap={SP.m}>
               <Field label="여행방 이름" value={title ?? trip.title} onChangeText={setTitle} maxLength={TITLE_MAX} />
               {title != null && title.trim() !== trip.title ? (

@@ -29,7 +29,6 @@ export default function OnboardingScreen({ navigation }: RootScreenProps<'Onboar
             setTouched(true);
           }}
           maxLength={NICKNAME_MAX}
-          placeholder="예: 민지"
           error={touched && problem ? problem : undefined}
         />
       </Body>
