@@ -88,8 +88,8 @@ export const linking: LinkingOptions<RootStackParamList> = {
  * 하단 탭(홈/후보/시간표/지도/프로필 고정). 채팅은 탭이 아니라 스택 화면이다.
  * 다섯째 탭(More)은 숙박 앱처럼 '프로필'로 보이고, 안에 계정·설정·시연 도구를 모은다.
  */
-export const TAB_ITEMS: { key: TabRouteName; label: string; icon: 'search' | 'heart' | 'cal' | 'map' | 'user' }[] = [
-  { key: 'Home', label: '홈', icon: 'search' },
+export const TAB_ITEMS: { key: TabRouteName; label: string; icon: 'home' | 'heart' | 'cal' | 'map' | 'user' }[] = [
+  { key: 'Home', label: '홈', icon: 'home' },
   { key: 'Candidates', label: '후보', icon: 'heart' },
   { key: 'Schedule', label: '시간표', icon: 'cal' },
   { key: 'Map', label: '지도', icon: 'map' },

@@ -181,10 +181,9 @@ export default function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={{ paddingHorizontal: SP.gutter, paddingVertical: SP.s, gap: SP.xl }}
           >
-            {HOME_PICKS.map((p, i) => (
+            {HOME_PICKS.map((p) => (
               <CoverTile
                 key={p.id}
-                seed={i}
                 place={p.name}
                 title={p.name}
                 lines={[p.blurb]}
@@ -217,7 +216,6 @@ function TripCard({
   return (
     <CoverTile
       size="lg"
-      seed={trip.region}
       place={regionById(trip.region)?.name ?? trip.title}
       badge={info.badge}
       title={info.title}

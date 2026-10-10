@@ -28,10 +28,11 @@ export function contrast(a: string, b: string): number {
 }
 
 test('개편 토큰 기준값을 재현한다(계산식 확인)', () => {
-  assert.equal(contrast(textC.ink, surfaceC.card).toFixed(2), '18.88');
-  assert.equal(contrast(textC.muted, surfaceC.card).toFixed(2), '5.74');
-  assert.equal(contrast(textC.muted, surfaceC.soft).toFixed(2), '5.22');
-  assert.equal(contrast(textC.accentStrong, surfaceC.soft).toFixed(2), '17.18');
+  // 2026-10-10 Young Trip 디자인 시스템: ink #222222, muted #6A6A6A, soft #F7F7F7
+  assert.equal(contrast(textC.ink, surfaceC.card).toFixed(2), '15.91');
+  assert.equal(contrast(textC.muted, surfaceC.card).toFixed(2), '5.41');
+  assert.equal(contrast(textC.muted, surfaceC.soft).toFixed(2), '5.05');
+  assert.equal(contrast(textC.accentStrong, surfaceC.soft).toFixed(2), '14.85');
   assert.equal(contrast(mapC.ink, mapC.bg).toFixed(2), '17.18');
   assert.equal(contrast(mapC.slate, mapC.bg).toFixed(2), '5.94');
   assert.equal(contrast(mapC.ok, mapC.bg).toFixed(2), '5.73');
