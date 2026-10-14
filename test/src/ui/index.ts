@@ -12,14 +12,30 @@ export { Btn, IconBtn, type BtnVariant } from './Btn';
 export { AuthBtn, AuthTitle, Divider, TextLink, type AuthBtnVariant } from './Auth';
 export { BrandLogo } from './BrandLogo';
 export { Chip, type ChipTone } from './Chip';
-export { Seg } from './Seg';
+export { Seg, type SegItem } from './Seg';
 export { Choice, Field, Tag } from './Field';
-export { Empty, Notice, WarnCard } from './Notice';
+export { fieldKindProps, type FieldKind, type FieldKindProps } from './fieldKind';
+export { Switch } from './Switch';
+export { Empty, Notice, NotFound, WarnCard } from './Notice';
 export { Avatar, AvatarStack } from './Avatar';
 export { ConfirmSheet, Sheet } from './Sheet';
+export { LeaveConfirmSheet } from './LeaveConfirmSheet';
+export { PeekSheet } from './PeekSheet';
+export {
+  nextOnTap,
+  SHEET_MINI_H,
+  sheetHeights,
+  SNAP_LABEL,
+  SNAP_ORDER,
+  snapAfterDrag,
+  stepA11y,
+  type SheetHeights,
+  type SheetSnap,
+} from './sheetSnap';
+export { MapPill } from './MapPill';
 export { ProgressBar } from './ProgressBar';
 export { TabBar } from './TabBar';
-export { CoverTile, FeatureTile, ListRow, ProfileHero, QuickAction, SectionTitle } from './Discover';
+export { CoverTile, FeatureTile, ListRow, ProfileEditHero, ProfileHero, QuickAction, SectionTitle } from './Discover';
 export { Toast } from './Toast';
 export { GOOGLE_MAP_STYLE, type GoogleMapStyleRule } from './mapStyle';
-export { mapPinSvg, type PinColor, type PinSpec, type PinSvg } from './mapPinSvg';
+export { mapPinSvg, pinScale, type PinColor, type PinLook, type PinSpec, type PinSvg } from './mapPinSvg';

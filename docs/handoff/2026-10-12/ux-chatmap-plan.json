@@ -1,0 +1,882 @@
+{
+ "plan": {
+  "principles": [
+   "P1 주 행동은 한 화면에 하나만 두고, 엄지가 닿는 자리(Foot)에 놓는다. 보조 행동은 quiet로 둔다. 파괴적이거나 드문 행동은 화면 맨 아래 '관리' 구역의 ListRow로 내린다. 되돌릴 수 없는 일은 ConfirmSheet를 한 번 거친다(로그아웃, 진행 끝내기, 조정안 '빼기', 후보에서 지우기).",
+   "P2 지금 보고 있는 여행방이 늘 보여야 하고, 방을 고르는 규칙은 한 곳에만 둔다. 방은 pickCurrentTrip과 useActiveTrip으로 정하고, 일정·지도 탭 맨 위의 TripBar에서 그 자리에서 바꾼다. 여행방 설정(gear)은 개인 모드에서도 늘 열 수 있다.",
+   "P3 다음 할 일을 상태에서 계산해 앞에 둔다(tripNextStep, 단계별 홈 동작, 경고 Notice의 action, Empty의 action). 막다른 화면을 만들지 않는다. 뒤로는 useBack의 대체 탭으로 가고, 찾을 수 없는 화면은 NotFound의 '홈으로'로 보낸다.",
+   "P4 상태는 높이가 고정된 한 줄로 보인다(요약 줄, 칩, OfflineBar, 토스트). 목록 위에 Notice를 쌓지 않고, 편집할 때 레이아웃이 밀리지 않게 한다. 편집으로 카드가 사라지면 어디로 갔는지 토스트 한 문장(~요)으로 알린다.",
+   "P5 시연·개발 도구는 지우지 않는다. 접힌 '시연' 구역, dots 시트, 이름 칸 아래 TextLink로 옮기고, 실제 기능과 같은 무게나 자리(Foot)에는 두지 않는다.",
+   "P6 누를 수 있는 것은 누를 수 있게 보이고 44pt를 넘는다. 끌기 같은 몸짓에는 늘 탭이나 키보드, 스크린리더로 같은 결과에 닿는 길을 함께 둔다. 켜고 끄는 것은 Switch로, 상태는 Chip으로 보인다. 접근성 이름은 실제 동작과 같게 쓴다. 숫자 라벨이 순번('3번')으로 읽히지 않게 한다.",
+   "P7 입력은 잃지 않는다. 키보드가 Foot과 시트를 가리지 않게 한다(Screen keyboard, Sheet KAV). 결과는 처음 누를 때 바로 눌리게 한다(persistTaps). Enter로 다음 칸으로 가거나 제출하고, 바뀐 내용이 있으면 나가기 전에 확인한다(LeaveConfirmSheet, beforeRemove).",
+   "P8 같은 것은 같은 이름으로 부른다('구간 안내'는 13, '길찾기'는 27, '카카오맵으로 열기', 날짜 '10/18 토'). 문구는 '~요' 톤으로 쓴다. 규칙 테스트를 지킨다: 토큰만 쓰기, Txt만 쓰기, 화살표·이모지·'✓'·'Σ' 없음, core에 Date.now 없음, 새 파일마다 소유 글롭 하나. '투표'라는 말은 사용자 요청에 따라 src/features/chat/map/** 안에서만 쓴다.",
+   "P9 HANDOFF 결정은 되돌리지 않는다. 위치 공유는 없다(채팅방 지도의 프로필은 지도 좌표 위에 놓지 않고 왼쪽 열에만 둔다). 기본 지도는 카카오이고 SVG로 대체한다. 저장소는 PostgreSQL이고 새 백엔드 엔드포인트나 마이그레이션은 만들지 않는다. 새로 저장하는 데이터는 op 하나(spot/vote)뿐이고, 옛 문서는 그대로 불러온다.",
+   "P10 파일 소유는 겹치지 않는다. 공용 키트, 내비게이션, 공용 테스트, 공유 헬퍼는 wave 1의 B0가 먼저 만든다. wave 2 배치끼리는 같은 wave 안에서 새로 생기는 서로의 함수에 기대지 않는다(import는 B0 산출물이나 이미 있는 export만 한다)."
+  ],
+  "batches": [
+   {
+    "id": "B0-foundation",
+    "title": "공용 UI 키트·시트·내비게이션·현재 여행방·공유 헬퍼(1차, 단독)",
+    "wave": 1,
+    "owns_files": [
+     "src/ui/**",
+     "src/navigation/**",
+     "App.tsx",
+     "src/core/trip/current.ts",
+     "src/features/trip/useActiveTrip.ts",
+     "src/features/trip/components/TripBar.tsx",
+     "src/features/schedule/components/PlanSwitch.tsx",
+     "src/features/candidates/summary.ts",
+     "tests/setup/ownership.json",
+     "tests/foundation-design-rules.test.ts",
+     "tests/foundation-ux-kit.test.ts",
+     "tests/foundation-contrast.test.ts",
+     "tests/wp2-current-trip.test.ts",
+     "tests/wp3-candidate-summary.test.ts",
+     "tests/wp6-community.test.ts"
+    ],
+    "new_files": [
+     "src/ui/Switch.tsx",
+     "src/ui/PeekSheet.tsx",
+     "src/ui/sheetSnap.ts",
+     "src/ui/MapPill.tsx",
+     "src/ui/LeaveConfirmSheet.tsx",
+     "src/ui/fieldKind.ts",
+     "src/navigation/useBack.ts",
+     "src/navigation/OfflineBar.tsx",
+     "src/navigation/toastTime.ts",
+     "src/core/trip/current.ts",
+     "src/features/trip/useActiveTrip.ts",
+     "src/features/trip/components/TripBar.tsx",
+     "src/features/schedule/components/PlanSwitch.tsx",
+     "src/features/candidates/summary.ts",
+     "tests/foundation-ux-kit.test.ts",
+     "tests/wp2-current-trip.test.ts",
+     "tests/wp3-candidate-summary.test.ts"
+    ],
+    "changes": [
+     "0. 기준과 순서. 경로는 /Users/handong-gwan/TMAXyoungkk/test를 기준으로 한다. 새 prop은 모두 선택이어야 하고, 기존 호출(ListRow onPress가 필수였던 것 포함)은 고치지 않아도 그대로 컴파일되어야 한다. 크기 때문에 배치 안에서 세 단계로 나누고, 각 단계 끝에 tsc를 돌려 통과해야 다음 단계로 간다. (a) UI 키트·토큰·시트·핀과 그 테스트, (b) 내비게이션·탭 5칸·토스트·OfflineBar, (c) 현재 여행방·TripBar·PlanSwitch·summary.ts. wave 2 배치와 M-chatmap은 (c)까지 끝나고 foundation 테스트와 웹 360px 스모크가 통과한 뒤에 시작한다.",
+     "1. layout.tsx: Screen에 keyboard?: boolean을 더한다. 켜면 Body와 Foot을 KeyboardAvoidingView로 감싼다(iOS는 'padding', 그 밖은 undefined). Body ScrollView에 keyboardShouldPersistTaps=\"handled\"와 keyboardDismissMode=\"on-drag\"를 준다. Header 제목은 accessibilityRole=\"header\"인 View로 감싼다. Header에 size='row' 변형을 더한다. 한 줄에 back IconBtn, 제목(nm)과 sub(mtTight) 두 줄(numberOfLines 1), right 슬롯을 둔다. right에는 여러 노드를 받는 Row를 두어 ChatScreen이 compact Seg와 IconBtn을 함께 넣을 수 있게 한다. 아래 여백은 SP 토큰 하나로 한다.",
+     "2. Sheet.tsx: 패널을 항상 KAV(iOS 'padding')로 감싸고 패널 maxHeight를 창 높이의 85%로 한다. 내용 ScrollView는 scroll?: boolean으로 켜는 선택 기능이다(기본 false). 켜면 keyboardShouldPersistTaps='handled'를 준다. 기본값을 false로 한 것은 FlatList나 검색 목록이 있는 기존 시트(ManualAdd, PlacePickSheet, BaseSearchSheet, ClusterListSheet)에 중첩 VirtualizedList 문제가 생기지 않게 하려는 것이다. title이 있으면 오른쪽에 IconBtn x '닫기'를 둔다. ConfirmSheet에는 cancelLabel = '취소'(기본 매개변수), confirmDisabled?, children?을 더한다. ConfirmSheet 안의 '<Btn '은 확인과 취소 정확히 2개로 두고, 취소는 title={cancelLabel}로 쓴다. Sheet.tsx에서 ConfirmSheet 뒤에는 '<Btn '을 쓰는 코드를 두지 않는다(wp6 slice 테스트 때문).",
+     "3. LeaveConfirmSheet.tsx(새, 따로 둔 파일): props는 {visible, title, saveLabel='저장하고 나가기', onSave, discardLabel='저장하지 않고 나가기', onDiscard, onCancel, saveDisabledReason?}이다. 커뮤니티 화면은 건드리지 않는다.",
+     "4. Field.tsx와 fieldKind.ts(새): kind?: 'email'|'username'|'password'|'newPassword'|'nickname'|'code'를 더한다. 값은 순수 표 fieldKindProps(kind)에서 정한다(autoCapitalize none 또는 characters, autoCorrect false, autoComplete, textContentType, keyboardType email-address, returnKeyType 기본값). inputRef?를 더한다. secure 칸에는 '보기'/'숨기기' 글자 버튼을 두고 높이 48은 그대로 둔다. error Txt에는 accessibilityLiveRegion='polite'를 준다. 이미 있는 onSubmitEditing, keepFocusOnSubmit, returnKeyType, autoCapitalize, onBlur는 그대로 둔다. Choice에 scroll?: boolean을 더한다(가로 한 줄, 선택은 잉크 테두리).",
+     "5. Seg.tsx: 기본은 Seg가 스스로 가로 ScrollView(showsHorizontalScrollIndicator={false})로 감싸고, onLayout으로 칸의 x를 재서 고른 칸이 보이게 scrollTo한다(ScheduleScreen의 pickDate 스크롤 로직을 이리로 옮긴다). items[].a11yLabel?을 더한다. compact?: boolean을 새로 더한다. compact는 ScrollView가 없고 내용 폭만큼만 차지하며, 높이 H.btnSm에 hitSlop으로 누르는 넓이 44를 맞춘다. Header 오른쪽 슬롯용이다(ChatScreen의 '채팅 | 지도').",
+     "6. Switch.tsx(새): 트랙 H.switchW×H.switchH(44×26)이고, 켜짐은 surfaceC.accent, 꺼짐은 lineC.strong, 손잡이는 surfaceC.card다. accessibilityRole 'switch'와 accessibilityState {checked}를 단다.",
+     "7. Discover.tsx: CoverTile에 a11yLabel?을 더하고 selected를 accessibilityState로 알린다. ListRow는 onPress를 선택 prop으로 바꾼다(없으면 꺾쇠 없는 정보 줄). value?: string과 switch?: {value, onChange}를 더한다(minHeight 64, 줄 전체가 토글). ProfileHero에 variant='row'를 더하고, 새 ProfileEditHero({name, imageUri?, onPhotoPress, chip, sub?})를 만든다.",
+     "8. Notice.tsx: action?: {label, onPress}(Btn sm quiet)를 더한다. WarnCard 주석을 '고정 초과(06·09·10)'로 고친다. 새 NotFound({title, onHome})를 만든다(Empty 모양에 주 버튼 '홈으로').",
+     "9. Btn.tsx: IconBtn에 hitSlop 4를 준다(실제로 누르는 넓이 48). Auth.tsx: TextLink에 minHeight 44와 세로 가운데 정렬을 주고, AuthTitle에 role header를 단다. Icon.tsx: 'up', 'down', 'minus'를 더한다.",
+     "10. Toast.tsx: 위치와 pointerEvents 'none'을 StyleSheet.create로 옮긴다(웹에서 인라인 pointerEvents가 버려지는 버그를 고친다). 주석에 '토스트는 한 문장, 설명은 화면 Notice로'를 적는다. src/navigation/toastTime.ts의 toastDuration(text) = min(6000, 2500 + 60×글자 수)를 ToastHost가 쓴다.",
+     "11. sheetSnap.ts(새, 순수): type SheetSnap = 'mini'|'peek'|'full'. sheetHeights(areaH, maxRatio = 1)는 {mini: 64, peek: min(clamp(round(areaH×0.42), 180, 320), areaH−64), full: max(peek, min(areaH−16, round(areaH×maxRatio)))}를 돌려준다. snapAfterDrag(h, vyPxPerMs, heights, snaps)는 |vy| > 0.5면 끈 방향의 다음 스냅으로, 아니면 가장 가까운 스냅으로 가고, snaps 범위 안으로 제한한다. nextOnTap(snap, snaps)는 mini→peek→full→peek 순으로 돌되 snaps에 없는 단계는 건너뛴다. stepA11y(snap, 'increment'|'decrement', snaps)는 양 끝에서 멈춘다.",
+     "12. PeekSheet.tsx(새): 화면 안 하단의 모달이 아닌 시트다. props는 {snap, onSnap(s), snaps?(기본 ['peek','full']), areaHeight(부모가 잰 높이), maxRatio?, heights?: Partial<높이>(덮어쓰기), head: ReactNode, mini?: ReactNode(snap==='mini'일 때 children 대신 그림), children, style?(left/right/width 위치), gripLabel, onSettle?(h)}이다. 높이는 Animated 값이고 Animated.spring(useNativeDriver false)으로 움직인다. 표면은 surfaceC.card, 위쪽 R.sheet 둥근 모서리, E.float다. 끌기 규칙(비평 반영): PanResponder는 onStartShouldSetPanResponder를 false로 두고, onMoveShouldSetPanResponder는 |dy| > 4이고 |dy| > |dx|일 때만 true로 한다. 손잡이 줄과 head 감싸개에만 단다. 그래서 head 안의 IconBtn과 Pressable은 탭을 그대로 받고, release에서는 탭 처리를 하지 않는다(두 번 토글되지 않게). 손잡이 줄은 Pressable(minHeight 24, 손잡이 막대 H.grabberW×H.grabberH)이다. onPress에서 nextOnTap을 부르고, accessibilityRole 'adjustable', accessibilityLabel gripLabel, accessibilityActions [increment '펼치기', decrement '접기']를 두고, onAccessibilityAction에서 stepA11y를 부른다. 웹 전용 스타일(StyleSheet 안에서 Platform으로 가름)로 cursor 'grab'과 touchAction 'none'을 준다. 터치와 RN Web 마우스 모두 받는다.",
+     "13. MapPill.tsx(새): 지도 위에 떠 있는 알약이다. props는 {icon?, label, sub?, onPress?, chevron?, a11yLabel?, style?, numberOfLines?}이다. onPress가 있으면 Pressable(minHeight 44, R.chip, surfaceC.card, E.float)이고, 없으면 정적인 작은 알약(minHeight 28)이다. TripBar의 chip, B7 지도 위 '길찾기', M의 레일 제목과 이름표가 쓴다.",
+     "14. Avatar.tsx: Avatar에 size?: 'md'|'lg'를 더한다(lg는 H.avatarLg=44, 기본은 지금과 같음). AvatarStack에 max?: number를 더한다(넘으면 '+{n}' Txt). tokens.ts: H.avatarLg=44, H.switchW=44, H.switchH=26, export const OPACITY = { dim: 0.4 }를 더한다. index.ts에서 새 컴포넌트와 sheetSnap 함수를 export한다.",
+     "15. mapPinSvg.ts: PinSpec에 scale?: number(1~1.4로 제한, 기본 1)와 dim?: boolean(채움과 테두리에 OPACITY.dim)을 더한다. 돌려주는 폭, 높이, 기준점은 scale을 따른다. 라벨은 3글자('12표')까지 핀 안에 들어가야 한다. 기존 호출 결과는 바뀌지 않는다.",
+     "16. routes.ts: TAB_ITEMS를 [Home 홈 home, Schedule 일정 cal, Map 지도 map, Community 커뮤니티, More 프로필 user] 5칸으로 한다. Candidates는 탭 라우트로 남기고 linking 'candidates'도 유지한다. 파라미터: CreateTrip {regionId?}|undefined, InviteAccept {code?, nickname?}|undefined, Photos {tripId; date?}. SCREEN_META.Navigate.title은 '구간 안내'로 바꾼다. RootNavigator: Candidates Tabs.Screen은 계속 등록해 둔다. AppTabBar는 활성 라우트가 Candidates면 'Schedule' 칸을 켠다. TabBar.tsx 주석은 '다섯 칸'으로 고친다.",
+     "17. useBack.ts(새): useBack(fallback: TabRouteName = 'Home')은 늘 함수를 돌려준다. canGoBack이면 goBack, 아니면 navigate('Main', {screen: fallback})다. 순수 함수 backTarget(canGoBack, fallback)도 export한다. OfflineBar.tsx(새)는 App.tsx에 단다. 오프라인일 때만 안전 영역 아래에 얇은 한 줄 '오프라인 · 연결되면 보내요'(accessibilityLiveRegion)를 보이고, 누를 수 없다.",
+     "18. 현재 여행방: src/core/trip/current.ts에 순수 pickCurrentTrip(trips, currentTripId, today)를 둔다. 순서는 지정한 방(삭제되지 않았고 내가 활성 멤버) → 진행 중 첫 방 → 예정 첫 방 → 가장 최근에 끝난 방 → undefined다. useActiveTrip.ts는 {trip, trips}를 돌려준다(useMyTrips + useUi.currentTripId + clock의 오늘). 고른 방이 저장값과 다르면 useEffect로 setCurrentTrip을 맞춘다. store/trips.ts는 M-chatmap 소유이므로 건드리지 않는다.",
+     "19. TripBar.tsx(새): variant 'bar'는 여행방 이름, tripBadge 칩, 꺾쇠를 보인다. 누르면 Sheet '여행방 바꾸기'가 열리고 ListRow가 진행 중·예정·완료 순으로 나온다. 오른쪽에 IconBtn chat(그룹 모드만), users, gear('여행방 설정', 개인 모드도)를 둔다. variant 'chip'은 MapPill로 그린다(TripBar 파일에는 E.float를 쓰지 않는다). 방이 0개면 null을 돌려준다. 방은 있는데 고른 방이 없으면 '여행방을 골라 주세요'를 보인다. home.ts의 tripBadge와 homeSegments는 import만 한다. PlanSwitch.tsx(새)는 Seg [시간표 | 후보 N]이고 props는 {value: 'Schedule'|'Candidates', candidates: number}다. navigate로 탭 라우트를 오가므로 화면이 쌓이지 않는다.",
+     "20. summary.ts(새, B5의 rows.ts에서 옮김): 순수 summaryLine(v: CandidateView)는 '후보 14곳 · 확정 11 · 제외 3'을 돌려준다. 배치 계산 전이면 '후보 N곳 · 배치 계산 전', 0곳이면 undefined다. CandidateView는 rows.ts에서 타입만 import한다. B5의 헤드라인과 M의 채팅 CandidateBar가 같은 wave에서 서로 기다리지 않고 쓸 수 있게 하려고 여기 둔다.",
+     "21. ownership.json: WP3에 'src/core/chatmap/**'를 더한다. 바꾸는 것은 이것 하나다. 이 계획의 새 파일이 모두 소유자 정확히 하나에 걸리는지 하나씩 확인한다. 대상: B0 목록, B2 DaySheet와 dayRows, B4 RecordTabs, B6 Stepper, B8 LiveNowCard, M의 core/chatmap/*, features/chat/map/*, features/chat/components/CandidateBar, 그리고 tests/wp1-profile-ux, wp1-entry-keyboard, wp2-trip-ux, wp3-spot-detail, wp3-chatmap, wp3-chat-meta, wp5-map-sheet, wp5-live-layout, wp6-record-tabs.",
+     "22. foundation-design-rules.test.ts: FLOAT_ALLOWED에 'src/ui/PeekSheet.tsx', 'src/ui/MapPill.tsx', 'src/features/chat/map/**'를 더한다. 용어 테스트(225행)는 '투표'만 'src/features/chat/map/**'에서 허용한다. 확정 장소, 제외 장소, 출발지는 그 폴더에서도 계속 금지한다. 주석에는 '사용자 요청(명세 밖, FR-405)'이라고 적는다. 그 밖의 규칙은 바꾸지 않는다."
+    ],
+    "test_updates": [
+     "tests/wp6-community.test.ts: TAB_ITEMS 키 deepEqual을 ['Home','Schedule','Map','Community','More']로 바꾼다. RootNavigator에 name=\"Candidates\" Tabs.Screen이 있는지, linking에 'candidates'가 있는지 단언을 더한다. ConfirmSheet slice(354-357행)는 '<Btn ' 2개 단언을 그대로 두고, /title=\"취소\"/를 /title=\\{cancelLabel\\}/와 /cancelLabel = '취소'/로 바꾼다. 368행은 /(?:title|label)=\"여행방 설정\"[\\s\\S]{0,300}navigation\\.navigate\\('TripSettings', \\{ tripId \\}\\)/로 넓힌다. 이렇게 하면 M이 메뉴를 ListRow로 바꾸기 전과 후 모두 통과한다. Diary 정규식 2개와 MoreScreen의 \"label: '여행방 설정\" 금지는 그대로 둔다.",
+     "tests/foundation-ux-kit.test.ts(새): Toast는 pointerEvents를 StyleSheet로 준다. toastDuration은 짧은 글이 2500대이고 상한이 6000이다. backTarget을 확인한다. fieldKindProps('email')는 none/false/email이고 'code'는 characters다. Seg에 ScrollView horizontal과 compact 분기가 있다. Body에 keyboardShouldPersistTaps=\"handled\"가 있다. Sheet에 KeyboardAvoidingView가 있고 scroll의 기본값이 false다. sheetHeights(660)는 peek 277·full 644, sheetHeights(400)는 peek 180·full 384, maxRatio 0.6이면 full이 줄어든다. snapAfterDrag는 느리면 가까운 쪽, 빠르면 그 방향 다음 스냅으로 간다. nextOnTap은 snaps 부분집합을 따르고, stepA11y는 양 끝에서 멈춘다. PeekSheet 소스에는 onMoveShouldSetPanResponder와 accessibilityActions가 있고, onStartShouldSetPanResponder가 true를 돌려주지 않으며, onPanResponderRelease 안에 nextOnTap이 없다. mapPinSvg는 scale 1.3이면 폭이 늘고, dim이면 opacity가 들어가고, '12표' 라벨이 들어간다. AvatarStack max가 있다.",
+     "tests/foundation-contrast.test.ts: NON_TEXT_PAIRS에 스위치 쌍(켜진 트랙 대 카드, 꺼진 트랙 대 카드, 손잡이 대 트랙)을 더한다. 각각 3:1 이상이어야 한다.",
+     "tests/wp2-current-trip.test.ts(새): pickCurrentTrip 순서를 본다. 지정한 방이 먼저이고, 나간 방과 삭제된 방은 건너뛰며, 진행 중 > 예정 > 최근 완료 순이고, 빈 목록이면 undefined다.",
+     "tests/wp3-candidate-summary.test.ts(새): summaryLine의 세 경우를 본다(정상, 배치 계산 전, 0곳이면 undefined).",
+     "tests/foundation-design-rules.test.ts: 새 FLOAT_ALLOWED 항목을 넣고, '투표' 예외 목록이 정확히 ['src/features/chat/map/**']인지 단언한다. foundation-ownership과 foundation-design-rules 전체가 통과해야 한다."
+    ],
+    "audit_items": [
+     "[high/M] 공통 · 현재 여행방(홈, 후보·시간표·지도 탭, 프로필 탭의 여행방 목록)",
+     "[high/S] 공통 · 토스트(src/ui/Toast.tsx, src/navigation/ToastHost.tsx)",
+     "[medium/M] 공통 · 하단 탭(TAB_ITEMS, RootNavigator, TabBar)",
+     "[medium/S] 공통 · 날짜 Seg(11 지도 탭 시트, 19 여행 진행)",
+     "[high/S] 11 지도 탭 · 19 여행 진행 · 날짜 고르기",
+     "[medium/M] 공통 · 머리말과 뒤로(스택 화면 전부)",
+     "[medium/S] 공통 · 입력과 시트(Screen, Body, Sheet)",
+     "[high/M] 공통 입력 화면(온보딩, 초대 수락, 로그인, 회원가입, 계정찾기 시트, 내 프로필)",
+     "[medium/M] 공통 입력 칸(Field), 화면 제목 접근성",
+     "[high/M] 05 채팅 입력줄 (ChatScreen + ui Field)",
+     "[medium/S] 공통 · 아이콘만 있는 핵심 버튼과 작은 글자 링크",
+     "[low/M] 공통 · 오프라인·동기화 안내",
+     "[high/M] 프로필 탭 (MoreScreen) 켜고 끄는 줄",
+     "[high/M] 11 지도 탭 · 하단 시트",
+     "[high/M] 홈 · 여행 표지 카드",
+     "[high/M] 사진 · 일기 · 기록 지도 (공통 이동)",
+     "[critique] wp6-community ConfirmSheet slice(2 Btn, 취소 제목)와 채팅 메뉴 정규식",
+     "[critique] TripBar chip과 PeekSheet의 E.float는 FLOAT_ALLOWED와 MapPill로 처리",
+     "[critique] PeekSheet 응답자: 시작 시 잡지 않음, 머리 버튼은 계속 눌림, 탭은 한 번만 토글",
+     "[critique] tokens(H.avatarLg, OPACITY.dim), AvatarStack max, ownership 글롭을 wave 1에 미리 넣기"
+    ]
+   },
+   {
+    "id": "M-chatmap",
+    "title": "채팅방 지도 · 투표(M-chatmap, 명세 밖 추가)와 05 채팅 화면 정리",
+    "wave": 2,
+    "owns_files": [
+     "src/screens/ChatScreen.tsx",
+     "src/features/chat/**",
+     "src/types.ts",
+     "src/core/ops/lww.ts",
+     "src/core/ops/spots.ts",
+     "src/core/ops/index.ts",
+     "src/core/trip/outbox.ts",
+     "src/core/chatmap/**",
+     "src/core/map/layout.ts",
+     "src/components/map/**",
+     "src/store/trips.ts",
+     "tests/wp3-chatmap.test.ts",
+     "tests/wp3-chat-meta.test.ts",
+     "tests/foundation-ops.test.ts",
+     "README.md",
+     "../docs/FR-추적표.md"
+    ],
+    "new_files": [
+     "src/core/chatmap/areas.ts",
+     "src/core/chatmap/votes.ts",
+     "src/core/chatmap/mapView.ts",
+     "src/features/chat/map/ChatMapView.tsx",
+     "src/features/chat/map/AreaChips.tsx",
+     "src/features/chat/map/MemberRail.tsx",
+     "src/features/chat/map/SheetBody.tsx",
+     "src/features/chat/map/MentionList.tsx",
+     "src/features/chat/map/RankList.tsx",
+     "src/features/chat/map/VoteToggle.tsx",
+     "src/features/chat/map/actions.ts",
+     "src/features/chat/components/CandidateBar.tsx",
+     "tests/wp3-chatmap.test.ts",
+     "tests/wp3-chat-meta.test.ts"
+    ],
+    "changes": [
+     "1. 데이터 모델(src/types.ts): export interface SpotVote { on: boolean; at: number }를 더한다. on:false는 툼스톤으로 남겨, 나중에 도착한 더 오래된 op가 표를 되살리지 못하게 한다. Spot에 votes?: Record<memberId, SpotVote>를 더한다(선택 필드라 옛 문서와 옛 op 로그도 그대로 접힌다). OpBody의 'ops/spots.ts (WP3)' 블록에 { type: 'spot/vote'; spotId: string; placeId: string; on: boolean }을 더한다. placeId는 기기 사이에서 같은 장소가 합쳐질 때의 별칭이다(비평 반영). 새로 저장하는 데이터는 이것뿐이다. 멤버는 activeMembers(trip)을 멤버 순서대로 쓰고, 나는 myMemberId(trip)이다. 장소는 trip.spots 중 !removedByUser인 것만 쓴다. 인용은 trip.messages.find(m => m.id === p.messageId)?.text다.",
+     "2. op 적용(lww.ts, spots.ts, index.ts): lww.ts에 patchVote(spot, memberId, on, at)를 둔다. prev = s.votes?.[memberId]이고, !lww(prev?.at, at)이면 s를 그대로 돌려주고, 아니면 {...s, votes: {...(s.votes ?? {}), [memberId]: {on, at}}}를 돌려준다. LWW 규칙은 lww.ts에만 둔다. spots.ts reduce 'spot/vote'의 대상은 spots에서 id === op.spotId인 것이고, 없으면 placeId === op.placeId인 것이다. 다른 기기에서 만든 같은 장소가 upsertSpot으로 합쳐져 a1 id가 사라진 경우를 이렇게 받는다. 대상에 patchVote(op.actorId, op.on, op.at)를 적용한다. upsertSpot이 새 스팟을 만들 때는 페이로드의 votes를 버리고({...spot, votes: undefined}), 기존 스팟에 합칠 때는 votes를 그대로 둔다. spot/delete와 스팟을 지우는 undoExtraction은 그 스팟의 votes도 같이 없앤다. restore와 pin은 votes를 건드리지 않는다. index.ts에 OP_OWNER['spot/vote'] = 'spots'를 더하고, LOCK_EXEMPT에는 넣지 않는다.",
+     "3. 검증(spots.validate): 지금의 spot/* 멤버 확인을 그대로 써서 비활성 행위자는 NOT_MEMBER가 된다. id나 placeId로 스팟을 찾지 못하면 NO_SPOT이다. typeof on이 boolean이 아니면 '잘못된 요청이에요', removedByUser면 '제외된 후보예요'다. 끝난 여행이면 validateOp가 LOCKED_REASON을 돌려준다. core 문자열에는 '투표'를 쓰지 않는다(용어 테스트).",
+     "4. outbox.ts: needsRecompute는 spot/ 접두 검사보다 먼저 'spot/vote'에 false를 돌려준다. 표는 계획을 바꾸지 않으므로 누를 때마다 디바운스 재계산이 돌지 않게 하고, 오프라인에서 dirty로 표시되지 않게 하려는 것이다.",
+     "5. 표 계산(src/core/chatmap/votes.ts, 순수, Date.now 없음): hasVote(spot, memberId)는 spot.votes?.[memberId]가 있으면 그 on 값을, 없으면 proposerIds(spot).includes(memberId)를 돌려준다. 목업대로 말한 사람에게는 처음부터 한 표가 들어가 있고, 명시적인 off가 그것을 덮는다. voterIds(spot, active)는 활성 멤버만 멤버 순서로 돌려준다(나간 멤버의 표는 문서에 남지만 세지 않는다). rankSpots(spots, areaBySpot, active, me)는 RankRow[] {spotId, name, areaName, count, voterIds, rank, mine}을 돌려준다. 정렬은 count 내림차순, createdAt 오름차순, 이름 localeCompare('ko') 순이다. rank = 1 + (표가 더 많은 스팟 수)라 동점은 같은 순위가 된다(1,1,3). 막대 비율은 count / max(1, maxCount)다. mentionsOf(trip, memberId, areaBySpot, selAreaKey?)는 MentionRow[] {spotId, name, areaName, source, quote?, firstAt, count, mine}을 돌려준다. 한 스팟에 한 줄이고, 인용은 그 멤버의 가장 이른 chat 제안 메시지에서 가져온다. manual이면 인용이 없다. 고른 지역의 줄이 먼저 오고, 같은 무리 안에서는 firstAt 오름차순이다. railOrder(active, pickerIds | null)는 지역을 고르지 않았으면 멤버 순서 그대로, 골랐으면 고른 사람을 먼저, 나머지를 멤버 순서로 돌려준다.",
+     "6. 지역 규칙(src/core/chatmap/areas.ts, 순수): areaOf(address, region{name, label})는 이렇게 정한다. (1) 주소가 없으면 '기타'다. 괄호 묶음을 지우고 공백을 줄인 뒤 토큰으로 나눈다. (2) region.label의 마지막 토큰을 앞 2개 토큰 안에서 찾는다. 없으면 region.name으로 시작하고 도·시·군으로 끝나는 토큰을 받는다('경북 경주시', '제주 제주시'). 둘 다 없으면 지역 밖이므로 '기타'다. (3) 남은 토큰의 r0, r1로 정한다. a) r0이 시·군·구로 끝나면, r1이 읍·면으로 끝날 때 r1, 아니면 r0이다. b) r0이 읍·면·동·리·가로 끝나면 r0이다(동 앞의 숫자는 지운다: 일도1동 → 일도동). c) r0이 도로(/(로|길)$/ 또는 /\\d+번?길$/)면 '\\d+번?길' 꼬리를 뗀 도로 이름이고 LOOSE로 표시한다. d) 그 밖은 '기타'다. groupAreas(spots, region, active)는 ChatArea[] {key, name, spotIds, pickerIds}를 돌려준다. 제외된 스팟은 빼고, a와 b 결과를 기준점으로 삼는다. LOOSE 스팟은 haversineKm로 잰 스팟 중심이 2km 안에 있는 가장 가까운 기준 지역에 붙이고, 없으면 '{도로} 일대'를 만든다. 정렬은 pickerIds 수, 스팟 수, 이름 'ko' 순이고 '기타'는 늘 마지막이다. MAX_AREAS는 8이고 넘치면 '기타'로 접는다. pickerIds는 활성 멤버만 멤버 순서로 둔다. 칩 글자는 '{name} {pickers}명'이다. 설계의 경주, 제주, 서울, 수원 예시를 그대로 테스트한다.",
+     "7. 지도 입력(src/core/chatmap/mapView.ts, 순수): chatMapInput(spots, areaBySpot, counts, sel{area?, member?, focusSpotId?})는 {markers, fitTo}를 돌려준다. 마커는 kind 'spot', id spotId, title = 장소 이름이다. label은 n > 0일 때 `${min(n,99)}표`이고 0이면 없다. 숫자만 있는 라벨은 pinName이 '3번'으로 읽으므로 쓰지 않는다. 그러면 pinName이 '3표 불국사'로 읽는다. color는 보통 'ink', 흐릴 때(지역 밖이거나 고른 멤버가 말하지 않은 곳) 'slate'에 dim: true다('rose'는 없다). scale은 n === maxCount > 0이면 1.3, n ≥ ceil(maxCount/2)이면 1.15, 그 밖은 1이다(목업의 표 수에 따른 핀 크기). fitTo 우선순위는 포커스한 스팟 > 고른 멤버의 스팟(지역을 골랐으면 그 안) > 지역의 스팟 > 전체다. railLayout(mapW, mapH, sheetH)은 {tagMaxWidth: min(200, mapW − 60 − SP.l), railMaxHeight: mapH − sheetH − SP.xl×2}이다.",
+     "8. 핀 크기와 흐림 연결: src/core/map/layout.ts의 MapMarkerInput에 scale?: number와 dim?: boolean을 더한다(선택이라 기존 호출은 그대로다). src/components/map/**의 모든 핀 생성 경로(overlayItems/kakaoHtml 카카오 웹·앱, GoogleMapView, SVG 대체)에서 PinSpec으로 넘긴다(mapPinSvg의 scale·dim은 B0가 만든다). 어댑터가 받지 못하면 그 어댑터만 기본 크기로 그리고 라벨 '{n}표'는 유지한 뒤 결과 메모에 적는다. parts.tsx 주석 '마커를 누르면 스팟 상세'는 '누름 동작은 화면이 정한다'로 고친다. 오버레이 pointerEvents는 StyleSheet로 준다(wp5-google-map 규칙).",
+     "9. ChatScreen 배치: Header size='row'(B0)로 바꾸고 손수 만든 ChatHeader는 지운다. 구성은 back = useBack('Home'), 제목은 여행방 이름, sub는 지금 쓰는 sub, right는 [Seg compact 채팅|지도(그룹 모드이고 좁은 화면일 때만)] [IconBtn dots '채팅 메뉴']다. 여행방이 없으면 NotFound를 보인다. tripMode(trip) === 'group'일 때만 AreaChips 줄(지역이 0개면 숨김)과 지도를 둔다. 개인 모드에는 Seg, 칩, 지도가 없다. 좁은 화면(useWindowDimensions().width < 900)에서는 채팅 본문을 계속 마운트해 스크롤을 지킨다. 지도 본문은 처음 '지도'로 바꿀 때 마운트하고 그 뒤로는 숨긴 채 유지한다(카메라와 SDK 보존). 넓은 화면(≥ 900, 웹)에서는 Seg를 숨기고 Row로 나눈다. 왼쪽은 채팅 열(폭 400, 오른쪽 선)로 메시지, CandidateBar, 입력줄을 두고, 오른쪽은 지도 열(flex 1)로 AreaChips와 ChatMapView를 둔다.",
+     "10. ChatMapView: 바깥 View가 onLayout으로 높이를 재되 h > 0일 때만 저장한다. MapCanvas(src/components/map)에 flat, height, chatMapInput의 markers와 fitTo, polylines [], onMarkerPress(그 스팟의 지역 고르기, 칩을 누른 것과 같음), overlayBottom(자리 잡은 시트 높이)을 넘긴다. 키가 있으면 카카오, 없으면 SVG 대체이고 카카오 SDK를 직접 import하지 않는다. 시트는 B0의 PeekSheet를 쓴다(snaps ['mini','peek','full'], areaHeight = 지도 높이). 넓은 화면에서는 style을 오른쪽에 붙이고 폭을 min(440, paneW)로 해 레일을 가리지 않는다. 장소가 없으면 Empty '아직 채팅에서 나온 장소가 없어요' / '장소 이름을 말하면 여기 모여요'를 보인다. Android 뒤로는 시트가 mini보다 위면 먼저 mini로 내린다(BackHandler). 상태는 selArea, selMember, tab, snap, focusSpotId다.",
+     "11. MemberRail(왼쪽 열, 비평 반영): 절대 위치 left SP.m, top SP.m에 둔다. 맨 위 MapPill 정적 제목은 '채팅방 {N}명' 또는 '{area} 고른 사람 {k}/{N}'이다. 아무것도 고르지 않았을 때만 그 아래 sub 줄에 '지역을 고르면 고른 사람이 위로 와요'를 넣는다. 오른쪽 위 힌트 알약은 두지 않아, 360px에서 이름표와 겹치지 않는다. 그 아래는 세로 ScrollView(maxHeight railMaxHeight)이고, 한 줄은 Avatar size 'lg'와 이름표 MapPill(numberOfLines 1, maxWidth tagMaxWidth)이다. 활성 멤버는 늘 모두 나오고, 내 이름은 '나'로 쓴다. 지역이 없으면 이름표는 '{이름} · {k}곳'(muted)이다. 지역을 고르면 고른 사람이 위로 와서 '{이름} · {그 지역 장소들}'을 보이고, 나머지는 OPACITY.dim으로 흐려지고 이름표가 없지만 누를 수 있다. 고른 멤버에는 2px 잉크 고리를 두른다. Pressable의 a11y 라벨은 '{이름}, 말한 장소 {k}곳 보기', accessibilityState는 {selected}다. 프로필은 지도 좌표 위에 놓지 않는다(위치 공유 없음).",
+     "12. 시트 내용(SheetBody, MentionList, RankList, VoteToggle): mini(64)는 Pressable 한 줄(role button, 라벨 '투표 목록 열기', 누르면 peek)이다. 멤버를 고르지 않았으면 Icon 'list'와 '전체 투표', muted '1위 {이름} {n}표' 또는 '아직 투표가 없어요'를 보인다. 멤버를 골랐으면 Avatar와 '{이름}님이 말한 장소 {k}곳' 또는 '내가 말한 장소 {k}곳'을 보인다. peek와 full의 head 줄은 Avatar 또는 Icon, 제목, sub, IconBtn 'up' '목록 펼치기' 또는 'down' '목록 접기', IconBtn x '닫기'(mini로 내리고 selMember를 비움)다. 그 아래 Seg 탭 [말한 장소 | 전체 투표]를 두는데, 말한 장소는 멤버를 골랐을 때만 나온다. 그다음 Notice(오프라인이면 '오프라인이에요. 투표는 연결되면 보내요', 잠겼으면 '여행이 끝나 투표할 수 없어요')와 ScrollView 본문이다. MentionRow는 장소 이름(nm), '{지역} · {n}표'(mt), 인용 “{text}”(2줄) 또는 '직접 추가했어요', 오른쪽 VoteToggle이다. RankRow는 순위(1~3위는 accentStrong), 이름, AvatarStack(max 4), ProgressBar(count/max), '{지역} · {n}/{N}표', VoteToggle이다. 순위 탭 끝 메모는 '장소마다 한 사람이 한 표씩 줄 수 있어요. 말한 사람은 처음부터 한 표가 들어가 있어요.'다. VoteToggle은 Pressable(role checkbox, minHeight H.btnSm에 hitSlop으로 44)이다. 꺼짐은 카드 표면에 선 테두리와 '투표', 켜짐은 soft 표면에 잉크 2px와 Icon 'check'와 '투표함'이다. a11y 라벨은 '{장소} 투표', accessibilityState는 {checked, disabled}다. '투표'라는 글자는 모두 features/chat/map 안에만 둔다.",
+     "13. 상호작용: Seg를 '채팅'으로 바꾸면 selArea는 남기고 selMember를 비우고 snap을 mini로 한다. 칩(어느 화면에서든)을 누르면 selArea = key, selMember = null, snap = mini, view = map이 된다. 지도가 그 지역에 맞추고, 지역 밖 핀은 흐려지고, 레일이 다시 정렬된다. 고른 칩을 다시 누르면 선택이 풀린다. 프로필을 누르면 selMember = id, tab = 말한 장소, snap = peek이다. 같은 프로필을 다시 누르면 선택을 풀고 mini로 내린다. mini로 끌어내리면 selMember도 비운다. 끌기가 아닌 길도 둔다: mini 줄 버튼, 펼치기·접기 IconBtn, '닫기', 손잡이의 스크린리더 increment/decrement, 손잡이 탭(nextOnTap). 모두 웹에서 키보드로 포커스할 수 있다. 줄 본문(토글 말고)을 누르면 focusSpotId를 정하고 snap을 peek로 한다. 지역이나 멤버가 바뀌면 focus를 지운다. peek에서 '전체 투표' 탭을 고르면 full로 펼친다. 멤버를 고르지 않았으면 시트는 순위 탭으로 연다. 순위는 여행방 전체 기준이고, 지역은 각 줄의 메타로만 보인다.",
+     "14. 투표 동작(features/chat/map/actions.ts): toggleVote(tripId, spot)는 useTrips.getState().dispatch(tripId, {type: 'spot/vote', spotId: spot.id, placeId: spot.placeId, on: !hasVote(spot, me)}, {actorId: me})를 부른다. 스토어 API는 바꾸지 않는다. 접힌 문서에서 바로 수, 순위, 핀 라벨, 투표자 아바타가 바뀐다(오프라인에서도 대기 op로 바로 바뀌고, 다시 연결되면 보낸다). me가 없거나 isEditLocked(trip, clock.now())면 끈다. 거절되면 스토어의 기존 토스트를 그대로 쓴다.",
+     "15. [넘겨받음 05 채팅] CandidateBar(새, features/chat/components)를 입력줄 바로 위에 둔다. 누를 수 있는 한 줄이고, 글자는 B0 summary.ts의 summaryLine(candidateView(trip, plan))이다. 누르면 setCurrentTrip(trip.id) 뒤 navigate('Main', {screen: 'Candidates'})로 간다. undefined면 숨긴다. 메뉴 시트의 '후보 보기' Btn은 지운다.",
+     "16. [넘겨받음 05 채팅 입력줄] Screen keyboard를 켠다. Field에 keepFocusOnSubmit, returnKeyType 'send', onSubmitEditing={send}를 준다. 입력줄 paddingBottom에 안전 영역 아래 inset을 더한다. scrollToEnd는 바닥에서 80px 안에 있었거나 내가 방금 보냈을 때만 한다. placeholder는 '가고 싶은 곳을 말해 보세요'다.",
+     "17. [넘겨받음 05 메뉴, 설정 진입점, 오프라인] 메뉴 시트 맨 위에 ListRow icon gear label=\"여행방 설정\"(navigation.navigate('TripSettings', { tripId }), 300자 안)과 ListRow users '멤버·초대'(Members)를 둔다. 그 아래 eyebrow '시연' 구역에 보내는 사람 바꾸기와 시나리오 재생을 둔다. 일반 오프라인 Notice는 지운다(OfflineBar가 맡음). '전송 대기' 한 줄은 할 일이 바뀌므로 남긴다.",
+     "18. [넘겨받음 05 시각·말풍선·추출 카드] view.ts에 순수 messageMeta(messages, me)를 둔다. KST 날짜가 바뀌면 구분 줄을 넣고(선·글자·선 Row), 같은 사람이 같은 분에 보낸 메시지는 묶으며, 시각은 묶음 끝에만 보인다. 순수 messageA11yLabel(msg, senderName, time)도 둔다. Bubble은 메시지 한 줄을 accessible View 하나로 묶고, 장소 조각마다 붙던 라벨은 지운다. 추출 카드 제목은 '후보 N곳에 담았어요'로 한다(view.ts의 '찾았습니다' 문구를 고침). 카드 안에 picks 안내 한 줄을 둔다. 3곳 이하면 카드 안에서 바로 고르고, 4곳 이상이면 PlacePickSheet(features/candidates, 고치지 않고 import만)를 연다. 줄마다 칩은 하나이고 'right' 아이콘을 단다. 되돌리기는 undo 아이콘과 글자로, 높이 36 이상에 hitSlop으로 44를 맞춘다. bubbleSegments, extractionCard(picks와 undefined 동작), senderName의 동작은 바꾸지 않는다(wp3-candidates가 고정함).",
+     "19. [넘겨받음 공통 · 현재 여행방] store/trips.ts의 useCurrentTrip은 export와 시그니처를 그대로 두고, 안에서 pickCurrentTrip(내 여행방, currentTripId, 오늘)을 쓰게 바꾼다. 주석으로 useActiveTrip을 쓰라고 안내한다. 호출하던 화면들(More, Candidates, Schedule, Map)은 B1, B5, B6, B7이 useActiveTrip으로 옮긴다. 두 경로가 같은 방을 고른다.",
+     "20. 문서: README에 '채팅방 지도 · 투표' 구역을 더한다. 쓰는 법, 한 사람이 장소마다 한 표이고 말한 사람은 처음부터 한 표, 오프라인은 대기 op, 기기 시각 기준 멤버별 LWW, 지역 규칙과 예시, 카카오 키가 없으면 SVG로 대체, 서버는 op를 그대로 저장하고 op 단위 ACL은 범위 밖이라는 것(접을 때 validateOp가 비멤버를 버림)을 적는다. ../docs/FR-추적표.md에는 FR-405 '채팅방 지도 · 투표(명세 밖 추가)' 행을 더한다(파일, tests/wp3-chatmap·wp3-chat-meta, 상태, '투표' 용어 예외는 src/features/chat/map/**에만, 서버 ACL은 범위 밖). B0와 B1에서 넘겨받은 문구 수정도 한다: '메뉴 6칸'을 '선택한 여행방 4칸(단계별)'로, 하단 탭을 5칸(일정 = 시간표 · 후보 전환)으로 고친다.",
+     "21. 수용 기준 1~7: (1) 그룹 여행방이면 360px에서 Header 오른쪽에 '채팅 | 지도'가 있다. 개인 모드에는 Seg, 칩, 지도가 없다. (2) 지역 칩은 '{지역} {n}명'(n은 그곳을 말한 활성 멤버 수)이고 '기타'가 마지막이며, 장소가 없으면 숨는다. (3) 칩을 누르면 지도로 바뀌고 그 지역에 맞추며 다른 핀은 흐려진다. 다시 누르면 풀린다. (4) 지도는 MapCanvas로만 그린다(키가 있으면 카카오, 없으면 SVG). 핀은 '{n}표' 라벨과 표 수에 따른 크기를 갖고, 스크린리더는 '3표 불국사'로 읽으며, 핀을 누르면 그 지역을 고른다. (5) 왼쪽 열에는 활성 멤버가 늘 모두 있고 내 이름은 '나'다. 지역을 고르면 고른 사람이 위로 오고 나머지는 흐려지지만 누를 수 있다. 360px에서 제목, 힌트, 이름표가 겹치지 않는다. (6) 프로필을 누르면 시트가 peek로 열려 말한 장소 수를 보이고, 다시 누르면 mini로 닫힌다. (7) 손잡이를 터치나 마우스로 끌면 위치나 빠르기에 따라 mini, peek, full에 붙는다. 머리의 버튼은 끄는 중에도 계속 눌리고, 탭은 한 번만 토글한다.",
+     "22. 수용 기준 8~14: (8) 끌지 않고도 mini 줄 버튼, 펼치기·접기, 닫기, 스크린리더 increment/decrement로 같은 상태에 닿는다. (9) 말한 장소는 한 스팟에 한 줄이고, 지역, 표, 인용 또는 '직접 추가했어요'를 보이며, 고른 지역이 먼저 온다. 줄을 누르면 그 핀에 맞춘다. (10) 투표 토글은 바로 반영되고, 한 사람이 장소마다 한 표이며, 말한 사람도 자기 표를 끌 수 있다. (11) 전체 투표는 제외되지 않은 모든 스팟을 순위로 보인다. 동점은 같은 순위이고, 막대는 최고 표 기준이며, 투표자 아바타와 '{n}/{N}표'를 보인다. (12) 오프라인에서도 토글이 되고, 오래된 대기 표가 더 새 표를 덮지 못한다. 다른 기기에서 같은 장소가 합쳐져도 표가 사라지지 않는다(placeId 별칭). (13) votes 필드가 없는 옛 여행방도 열리고 말한 사람의 표를 보인다. 제외된 스팟은 어디에도 나오지 않는다. (14) 서버 코드는 바꾸지 않고 spot/vote를 저장하고 돌려준다. PG 투영은 이 op를 무시한다. 비멤버와 끝난 여행의 표는 dispatch에서 기존 토스트로 거절된다.",
+     "23. 수용 기준 15~20: (15) 표를 바꿔도 계획 재계산이 일어나지 않는다. (16) 웹 900px 이상에서는 채팅과 지도가 나란히 있고 Seg가 없으며, 시트는 오른쪽에 최대 440으로 붙고 레일이 보인다. (17) 디자인 규칙을 지킨다. '투표'는 src/features/chat/map/**에만 있고, 새 파일은 모두 소유 글롭 하나에 걸린다. (18) 채팅 입력줄은 Enter로 보내고 키보드에 가리지 않는다. 후보 요약 줄이 후보 탭으로 가고, 메뉴에서 여행방 설정이 열린다. (19) README와 FR-405 행이 있다. (20) HANDOFF를 지킨다: 프로필은 지도 위에 없고, 카카오와 SVG 대체를 쓰며, PostgreSQL 마이그레이션은 없다."
+    ],
+    "test_updates": [
+     "tests/wp3-chatmap.test.ts(새) 1: areaOf의 설계 예시를 모두 넣는다. 경주(황남동, 교동 (예시), 건천읍, 문무대왕면, 보문로는 LOOSE, 첨성로99번길은 첨성로), 제주(애월읍, 한림읍, 성산읍, 관덕로는 제주시, 서귀포시), 서울 종로구, 수원 팔달구, 축약형 '경북 경주시', 지역 밖은 기타, undefined는 기타다. groupAreas: 2km 안이면 가장 가까운 기준 지역에 붙고 아니면 '{도로} 일대'다. 정렬 순서, '기타'가 마지막, 8개를 넘으면 접기, 제외 스팟 빼기, 활성 멤버만 고른 사람으로 센다.",
+     "tests/wp3-chatmap.test.ts 2 · op: on→off→on, 나중에 도착한 오래된 at는 무시된다(툼스톤이 이김), at가 같으면 나중에 접은 것이 이긴다, 두 멤버는 서로 영향이 없다, 같은 op를 다시 적용해도 그대로다, 확정 op와 대기 op를 어떤 순서로 foldOps해도 결과가 같다. 두 기기가 같은 placeId를 추출해 b1으로 합쳐진 뒤 a1에 낸 표가 b1에 남는다. 옛 문서(votes 없음)는 말한 사람 표로 돌아가고, 명시적 off가 처음 표를 덮으며, 나간 멤버 표는 세지 않는다. validate: NOT_MEMBER, NO_SPOT, 제외 스팟 거절, on이 boolean이 아니면 거절, 종료 뒤 LOCKED_REASON이다. upsertSpot은 새로 만들 때 votes를 버리고 합칠 때는 남긴다. spot/delete는 votes를 없앤다.",
+     "tests/wp3-chatmap.test.ts 3 · 계산: rankSpots 정렬과 동점 순위(1,1,3), voterIds 순서, mine, 막대 비율. mentionsOf는 한 스팟에 한 줄, 가장 이른 chat 인용, manual은 인용 없음, 고른 지역 먼저. railOrder. chatMapInput은 라벨 '{n}표'(0이면 없음), 흐림은 slate와 dim, scale 단계, fitTo 우선순위를 본다. pinName(마커)는 '3표 불국사'이고 '번'을 포함하지 않는다. railLayout(360, 660, 277)에서 tagMaxWidth + 60 ≤ 360 − SP.l이다. needsRecompute('spot/vote') === false이고 오프라인 markDirty가 dirty를 만들지 않는다.",
+     "tests/wp3-chatmap.test.ts 4 · 서버와 소스 규칙: createSyncStore push가 spot/vote를 받고 pull이 그대로 돌려준다. projectOps에 spot/vote가 있어도 뷰가 같다. 서버가 저장한 비멤버 actorId의 표는 접을 때 버려진다(문서로 정한 비목표). 소스 규칙: ChatScreen은 group일 때만 '채팅'/'지도' Seg를 보인다. ChatMapView는 components/map의 MapCanvas를 import하고 카카오 SDK를 직접 쓰지 않는다. ChatMapView는 PeekSheet를 쓰고 snaps에 'mini'가 있다. VoteToggle에는 role checkbox, accessibilityState checked, 장소 이름이 든 라벨이 있다. MemberRail은 activeMembers 전부를 그리고 '나'를 쓴다. features/chat/map 밖의 src에는 '투표'가 없다.",
+     "tests/wp3-chat-meta.test.ts(새): messageMeta(KST 날짜 구분, 같은 사람·같은 분 묶음, 묶음 끝 시각), messageA11yLabel, extractionCard 제목 '후보 N곳에 담았어요'를 본다. ChatScreen 소스 규칙: Screen keyboard, returnKeyType=\"send\", onSubmitEditing={send}, CandidateBar, label=\"여행방 설정\"이 있고, '후보 보기' Btn이 없다.",
+     "tests/foundation-ops.test.ts: OP_OWNER 개수를 34에서 35로 바꾸고, 'spot/vote'가 spots에 매핑되는지 단언을 더한다.",
+     "고치지 않고 통과만 확인: tests/wp3-candidates.test.ts(chat/view, ops/spots import), tests/wp6-community.test.ts(B0가 넓힌 368행), tests/foundation-design-rules.test.ts, tests/foundation-ownership.test.ts, tests/wp5-google-map.test.ts와 components/map을 고정하는 그 밖의 wp5 테스트, tests/wp2-*의 outbox·sync 테스트."
+    ],
+    "audit_items": [
+     "[high/S] 05 채팅 (ChatScreen)",
+     "[high/M] 05 채팅 입력줄 (ChatScreen + ui Field)",
+     "[high/S] 여행방 설정 진입점(홈, 멤버, 채팅)",
+     "[medium/M] 05 추출 카드 (ExtractionCardView)",
+     "[medium/S] 05 말풍선 접근성 (Bubble)",
+     "[low/S] 05 채팅 메뉴 시트 (ChatScreen)",
+     "[low/S] 05 채팅 시각·날짜 표시 (ChatScreen)",
+     "[medium/M] 공통 · 머리말과 뒤로(스택 화면 전부)",
+     "[low/M] 공통 · 오프라인·동기화 안내",
+     "[high/M] 공통 · 현재 여행방(홈, 후보·시간표·지도 탭, 프로필 탭의 여행방 목록)",
+     "[critique] spot/vote placeId 별칭(기기 사이 합쳐진 스팟에서 표가 사라짐)",
+     "[critique] 핀 라벨이 순번 '3번'으로 읽힘, 'rose' 색 없음, slate만으로는 흐림이 안 보임",
+     "[critique] 끌기 시트를 하나로 합침(B0 PeekSheet의 mini 스냅), 응답자 잡기 문제",
+     "[critique] 360px 힌트 알약과 이름표 겹침",
+     "[critique] 서버 push에 actorId ACL 없음(문서화하고 접을 때 거절을 테스트)",
+     "[critique] '투표' 용어 예외 범위(features/chat/map만)"
+    ]
+   },
+   {
+    "id": "B1-home-profile",
+    "title": "홈 탭(선택한 여행방 구역) · 프로필 탭 · 내 프로필",
+    "wave": 2,
+    "owns_files": [
+     "src/screens/HomeScreen.tsx",
+     "src/features/account/home.ts",
+     "src/screens/MoreScreen.tsx",
+     "src/screens/ProfileScreen.tsx",
+     "src/features/account/settings.ts",
+     "tests/wp1-home.test.ts",
+     "tests/wp1-profile-ux.test.ts"
+    ],
+    "new_files": [
+     "tests/wp1-profile-ux.test.ts"
+    ],
+    "changes": [
+     "홈 머리줄: 왼쪽에 eyebrow '게스트 · 민지'와 hero 제목 '내 여행'을 둔다. 오른쪽에는 Btn size='sm' variant='ghost' icon='plus' '새 여행'(CreateTrip)을 둔다. user와 users IconBtn, SectionTitle '내 여행' 꺾쇠는 지운다.",
+     "홈 현재 방: HomeScreen.tsx의 자체 대체 로직을 지우고 useActiveTrip(B0)을 쓴다. 세그먼트는 home.ts의 순수 visibleSegments(counts)로 개수가 0보다 큰 칸만 보인다. 여행방이 4개 이상이고 보이는 칸이 2개 이상일 때만 Seg를 그리고, 아니면 한 줄에 진행 중 → 예정 → 완료 순으로 놓는다. 세그먼트를 바꾸면 그 목록의 첫 방을 setCurrentTrip한다(이미 고른 방이 목록에 있으면 그대로 둔다). tripBadge와 homeSegments export는 이름과 모양을 유지한다(B0 TripBar가 import함).",
+     "홈 TripCard: CoverTile a11yLabel은 '{제목} 고르기'에 selected 상태를 붙인다. footer의 글자 링크는 Btn sm ghost로 바꾸고, 라벨은 home.ts의 순수 tripNextStep(trip, plan, today).label로 정한다. 완료면 '기록 보기'(RecordMap), 진행 중이면 '오늘 여행 진행'(LiveTrip {tripId, date: today}), 후보가 0곳이면 '후보 모으기'(Main/Candidates), plan이 없으면 '루트 계산하기'(Planning), 그 밖에는 '시간표 보기'(Main/Schedule)다. 누르면 setCurrentTrip 뒤 target으로 간다.",
+     "홈 '선택한 여행방' 구역: SectionTitle은 여행방 제목이다. QuickAction 4칸을 한 줄로 두고, 순수 homeActions(trip, plan, today)가 단계에 맞게 돌려준다. 예정은 [그룹 채팅, 멤버 초대, 여행지 추천(compass), 여행방 설정(gear)], 진행 중은 [구간 안내(nav, 오늘 첫 구간), 그룹 채팅, 사진 올리기(camera, {date: today}), 여행방 설정], 완료는 [사진, 일기(book), 그룹 채팅, 여행방 설정]이다. HomeMenuKey와 HomeMenuIcon 유니온을 넓힌다.",
+     "홈 꺼진 칸과 빈 상태: 개인 모드면 채팅 칸 아래에 Txt mtTight로 cell.reason 한 줄을 적고 TextLink '멤버 초대'(Members)를 둔다. 여행방이 0개면 Empty '여행방 만들기' 아래에 quiet Btn '초대 코드로 합류'(InviteAccept)를 둔다. 방이 있으면 구역 끝에 quiet Btn sm icon='link' '초대 코드로 합류'를 둔다. 추천 여행지 타일은 navigate('CreateTrip', { regionId })로 보낸다. 머리 주석의 '메뉴 6칸' 표현도 고친다.",
+     "More(프로필 탭): useCurrentTrip 대신 useActiveTrip을 쓴다. 위에서부터 (1) hero '프로필', (2) ProfileHero variant='row' → Profile, (3) 활성 방이 있으면 '내 여행 기록' FeatureTile 3칸 [사진 N장 | 일기 N일 | 기록 지도](Photos에는 date를 넘기지 않음), (4) '설정' ListRow: 알림(sub notifySummary, 누르면 Sheet 안에 ListRow switch 4개), '기기 위치 사용' switch 줄(sub는 권한 상태, 따로 있던 권한 줄은 지움), 데이터 보존(sub retentionShort, 안내 Sheet), (5) '계정': 게스트는 '계정 만들기'(sub '여행방은 그대로 유지돼요')와 '다른 계정으로 로그인', 계정은 '로그아웃'(ConfirmSheet 유지), (6) 맨 아래 접힌 ListRow '시연 도구'(시나리오 채우기, '오프라인 흉내(시연)' switch, 시연 리셋, 제공자 상태, 화면 목록) 순이다.",
+     "More 정리: '여행 진행'과 '멤버 초대' 타일, 여행방 바로가기 목록, '그룹원 위치 공유 · 준비 중' 줄은 지운다(HANDOFF). Card 감싸기는 ListRow로 바꾸고 구역 제목은 Txt v='section'으로 한다. 숫자 간격은 SP 토큰으로 바꾼다. \"label: '여행방 설정\"은 계속 넣지 않는다(wp6 테스트).",
+     "settings.ts: NOTIFY_ROWS sub를 짧게 한다('15분 이상 밀릴 때', '100m 안에 3분', '30분 이상 빌 때', '만료 3일 전'). 순수 notifySummary(prefs), retentionShort(trip), heroLine(session, now)를 더한다. kind 목록과 sessionSummary는 그대로 둔다.",
+     "내 프로필: 맨 위에 ProfileEditHero를 둔다. 사진을 고른 직후에만 '8.4MB에서 1.2MB로 줄여 저장해요'를 보인다. '예시로 시연'은 TextLink '예시 사진으로 시연'으로 낮춘다. 게스트면 tinted Card '계정 만들기'(→ Signup)를 둔다. '기본 정보'에는 닉네임 Field(kind 'nickname')와 성향 Tag를 둔다. 계정이면 '로그인 방법' ListRow 3줄(이메일 value, 카카오와 구글은 연결됨 Chip 또는 '연결하기')을 둔다. 맨 아래 '계정 관리'에 ListRow '계정 탈퇴'(확인 1회)를 둔다. '로그아웃' 버튼, '기기 토큰' 줄, '로그인 유지' 줄은 지운다.",
+     "내 프로필 저장: 저장 Foot은 dirty일 때만 보인다. Screen keyboard를 켜고 닉네임 onSubmitEditing으로 저장한다. usePreventRemove(dirty)로 나가기를 막고 LeaveConfirmSheet('바뀐 내용을 저장할까요')를 띄운다. 닉네임에 오류가 있으면 저장을 끄고 이유를 한 줄로 보인다. 저장에 성공하면 data.action을 dispatch한다. 뒤로는 useBack('More')로 하고, 프로필이 없으면 NotFound를 보인다."
+    ],
+    "test_updates": [
+     "tests/wp1-home.test.ts: '메뉴 6칸' describe를 homeActions 단계별 테스트로 바꾼다. 예정은 ['chat','members','recommend','settings'], 진행 중은 ['navigate','chat','photos','settings'], 완료는 ['photos','diary','chat','settings']다. 개인 모드면 chat이 disabled이고 reason에 '초대'가 있다. navigate 칸 label은 '구간 안내'다. 여행방이 없으면 []다. tripNextStep 5가지 경우와 visibleSegments를 더한다. homeSegments, defaultSegment, sessionSummary, NOTIFY_ROWS kind, retentionText 단언은 그대로 둔다.",
+     "tests/wp1-profile-ux.test.ts(새): notifySummary, retentionShort, heroLine을 본다. MoreScreen 소스 규칙: '위치 공유'가 없고, ListRow switch를 쓰고, '시연 도구'가 접힘 상태로 감싸져 있고, useActiveTrip을 쓰며 useCurrentTrip이 없고, \"label: '여행방 설정\"이 없다. ProfileScreen: usePreventRemove가 있고 signOutFlow를 부르는 버튼이 없다.",
+     "tests/wp6-community.test.ts(B0 소유)의 MoreScreen 단언은 고치지 않고 통과만 확인한다."
+    ],
+    "audit_items": [
+     "[high/S] 여행방 설정 진입점(홈, 멤버, 채팅)",
+     "[high/M] 홈 · 여행 표지 카드",
+     "[high/M] 홈 · 빠른 메뉴",
+     "[medium/S] 홈 · 머리줄과 만들기 버튼",
+     "[medium/S] 홈 · 초대 코드로 합류",
+     "[medium/S] 홈 · 상태 세그먼트",
+     "[high/M] 03 홈 · 메인 메뉴",
+     "[medium/S] 공통 · 길찾기 이름(13 구간 안내와 27 자유 길찾기)",
+     "[high/M] 프로필 탭 (MoreScreen) 전체 배치",
+     "[high/M] 프로필 탭 (MoreScreen) 켜고 끄는 줄",
+     "[low/M] 18 프로필 탭 · 켜고 끄기(프로필 탭, 25 여행방 설정, 14 멤버)",
+     "[high/S] 내 프로필(17) 계정 구역",
+     "[medium/M] 내 프로필(17) 전체 배치",
+     "[medium/S] 내 프로필(17) · 저장하지 않고 나가기",
+     "[low/S] 내 프로필 머리, 계정찾기 시트, 회원가입 메일 카드",
+     "[medium/S] 로그인(15) · 게스트 경고",
+     "[high/M] 공통 · 현재 여행방(홈, 후보·시간표·지도 탭, 프로필 탭의 여행방 목록)"
+    ]
+   },
+   {
+    "id": "B2-trip-room",
+    "title": "여행방 만들기 · 멤버 초대 · 여행방 설정",
+    "wave": 2,
+    "owns_files": [
+     "src/screens/CreateTripScreen.tsx",
+     "src/screens/TripSettingsScreen.tsx",
+     "src/screens/MembersScreen.tsx",
+     "src/features/trip/actions.ts",
+     "src/features/trip/components/PickerBox.tsx",
+     "src/features/trip/components/TimeRange.tsx",
+     "src/features/trip/components/CalendarRange.tsx",
+     "src/features/trip/components/DaySheet.tsx",
+     "src/features/trip/dayRows.ts",
+     "tests/wp2-trip-ux.test.ts"
+    ],
+    "new_files": [
+     "src/features/trip/components/DaySheet.tsx",
+     "src/features/trip/dayRows.ts",
+     "tests/wp2-trip-ux.test.ts"
+    ],
+    "changes": [
+     "여행방 만들기 칸 순서: 지역, 날짜, 여행방 이름(suggestTitle 값을 미리 채운 Field, titleTouched 규칙 유지), 주 이동수단, eyebrow '선택' 아래 기점과 하루 활동시간이다. 지역을 고른 뒤 날짜가 비어 있으면 날짜 시트를 바로 연다. 지역을 고르기 전 기점 칸에는 help '지역을 고르면 찾을 수 있어요'를 단다. 남은 '대중교통' Txt와 빈 View는 지운다. route.params?.regionId를 지역 초깃값으로 쓴다. 버튼은 '만들고 멤버 초대하기'다. Screen keyboard를 켜고 이름 칸에 returnKeyType 'done'을 준다. 뒤로는 useBack('Home')로 한다.",
+     "여행방 만들기 나가기: beforeRemove를 단다. 무엇이든 입력했고 made.current가 false면 ConfirmSheet('여행방 만들기를 그만할까요', confirmLabel '그만 만들기', cancelLabel '계속 만들기')를 띄운다. 확인하면 dispatch(e.data.action)로 나간다. replace('Members')는 made.current로 통과시킨다.",
+     "PickerBox를 DS TextField 모양으로 바꾼다(56 상자, 위에 label mtTight, 아래에 값이나 placeholder, error면 surfaceC.amber 2px). API와 `<PickerBox label=\"지역\"` 정규식은 유지한다. TimeRange는 label prop으로 같은 상자를 쓰고, 시트 안에서 초안을 들고 있다가 '완료'에서 onChange를 한 번만 부른다(같은 값이면 부르지 않음). CalendarRange의 a11y 라벨은 dateLong으로 한다.",
+     "여행방 설정: Header는 title '여행방 설정'과 sub '지역 · 기간'으로 한다. 이름은 Field onSubmitEditing, onBlur, back()에서 저장하고 '이름 저장' 버튼은 지운다. '멤버 초대 · 관리'와 '보관 기한'은 ListRow 두 줄로 바꾼다. 방장 '나갈 수 없음' Notice는 mtTight 한 줄로 줄인다. host 블록(`{host && !locked ? (<Col gap={SP.m}><PickerBox label=\"지역\"`…)은 손대지 않는다. 일반 오프라인 Notice는 지운다.",
+     "날짜별 기점: DayCard 목록을 ListRow로 접는다. label은 '10월 17일 (금)'이고 sub는 순수 dayRowSub(trip, date)(dayRows.ts)다. 그날만 바꾼 시간이 있으면 '이날만' Chip을 붙인다. 줄을 누르면 DaySheet가 열린다. 안에는 기점 방식 Choice 3칸, 기점 칸, '복귀 없음' ListRow switch, '이날 활동시간' TimeRange가 있다. DaySheet는 B0 Sheet의 scroll을 켠다. 안에 검색 목록이 있으면 scroll을 끈 채로 둔다.",
+     "멤버 초대: Foot에 주 버튼 하나를 둔다. 링크가 없거나 무효면 '링크 만들고 공유하기'(actions.ts의 새 issueAndShare(tripId)), 있으면 '링크 공유하기'다. fromCreate면 quiet '나중에 초대하기'를 두고, setCurrentTrip 뒤 Main의 Candidates로 reset한다. 카드 안에는 링크 줄, 복사, 만료와 남은 자리, Btn sm quiet '새 링크 만들기'를 남긴다.",
+     "멤버 목록: '후보 N곳' 칩을 빼고 화면에서 sub 뒤에 ' · 후보 N곳'을 붙인다(core의 sub 문자열은 그대로). 칩은 '전송 대기'만 남긴다. 시연 합류는 eyebrow '시연' 아래로 옮긴다. 멤버 메뉴 시트는 '초대 권한' ListRow switch와 '{이름}님 내보내기' 하나로 줄인다. Header right에 IconBtn gear '여행방 설정'을 둔다. 찾을 수 없으면 NotFound를 보인다."
+    ],
+    "test_updates": [
+     "tests/wp2-trip-ux.test.ts(새): issueAndShare는 가짜 share로 링크가 없으면 만들고 공유한다. dayRowSub의 세 형식과 '복귀 없음' 접미를 본다. 소스 규칙: CreateTripScreen에 beforeRemove, made.current, '만들고 멤버 초대하기'가 있다. MembersScreen의 <Foot> 안에 issueAndShare가 있다. TripSettingsScreen에 '이름 저장'이 없다.",
+     "tests/wp2-trip-edit.test.ts와 tests/wp2-invite.test.ts는 고치지 않고 통과만 확인한다(host 블록 정규식과 memberRows sub)."
+    ],
+    "audit_items": [
+     "[high/S] 여행방 설정 진입점(홈, 멤버, 채팅)",
+     "[high/S] 멤버 초대(만들기 2 / 2 단계 포함)",
+     "[medium/S] 여행방 만들기 · 칸 순서와 미리 채우기",
+     "[medium/S] 여행방 만들기 · 중간에 나가기",
+     "[medium/M] 여행방 설정 · 날짜별 기점",
+     "[medium/S] 여행방 설정 · 이름 저장과 구성",
+     "[low/S] 여행방 만들기와 설정 · 입력 칸 모양",
+     "[medium/M] 공통 · 주 버튼 자리(14 멤버 초대, 19 여행 진행, 13 구간 안내)",
+     "[low/M] 18 프로필 탭 · 켜고 끄기(프로필 탭, 25 여행방 설정, 14 멤버)"
+    ]
+   },
+   {
+    "id": "B3-entry",
+    "title": "진입·계정 입력 화면(온보딩, 초대 수락, 로그인, 회원가입, 소셜 동의, 계정찾기)",
+    "wave": 2,
+    "owns_files": [
+     "src/screens/OnboardingScreen.tsx",
+     "src/screens/InviteAcceptScreen.tsx",
+     "src/screens/LoginScreen.tsx",
+     "src/screens/SignupScreen.tsx",
+     "src/screens/SocialConsentScreen.tsx",
+     "src/features/account/FindAccountSheet.tsx",
+     "src/features/account/messages.ts",
+     "tests/wp1-entry-keyboard.test.ts"
+    ],
+    "new_files": [
+     "tests/wp1-entry-keyboard.test.ts"
+    ],
+    "changes": [
+     "공통: 다섯 화면 모두 Screen keyboard를 켠다. 앞 칸은 returnKeyType 'next'와 inputRef로 다음 칸에 포커스를 넘긴다. 마지막 칸 onSubmitEditing에 주 동작을 건다(온보딩 닉네임은 createGuest, 초대 코드는 submitCode, 초대 이름은 join, 회원가입 닉네임은 canSubmit일 때 submit, 로그인 비밀번호는 로그인). Field kind: 로그인은 'username'·'password', 회원가입은 'email'·'newPassword'·'nickname', 계정찾기는 'email'·'newPassword', 초대 코드는 'code'다. 뒤로가 없던 화면은 useBack('Home')을 쓴다.",
+     "messages.ts: GUEST_LIMIT_HELP = '이 기기에서만 쓰는 게스트예요. 기기를 바꾸거나 30일 동안 안 쓰면 복구할 수 없어요.'를 둔다. 온보딩 닉네임 help와 초대 수락 이름 help(!session일 때)에 쓴다.",
+     "온보딩: expiredKind==='account'면 Notice '로그인이 끝났어요. 다시 로그인하면 여행방을 이어 써요'를 두고, 주 버튼은 '다시 로그인하기', '게스트로 시작하기'는 ghost로 한다. 평소에는 '게스트로 시작하기'가 주 버튼이고, TextLink '이미 계정이 있어요 · 로그인'을 둔다. '초대 코드로 합류'는 적어 둔 닉네임을 InviteAccept {nickname}으로 넘긴다.",
+     "초대 수락: Foot에는 합류와 quiet '초대 거절'만 둔다(문구는 그대로). '다른 사람으로 합류(시연)'는 이름 칸 아래 TextLink로 옮기고, 켜면 line Chip '시연 · 새 멤버로 합류'를 보인다. 제목은 '{방장}님이 여행방에 초대했어요'로 고정한다. 코드는 kind 'code'이고 Enter로 submitCode한다. route.params.nickname으로 이름을 미리 채운다.",
+     "로그인: 같은 이메일 연결 카드를 ConfirmSheet로 바꾼다('기존 계정에 연결할까요', link.text + ' 연결하면 두 로그인 방법이 같은 여행방을 봐요', '연결하기', cancelLabel '연결하지 않기'). 게스트 경고는 Notice title '지금은 게스트 {닉네임}이에요'와 한 줄로 줄이고, ghost sm Btn '계정으로 바꾸기(여행방 유지)'를 둔다. 새 버튼 제목은 '회원가입'이면 안 된다(wp1-oauth).",
+     "소셜 동의: 같은 연결 확인을 ConfirmSheet로 바꾸고, 주 버튼의 link != null 회색 처리를 없앤다. Foot의 '취소'는 지운다.",
+     "회원가입은 sentTo로 두 단계를 나눈다. 1단계는 입력과 '가입하고 인증 메일 받기'다. 2단계는 '메일을 확인해 주세요', '{email}로 보냈어요'와 TextLink '이메일 바꾸기', 메일 카드(보낸 시각만 보이고 '링크 끝 xxxx'는 지움), quiet '인증 메일 다시 받기'다. 게스트를 승격할 때는 sub 한 줄만 둔다.",
+     "계정찾기 시트: 제목을 '비밀번호 재설정'으로 하고 B0 Sheet scroll을 켠다. 빈 메일함 문구는 '받은 재설정 메일이 없어요. 잠시 뒤 다시 받아 주세요.'로 하고, AUTH_DEV_OUTBOX 설명은 코드 주석으로 옮긴다."
+    ],
+    "test_updates": [
+     "tests/wp1-entry-keyboard.test.ts(새): 네 화면에 Screen keyboard와 마지막 Field onSubmitEditing이 있다. GUEST_LIMIT_HELP를 두 곳에서 쓴다. Login과 SocialConsent에 cancelLabel=\"연결하지 않기\"가 있다. Login의 새 버튼 title이 '회원가입'이 아니다. FindAccountSheet에 '비밀번호 재설정'이 있고 화면 문자열에 AUTH_DEV_OUTBOX가 없다.",
+     "tests/wp1-oauth.test.ts는 고치지 않고 통과만 확인한다."
+    ],
+    "audit_items": [
+     "[high/M] 공통 입력 화면(온보딩, 초대 수락, 로그인, 회원가입, 계정찾기 시트, 내 프로필)",
+     "[high/S] 온보딩(게스트로 시작), 초대 수락(세션 없이 게스트 합류)",
+     "[medium/S] 로그인(15), 소셜 동의(26): 같은 이메일 계정 연결 확인",
+     "[medium/M] 회원가입(16) · 이메일 인증",
+     "[medium/S] 온보딩 · 돌아온 사용자",
+     "[medium/S] 로그인(15) · 게스트 경고",
+     "[medium/S] 초대 수락(02) · 미리보기와 코드 입력",
+     "[medium/M] 공통 입력 칸(Field), 화면 제목 접근성",
+     "[low/S] 내 프로필 머리, 계정찾기 시트, 회원가입 메일 카드"
+    ]
+   },
+   {
+    "id": "B4-records",
+    "title": "여행 기록(사진 · 일기 · 기록 지도) 공통 탭과 화면 정리",
+    "wave": 2,
+    "owns_files": [
+     "src/screens/PhotosScreen.tsx",
+     "src/screens/DiaryScreen.tsx",
+     "src/screens/RecordMapScreen.tsx",
+     "src/features/journal/components/RecordTabs.tsx",
+     "src/features/journal/components/PhotoTile.tsx",
+     "src/features/journal/components/DateSeg.tsx",
+     "src/core/journal/recordMap.ts",
+     "tests/wp6-record-map.test.ts",
+     "tests/wp6-record-tabs.test.ts"
+    ],
+    "new_files": [
+     "src/features/journal/components/RecordTabs.tsx",
+     "tests/wp6-record-tabs.test.ts"
+    ],
+    "changes": [
+     "RecordTabs(새): icon Seg [사진 camera | 일기 book | 지도 map]를 세 화면의 Header 아래, DateSeg 위에 둔다. navigation.replace(대상, { tripId, date })로 바꾸고, 사진의 '전체'는 date를 undefined로 넘긴다. Header는 eyebrow를 여행 제목으로, title을 '여행 기록'으로 맞춘다. 교차 버튼 Row는 지운다. 뒤로는 useBack('Home'), 없는 경우는 NotFound다.",
+     "DateSeg: 바깥 ScrollView를 지운다(Seg가 스스로 스크롤함). 라벨은 features/schedule/view에서 import한 daySegLabel('10/18 토')이다. showCount는 사진 화면에서만 켠다. 칸마다 a11yLabel('10월 18일 토요일, 사진 3장')을 단다.",
+     "사진: 처음 date는 route.params.date ?? 'all'이다. Foot에는 '사진 올리기' 하나만 둔다(busy면 '올리는 중'). 예시 사진 넣기는 Header의 dots 시트로 옮기고, Empty 아래 quiet로도 둔다. 나간 멤버면 Notice '나간 멤버는 사진을 볼 수만 있어요'를 보인다. 고른 사진이 있는데 올라간 사진이 0장이면 성공 토스트를 띄우지 않는다. '전체' 보기는 날짜별로 묶는다(묶음 머리 Row와 '이 날 일기'). 기간 밖 사진은 맨 아래 '여행 기간 밖' 묶음으로 보낸다.",
+     "사진 타일과 정보 시트: 배지는 하나만 둔다(우선순위 '날짜 지정' > '추정' > '장소 추정'). a11y 라벨은 `${spotName ?? '장소 모름'} ${kstHHMM} 사진${badge}`로 한다. 예시 라벨 띠는 size >= 96이고 배지가 없을 때만 보인다. 정보 시트는 세 줄(찍은 때, 장소, 올린 사람)에 '추정' 칩을 붙이고, 압축 줄은 compressed일 때만 보인다. 내 사진이 아니면 지우기 대신 '올린 사람만 지울 수 있어요'를 보인다. quiet '이 날 일기 보기'를 둔다.",
+     "일기 빈 날: entry가 없을 때 pending > 0이면 Empty '{dayLabel} 일기를 만들 수 있어요'에 action '일기 만들기'를 둔다. pending이 0이면 '이 날은 기록이 없어요'에 action '사진 올리기'를 둔다(만들기 버튼 없음). busy면 '일기 만드는 중'과 Notice(clock)를 보인다. 나간 멤버면 만들기와 고치기를 숨긴다.",
+     "일기 공유와 다시 만들기: Foot에는 '공유하기' 하나만 둔다. 누르면 Sheet가 열리고 '메시지·메모로 보내기'와 '커뮤니티에 올리기'가 나온다. 뒤의 것은 `entry && entry.blocks.length > 0` 조건과 `navigation.navigate('CommunityCompose', { tripId, date })`를 그대로 쓴다. '다시 만들기'는 stale Notice의 action과 dots 시트로 옮긴다.",
+     "일기 머리와 안내: Header sub를 '방문 N곳 · 사진 N장'(공유했으면 ' · 공유함')으로 한다. 'AI가 쓴 문장'은 고치지 않은 문장이 있을 때만 맨 아래 한 줄로 보인다. 새 기록과 비운 문단 Notice는 하나로 합친다. 문단 고치기 시트에서 고친 내용이 있으면 닫기를 가로채 확인한다('고친 문장을 저장할까요'). SP 토큰을 쓰고 Screen keyboard를 켠다.",
+     "기록 지도: 범례는 recordMap.ts의 순수 legendFlags(model)로 정해 그려진 것만 보인다. '도착 N곳' 칩 줄은 지우고 카드 제목을 '방문 기록 · 도착 N곳'으로 한다. VisitRow는 Pressable(44, a11y '{번호} {이름} {시각} 도착')로 바꿔 SpotDetail로 보낸다. 거부와 noLog Notice는 지도 아래로 옮기고, sim은 지도 위 Chip '시뮬레이터 기록'으로 띄운다."
+    ],
+    "test_updates": [
+     "tests/wp6-record-map.test.ts: `<Legend planned={model.plannedColor} gap={model.gapColor} />` 정확 일치를 접두 정규식으로 바꾼다. legendFlags 단언을 더한다. 나머지 단언(견본 SVG, deniedNone, useLive denied, s.permission 금지)은 그대로 둔다.",
+     "tests/wp6-record-tabs.test.ts(새): 세 화면이 <RecordTabs를 쓰고 replace에 date를 넘긴다. routes Photos에 date?가 있다. 옛 교차 버튼 문자열이 없다. pending이 0이면 generateDiary 버튼이 없다.",
+     "tests/wp6-community.test.ts(B0 소유)의 Diary 정규식 2개는 고치지 않고 통과만 확인한다."
+    ],
+    "audit_items": [
+     "[high/M] 사진 · 일기 · 기록 지도 (공통 이동)",
+     "[medium/S] 20 사진 · 21 일기 · 22 기록 지도",
+     "[high/S] 일기 (DiaryScreen) 빈 날·만드는 중 상태",
+     "[medium/S] 일기 (DiaryScreen) 하단 버튼과 공유",
+     "[medium/M] 일기 (DiaryScreen) 문장 고치기 시트",
+     "[medium/M] 사진 (PhotosScreen) 하단·피드백·전체 보기",
+     "[medium/S] 사진 (PhotosScreen) 격자 타일",
+     "[medium/S] 기록 지도 (RecordMapScreen)",
+     "[low/S] 사진 (PhotosScreen) 사진 정보 시트",
+     "[low/S] 일기 (DiaryScreen) 머리 칩·안내 쌓임",
+     "[low/S] 사진 · 일기 · 기록 지도 날짜 탭 (DateSeg)",
+     "[medium/M] 공통 · 머리말과 뒤로(스택 화면 전부)"
+    ]
+   },
+   {
+    "id": "B5-candidates",
+    "title": "후보 탭 · 스팟 상세 · 여행지 추천",
+    "wave": 2,
+    "owns_files": [
+     "src/screens/CandidatesScreen.tsx",
+     "src/screens/SpotDetailScreen.tsx",
+     "src/screens/RecommendScreen.tsx",
+     "src/features/candidates/rows.ts",
+     "src/features/candidates/detail.ts",
+     "src/features/candidates/components/ManualAdd.tsx",
+     "tests/wp3-candidates.test.ts",
+     "tests/wp3-spot-detail.test.ts"
+    ],
+    "new_files": [
+     "tests/wp3-spot-detail.test.ts"
+    ],
+    "changes": [
+     "후보 탭 위쪽: useCurrentTrip 대신 useActiveTrip을 쓴다. 맨 위에 TripBar(bar)를 두고, 그 아래 PlanSwitch(value 'Candidates')와 summaryLine(B0 features/candidates/summary.ts) 한 줄(mtTight)을 둔다. 빈 right Row와 sample은 지운다. 방은 있는데 고른 방이 없으면 Empty '여행방을 골라 주세요'를 둔다. '여행방 만들기'는 방이 0개일 때만 보인다. 일반 오프라인 Notice는 지운다.",
+     "후보 탭 담기 입구: 목록 맨 위에 검색창 모양 Pressable(search, '장소 검색해서 담기', 44)을 두고, 누르면 그 자리에서 ManualAdd를 펼친다. ManualAdd 안에 FlatList가 있으면 시트 scroll을 끈 채로 둔다. 그 아래 ListRow(compass) '성향 태그로 추천 받기'를 둔다. 계산 중이면 Chip '다시 계산하는 중'과 Btn sm quiet '단계 보기'를 보인다.",
+     "후보 목록 구조: Seg를 없애고 목록 하나를 구역 머리(eyebrow + 개수)로 나눈다. '확정 스팟 11'은 앞 5곳만 보이고 나머지는 '나머지 6곳 보기'로 편다(rows.ts의 순수 foldConfirmed(rows, 5)). '배치 계산 전 N'은 있을 때만 보인다. '제외 스팟 3 · 되돌릴 수 있음'은 절대 접지 않는다. 제외 카드 아래에 Btn sm ghost icon undo '고정해서 다시 넣기'를 두고, 누르면 spot/restore 뒤 토스트를 띄운다.",
+     "스팟 상세 버튼: 헤더 오른쪽 IconBtn을 지운다. Foot은 detail.ts의 순수 footActions(state, placed)로 나눈다. 확정이나 배치 전이면 quiet '시간표에서 보기'(배치됐을 때만)와 primary '고정하기' 또는 quiet '고정 풀기'다. 제외면 primary '고정해서 다시 넣기' 하나다.",
+     "스팟 상세 정보: 칸 3개 Row를 ListRow 키-값 목록으로 바꾼다(detail.ts의 순수 detailRows(detail), editable 플래그). 체류와 날짜는 누르면 시트가 열리고, 체류 예고 문장은 시트 안 Notice로 옮긴다. 이동과 배치 시각은 읽기 전용이다. '여기까지 길찾기'는 정보 아래 Btn sm quiet로 둔다.",
+     "스팟 상세 관리: 맨 아래 '관리' 구역에 ListRow '직접 빼기'(되돌릴 수 있음)와 '후보에서 지우기'(되돌릴 수 없음, 확인 시트)를 둔다. 지운 뒤에는 토스트를 띄우고 goBack한다. 뒤로는 useBack('Schedule'), 없는 경우는 NotFound다.",
+     "여행지 추천: 카드는 세 줄(이름과 '후보에 담기'/'후보에 담김', 종류·주소, 추천 이유)이다. 360px에서 좁으면 버튼을 아래 줄로 보낸다. '대체됨' 칩은 지운다. busy면 Notice(clock)를 보이고 이전 결과의 버튼을 잠근다. useBack과 NotFound를 쓰고, 일반 오프라인 Notice는 지운다. 용어 금지(확정 장소, 제외 장소, 투표, 출발지)를 지킨다."
+    ],
+    "test_updates": [
+     "tests/wp3-candidates.test.ts: foldConfirmed 단언을 더한다(확정 구역만 5개로 접고, 제외 구역은 접지 않음). summaryLine 단언은 B0의 tests/wp3-candidate-summary.test.ts가 맡는다. card.picks, canUndo, '06 행 계산', 그리고 chat/view와 ops/spots import 단언(M-chatmap 변경 뒤에도 통과해야 함)은 그대로 둔다.",
+     "tests/wp3-spot-detail.test.ts(새): footActions에서 제외면 restore 하나, 배치됨이고 고정 안 됨이면 ['시간표에서 보기','고정하기'], 고정됨이면 '고정 풀기'다. detailRows의 editable은 체류와 날짜만 true다."
+    ],
+    "audit_items": [
+     "[high/S] 06 후보 탭 상단 (CandidatesScreen)",
+     "[medium/M] 06 후보 탭 목록 구조 (CandidatesScreen)",
+     "[medium/S] 06 제외 카드 되돌리기 (CandidatesScreen, SpotDetailScreen)",
+     "[high/M] 07 스팟 상세 버튼 배치 (SpotDetailScreen)",
+     "[medium/M] 07 스팟 상세 정보 칸 (SpotDetailScreen)",
+     "[medium/S] 23 여행지 추천 (RecommendScreen)",
+     "[high/M] 공통 · 현재 여행방(홈, 후보·시간표·지도 탭, 프로필 탭의 여행방 목록)",
+     "[medium/M] 공통 · 하단 탭(TAB_ITEMS, RootNavigator, TabBar)",
+     "[medium/S] 공통 · 아이콘만 있는 핵심 버튼과 작은 글자 링크"
+    ]
+   },
+   {
+    "id": "B6-schedule",
+    "title": "시간표 · 일정 편집 · 루트 계산 · 이동수단 비교",
+    "wave": 2,
+    "owns_files": [
+     "src/screens/ScheduleScreen.tsx",
+     "src/screens/ScheduleEditScreen.tsx",
+     "src/screens/PlanningScreen.tsx",
+     "src/screens/LegTransportScreen.tsx",
+     "src/features/schedule/view.ts",
+     "src/features/schedule/timeline.ts",
+     "src/features/schedule/components/DayTimeline.tsx",
+     "src/features/schedule/components/Stepper.tsx",
+     "tests/wp4-screens.test.ts",
+     "tests/wp4-timetable.test.ts"
+    ],
+    "new_files": [
+     "src/features/schedule/components/Stepper.tsx"
+    ],
+    "changes": [
+     "시간표 위쪽(스크롤되지 않음): useCurrentTrip 대신 useActiveTrip을 쓴다. 순서는 TripBar, PlanSwitch(value 'Schedule'), 날짜 Seg(바깥 ScrollView와 pickDate 스크롤은 지움), 요약 줄이다. 요약 줄은 '4곳 · 09:00–14:17', 그날 수단 칩(view.ts dayTransport), '예시 데이터', '계산 중'(누르면 Planning), IconBtn 'map'(Main/Map {date})이다. 그 아래 채움 막대(dayFill)와 TextLink '활동 09:00–21:00'(TripSettings)을 둔다. 일반 오프라인 Notice는 지운다. daySegLabel export는 유지한다(B4가 import함).",
+     "시간표 초과와 편집: 초과 Notice를 WarnCard로 바꾸고 '일정 편집에서 조정안 보기'로 보낸다. drag IconBtn은 Btn sm quiet icon 'pen' '편집'으로 바꾼다. '다시 계산'은 그 자리에서 recompute를 부른다(planning이 busy면 버튼을 끔). 첫 '루트 계산'만 Planning으로 보낸다. 메타 블록은 지운다. '제외 스팟 N곳'은 ListRow로 Candidates에 보낸다.",
+     "DayTimeline과 timeline.ts: 시각 열을 두 줄로 한다. 보조 줄은 '관광지 · 체류 90분'이다(spot 행에 category와 depart를 더함). '제안자 N' 칩은 지운다. 이름 앞에 순서 번호 배지를 둔다. 이동 줄은 전체 폭 Pressable(44)에 'right' 꺾쇠를 단다. onPressLeg가 없으면 지금 그대로 둔다.",
+     "일정 편집 상태 자리: Header size='row'로 하고 sub를 '10월 18일 (일) · 4곳 · 5시간 17분'으로 한다(계산 중이면 clock을 붙임). 맨 아래 요약 줄은 지운다. 적용 실패는 warn 토스트로 띄운다. 제외 안내는 Foot의 버튼 바로 위로 옮긴다. 오프라인 안내는 지운다.",
+     "일정 편집 맨 위: 초과면 WarnCard를 목록 앞에 둔다. 그 아래 '이날 이동수단' Choice를 둔다. exclude 조정안은 ConfirmSheet('{이름}를 빼요', '빼기')를 거친다. 적용한 뒤 토스트를 띄운다.",
+     "일정 편집 카드와 순서: 카드 오른쪽에 IconBtn 'up'과 'down'(B0)을 늘 둔다(a11y '{이름} 앞으로'/'{이름} 뒤로', 처음과 끝은 disabled). drag 자리에는 순서 번호를 둔다. 카드 본문을 누르면 도구가 펼쳐진다(expanded). 목록 위에 '순서 · 이동 짧은 순' 또는 '순서 · 직접 정함'과 TextLink '자동 순서로'를 둔다.",
+     "도구 카드는 Stepper(새: 라벨, 값, IconBtn minus/plus)로 줄인다. 줄은 체류, 도착(지정 풀기 포함), 날짜(Choice scroll), ListRow switch '고정 · 빠지지 않아요'다. '도착 고정'은 '도착 시각 지정'으로 부른다.",
+     "일정 편집 Foot: [quiet undo '되돌리기'] [primary '시간표로']를 둔다. 헤더의 되돌리기는 지운다. 카드가 사라지는 편집만 토스트로 알린다('불국사를 10/19로 옮겼어요').",
+     "루트 계산(08): 뒤로는 useBack('Schedule')이다. 보조 버튼은 '이전 화면으로(계산은 계속돼요)'이고, 단계 Row a11y는 '{label}, 완료|진행 중|대기'다. planMeta는 dayTransport를 쓴다.",
+     "이동수단 비교(12): Header size='row'의 right에 이전/다음 IconBtn과 '구간 2 / 6'을 둔다. Foot은 primary '이 구간만 {수단}으로 바꾸기'와 quiet sm '이날 전체를 {수단}으로'다. 지금 수단과 같으면 끈다. 미리보기는 view.ts의 순수 legPreviewChips로 두 줄 표를 만든다. 성공하면 토스트를 띄우고, 실패하면 warn 토스트를 띄우고 화면에 머문다."
+    ],
+    "test_updates": [
+     "tests/wp4-screens.test.ts: dayTransport, dayFill, legPreviewChips, planMeta 단언을 더한다. 기존 단언(overflowCause, newlyExcludedLines, moveInOrder, editOrder, stepStay, stepArrive, canPinArrive, inverseDrafts, dayTransportDrafts, previewSentence, legIndexes, legPositionText, planningStepRows)은 그대로 둔다.",
+     "tests/wp4-timetable.test.ts: spot 행의 category와 depart 단언을 더한다. 기존 비교는 그대로 둔다."
+    ],
+    "audit_items": [
+     "[high/S] 09 시간표 (ScheduleScreen): 초과 경고와 편집 진입",
+     "[high/S] 10 일정 편집 (ScheduleEditScreen): 상태 알림 때문에 레이아웃이 밀림",
+     "[high/S] 10 일정 편집: 수용량 초과 조정안(WarnCard)과 '빼기'",
+     "[high/M] 10 일정 편집: 순서 바꾸기",
+     "[medium/M] 10 일정 편집: 펼친 도구 카드(체류·도착·날짜·고정)",
+     "[medium/S] 10 일정 편집: 되돌리기 위치와 결과 알림",
+     "[medium/S] 08 루트 계산 (PlanningScreen)과 09 '다시 계산'",
+     "[medium/M] 09 시간표: 하루 요약과 상태 줄",
+     "[medium/S] 09 타임라인 카드 (DayTimeline, 19 여행 진행도 같이 씀)",
+     "[medium/M] 09 이동 줄과 하루 전체 이동수단",
+     "[medium/S] 12 이동수단 비교 (LegTransportScreen): 적용 버튼과 미리보기",
+     "[low/S] 12 이동수단 비교: 구간 넘기기와 헤더",
+     "[medium/S] 공통 · 아이콘만 있는 핵심 버튼과 작은 글자 링크",
+     "[medium/M] 공통 · 하단 탭(TAB_ITEMS, RootNavigator, TabBar)",
+     "[medium/S] 공통 · 날짜 Seg(11 지도 탭 시트, 19 여행 진행)"
+    ]
+   },
+   {
+    "id": "B7-map-nav",
+    "title": "지도 탭 · 구간 안내 · 길찾기",
+    "wave": 2,
+    "owns_files": [
+     "src/screens/MapScreen.tsx",
+     "src/screens/NavigateScreen.tsx",
+     "src/screens/DirectionsScreen.tsx",
+     "tests/wp5-directions.test.ts",
+     "tests/wp5-my-location.test.ts",
+     "tests/wp5-map-sheet.test.ts"
+    ],
+    "new_files": [
+     "tests/wp5-map-sheet.test.ts"
+    ],
+    "changes": [
+     "지도 탭 시트: B0 PeekSheet(snaps ['peek','full'], maxRatio 0.6, areaHeight는 지도 높이)로 바꾼다. head는 Pressable 하나(손잡이, '첫째 날 루트', 요약, chevron, minHeight 44, expanded 상태)이고 onSnap으로 접고 편다. 지도 위 'list' IconBtn은 지운다. peek에는 날짜 Seg('17 금'), head, 버튼 줄만 둔다. 스팟 목록(줄 44)과 제외 스팟은 full일 때만 보인다. 접힌 상태의 '제외 스팟 N곳'은 펼치는 Btn quiet sm이다. OSM 출처는 시트 맨 끝 한 줄로 옮긴다.",
+     "지도 위: useCurrentTrip 대신 useActiveTrip을 쓴다. 왼쪽 위에 TripBar variant 'chip'을 둔다. 날짜 칩과 수단 칩은 지운다. '길찾기'는 B0 MapPill(nav 아이콘, '길찾기', 44)로 27에 보낸다. 내 위치 버튼과 locate 단독 줄은 그대로 둔다. route.params?.date가 바뀌면 날짜를 따라가는 useEffect를 더한다.",
+     "핀과 목록 선택: 누르면 상세로 가지 않고 그 스팟을 고른다. 선택 카드에는 순번과 이름, '도착 09:25 · 체류 1시간 30분 · 앞 구간 25분', [상세 보기] [구간 안내] [여기까지 길찾기]를 둔다. 같은 핀을 다시 누르거나 x를 누르면 선택이 풀린다. 고른 스팟으로 fitTo한다. ClusterListSheet도 같은 흐름이다. 진행 중이면 한 줄 '진행 중 · 다음 첨성대 · 예상 14:20'(누르면 19)을 둔다. 이 문구는 wp5-delay 금지 문구(늦었습니다, 지연되었습니다, 서두르세요)를 쓰지 않는다.",
+     "구간 안내(13): Header size='row'에 eyebrow '구간 안내 · 10/18 (토)'다. 시트 첫 줄은 [이전] '구간 2/5 · 석굴암까지' [다음]이고, 그 아래 '25분'(nmLg accent), 거리·도착·예상, 칩, 안내 줄 순이다. liveHere면 구간을 따라가되, 사용자가 넘긴 뒤에는 따라가지 않는다(userPaged ref). MapCanvas locate를 단독 줄로 켠다. Empty에 '루트 계산' action을 둔다. Foot은 liveHere면 '카카오맵으로 열기' 하나, 아니면 [카카오맵으로 열기 quiet] [여행 진행 시작 primary]이다. alongRef와 progressOnPath 줄은 건드리지 않는다.",
+     "길찾기(27): Header size='row'로 한다. EndRow에 StyleSheet minHeight H.fieldSm을 준다. 끝점이 비면 아래 시트를 바로 고르기 목록(기점, 스팟 최대 5개, '장소 검색', '지도에서 고르기')으로 바꾼다. 이 목록은 위치를 읽지 않는다. 경로가 준비되면 '카카오맵으로 열기'를 전체 폭 primary로 두고, 진행 중이면 quiet '여행 진행으로 돌아가기'를 둔다. 설명 문장 줄과 일반 오프라인 Notice는 지운다.",
+     "세 화면 모두 useBack('Map')과 NotFound를 쓴다. 카카오 링크 버튼 이름은 '카카오맵으로 열기'로 맞춘다. src/components/map/**는 M-chatmap 소유이므로 건드리지 않는다."
+    ],
+    "test_updates": [
+     "tests/wp5-directions.test.ts: 마지막 단언(liveTripId일 때 '안내 시작')을 새 모양('여행 진행으로 돌아가기'가 LiveTrip으로 감)으로 바꾼다. 위치 규칙 단언은 그대로 둔다.",
+     "tests/wp5-my-location.test.ts: 버튼을 켜는 화면 목록에 NavigateScreen을 더한다. 미리보기와 27, SpotDetail, RecordMap 금지 의도는 유지한다.",
+     "tests/wp5-map-sheet.test.ts(새): MapScreen이 PeekSheet를 쓰고, icon=\"list\" IconBtn이 없고, 길찾기가 MapPill이며, route.params date effect가 있다. NavigateScreen 빈 상태에 '루트 계산'이 있다.",
+     "고치지 않고 통과만 확인(비평 반영): tests/wp5-navigate-progress.test.ts(alongRef와 progressOnPath 정규식), tests/wp5-delay.test.ts(MapScreen과 NavigateScreen 금지 문구 검사)."
+    ],
+    "audit_items": [
+     "[high/M] 11 지도 탭 · 하단 시트",
+     "[high/S] 11 지도 탭 · 19 여행 진행 · 날짜 고르기",
+     "[medium/M] 11 지도 탭 · 핀·목록 누르기",
+     "[medium/S] 11·13·19·27 공통 · '길찾기'와 '구간 안내' 이름",
+     "[medium/S] 13 구간 안내 · 27 길찾기 · 아래 버튼 줄",
+     "[medium/M] 13 구간 안내",
+     "[medium/M] 27 길찾기 · 출발·도착 고르기",
+     "[medium/S] 공통 · 길찾기 이름(13 구간 안내와 27 자유 길찾기)",
+     "[medium/M] 공통 · 주 버튼 자리(14 멤버 초대, 19 여행 진행, 13 구간 안내)",
+     "[high/M] 공통 · 현재 여행방(홈, 후보·시간표·지도 탭, 프로필 탭의 여행방 목록)",
+     "[medium/M] 공통 · 머리말과 뒤로(스택 화면 전부)",
+     "[low/M] 공통 · 오프라인·동기화 안내",
+     "[critique] B7 고정 테스트 wp5-navigate-progress와 wp5-delay를 통과 확인 목록에 넣기"
+    ]
+   },
+   {
+    "id": "B8-live",
+    "title": "여행 진행(19) 시작 전 · 진행 중 · 끝내기",
+    "wave": 2,
+    "owns_files": [
+     "src/screens/LiveTripScreen.tsx",
+     "src/features/live/components/LiveNowCard.tsx",
+     "src/features/live/components/SimControls.tsx",
+     "src/features/live/components/SimBanner.tsx",
+     "src/features/live/components/FreeTimeCard.tsx",
+     "tests/wp5-live-layout.test.ts"
+    ],
+    "new_files": [
+     "src/features/live/components/LiveNowCard.tsx",
+     "tests/wp5-live-layout.test.ts"
+    ],
+    "changes": [
+     "머리와 상태: Header size='sm'로 하고 eyebrow는 '여행 진행 · {여행방 이름}', 제목은 날짜다. 뒤로는 useBack('Map')이다. 상태 줄은 왼쪽에 진행 방식 Chip, 오른쪽에 지금 상태 Chip 하나를 두고, 누르면 설명 Sheet가 열린다. 경고 Notice는 '신호 약함'일 때 'GPS 신호가 약해 도착 판정을 잠시 멈췄어요' 한 줄만 둔다. SimBanner 문구는 '시뮬레이터 · 실제 위치 아님'으로 한다. 날짜 Seg는 감싸지 않고 쓴다.",
+     "시작 전: '어떻게 진행할까요'를 날짜 Seg 아래, 지도 위에 ListRow 3줄로 둔다(기기 위치, 수동, 시뮬레이터). 오늘이 기간 안이면 기기 위치가, 아니면 시뮬레이터가 맨 위다. 기기 위치가 꺼진 채 누르면 ConfirmSheet('기기 위치를 쓸까요?', '기기 위치 켜고 시작')를 띄운다. 확인하면 setUseDeviceLocation(true)를 먼저 부르고 그다음 L.start(tripId, date, 'device')를 부른다. 시작 전에는 SimControls를 숨기고, 프리셋은 접힌 Tag 줄로만 둔다(SimControls presetsOnly).",
+     "진행 중: 본문 맨 위에 LiveNowCard(새)를 둔다. 도착해 있으면 '{스팟} 도착 · 14:05부터 머무는 중'과 [도착 취소]를, 아니면 '다음 · {스팟}', 예상 시각, 지연 칩을 보인다. Foot은 [구간 안내](quiet)와 [도착 처리](수동이거나 정확도를 모르면 primary)다. timing이 null이면 '오늘 일정을 모두 마쳤어요'와 [기록 보기]를 보인다. wp5-delay 금지 문구는 쓰지 않는다.",
+     "진행 중 본문 순서: 지금 카드, 지도(높이 200)와 TextLink '지도 크게 보기'(Main/Map {date}), 조정안으로 뺀 스팟, 빈 시간 추천, 시간표, 시뮬레이터 조작, 백그라운드 기록(bgRecordText 유지), 진행 기록, 끝내기 구역 순이다. '기록 지도'와 '사진' 버튼은 '기록 보기' 하나로 합친다.",
+     "끝내기: quiet '여행 진행 끝내기'를 누르면 ConfirmSheet('여행 진행을 끝낼까요?', '진행 끝내기')를 거친 뒤 L.stop()을 부른다.",
+     "빈 시간 추천: onPressPlace를 (place) => void로 바꾸고, 누르면 카카오맵 도보 링크를 연다. '닫기'는 IconBtn x(label '빈 시간 추천 닫기')로 바꾼다. 진행 중 '길찾기' 버튼 이름은 '구간 안내'로 바꾼다. 찾을 수 없으면 NotFound를 보인다."
+    ],
+    "test_updates": [
+     "tests/wp5-live-layout.test.ts(새): '도착 처리'가 <Foot> 안에 있다. L.stop()이 ConfirmSheet onConfirm 안에 있다. setUseDeviceLocation(true)가 L.start(…'device')보다 앞에 온다. 시작 전에는 SimControls 전체를 그리지 않는다. '길찾기' 버튼 라벨이 없다.",
+     "tests/wp5-delay.test.ts와 tests/wp5-background.test.ts는 고치지 않고 통과만 확인한다."
+    ],
+    "audit_items": [
+     "[high/M] 19 여행 진행 · 진행 중 배치",
+     "[high/M] 19 여행 진행 · 시작 전",
+     "[high/S] 11 지도 탭 · 19 여행 진행 · 날짜 고르기",
+     "[medium/S] 19 여행 진행 · 끝내기",
+     "[low/S] 19 여행 진행 · 상태 안내 상자",
+     "[low/S] 19 여행 진행 · 빈 시간 추천",
+     "[medium/M] 공통 · 주 버튼 자리(14 멤버 초대, 19 여행 진행, 13 구간 안내)",
+     "[medium/S] 11·13·19·27 공통 · '길찾기'와 '구간 안내' 이름",
+     "[medium/S] 20 사진 · 21 일기 · 22 기록 지도"
+    ]
+   }
+  ],
+  "deferred": [
+   "초대 수락의 '초대 거절'을 '나중에 할게요'로 바꾸는 문구 변경: 목업 02의 문구라 사용자 확인이 필요하다. B3는 배치만 바꾼다.",
+   "OfflineBar를 누르면 네트워크 설정으로 가는 기능: 네트워크 토글은 접힌 '시연 도구' 안에 있으므로 OfflineBar는 상태만 보인다.",
+   "홈 '구간 안내' 칸을 27 길찾기로 보내는 대안: 이름 정리('구간 안내' = 13)로 충분하다.",
+   "daySegLabel을 core/util로 옮기기: B4가 features/schedule/view에서 import하면 된다(B6가 export를 유지).",
+   "여행방 만들기 임시 저장: 폼이 짧아 나가기 확인만 둔다.",
+   "LiveTrip 지도를 compact 미리보기로 바꾸기: 높이 200과 '지도 크게 보기'로 처리한다.",
+   "iOS 키보드(KAV) 실기기 확인: 웹에서는 보이지 않아 iOS 시뮬레이터나 기기에서 확인한다.",
+   "채팅방 지도 지역 경계 다각형 강조(목업의 지역 하이라이트): 주소로 만든 지역에는 경계 데이터가 없다. v1은 칩 강조, 카메라 맞춤, 지역 밖 핀 흐림(dim)으로 처리한다.",
+   "서버의 op 단위 접근 제어(op.actorId ↔ 인증 세션의 멤버): 지금 sync push는 어떤 op 종류에도 세션을 확인하지 않는다. 넣으려면 모든 클라이언트와 sync 테스트의 계약이 바뀌는 횡단 변경이 된다. M은 README와 FR-405에 범위 밖이라고 적고, 비멤버 actorId의 표가 접을 때 버려지는 것을 테스트한다.",
+   "표를 PostgreSQL 표(trip_spots.votes와 마이그레이션 007)로 투영하기: 서버에서 순위를 계산할 일이 생길 때만 한다. 지금은 op 로그(trip_ops.body jsonb)에만 둔다.",
+   "표를 루트 계산 우선순위(proposerCount)에 반영하기: v1의 표는 보여 주기만 하고 계획에는 쓰지 않는다.",
+   "전체 투표 순위를 고른 지역으로 거르기: v1은 여행방 전체 순위이고 줄마다 지역을 메타로 보인다. 사용자가 원하면 Seg 필터를 더한다."
+  ],
+  "risks": [
+   "채택하지 않은 비평 · B0를 B0a와 B0b로 나누기: 이번 실행은 wave 1 배치를 'B0-foundation' 하나로 정해 두었다. 대신 B0 안을 (a) 키트, (b) 내비게이션, (c) 현재 여행방 세 단계로 나누고 단계마다 tsc를 통과해야 넘어가게 했다. 범위도 줄였다: FR 문서는 M으로 옮겼고, 시트 스크롤은 선택 기능으로 바꿨다.",
+   "채택하지 않은 비평 · 지금 서버 push에 actorId ACL 넣기: sync push에는 어떤 op에도 세션 확인이 없다. ACL을 넣으면 모든 op와 클라이언트에 걸친 계약 변경이 되므로 deferred로 남긴다. 결과로 trip id를 아는 사람은 기존 멤버를 사칭해 표를 넣을 수 있다. 이 사실을 README와 FR-405에 밝힌다. 비멤버 actorId는 클라이언트가 접을 때 validateOp가 버린다.",
+   "일부만 채택한 설계 · 설계의 자체 3단 DragSheet와 core/chatmap/sheet.ts: 쓰지 않는다. 스냅 계산은 B0의 src/ui/sheetSnap.ts로, 시트는 B0 PeekSheet(mini 스냅 지원)로 하나로 모았다. RN Web 끌기 구현이 한 곳에만 있게 하려는 것이다. 지도 탭(B7)과 채팅 지도(M)가 같은 코드를 쓴다.",
+   "채택하지 않은 설계 · '채팅 | 지도' Seg를 따로 한 줄 두기: 목업대로 Header 오른쪽(compact Seg)에 둔다. 360px에서 제목 폭은 약 110px이고 한 줄로 줄여 보인다. 900px 이상에서는 Seg를 숨기고 두 열로 둔다.",
+   "채택하지 않은 설계 · 오른쪽 위 힌트 알약과 핀 색 'rose': 힌트는 레일 제목 알약의 둘째 줄로 옮겨 360px에서 겹치지 않게 했다. 'rose' 색은 없으므로 보통은 ink, 흐림은 slate에 dim으로 한다.",
+   "채택하지 않은 UX 계획 · Sheet 내용 ScrollView를 기본으로 켜기: 아무도 소유하지 않은 FlatList 시트(PlacePickSheet, BaseSearchSheet, ClusterListSheet)가 깨질 수 있다. scroll prop을 선택 기능(기본 false)으로 하고, 입력이 있는 시트(계정찾기, DaySheet)만 켠다.",
+   "채택하지 않은 UX 계획 · summaryLine을 B5의 rows.ts에 두기: M의 CandidateBar가 같은 wave에서 그 함수에 기대게 된다. 그래서 B0의 features/candidates/summary.ts로 옮겼다.",
+   "사용자 결정 필요 · '투표' 용어: 사용자가 '총 투표'라고 직접 말했으므로 '투표'를 쓰고, 용어 테스트 예외는 src/features/chat/map/**에만 둔다(core 문자열은 쓰지 않음). 용어집을 그대로 지켜야 하면 토글 '가고 싶어요', 탭 '전체 순위'로 바꾸고 예외를 지운다.",
+   "사용자 결정 필요 · 말한 사람에게 처음부터 한 표를 주기: 목업을 따라 채택했다(명시적 off로 끌 수 있음). 명시적 표만 세려면 hasVote에서 제안자로 돌아가는 부분만 빼면 된다.",
+   "LWW는 op.at(stampAt, 기기 시각) 기준이다. 기기 시각이 크게 틀리면 실제로는 더 오래된 탭이 이길 수 있다. 멤버마다 자기 키에만 영향이 있어 다른 사람의 표는 망가지지 않는다.",
+   "핀 크기와 흐림은 B0 mapPinSvg와 M의 components/map 어댑터 네 경로(카카오 웹, 카카오 앱, Google, SVG)에 걸친다. 어떤 어댑터가 받지 못하면 그 어댑터만 기본 크기와 '{n}표' 라벨로 대체하고 결과에 적는다. 지도 오버레이 pointerEvents는 StyleSheet 규칙(wp5-google-map)을 지킨다.",
+   "PeekSheet 끌기는 RN Web의 PanResponder 이동 이벤트(마우스 버튼을 누른 채 이동)에 기댄다. 360px 웹에서 확인한다. 끌기가 안 되면 손잡이 탭, 펼치기·접기 버튼, 스크린리더 동작이 대체 경로다.",
+   "주소로 지역을 나누는 규칙은 휴리스틱이다. 주소가 없거나 지역 밖이거나 도로명만 있는 장소는 '기타'나 '{도로} 일대'로 갈 수 있다. 칩 개수는 8개로 제한하고 '기타'는 맨 뒤에 둔다.",
+   "같은 wave 안의 import 의존: B4는 schedule/view의 daySegLabel을, B0 TripBar는 home.ts의 tripBadge와 homeSegments를, M은 candidates의 PlacePickSheet와 candidateView를 쓴다. 이 export의 이름과 모양을 바꾸면 안 된다. wp3-candidates는 chat/view와 ops/spots를 import하므로 M이 바꾼 뒤에도 통과해야 한다.",
+   "고정 테스트 함정: wp2-trip-edit의 host 블록(B2), wp6-community의 Diary 정규식·ConfirmSheet slice·채팅 메뉴(B0가 미리 넓힘), wp1-oauth의 로그인 순서(B3), wp5-my-location의 locate 단독 줄(B7), wp5-directions(B7), wp5-navigate-progress와 wp5-delay(B7, B8), wp5-background(B8), foundation-ops의 개수 35(M).",
+   "하단 탭을 6칸에서 5칸으로 줄이면 사용자 습관이 바뀐다. Candidates 라우트, linking 'candidates', 기존 navigate('Candidates') 호출이 계속 동작해야 하고, AppTabBar는 Candidates일 때 '일정'을 켠다.",
+   "OfflineBar를 넣으면서 화면별 오프라인 Notice를 지울 때, 할 일이 바뀌는 안내('전송 대기', 검색 불가, 오프라인 투표 안내)는 남긴다.",
+   "LiveTrip을 기기 위치로 시작할 때는 setUseDeviceLocation(true)를 start보다 먼저 불러야 한다. 순서가 바뀌면 invalidReason이 진행을 바로 끝낸다.",
+   "useCurrentTrip을 pickCurrentTrip으로 바꾸면 B1, B5, B6, B7이 useActiveTrip으로 옮기는 동안 두 경로가 함께 존재한다. 둘 다 같은 순수 함수를 쓰고, useActiveTrip의 effect가 currentTripId를 맞추므로 같은 방으로 모인다."
+  ]
+ },
+ "design": {
+  "data_model": "CHANGES TO src/types.ts (M's file)\n- New: export interface SpotVote { on: boolean; at: number }. on:false is kept as a tombstone so a late, older op cannot bring a vote back.\n- Spot gets an optional field votes?: Record<string /*memberId*/, SpotVote>. Because it is optional, older docs and older op logs still load and fold.\n- OpBody gets | { type: 'spot/vote'; spotId: string; on: boolean }, placed in the \"ops/spots.ts (WP3)\" block. The spot/ prefix is deliberate. tests/foundation-ops.test.ts maps each prefix to a reducer file, and with this prefix it only needs its count changed (34 to 35). The prefix also reuses the spots member check and spot-exists check.\n\nWHERE THE DATA COMES FROM (votes are the only new stored data)\n- Members: activeMembers(trip), in member order. Me is myMemberId(trip). In the UI my label is '나'.\n- Spots: trip.spots where !removedByUser. Removed spots are left out of areas, the map, mentions and the ranking.\n- Mentions: the Spot.proposals entries where p.memberId === X. When source is 'chat', the quote is trip.messages.find(m => m.id === p.messageId)?.text. When source is 'manual' there is no quote, and the meta line reads '직접 추가했어요'.\n- Effective vote (pure): hasVote(spot, memberId) = spot.votes?.[memberId] ? spot.votes[memberId].on : proposerIds(spot).includes(memberId). This follows the mockup: whoever mentions a place starts with one vote. An explicit on:false overrides that starting vote. Old docs therefore show proposer votes without any migration.\n- Counts and voters include ACTIVE members only. Votes from members who left stay in the doc but are not counted. N = activeMembers.length.\n\nNEW PURE MODULE src/core/chatmap/** (no Date.now, no React)\n- areas.ts\n  - areaOf(address, region{name,label}): string\n  - groupAreas(spots, region, active): ChatArea[], where ChatArea = {key, name, spotIds, pickerIds}. pickerIds are active members who proposed at least one spot in the area, in member order.\n- votes.ts\n  - hasVote, voterIds(spot, active)\n  - rankSpots(spots, areaBySpot, active, me): RankRow[] = {spotId, name, areaName, count, voterIds, rank, mine}\n  - mentionsOf(trip, memberId, areaBySpot, selAreaKey?): MentionRow[] = {spotId, name, areaName, source, quote?, firstAt, count, mine}\n  - railOrder(active, pickerIds | null): Member[]\n- sheet.ts\n  - SheetSnap = 'mini' | 'peek' | 'full'\n  - sheetHeights(areaH) = {mini: 64, peek: clamp(round(areaH*0.42), 180, 320) and at most areaH-64, full: max(peek, areaH-16)}\n  - snapAfterDrag(h, vyPxPerMs, heights). If |vy| > 0.5 it moves to the next snap in the fling direction. Otherwise it goes to the nearest snap. It clamps to [mini, full].\n  - nextOnTap: mini to peek, peek to full, full to peek.\n  - stepA11y('increment' | 'decrement'): mini, peek, full and back down.\n- mapView.ts\n  - chatMapInput(spots, areaBySpot, counts, sel{area?, member?, focusSpotId?}): {markers: MapMarkerInput[], fitTo: LatLng[]}\n  - Each marker is kind 'spot' with id spotId, title '{name} · {n}표', label String(n) when n > 0, and color 'slate' when dimmed (default rose otherwise).\n  - fitTo is, in priority order: the focused spot, then the selected member's spots (inside the selected area if one is chosen), then the area's spots, then all spots.\n\nRANKING ORDER\n- Sort by count descending, then earliest createdAt, then name (localeCompare 'ko').\n- rank = 1 + the number of spots with strictly more votes, so tied spots share a rank.\n- The bar fraction is count / max(1, maxCount).\n\nMENTION ORDER\n- One row per spot, so the same person mentioning a place twice still gives one row.\n- The quote is the earliest chat proposal by that member.\n- When an area is selected, that area's rows come first. Within each group, rows are in firstAt ascending order.",
+  "op_and_sync": "OP: { type: 'spot/vote', spotId, on: boolean }, filled in by the store as {id, tripId, actorId, at = stampAt(...)}. A vote is one per member per spot, and toggling sets it on or off.\n\nAPPLY (src/core/ops/spots.ts and lww.ts, M's files)\n- reduce case 'spot/vote': patchById(doc, op.spotId, s => patchVote(s, op.actorId, op.on, op.at)).\n- New patchVote in lww.ts, which keeps the rule that LWW lives only in lww.ts:\n  prev = s.votes?.[actor]\n  if (!lww(prev?.at, at)) return s\n  return {...s, votes: {...(s.votes ?? {}), [actor]: {on, at}}}\n- LWW is per member, decided by op.at (the save time). On an equal at, the op folded later wins, which matches lww(). Different members never conflict because each member has their own key.\n- Idempotent: applying the same op again gives the same state, and foldOps already dedupes by op.id. Folding confirmed ops in seq order plus pending ops in at order gives the same votes in any arrival order, because the at check decides.\n- Interaction with other spot ops:\n  - upsertSpot on a place that already exists keeps votes (it spreads the existing spot).\n  - When upsertSpot CREATES a spot, it drops any votes in the payload: { ...spot, votes: undefined }. This hardens spot/add and spot/extracted.\n  - spot/delete, and undoExtraction when it removes a spot, drop that spot's votes along with it.\n  - spot/restore and spot/pin leave votes alone.\n\nVALIDATE (spots.validate)\n- The existing spot/* membership check gives NOT_MEMBER for a non-active actor.\n- The spot must exist (NO_SPOT).\n- typeof on must be boolean ('잘못된 요청이에요').\n- removedByUser gives '제외된 후보예요'. Core strings must avoid the word 투표 because of the term test.\n- spot/vote is NOT in LOCK_EXEMPT. After the trip's end date, validateOp returns LOCKED_REASON, and the UI disables the toggles first.\n\nROUTING AND STORE\n- OP_OWNER['spot/vote'] = 'spots' in core/ops/index.ts.\n- Dispatch reuses useTrips.getState().dispatch(tripId, {type:'spot/vote', spotId, on: !hasVote(spot, me)}, {actorId: me}) from new src/features/chat/map/actions.ts toggleVote(). No store change is needed.\n- src/core/trip/outbox.ts needsRecompute must return false for 'spot/vote', because votes do not change the plan. Otherwise every tap would trigger a debounced plan recompute and offline taps would mark the trip dirty.\n\nOFFLINE\n- Dispatch enqueues the op as pending and folds it right away, so counts and the toggle update at once. The op flushes on reconnect.\n- The sheet shows a Notice while offline. No per-vote pending chip.\n\nSERVER (server/**, M's)\n- No acceptance change is needed. POST /trips/:id/ops stores any op whose id is storable and whose tripId matches. Memory stores the op as is; PostgreSQL stores it in trip_ops.body as jsonb.\n- projection.mjs applyToView skips unknown types (default: break), so the PG tables are untouched and no migration is needed.\n- Access control is the same as for every op today. Membership is enforced by the app's validateOp at dispatch (active member), and the server has no per-op ACL. Adding one would be a cross-cutting change, listed under open questions.\n- redact.mjs is unaffected, because votes hold memberIds only and no PII.\n- Optional later: project votes to trip_spots.votes jsonb through a new migration, if a server-side ranking is ever needed.",
+  "area_rule": "Areas are sub-areas inside the trip region, from areaOf(address, region) where region = regionById(trip.region) {name, label}. The function is pure.\n\nSTEPS\n1. Normalize. Return '기타' if there is no address. Remove '(...)' groups and collapse spaces. Split into tokens.\n2. Strip the region prefix. Find the region label's LAST token (e.g. '경주시', '제주특별자치도', '서울특별시') among the first 2 tokens. If it is not there, accept a token that starts with region.name and ends in 도|시|군 (handles '경북 경주시' and '제주 제주시'). The rest is the tokens after the match. If nothing matches, the place is outside the region and the area is '기타'.\n3. Decide from r0 = rest[0] and r1 = rest[1]:\n   a. r0 ends in 시|군|구: the area is r1 if r1 ends in 읍|면, otherwise r0.\n   b. r0 ends in 읍|면|동|리|가: the area is r0, with digits before 동 removed ('일도1동' becomes '일도동').\n   c. r0 is a road (/(로|길)$/ or /\\d+번?길$/): the area is the base road name with any '\\d+번?길' suffix removed, and is marked LOOSE.\n   d. Anything else: '기타'.\n\nGROUPING: groupAreas\n- Use only spots that are not removed.\n- Admin results (a, b) are anchors. Every LOOSE (road) spot joins the anchor area whose spot centroid is nearest, if it is within 2 km (haversineKm). Otherwise it forms a road area named '{road} 일대'.\n- Sort by pickerIds.length descending, then spot count descending, then name 'ko'. '기타' always goes last.\n- MAX_AREAS = 8. Areas past that fold into '기타'.\n- Chip text is '{name} {pickers}명'.\n\nEXAMPLES\nRegion 경주 {name:'경주', label:'경상북도 경주시'}:\n- '경상북도 경주시 황남동' gives 황남동.\n- '경상북도 경주시 황남동 포석로 일대' gives 황남동.\n- '경상북도 경주시 교동 (예시)' gives 교동.\n- '경상북도 경주시 건천읍 신경주역로 80' gives 건천읍.\n- '경상북도 경주시 문무대왕면 용당리' gives 문무대왕면.\n- '경상북도 경주시 교촌길 39-2' is loose and joins 교동 (within 2 km).\n- '경상북도 경주시 보문로 544' and '보문로 338' are loose with no anchor within 2 km, so they form '보문로 일대'.\n- '경상북도 경주시 불국로 385' gives '불국로 일대'.\n- '경북 경주시 첨성로99번길 3' is a loose road that falls back to 첨성로 and joins the nearest anchor.\n- '경상북도 포항시 남구 ...' gives 기타 (outside).\n- An undefined address gives 기타.\n\nRegion 제주 {label:'제주특별자치도'}:\n- '제주특별자치도 제주시 애월읍 곽지리 ...' gives 애월읍.\n- '제주특별자치도 제주시 한림읍 협재리' gives 한림읍.\n- '제주특별자치도 서귀포시 성산읍 일출로 284' gives 성산읍.\n- '제주특별자치도 제주시 관덕로 14' gives 제주시.\n- '제주특별자치도 서귀포시 중문관광로 72' gives 서귀포시.\nThese reproduce the mockup's areas.\n\nRegion 서울 {label:'서울특별시'}:\n- '서울특별시 종로구 사직로 161' gives 종로구.\n\nRegion 수원 {label:'경기도 수원시'}:\n- '경기도 수원시 팔달구 정조로 825' gives 팔달구.",
+  "ui_layout": "The feature appears only when tripMode(trip) === 'group'. Personal mode looks exactly as it does today.\n\nNARROW (window width < 900, designed at 360)\nTop to bottom:\n1. The existing one-line ChatHeader, unchanged (back / title + sub / menu).\n2. Seg items [{key:'chat', label:'채팅'}, {key:'map', label:'지도'}], with paddingHorizontal SP.gutter.\n3. AreaChips: a horizontal ScrollView, showsHorizontalScrollIndicator false, gap SP.m, padding SP.gutter / SP.m. One Tag per area, label '{area} {n}명', on = selected. Hidden when there are 0 areas. Shown in BOTH views, like the mockup: tapping a chip in chat view switches to the map.\n4. Body:\n   - In chat view, the existing ScrollView and composer, unchanged.\n   - In map view, ChatMapView fills flex:1 and the composer is hidden.\n\nChatMapView (map pane)\n- The outer View measures its height with onLayout and only stores h > 0, like MapScreen, so a hidden pane does not reload the map.\n- MapCanvas is used with flat, height=mapH, markers and fitTo from chatMapInput, polylines=[], onMarkerPress, and overlayBottom = the current snap height. It shows Kakao when there is a key and the SVG fallback otherwise, through the existing adapters with no change. It is mounted lazily on the first switch to the map and then kept mounted (hidden) so the camera and SDK survive.\n- Children overlays:\n  a. MemberRail at absolute left SP.m, top SP.m.\n     - A title pill (Txt v='mtTight' on a card background with a line border): '채팅방 {N}명' or '{area} 고른 사람 {k}/{N}'.\n     - A vertical ScrollView with maxHeight = mapH - sheetH - SP.xl*2.\n     - Each row is Avatar size 'lg' (new H.avatarLg = 44) plus a name tag pill (Txt numberOfLines 1, maxWidth min(200, mapW - 120)).\n     - With no area selected, every tag reads '{name} · {k}곳' in muted tone.\n     - With an area selected, pickers move to the top with tag '{name} · {places in area, joined}'. The others are dimmed (OPACITY.dim, a new token of 0.4) and have no tag.\n     - My name is shown as '나'.\n     - The selected member has a 2px ink ring.\n     - Avatars are profiles only and are never placed on the map, because there is no location sharing.\n  b. A hint pill at top-right, maxWidth 50%, shown only when no area and no member are selected: '지역을 고르면 고른 사람이 위로 와요'.\n  c. An empty state, shown when there are no spots: Empty '아직 채팅에서 나온 장소가 없어요' / '장소 이름을 말하면 여기 모여요'.\n- DragSheet (non-modal, inside the map pane) at absolute left 0, right 0, bottom 0. It uses an Animated height, a card surface, a top line border and R.sheet top radii. E.float is allowed by adding the folder to FLOAT_ALLOWED.\n  - Grip zone: about 24px high with a centered grabber (H.grabberW / H.grabberH).\n  - MINI (64): one row.\n    - With no member: Icon 'list' + '전체 투표' + muted '1위 {name} {n}표', or '아직 투표가 없어요'.\n    - With a member: Avatar + '{name}님이 말한 장소 {k}곳', or '내가 말한 장소 {k}곳'.\n  - PEEK / FULL:\n    - Header row: Avatar or Icon, title, sub; IconBtn 'drag' labelled '목록 펼치기' or '목록 접기'; IconBtn 'x' labelled '닫기'.\n    - Seg tabs [말한 장소 | 전체 투표]. 말한 장소 appears only when a member is selected.\n    - A Notice when offline or locked.\n    - A ScrollView body.\n  - MentionRow: Col of Txt nm name, Txt mt '{area} · {n}표', and Txt quote “{text}” (numberOfLines 2) or '직접 추가했어요', with a VoteToggle on the right.\n  - RankRow: grid of rank Txt (top 3 in accentStrong), then a Col with name + AvatarStack of voters (max 4, then '+{n}'), ProgressBar count/max, and Txt mtTight '{area} · {n}/{N}표', then a VoteToggle.\n  - Footer note in the rank tab: '장소마다 한 사람이 한 표씩 줄 수 있어요. 말한 사람은 처음부터 한 표가 들어가 있어요.'\n- VoteToggle: Pressable with role checkbox and minHeight H.btnSm plus hitSlop so the target reaches 44.\n  - Off: a card surface with a line border, Txt '투표'.\n  - On: a soft surface with an ink 2px border, Icon 'check' and Txt '투표함'.\n  - Disabled: the 'off' look.\n  - No '✓' or 'Σ' glyphs anywhere; icons come only from Icon.\n\nSPACING AT 360\n- The rail is 44 + 8 wide, and the tags overlay the map with up to 200px.\n- Seg is about 44, chips about 52 and the header about 56. Map height is about 812 - 56 - 44 - 52 = 660 on a phone, so peek is about 277.\n\nWIDE (useWindowDimensions().width >= 900, web)\n- Seg is hidden.\n- A Row: on the left, a chat column (width 400, right line border) with the messages and composer exactly as today; on the right, a map column (flex 1) with the AreaChips row on top and ChatMapView below.\n- In the map column, the DragSheet is anchored right with width min(440, paneW), so the left rail is never covered. The same drag, tap and snap logic applies.\n- This matches the user's wording '옆에 지도'.",
+  "interactions": "VIEW SWITCH\n- Seg 채팅|지도 sets view. Switching to chat keeps selArea but clears selMember and sets the sheet to mini.\n- On narrow screens the scroll position of the chat is preserved, because ScrollView stays mounted.\n\nAREA CHIP\n- Tapping an unselected chip: selArea = key, selMember = null, sheet = mini, view = map. The map fits to the area's spots, out-of-area pins turn slate, and the rail moves pickers up and dims the rest.\n- Tapping the selected chip again deselects: everything goes back to normal and the map fits all spots.\n- Tapping a map pin selects that spot's area, which is the same as tapping its chip (the mockup's region tap). The chips remain the accessible path for this.\n\nPROFILE (rail avatar)\n- Tap: selMember = id, tab = '말한 장소', sheet = peek. The map dims pins the member did not propose and fits to their spots.\n- Tapping the same profile again deselects: selMember = null and sheet = mini.\n- Dimmed (non-picker) profiles can still be tapped.\n\nSHEET DRAG (DragSheet, RN core PanResponder + Animated; works with mouse and touch on RN Web)\n- The panHandlers sit on the grip and header zone only, so the list's own scroll does not compete.\n- onStartShouldSetPanResponder is true. onPanResponderMove sets height to clamp(startH - dy, mini, full).\n- On release:\n  - If |dy| < 4, it is a tap: nextOnTap (mini to peek, peek to full, full to peek).\n  - Otherwise snapAfterDrag(h, vy) picks the snap: a fling over 0.5 px/ms goes to the next snap in that direction, otherwise the nearest snap.\n  - Then the height animates (Animated.spring, useNativeDriver false) and overlayBottom updates on settle.\n- Web-only style on the grip: cursor 'grab' and touchAction 'none', so a touch drag does not scroll the page.\n- Dragging down from peek or full to mini also clears selMember (the same as 닫기).\n\nNON-DRAG ACCESSIBLE PATHS\n1. The MINI row is a Pressable with role button and label '투표 목록 열기', which opens peek.\n2. Header IconBtn 'drag' toggles peek and full, labelled '목록 펼치기' or '목록 접기'.\n3. IconBtn 'x' labelled '닫기' sets mini and clears selMember.\n4. The grip View is accessible, with role adjustable, accessibilityActions [increment '펼치기', decrement '접기'], and onAccessibilityAction calling stepA11y.\nAll of these are focusable and keyboard-operable on web through Pressable/IconBtn.\n\nLIST TO MAP\n- Tapping a MentionRow or RankRow body (not its toggle) sets focusSpotId. The map fits to that one spot and the sheet goes to peek, so the pin is visible.\n- Changing area or member clears focusSpotId.\n\nVOTE TOGGLE\n- Calls toggleVote(tripId, spotId), which dispatches {type:'spot/vote', on: !hasVote(spot, me)}.\n- The count, rank, pin label and voter avatars update immediately from the folded doc, including while offline.\n- accessibilityLabel '{장소} 투표', accessibilityState {checked, disabled}.\n- Disabled when there is no me or when isEditLocked(trip, clock.now()). A locked trip shows the Notice '여행이 끝나 투표할 수 없어요'. Dispatch rejections reuse the store toast.\n\n전체 투표 TAB\n- Shows rankSpots for all non-removed spots. It is not filtered by area: the ranking is trip-wide, and the area is shown in the meta line.\n- Selecting this tab while at peek expands to full, like the mockup.\n- With no member selected, the sheet opens straight on this tab.\n\nBACK AND HARDWARE\n- Android back while the sheet is above mini sets it to mini first, through a BackHandler in ChatMapView. Otherwise back works as normal.",
+  "files": [
+   {
+    "path": "test/src/types.ts",
+    "isNew": false,
+    "purpose": "(M) Add SpotVote, Spot.votes?, and the OpBody 'spot/vote' {spotId,on}."
+   },
+   {
+    "path": "test/src/core/ops/lww.ts",
+    "isNew": false,
+    "purpose": "(M) Add patchVote(spot, memberId, on, at), a per-member LWW built on lww()."
+   },
+   {
+    "path": "test/src/core/ops/spots.ts",
+    "isNew": false,
+    "purpose": "(M) Add reduce and validate cases for spot/vote. upsertSpot drops payload votes when it creates a spot."
+   },
+   {
+    "path": "test/src/core/ops/index.ts",
+    "isNew": false,
+    "purpose": "(M) Add OP_OWNER 'spot/vote': 'spots'. It is not in LOCK_EXEMPT."
+   },
+   {
+    "path": "test/src/core/trip/outbox.ts",
+    "isNew": false,
+    "purpose": "needsRecompute returns false for 'spot/vote' (WP2-owned; one line)."
+   },
+   {
+    "path": "test/src/core/chatmap/areas.ts",
+    "isNew": true,
+    "purpose": "Pure areaOf and groupAreas (anchor merge within 2 km, '기타' last, MAX_AREAS 8)."
+   },
+   {
+    "path": "test/src/core/chatmap/votes.ts",
+    "isNew": true,
+    "purpose": "Pure hasVote, voterIds, rankSpots, mentionsOf and railOrder."
+   },
+   {
+    "path": "test/src/core/chatmap/sheet.ts",
+    "isNew": true,
+    "purpose": "Pure sheetHeights, snapAfterDrag, nextOnTap and stepA11y."
+   },
+   {
+    "path": "test/src/core/chatmap/mapView.ts",
+    "isNew": true,
+    "purpose": "Pure chatMapInput, which builds markers (label = votes, slate when dimmed) and fitTo."
+   },
+   {
+    "path": "test/src/features/chat/map/ChatMapView.tsx",
+    "isNew": true,
+    "purpose": "The map pane: measures height, MapCanvas, MemberRail, hint and empty state, DragSheet. Holds selMember, tab, snap and focus state."
+   },
+   {
+    "path": "test/src/features/chat/map/AreaChips.tsx",
+    "isNew": true,
+    "purpose": "Horizontal Tag row of areas with picker counts."
+   },
+   {
+    "path": "test/src/features/chat/map/MemberRail.tsx",
+    "isNew": true,
+    "purpose": "Left column of all active members: picker ordering, dimming, name tags, '나', a11y labels."
+   },
+   {
+    "path": "test/src/features/chat/map/DragSheet.tsx",
+    "isNew": true,
+    "purpose": "Non-modal mini/peek/full sheet with PanResponder and Animated, tap and a11y actions, web cursor and touchAction."
+   },
+   {
+    "path": "test/src/features/chat/map/MentionList.tsx",
+    "isNew": true,
+    "purpose": "말한 장소 rows: quote, meta, VoteToggle, row press to focus."
+   },
+   {
+    "path": "test/src/features/chat/map/RankList.tsx",
+    "isNew": true,
+    "purpose": "전체 투표 rows: rank, ProgressBar, AvatarStack voters, VoteToggle, footer note."
+   },
+   {
+    "path": "test/src/features/chat/map/VoteToggle.tsx",
+    "isNew": true,
+    "purpose": "Accessible checkbox toggle with a 44 target and an Icon check (no glyphs)."
+   },
+   {
+    "path": "test/src/features/chat/map/actions.ts",
+    "isNew": true,
+    "purpose": "toggleVote(tripId, spotId), which dispatches spot/vote as me."
+   },
+   {
+    "path": "test/src/screens/ChatScreen.tsx",
+    "isNew": false,
+    "purpose": "(M) Group-only Seg 채팅|지도, AreaChips row, lazy ChatMapView mount, wide (>=900) two-column layout. Keep ChatHeader and the TripSettings menu text that wp6 pins."
+   },
+   {
+    "path": "test/src/ui/Avatar.tsx",
+    "isNew": false,
+    "purpose": "Optional size?: 'md' | 'lg' (lg uses H.avatarLg). The default is unchanged."
+   },
+   {
+    "path": "test/src/ui/tokens.ts",
+    "isNew": false,
+    "purpose": "Add H.avatarLg = 44 and OPACITY = { dim: 0.4 }."
+   },
+   {
+    "path": "test/tests/setup/ownership.json",
+    "isNew": false,
+    "purpose": "Add 'src/core/chatmap/**' to WP3. features/chat/** and tests/wp3-* are already WP3."
+   },
+   {
+    "path": "test/tests/foundation-design-rules.test.ts",
+    "isNew": false,
+    "purpose": "Add 'src/features/chat/map/**' to FLOAT_ALLOWED. Exempt the same folder only from the '투표' term ban (user request, 명세 밖)."
+   },
+   {
+    "path": "test/tests/foundation-ops.test.ts",
+    "isNew": false,
+    "purpose": "Change the OP_OWNER count from 34 to 35."
+   },
+   {
+    "path": "test/tests/wp3-chatmap.test.ts",
+    "isNew": true,
+    "purpose": "Feature tests: areas, vote op, ranking, mentions, sheet snaps, map input, server round-trip, source rules."
+   },
+   {
+    "path": "test/README.md",
+    "isNew": false,
+    "purpose": "Add a '채팅방 지도 · 투표' section: how to use it, the vote rules, the area rule, Kakao or SVG fallback."
+   },
+   {
+    "path": "docs/FR-추적표.md",
+    "isNew": false,
+    "purpose": "Add an FR-405 row '채팅방 지도 · 투표(명세 밖 추가)' with files, tests, status and the term exception note."
+   }
+  ],
+  "tests": [
+   "tests/wp3-chatmap.test.ts › areaOf: the 경주 examples (황남동, 교동 (예시), 건천읍, 문무대왕면, 보문로 → loose), the 제주 examples (애월읍, 한림읍, 성산읍, 제주시 관덕로 → 제주시, 서귀포시), 서울 종로구, 수원 팔달구, the short province '경북 경주시', a number-길 road falling back to 첨성로, outside the region → 기타, undefined → 기타",
+   "› groupAreas: a road spot joins the nearest anchor within 2 km; otherwise it forms '{road} 일대'; sort is pickers then spots then name; '기타' is last; more than 8 areas fold into 기타; removed spots are excluded; pickerIds are active members only",
+   "› spot/vote apply: on, then off, then on; an older at arriving later is ignored (tombstone wins); on equal at, the later fold wins; two members do not interact; re-applying the same op changes nothing; foldOps over confirmed+pending in any order gives the same votes",
+   "› old doc without Spot.votes folds and hasVote falls back to the proposer; an explicit off overrides the proposer's starting vote; votes from members who left are not counted",
+   "› validate: non-member gives NOT_MEMBER, unknown spot gives NO_SPOT, a removed spot is rejected, a non-boolean on is rejected, after endDate gives LOCKED_REASON; upsertSpot drops payload votes when creating and keeps existing votes when merging",
+   "› rankSpots: count desc, then createdAt, then name; ties share a rank (1,1,3); voterIds follow member order; mine flag; maxCount bar fraction",
+   "› mentionsOf: one row per spot; the quote comes from the member's earliest chat proposal message; manual has no quote; the selected area comes first and order is stable",
+   "› railOrder: with no area, member order; with an area, pickers first and others after in member order",
+   "› chatMapInput: label is the vote count (none at 0); slate when outside the area or not the member's; fitTo priority focus > member > area > all",
+   "› sheet: sheetHeights clamps at 360x660 and 360x400; snapAfterDrag nearest vs fling; nextOnTap cycle; stepA11y bounds",
+   "› needsRecompute('spot/vote') === false and markDirty does not mark it offline",
+   "› server: createSyncStore push accepts spot/vote and pull returns it unchanged; projectOps with spot/vote leaves the view the same as without it",
+   "› source rules: ChatScreen shows Seg '채팅'/'지도' only under group; ChatMapView imports MapCanvas from components/map (no Kakao SDK); DragSheet uses PanResponder plus accessibilityActions plus a mini Pressable plus IconBtn '닫기'; VoteToggle has role checkbox, accessibilityState checked and an accessibilityLabel containing the spot name; MemberRail renders every activeMembers entry and uses '나'",
+   "tests/foundation-ops.test.ts: OP_OWNER count is 35 and 'spot/vote' maps to spots",
+   "tests/foundation-design-rules.test.ts: still passes; the '투표' exception is limited to src/features/chat/map/**"
+  ],
+  "acceptance": [
+   "1. In a group trip, ChatScreen shows a '채팅 | 지도' Seg under the header at 360px. In personal mode there is no Seg, no chips and no map, and the screen looks exactly as it does today.",
+   "2. Area chips list the sub-areas found from the spot addresses, labelled '{area} {n}명' with n = active members who proposed a spot there. '기타' is last. Chips are hidden when there are no spots.",
+   "3. Tapping a chip (from either view) switches to the map, highlights that chip, fits the map to the area's spots and turns other pins slate. Tapping it again clears the selection.",
+   "4. The map is Kakao when a key is configured, otherwise the existing SVG fallback, through MapCanvas only. Each pin shows its vote count. Tapping a pin selects its area.",
+   "5. The left column always lists ALL active members, with my entry shown as '나'. With an area selected, pickers move to the top with tags naming their places in that area, and the others are dimmed but still tappable. The title reads '{area} 고른 사람 k/N'.",
+   "6. Tapping a profile opens the sheet at peek, showing '{name}님이 말한 장소' or '내가 말한 장소', with a count. The map dims that member's non-proposed pins. Tapping the profile again closes the sheet to mini.",
+   "7. Dragging the grip with touch or mouse (RN Web) moves the sheet and snaps it to mini, peek or full by position or fling. A tap on the grip cycles the snaps. Dragging down to mini clears the selected member.",
+   "8. Without dragging, the same states can be reached through the mini row button, the '목록 펼치기/접기' button, the '닫기' button and screen-reader increment/decrement. All are keyboard-focusable on web.",
+   "9. 말한 장소 lists one row per spot that person proposed, with area, vote count and the chat quote (or '직접 추가했어요'), with the selected area first. Tapping a row focuses that pin.",
+   "10. The 투표 toggle sets or clears my vote at once (count, rank, pin label and voter avatars all update). It allows one vote per member per spot. A proposer starts with one vote and can turn it off.",
+   "11. 전체 투표 ranks all non-removed spots by votes, with tied spots sharing a rank, bars relative to the top count, voter avatars and '{n}/{N}표'.",
+   "12. Offline: toggling still works, shows the offline Notice and syncs on reconnect. A device with an older pending vote cannot override a newer one (LWW by op.at per member).",
+   "13. Trips created before this feature (no votes field) load and show the proposers' starting votes. Removed spots never appear in the map, mentions or ranking.",
+   "14. The server stores and returns spot/vote ops without code changes. The PostgreSQL projection ignores them. Non-members and votes after the end date are rejected at dispatch with the existing toasts.",
+   "15. Votes do not trigger plan recompute (needsRecompute false).",
+   "16. Wide web (>= 900px): chat and map are side by side with no Seg, the sheet is anchored right at 440 max, and the rail stays visible.",
+   "17. Design rules hold: tokens only, Txt only, no emoji, no '✓' or 'Σ', no text arrows, '~요' copy. '투표' appears only in src/features/chat/map/**. Every new file matches an ownership glob.",
+   "18. README has a section for the feature, and FR-추적표 has an FR-405 '채팅방 지도 · 투표(명세 밖 추가)' row listing files and tests.",
+   "19. HANDOFF decisions are respected: profiles are never placed on the map (no live location sharing), the base map is Kakao with an SVG fallback, and storage is PostgreSQL with no migration."
+  ],
+  "open_questions": [
+   "The term rule conflicts with the request. docs/plan.json and tests/foundation-design-rules.test.ts ban the word '투표' in all of src ('제안자' is the fixed term), but the user explicitly asked for 투표. This design adds a narrow exception for src/features/chat/map/** and a note in the FR row. If the glossary must stay frozen, the fallback wording is the toggle '가고 싶어요' and the tab '전체 순위'. Which should be used?",
+   "Should the person who mentioned a place start with one vote, as in the mockup? This design adopts it (hasVote falls back to the proposer, and an explicit off overrides it). Should it be dropped so only explicit votes count?",
+   "Pins sized by vote count need an optional size field on MapMarkerInput plus changes in mapPinSvg and all adapters (Kakao web and app, Google, SVG), which is WP5's code. Version 1 shows the count as the pin label and dims pins instead. Should the size be added in a follow-up?",
+   "Area outlines are not drawn as polygons, because the app has no boundary data for areas built from addresses. Highlighting is a camera fit plus dimming the other pins. Is that acceptable?",
+   "The server has no per-op access check for any op type today; membership is enforced by the app's validateOp. Is a server-side member check wanted for spot/vote (and for other ops in general)? It would be a cross-cutting change in server/**.",
+   "Votes stay in the op log only and are not projected into PostgreSQL tables. Is a trip_spots.votes column plus migration 007 needed now, or only if a server-side ranking is ever needed?",
+   "The ranking is trip-wide even when an area is selected; the area appears in each row's meta line. Should it filter to the selected area instead?",
+   "Should votes affect planner priority (proposerCount)? This design says no; votes are only shown, not used for planning.",
+   "The wide-web breakpoint (900, chat and map side by side) versus keeping the 채팅|지도 switch on all widths."
+  ]
+ },
+ "critique": {
+  "problems": [
+   {
+    "target": "UX B0 / tests/wp6-community.test.ts:354-357",
+    "problem": "Pinned test not listed. The test slices Sheet.tsx from 'export function ConfirmSheet' to the end of the file, then asserts exactly 2 '<Btn ' and a literal title=\"취소\". B0 plans to add cancelLabel (so title={cancelLabel}) and a new LeaveConfirmSheet in the same file, which brings the count to 4 or more Btns. Both assertions break.",
+    "fix": "Add this to B0 test_updates: either put LeaveConfirmSheet in its own file (src/ui/LeaveConfirmSheet.tsx) or above ConfirmSheet, and change the test to /title=\\{cancelLabel\\}/ with default '취소'. Or keep title=\"취소\" when cancelLabel is undefined."
+   },
+   {
+    "target": "UX B0 TripBar variant 'chip' (src/features/trip/components/TripBar.tsx)",
+    "problem": "A floating pill on the map needs E.float, but foundation-design-rules FLOAT_ALLOWED (lines 90-97) only lists src/ui and a few screens. A TripBar under features/trip that uses E.float fails the float-shadow rule.",
+    "fix": "Put the chip variant's floating style in src/ui (for example a MapPill primitive), or have B0 add src/features/trip/components/TripBar.tsx to FLOAT_ALLOWED and list foundation-design-rules.test.ts in B0's owns_files/test_updates."
+   },
+   {
+    "target": "UX B0 size",
+    "problem": "B0 holds about 33 files: the whole UI kit, navigation, a 5-tab change, the current-trip core, TripBar, PlanSwitch, FR doc, 4 tests. Every wave-2 batch and M-chatmap wait on it, so one failure blocks everything.",
+    "fix": "Split it. B0a: UI kit (layout, Sheet, Field, Seg, Switch, PeekSheet, Discover, Notice, Btn, Auth, Icon, Toast, tokens, index, plus foundation-ux-kit and contrast tests). B0b: navigation, current trip and tab change (routes, RootNavigator, TabBar, useBack, OfflineBar, ToastHost, App, current.ts, useActiveTrip, TripBar, PlanSwitch, wp6-community, wp2-current-trip, FR doc). Gate each on tsc."
+   },
+   {
+    "target": "UX B7 pinned tests",
+    "problem": "B7 edits MapScreen and NavigateScreen but does not list wp5-navigate-progress.test.ts (alongRef and progressOnPath regexes at lines 41-44) or wp5-delay.test.ts:138 (banned delay phrases scanned in MapScreen and NavigateScreen). The new '진행 중 · 다음 첨성대 · 예상 14:20' line in MapScreen goes into that scan.",
+    "fix": "Add both tests to B7's test_updates as must-still-pass, and check the new ETA copy against the wp5-delay banned list."
+   },
+   {
+    "target": "UX handoff of ChatScreen high audit items to M-chatmap",
+    "problem": "[high/S] 05 채팅 and [high/M] 05 채팅 입력줄 (ux-audit.md:102,108), plus the chat entry in [high/S] 여행방 설정 진입점, are pushed to M-chatmap under 'risks'. The M-chatmap design's file list and changes include none of them: no CandidateBar, no composer keyboard/send, no Header size='row', no menu ListRow, no messageMeta, no useCurrentTrip->pickCurrentTrip in store/trips.ts. Two high findings are dropped.",
+    "fix": "Add an explicit M-chatmap batch, or fold these items into the design's ChatScreen changes with owned files: src/features/chat/components/CandidateBar.tsx, src/features/chat/view.ts (messageA11yLabel, messageMeta), src/store/trips.ts, tests/wp3-chat-meta.test.ts. Also add the wp6-community.test.ts:368 regex update (title=\"여행방 설정\" ... navigate('TripSettings')) sequenced after B0."
+   },
+   {
+    "target": "Design vs UX: header and sheet primitives",
+    "problem": "UX expects ChatScreen to use Header size='row' with the 채팅|지도 switch in the right slot, and recommends reusing B0's PeekSheet. The design keeps the hand-made ChatHeader, puts the Seg as a separate row (one more row of vertical space at 360), and builds its own 3-snap DragSheet. That gives two drag implementations for RN Web.",
+    "fix": "Decide one way. Either extend B0 PeekSheet with an optional 'mini' snap and snaps prop and use it, or document why DragSheet stays feature-local. Put the Seg in Header right (or keep it as its own row) only after B0's Header row lands. List the dependency on B0."
+   },
+   {
+    "target": "Design file collisions with B0",
+    "problem": "The design edits src/ui/tokens.ts (H.avatarLg, OPACITY), tests/setup/ownership.json, src/ui/Avatar.tsx (AvatarStack has no max/'+n' today; Avatar has no size prop) and docs/FR-추적표.md. B0 owns tokens.ts, ui/index.ts, ownership.json and FR-추적표.",
+    "fix": "Have B0 add H.avatarLg, OPACITY.dim and the 'src/core/chatmap/**' glob up front, or sequence M-chatmap strictly after B0 for these files. Add AvatarStack max?: number explicitly to the design."
+   },
+   {
+    "target": "Design op merge: spot/vote targets spotId",
+    "problem": "Offline race. Device A (offline) extracts place X as new spot a1 and votes on a1. Device B already created X as b1 (lower seq). On fold, upsertSpot merges A's extraction into b1 by placeId, but A's spot/vote patchById('a1') finds nothing. The vote silently disappears after sync, although A saw it applied locally.",
+    "fix": "Carry placeId in the op ({spotId, placeId, on}) and resolve the target by id, falling back to placeId in the reducer. Add a wp3-chatmap test: two-device extraction of the same place followed by a vote on the losing id."
+   },
+   {
+    "target": "Design pin label vs pinName (src/core/map/engine.ts:124-129)",
+    "problem": "pinName treats a numeric label as an ordinal ('3번 {title}'). With label=String(votes), screen readers read '3번 불국사 · 3표', which is wrong. Also the color union is 'ink'|'slate'|'ok'|'warn' (core/map/layout.ts:19). There is no 'rose', and slate is a normal day color (DAY_COLORS), so dimmed pins are not visibly distinct.",
+    "fix": "Use a non-numeric label such as '3표' (check pin width) or omit label and keep the count in the title. Default pins use 'ink' and dimmed ones use 'slate'. Add a pinName test. Treat real dimming (opacity) as a WP5 follow-up."
+   },
+   {
+    "target": "Design DragSheet PanResponder",
+    "problem": "onStartShouldSetPanResponder=true on a header zone that also holds the IconBtns 'drag' and 'x' and the mini-row Pressable. The responder grabs the touch or mouse down, so on RN Web those buttons may never get onPress. The tap fallback (|dy|<4 -> nextOnTap) would also fire together with the Pressable, which toggles twice.",
+    "fix": "Use onStartShouldSetPanResponder=false and onMoveShouldSetPanResponder when |dy|>4, and attach the handlers only to the grip strip (not the header buttons). Let taps go through Pressable only. Add a source-rule test."
+   },
+   {
+    "target": "Design 360px overlay layout",
+    "problem": "At 360 with nothing selected, rail tags ('{name} · {k}곳', maxWidth min(200, mapW-120) = 200) extend to about x=260, and the hint pill at top-right takes maxWidth 50% (from about x=172). They overlap on the same top rows exactly in the state where both are shown.",
+    "fix": "With no selection, show the hint as a single line below the area chips or at the sheet's mini row instead of on the map, or cap the tag maxWidth at mapW*0.45 and offset the hint vertically. Add a pure layout check in the sheet/mapView tests."
+   },
+   {
+    "target": "Design server access",
+    "problem": "POST /trips/:id/ops (sync-server.mjs:336-347) stores any op with a storable id and a matching tripId. It checks no session or membership, so anyone holding a trip id can inject spot/vote for any memberId. Clients then fold it, and validateOp at fold time rejects only non-active actors, not impersonation.",
+    "fix": "At minimum, state in README and the FR row that server-side ACL is out of scope. Better: have the push path check that op.actorId belongs to the authenticated session's member before accepting new op types. Add a server test for a forged actorId."
+   },
+   {
+    "target": "Design term exception scope",
+    "problem": "The term ban (foundation-design-rules.test.ts:225-226) is exempted for src/features/chat/map/** only. The design also needs '투표' in user-facing toasts or the locked Notice ('여행이 끝나 투표할 수 없어요'), which may be placed in ChatScreen or the store, and B5 notes a separate '투표' ban in its term test.",
+    "fix": "Keep all '투표' strings in features/chat/map (including the locked/offline Notice copy). Grep the other term tests (wp3 and wp3-spot-detail glossary) and either exempt the same folder there or confirm they scan different files. Get the user's answer on wording first (open question 1)."
+   }
+  ],
+  "missing": [
+   "Mockup: pin size by vote count (deferred; the label substitutes but conflicts with pinName ordinals)",
+   "Mockup: an area highlight drawn on the map (only a camera fit plus dimming; no outline or halo)",
+   "High audit items handed to M-chatmap but absent from the design: 05 채팅 CandidateBar, 05 채팅 입력줄 (Screen keyboard, returnKeyType send, safe-area, scrollToEnd rule), the chat menu ListRow to TripSettings, Header size='row', messageMeta and bubble a11y, ChatScreen offline Notice removal, store/trips.ts useCurrentTrip via pickCurrentTrip",
+   "Test: spot/vote after the same place was merged from another device (placeId alias)",
+   "Test: pinName and a11y for vote-count pins",
+   "Test: DragSheet header buttons still clickable (no responder capture) and no double toggle on tap",
+   "Test: forged actorId on server push (or a documented non-goal)",
+   "UX B0 test_updates: wp6-community ConfirmSheet slice (2 Btn, title=\"취소\")",
+   "UX B7 test list: wp5-navigate-progress and wp5-delay must still pass",
+   "FLOAT_ALLOWED update for the TripBar chip variant (B0) or a move of that style into src/ui",
+   "AvatarStack max/'+n' API and Avatar size prop are not in any batch's owns_files except the design; ui/index.ts export ownership"
+  ],
+  "verdict": "Both plans are workable but not ready to run. UX plan: split B0. Add the wp6-community ConfirmSheet test and the FLOAT_ALLOWED gap for TripBar to B0. List wp5-navigate-progress and wp5-delay for B7. The two high ChatScreen audit items it hands to M-chatmap are dropped, because the chat-map design does not pick them up. Chat-map design: the op and LWW core is sound (per-member at, tombstones, old docs fall back to proposers, needsRecompute exclusion), but fix these before implementation. Spot votes get lost when a cross-device placeId merge folds a vote onto a spot id that no longer exists. Numeric pin labels read as ordinals ('3번') through pinName, and 'rose' does not exist as a marker color. The PanResponder start capture would swallow the header buttons on RN Web. The hint pill and the rail tags overlap at 360px. tokens.ts, ownership.json and FR-추적표 collide with B0 and must be sequenced. Server push has no actor ACL. The user still needs to settle the '투표' wording exception."
+ }
+}

@@ -102,6 +102,8 @@ export function docOf(s: OutboxState): Trip | undefined {
 
 /** 이 op 뒤에는 계획을 다시 계산한다(계약 A6 재계산 대상). */
 export function needsRecompute(type: OpType): boolean {
+  // 채팅방 지도의 한 표(FR-405)는 계획을 바꾸지 않는다. 누를 때마다 재계산하지 않고, 오프라인에서도 dirty로 두지 않는다.
+  if (type === 'spot/vote') return false;
   return (
     type.startsWith('spot/') ||
     type.startsWith('schedule/') ||

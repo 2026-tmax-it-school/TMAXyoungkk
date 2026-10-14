@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { DAY_COLORS, mapC, NON_TEXT_PAIRS, surfaceC, TEXT_ON_SURFACE_PAIRS, textC } from '../src/ui/tokens';
+import { DAY_COLORS, H, lineC, mapC, NON_TEXT_PAIRS, nonTextColor, surfaceC, TEXT_ON_SURFACE_PAIRS, textC } from '../src/ui/tokens';
 
 /**
  * 대비(WCAG 2.x 상대 휘도). 본문 4.5:1, 24px 이상 3:1. 날짜별 선 색은 지도 바탕 위 3:1 이상.
@@ -64,13 +64,25 @@ test('날짜별 선 색은 잉크·청회색·초록·앰버 순이고 지도 �
 
 test('상태를 알리는 비텍스트 요소(진행 막대 채움·트랙)는 3:1 이상이다(WCAG 1.4.11)', () => {
   assert.ok(NON_TEXT_PAIRS.length >= 1);
-  const fails = NON_TEXT_PAIRS.map((p) => ({ ...p, ratio: contrast(surfaceC[p.fg], surfaceC[p.bg]) })).filter(
+  const fails = NON_TEXT_PAIRS.map((p) => ({ ...p, ratio: contrast(nonTextColor(p.fg), nonTextColor(p.bg)) })).filter(
     (p) => p.ratio < 3,
   );
   assert.deepEqual(
     fails.map((f) => `${f.name} = ${f.ratio.toFixed(2)}`),
     [],
   );
+});
+
+test('스위치(ui/Switch)의 켜진 트랙·꺼진 트랙·손잡이는 서로, 그리고 카드 위에서 3:1 이상이다', () => {
+  const names = NON_TEXT_PAIRS.map((p) => p.name);
+  for (const n of ['스위치: 켜진 트랙 / 카드', '스위치: 꺼진 트랙 / 카드', '스위치: 손잡이 / 켜진 트랙', '스위치: 손잡이 / 꺼진 트랙']) {
+    assert.ok(names.includes(n), n);
+  }
+  assert.ok(contrast(surfaceC.accent, surfaceC.card) >= 3);
+  assert.ok(contrast(lineC.strong, surfaceC.card) >= 3);
+  assert.equal(nonTextColor('line.strong'), lineC.strong);
+  assert.equal(H.switchW, 44);
+  assert.equal(H.switchH, 26);
 });
 
 test('앱 바탕과 카드는 흰색이고, 주색은 진한 연두 하나다(2026-10-10 리디자인)', () => {

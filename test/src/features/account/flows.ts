@@ -123,7 +123,7 @@ export async function socialFlow(
   const s = useSession.getState().session;
   const currentAccountId = s?.kind === 'account' ? s.accountId : undefined;
   if (intent === 'link' && !currentAccountId) {
-    return { kind: 'fail', result: { ok: false, code: 'notFound', detail: '계정으로 로그인한 뒤에 연결할 수 있습니다' } };
+    return { kind: 'fail', result: { ok: false, code: 'notFound', detail: '계정으로 로그인한 뒤에 연결할 수 있어요' } };
   }
   const input: SocialInput = {
     provider,
@@ -138,7 +138,7 @@ export async function socialFlow(
   return { ...j, account: result.ok ? result.account : undefined };
 }
 
-const NO_OAUTH = '실제 소셜 로그인은 계정 서버가 있어야 합니다';
+const NO_OAUTH = '실제 소셜 로그인은 계정 서버가 있어야 해요';
 
 /** 실제 소셜 로그인 시작용 일회용 state(계정 서버). 서버에 키가 없으면 unconfigured */
 export async function oauthStateFlow(provider: OAuthProviderKind, redirectUri: string): Promise<OAuthStateResult> {
@@ -176,13 +176,13 @@ export async function saveProfileFlow(patch: Partial<Profile>): Promise<{ ok: tr
   const nickname = patch.nickname?.trim();
   if (nickname != null && nickname !== s.profile.nickname) {
     if (await auth.isNicknameTaken(nickname, s.session?.accountId)) {
-      return { ok: false, reason: '이미 쓰는 닉네임입니다' };
+      return { ok: false, reason: '이미 쓰는 닉네임이에요' };
     }
   }
   const next = { ...patch, ...(nickname != null ? { nickname } : {}) };
   if (s.session?.kind === 'account' && s.session.accountId) {
     const r = await auth.updateProfile(s.session.accountId, next);
-    if (!r.ok) return { ok: false, reason: r.detail ?? '프로필을 저장하지 못했습니다' };
+    if (!r.ok) return { ok: false, reason: r.detail ?? '프로필을 저장하지 못했어요' };
   }
   useSession.getState().setProfile(next);
   if (nickname != null && s.session) {
@@ -194,7 +194,7 @@ export async function saveProfileFlow(patch: Partial<Profile>): Promise<{ ok: tr
 /** 계정 탈퇴(비기능 데이터 보존). 초안 적용 → 계정 삭제 → 로그아웃 */
 export async function deleteAccountFlow(): Promise<DeleteAccountResult> {
   const s = useSession.getState().session;
-  if (!s || s.kind !== 'account' || !s.accountId) return { ok: false, reason: '게스트는 탈퇴할 계정이 없습니다' };
+  if (!s || s.kind !== 'account' || !s.accountId) return { ok: false, reason: '게스트는 탈퇴할 계정이 없어요' };
   const failed: string[] = [];
   for (const p of planAccountDeletion(allDocs(), s.userId)) {
     const r = useTrips.getState().dispatchMany(p.tripId, p.drafts, { actorId: p.actorId });
@@ -202,10 +202,10 @@ export async function deleteAccountFlow(): Promise<DeleteAccountResult> {
   }
   if (failed.length > 0) {
     // 계정은 지우지 않는다. 다시 누르면 남은 방만 처리한다(이미 익명 처리된 멤버·지운 사진은 초안에서 빠진다).
-    return { ok: false, reason: `일부 여행방을 처리하지 못해 탈퇴를 멈췄습니다. ${failed.join(' / ')}` };
+    return { ok: false, reason: `일부 여행방을 처리하지 못해 탈퇴를 멈췄어요. ${failed.join(' / ')}` };
   }
   const r = await getServices().auth.deleteAccount(s.accountId);
-  if (!r.ok && r.code !== 'notFound') return { ok: false, reason: '계정을 지우지 못했습니다. 다시 시도해 주세요' };
+  if (!r.ok && r.code !== 'notFound') return { ok: false, reason: '계정을 지우지 못했어요. 다시 시도해 주세요' };
   signOutFlow();
   return { ok: true };
 }
@@ -225,7 +225,7 @@ export async function restoreAccountSession(): Promise<'ok' | 'expired' | 'unrea
   return r;
 }
 
-const NO_RESET: AuthAck = { ok: false, code: 'notFound', detail: '이 인증 방식은 비밀번호 재설정을 지원하지 않습니다' };
+const NO_RESET: AuthAck = { ok: false, code: 'notFound', detail: '이 인증 방식은 비밀번호 재설정을 지원하지 않아요' };
 
 /** 비밀번호 재설정 메일 요청. 가입 여부와 상관없이 같은 응답이다 */
 export async function requestPasswordResetFlow(email: string): Promise<AuthAck> {

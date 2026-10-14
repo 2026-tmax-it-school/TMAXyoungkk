@@ -21,6 +21,8 @@ export interface MapCanvasProps {
   compact?: boolean;
   height?: number;
   onMarkerPress?: (id: string) => void;
+  /** 겹친 스팟 목록(ClusterListSheet)에서 고를 때. 없으면 onMarkerPress. 핀 다시 누르기(선택 풀기)와 목록 고르기(늘 선택)를 나눌 때 준다 */
+  onClusterPick?: (id: string) => void;
   onPressMap?: (coord: LatLng) => void;
   /** 모서리·테두리 없이 화면 가득(11·13 지도 탭) */
   flat?: boolean;
@@ -107,7 +109,7 @@ export function LocateButton({ mode, bottom, onPress }: { mode: LocateMode; bott
   );
 }
 
-/** 한 자리에 겹친 스팟 목록. 고르면 스팟 상세로 간다(마커를 누르면 스팟 상세라는 규칙) */
+/** 한 자리에 겹친 스팟 목록. 고르면 그 마커를 누른 것과 같다(누름 동작은 화면이 정한다: 지도 탭은 스팟 상세, 채팅방 지도는 지역 고르기) */
 export function ClusterListSheet({
   memberIds,
   titleOf,

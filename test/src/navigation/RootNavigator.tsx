@@ -32,11 +32,12 @@ import SocialConsentScreen from '../screens/SocialConsentScreen';
 import SpotDetailScreen from '../screens/SpotDetailScreen';
 import TripSettingsScreen from '../screens/TripSettingsScreen';
 import { lineC, surfaceC, TabBar, textC } from '../ui';
-import { TAB_ITEMS, type MainTabParamList, type RootStackParamList, type TabRouteName } from './routes';
+import { activeTabKey, TAB_ITEMS, type MainTabParamList, type RootStackParamList, type TabRouteName } from './routes';
 
 /**
  * 루트 스택과 하단 탭. 헤더는 화면이 ui/Header로 직접 그린다(네이티브 헤더를 쓰지 않는다).
  * 등록 규칙은 routes.ts(A8)를 따른다. 채팅과 모달·스택 화면에는 탭바가 없다.
+ * 하단 탭은 다섯 칸이다. 후보(Candidates)는 칸 없이 탭 라우트로 계속 등록해 두고, 보는 동안 '일정' 칸을 켠다.
  */
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -56,13 +57,13 @@ export const navTheme: Theme = {
 };
 
 function AppTabBar({ state, navigation }: BottomTabBarProps) {
-  const active = state.routes[state.index].name as TabRouteName;
+  const route = state.routes[state.index].name as TabRouteName;
   return (
     <TabBar
       items={TAB_ITEMS}
-      active={active}
+      active={activeTabKey(route)}
       onPress={(key) => {
-        if (key !== active) navigation.navigate(key);
+        if (key !== route) navigation.navigate(key);
       }}
     />
   );

@@ -40,7 +40,7 @@ export function BaseSearchSheet({
       setResults(found);
     } catch {
       setResults(undefined);
-      setError('장소 검색에 실패했습니다. 잠시 뒤 다시 시도해 주세요.');
+      setError('장소 검색에 실패했어요. 잠시 뒤 다시 시도해 주세요.');
     } finally {
       setBusy(false);
     }
@@ -68,7 +68,7 @@ export function BaseSearchSheet({
       <Btn title={busy ? '찾는 중' : '검색'} size="sm" variant="ghost" icon="search" disabled={busy || !query.trim() || !region} onPress={search} />
       {error ? <Notice tone="warn" icon="alert" text={error} /> : null}
       {results && results.length === 0 ? (
-        <Notice icon="search" title="결과 없음" text={`'${query.trim()}'에 맞는 장소가 없습니다.`} />
+        <Notice icon="search" title="결과 없음" text={`'${query.trim()}'에 맞는 장소가 없어요.`} />
       ) : null}
       {results && results.length > 0 ? (
         <ScrollView style={{ maxHeight: 260 }} contentContainerStyle={{ gap: SP.m }}>

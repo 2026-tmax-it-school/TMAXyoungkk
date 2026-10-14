@@ -92,7 +92,7 @@ describe('HTTP 인증 제공자', () => {
     const r = await down.signIn({ email: 'a@b.co', password: PW, deviceToken: 'd' });
     assert.equal(r.ok, false);
     assert.equal(!r.ok && r.code, 'providerFailed');
-    assert.match(!r.ok ? (r.detail ?? '') : '', /계정 서버에 닿지 못했습니다/);
+    assert.match(!r.ok ? (r.detail ?? '') : '', /계정 서버에 닿지 못했어요/);
     assert.equal(await down.isNicknameTaken('민지'), false);
     assert.deepEqual(await down.outbox(), []);
     const slow = createHttpAuth({ url: URL_, fetch: () => new Promise(() => {}), kv: memoryKV(), timeoutMs: 20 });

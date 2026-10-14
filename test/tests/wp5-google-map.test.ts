@@ -175,6 +175,9 @@ test('내용 키: 새 배열이어도 내용이 같으면 같고, 좌표·순번
   const m = [marker('a'), { ...marker('b', B), label: '2' }];
   assert.equal(markersKey(m), markersKey(m.map((x) => ({ ...x }))));
   assert.notEqual(markersKey(m), markersKey([marker('a'), { ...marker('b', B), label: '3' }]));
+  // 핀 크기(표 수)나 흐림(지역 밖)만 바뀌어도 다시 그린다
+  assert.notEqual(markersKey(m), markersKey([{ ...marker('a'), scale: 1.2 }, m[1]]));
+  assert.notEqual(markersKey(m), markersKey([{ ...marker('a'), dim: true }, m[1]]));
   const l = [{ id: 'd1', coords: [A, B], color: 'ink' as const }];
   assert.equal(polylinesKey(l), polylinesKey([{ ...l[0], coords: [{ ...A }, { ...B }] }]));
   assert.notEqual(polylinesKey(l), polylinesKey([{ ...l[0], dashed: true }]));

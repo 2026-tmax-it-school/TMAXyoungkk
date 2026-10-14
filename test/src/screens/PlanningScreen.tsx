@@ -3,10 +3,11 @@ import { View } from 'react-native';
 
 import { activeSpots } from '../core/spotUtil';
 import { dateRange } from '../core/util';
-import { monthDay, planMeta, planningProgress, planningStepRows, type StepRow } from '../features/schedule/view';
+import { monthDay, planMeta, planningProgress, planningStepRows, stepRowA11y, type StepRow } from '../features/schedule/view';
 import type { RootScreenProps } from '../navigation/routes';
+import { useBack } from '../navigation/useBack';
 import { usePlan, usePlanning, useTripDoc, useTrips } from '../store/trips';
-import { Body, Btn, Card, Col, Empty, Foot, Header, Icon, lineC, Notice, ProgressBar, Row, Screen, SP, Txt } from '../ui';
+import { Body, Btn, Card, Col, Foot, Header, Icon, lineC, NotFound, Notice, ProgressBar, Screen, SP, Txt } from '../ui';
 
 /**
  * 08 루트 계산 중(FR-505·501, WP4 소유).
@@ -15,7 +16,9 @@ import { Body, Btn, Card, Col, Empty, Foot, Header, Icon, lineC, Notice, Progres
  * 기다리는 동안 선별 규칙 전문과 경로 조회 건수(API 비용)를 보여준다. 계산이 끝나면 시간표로 간다.
  * 오프라인이면 재계산을 멈추고(스토어가 dirty로 표시) 저장된 계획으로 볼 수 있다고 알린다.
  * 끝남은 이 화면에 들어온 뒤 시작한 계산이 끝났는지로 판정한다(지난 계산 단계로 '맞췄습니다'가 한 프레임 보이지 않게).
- * 돌아가기는 계산을 멈추지 않는다(스토어가 끝까지 계산해 둔다). 버튼 문구도 그렇게 적는다.
+ * 돌아가기는 계산을 멈추지 않는다(스토어가 끝까지 계산해 둔다). 버튼 문구도 그렇게 적는다('이전 화면으로(계산은 계속돼요)').
+ * 뒤로는 useBack('Schedule'): 쌓인 화면이 없으면(웹 새로고침) 시간표 탭으로 간다. 없는 여행방은 NotFound('홈으로').
+ * 단계 행은 스크린리더에 '{단계}, 완료|진행 중|대기'로 읽힌다(표시 모양이 아니라 상태). 계산 정보의 수단은 그날 수단이다.
  */
 
 const ORDINAL = ['첫째', '둘째', '셋째', '넷째', '다섯째', '여섯째', '일곱째', '여덟째', '아홉째', '열째'];
@@ -70,14 +73,14 @@ export default function PlanningScreen({ navigation, route }: RootScreenProps<'P
   const progress = planningProgress(rows, steps);
   const finished = (sawBusy || kicked) && !busy && !!plan && steps.length > 0;
 
-  const back = () => (navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Main', { screen: 'Candidates' }));
+  const back = useBack('Schedule');
 
   if (!trip) {
     return (
       <Screen>
         <Header back={back} title="루트 계산" />
         <Body>
-          <Empty title="여행방을 찾을 수 없습니다" />
+          <NotFound title="여행방을 찾을 수 없어요" onHome={() => navigation.navigate('Main', { screen: 'Home' })} />
         </Body>
       </Screen>
     );
@@ -86,23 +89,28 @@ export default function PlanningScreen({ navigation, route }: RootScreenProps<'P
   const dates = dateRange(trip.startDate, trip.endDate);
   const di = date ? dates.indexOf(date) : -1;
   const eyebrow = date && di >= 0 ? `${monthDay(date)} · ${ORDINAL[di] ?? `${di + 1}번째`} 날` : trip.title;
-  const title = !online ? '재계산을 멈췄습니다' : finished ? '루트를 맞췄습니다' : '루트를 맞추는 중';
+  const title = !online ? '재계산을 멈췄어요' : finished ? '루트를 맞췄어요' : '루트를 맞추는 중';
 
   return (
     <Screen>
-      <Header eyebrow={eyebrow} title={title} />
+      <Header back={back} eyebrow={eyebrow} title={title} />
       <Body scroll>
         {!online ? (
-          <Notice icon="alert" title="오프라인" text="연결되면 다시 계산합니다." />
+          <Notice icon="alert" title="오프라인" text="연결되면 다시 계산해요." />
         ) : null}
-        {planning?.error ? <Notice icon="alert" tone="warn" title="계산하지 못했습니다" text={planning.error} /> : null}
+        {planning?.error ? <Notice icon="alert" tone="warn" title="계산하지 못했어요" text={planning.error} /> : null}
         {candidates === 0 ? (
-          <Notice icon="pin" text="후보가 없어 배치할 곳이 없습니다." />
+          <Notice icon="pin" text="후보가 없어 배치할 곳이 없어요." />
         ) : null}
         <Card>
           <Col gap={SP.l}>
             {rows.map((r) => (
-              <Row key={r.key} gap={SP.l}>
+              <View
+                key={r.key}
+                accessible
+                accessibilityLabel={stepRowA11y(r)}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: SP.l }}
+              >
                 <StepMark state={r.state} />
                 <Col grow>
                   <Txt v={r.state === 'active' ? 'stepOn' : 'step'} c={r.state === 'active' ? 'accent' : r.state === 'wait' ? 'muted' : 'ink'}>
@@ -115,7 +123,7 @@ export default function PlanningScreen({ navigation, route }: RootScreenProps<'P
                   </Txt>
                 ) : null}
                 {r.time ? <Txt v="mtTight">{r.time}</Txt> : null}
-              </Row>
+              </View>
             ))}
           </Col>
         </Card>
@@ -139,7 +147,7 @@ export default function PlanningScreen({ navigation, route }: RootScreenProps<'P
             onPress={() => navigation.navigate('Main', { screen: 'Schedule', params: date ? { date } : undefined })}
           />
         ) : null}
-        <Btn title={busy ? '후보로 돌아가기(계산은 계속됩니다)' : '후보로 돌아가기'} variant="quiet" size="sm" onPress={back} />
+        <Btn title={busy ? '이전 화면으로(계산은 계속돼요)' : '이전 화면으로'} variant="quiet" size="sm" onPress={back} />
       </Foot>
     </Screen>
   );

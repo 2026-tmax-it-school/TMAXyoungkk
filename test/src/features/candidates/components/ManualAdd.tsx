@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import { Platform, View } from 'react-native';
 
 import type { LatLng, Trip } from '../../../types';
@@ -13,7 +13,9 @@ import { addPlace, pickAtCoord, searchForManual, type SearchOutcome } from '../a
 import { PlacePickSheet } from './PlacePickSheet';
 
 /**
- * 스팟 수동 등록(FR-202, WP3 소유). 06 헤더 아래 검색 칸과 '지도에서 선택'.
+ * 스팟 수동 등록(FR-202, WP3 소유). 06 목록 맨 위 '장소 검색해서 담기' 입구를 누르면 그 자리에서 펼치는 검색 칸과 '지도에서 선택'.
+ * - focus: 펼치자마자 검색 칸에 한 번 포커스를 준다(입구가 라벨 노릇을 하므로 칸 라벨은 화면에 그리지 않는다).
+ * - 안의 시트(동명 장소 고르기 PlacePickSheet, 지도 선택)는 Sheet scroll을 끈 채로 둔다(FlatList가 중첩 목록이 되지 않게).
  * - 검색 0건이면 앰버 안내 '결과 없음'. 여러 곳이면 24 선택 시트. 하나면 바로 담는다.
  * - 목적지 밖이면 확인 창 1회 뒤 담고 후보에 '목적지 밖'이 표시된다(자동 추출은 버린다).
  * - 지도에서 선택: MapCanvas onPressMap → places.at(누른 지점 300m 안 가장 가까운 장소). 기점 장소는 건너뛴다.
@@ -27,8 +29,18 @@ function afterModal(fn: () => void) {
   if (MODAL_GAP_MS === 0) fn();
   else setTimeout(fn, MODAL_GAP_MS);
 }
-export function ManualAdd({ trip }: { trip: Trip }) {
+export function ManualAdd({ trip, focus }: { trip: Trip; focus?: boolean }) {
   const [query, setQuery] = useState('');
+  // 처음 붙을 때 한 번만 포커스를 준다(콜백 ref가 다시 불려도 되풀이하지 않는다).
+  const focused = useRef(false);
+  const focusOnce = useCallback(
+    (el: { focus: () => void } | null) => {
+      if (!focus || !el || focused.current) return;
+      focused.current = true;
+      el.focus();
+    },
+    [focus],
+  );
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | undefined>();
   const [options, setOptions] = useState<PickOption[] | undefined>();
@@ -40,7 +52,7 @@ export function ManualAdd({ trip }: { trip: Trip }) {
   const put = (opt: PickOption) => {
     const state = existingAddState(trip, opt, myMemberId(trip));
     if (state === 'already') {
-      setNotice(`${josa(opt.place.name, '은/는')} 이미 제안한 곳입니다`);
+      setNotice(`${josa(opt.place.name, '은/는')} 이미 제안한 곳이에요`);
       return;
     }
     const r = addPlace(trip.id, opt.place, opt.outside);
@@ -51,10 +63,10 @@ export function ManualAdd({ trip }: { trip: Trip }) {
     }
     toast(
       state === 'removed'
-        ? `${opt.place.name}에 제안을 더했습니다. 직접 뺀 후보라 제외 스팟에 남습니다. 후보 목록에서 되돌리기를 눌러 주세요`
+        ? `${opt.place.name}에 제안을 더했어요. 직접 뺀 후보라 제외 스팟에 남아 있어요`
         : state === 'merge'
-          ? `${opt.place.name}에 제안을 더했습니다`
-          : `${josa(opt.place.name, '을/를')} 후보에 담았습니다`,
+          ? `${opt.place.name}에 제안을 더했어요`
+          : `${josa(opt.place.name, '을/를')} 후보에 담았어요`,
     );
     setQuery('');
     setNotice(undefined);
@@ -87,19 +99,22 @@ export function ManualAdd({ trip }: { trip: Trip }) {
     setBusy(true);
     const out = await searchForManual(trip, query);
     setBusy(false);
-    handle(out, `'${query.trim()}' 검색 결과가 없습니다. 이름을 바꿔 보거나 지도에서 골라 주세요`);
+    handle(out, `'${query.trim()}' 검색 결과가 없어요. 이름을 바꿔 보거나 지도에서 골라 주세요`);
   };
 
   const onMap = async (coord: LatLng) => {
     setMapOpen(false);
     const out = await pickAtCoord(trip, coord);
-    handle(out, '누른 곳 300m 안에 담을 수 있는 장소가 없습니다', true);
+    handle(out, '누른 곳 300m 안에 담을 수 있는 장소가 없어요', true);
   };
 
   return (
     <View style={{ gap: SP.m }}>
       <Field
         label="장소 검색으로 담기"
+        hideLabel={focus}
+        inputRef={focusOnce}
+        returnKeyType="search"
         value={query}
         onChangeText={(v) => {
           setQuery(v);
@@ -132,7 +147,7 @@ export function ManualAdd({ trip }: { trip: Trip }) {
 
       <ConfirmSheet
         visible={!!confirm}
-        title="목적지 밖 장소입니다"
+        title="목적지 밖 장소예요"
         text={confirm && region ? outsideConfirmText(confirm, region) : ''}
         confirmLabel="그래도 담기"
         onConfirm={() => {
@@ -150,7 +165,6 @@ export function ManualAdd({ trip }: { trip: Trip }) {
           fitTo={region ? [region.center, ...trip.spots.map((s) => s.coord)] : undefined}
           onPressMap={onMap}
         />
-        <Btn title="닫기" variant="quiet" onPress={() => setMapOpen(false)} />
       </Sheet>
     </View>
   );

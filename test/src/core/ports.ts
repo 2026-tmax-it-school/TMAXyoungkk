@@ -364,9 +364,12 @@ export interface PhotoProvider {
   pick(opts: { multiple: boolean }): Promise<PickedPhoto[]>;
 }
 
-/* ---------- 커뮤니티(사진·일기 글) ---------- */
+/* ---------- 커뮤니티(여행 글) ---------- */
 
-export type CommunityKind = 'photo' | 'diary';
+/*
+ * 2026-10-11: 사진 글과 일기 글을 한 가지 글로 합쳤다. 글은 본문이 있거나 사진이 한 장 이상이면 된다.
+ * 서버는 예전 앱을 위해 kind를 따로 저장·응답하지만 앱은 쓰지 않는다(그래서 여기 타입에 없다).
+ */
 
 export interface CommunityPhoto {
   id: string;
@@ -376,9 +379,10 @@ export interface CommunityPhoto {
 
 export interface CommunityPost {
   id: string;
-  kind: CommunityKind;
   title: string;
   body: string;
+  /** 맞춘 태그('#' 없이). 없으면 [] */
+  tags: string[];
   authorId: string;
   authorNickname: string;
   /** 올린 시각(ms) */
@@ -394,10 +398,11 @@ export interface CommunityPhotoInput {
   data: string;
 }
 
+/** 올릴 글. 제목은 선택, 본문 또는 사진 하나는 있어야 한다(core/community checkDraft) */
 export interface CommunityDraft {
-  kind: CommunityKind;
   title: string;
   body: string;
+  tags: string[];
   photos: CommunityPhotoInput[];
 }
 
@@ -415,7 +420,8 @@ export interface CommunityCtx {
 export interface CommunityProvider {
   /** local: 이 기기 모의(서버가 없을 때, 새로 고치면 사라진다), server: 계정 서버(server/community.mjs) */
   readonly id: 'local' | 'server';
-  list(q: { before?: string | null; kind?: CommunityKind | null }, ctx: CommunityCtx): Promise<CommunityResult<{ posts: CommunityPost[]; next: string | null }>>;
+  /** tag는 맞춘 태그 하나로 거른다(없으면 전체) */
+  list(q: { before?: string | null; tag?: string | null }, ctx: CommunityCtx): Promise<CommunityResult<{ posts: CommunityPost[]; next: string | null }>>;
   create(draft: CommunityDraft, ctx: CommunityCtx): Promise<CommunityResult<CommunityPost>>;
   remove(postId: string, ctx: CommunityCtx): Promise<CommunityResult<true>>;
   /** 글 사진의 화면용 주소(서버면 서버 주소를 붙인다) */

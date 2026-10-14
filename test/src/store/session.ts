@@ -132,8 +132,8 @@ export const useSession = create<SessionState>()(
       setUseDeviceLocation: (on) => set({ useDeviceLocation: on }),
 
       deleteAccount: async () => {
-        if (get().session?.kind !== 'account') return { ok: false, reason: '게스트는 탈퇴할 계정이 없습니다' };
-        if (!deleteHandler) return { ok: false, reason: '계정 탈퇴 처리기가 준비되지 않았습니다' };
+        if (get().session?.kind !== 'account') return { ok: false, reason: '게스트는 탈퇴할 계정이 없어요' };
+        if (!deleteHandler) return { ok: false, reason: '계정 탈퇴 처리기가 준비되지 않았어요' };
         return deleteHandler();
       },
 

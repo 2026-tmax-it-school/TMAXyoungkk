@@ -223,8 +223,14 @@ test('화면 규칙: 두 끝이 정해진 뒤에만 경로를 묻고, 위치는 
   // 검색은 두 글자 이상 · 잠깐 멈춘 뒤 · 엔터는 바로
   assert.match(src, /setTimeout\(\(\) => void run\(query\), SEARCH_DEBOUNCE_MS\)/);
   assert.match(src, /onSubmitEditing=/);
-  // 안내 시작은 여행 진행 중일 때만
-  assert.match(src, /\{liveTripId \? \(\s*<View style=\{\{ flex: 1 \}\}>\s*<Btn title="안내 시작"/);
+  // 19로 가는 버튼('여행 진행으로 돌아가기')은 여행 진행 중일 때만이고, 진행 중인 방·날짜로 간다
+  assert.match(
+    src,
+    /\{liveTripId \? \(\s*<Btn\s+title="여행 진행으로 돌아가기"[\s\S]{0,120}?navigation\.navigate\('LiveTrip', \{ tripId: liveTripId, date: liveDate \}\)/,
+  );
+  assert.ok(!src.includes('안내 시작'), "27에는 '안내 시작'이 없다(이름이 실제 결과와 맞게)");
+  // 카카오맵으로 열기는 경로가 준비됐을 때만 보이는 주 버튼이다
+  assert.match(src, /\{ready\.ready \? <Btn title="카카오맵으로 열기"/);
 });
 
 test('검색 기준점: 반대쪽이 내 위치면 그 좌표를 검색 서비스로 보내지 않는다', () => {
