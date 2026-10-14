@@ -1,7 +1,9 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 
 import type { Trip } from '../types';
+import { isHost } from '../core/group';
+import { coverUri } from '../core/trip/cover';
 import { tripStatus, type TripStatus } from '../core/tripStatus';
 import { kstDate } from '../core/util';
 import { regionById } from '../data/regions';
@@ -18,11 +20,12 @@ import {
   type HomeMenuCell,
 } from '../features/account/home';
 import { useSessionKeepAlive } from '../features/account/useSessionKeepAlive';
+import { TripEditSheet } from '../features/trip/components/TripEditSheet';
 import { useActiveTrip } from '../features/trip/useActiveTrip';
 import type { TabScreenProps } from '../navigation/routes';
 import { useNow } from '../services/clock';
 import { useSession } from '../store/session';
-import { useTrips } from '../store/trips';
+import { myMemberId, useTrips } from '../store/trips';
 import { useUi } from '../store/ui';
 import {
   AvatarStack,
@@ -55,6 +58,7 @@ import {
  * - 여행방이 없으면 만들기 Empty와 '초대 코드로 합류'.
  * - 추천 여행지 타일은 그 지역을 고른 채로 여행방 만들기로 간다.
  * - 쓰는 동안 세션을 유지한다(useSessionKeepAlive: 연장, 만료 폐기, 만료 3일 전 알림 한 번).
+ * - 방장은 여행 카드의 '수정'으로 표지·이름·날짜를 바로 고친다(features/trip TripEditSheet, 2026-10-10).
  * 판정은 features/account/home.ts(순수, wp1-home 테스트)에 있다.
  */
 export default function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
@@ -64,6 +68,7 @@ export default function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
   const today = kstDate(now);
   const session = useSession((s) => s.session);
   const setCurrentTrip = useUi((s) => s.setCurrentTrip);
+  const [editing, setEditing] = useState<string | undefined>(undefined);
 
   const seg = useMemo(() => homeSegments(trips, now), [trips, now]);
   const visible = visibleSegments(seg.counts);
@@ -174,6 +179,7 @@ export default function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
                   nextLabel={tripNextStep(t, plans[t.id], today).label}
                   onPress={() => setCurrentTrip(t.id)}
                   onNext={() => goNext(t)}
+                  onEdit={() => setEditing(t.id)}
                 />
               ))}
             </ScrollView>
@@ -233,6 +239,14 @@ export default function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
           </ScrollView>
         </View>
       </ScrollView>
+      <TripEditSheet
+        tripId={editing}
+        onClose={() => setEditing(undefined)}
+        onMore={(id) => {
+          setEditing(undefined);
+          navigation.navigate('TripSettings', { tripId: id });
+        }}
+      />
     </Screen>
   );
 }
@@ -246,6 +260,7 @@ function TripCard({
   nextLabel,
   onPress,
   onNext,
+  onEdit,
 }: {
   trip: Trip;
   info: ReturnType<typeof tripCardInfo>;
@@ -253,13 +268,18 @@ function TripCard({
   nextLabel: string;
   onPress: () => void;
   onNext: () => void;
+  onEdit: () => void;
 }) {
+  const me = myMemberId(trip);
+  const host = !!me && isHost(trip, me);
+  // 방장은 상자 오른쪽 위 '수정'으로 표지·이름·날짜를 바로 고친다(TripEditSheet)
   // 표지(여행방 고르기)와 다음 할 일 버튼을 나란한 두 버튼으로 둔다(웹에서 button 중첩을 피한다).
   // 고른 상태는 CoverTile이 accessibilityState.selected로 알린다.
   return (
     <CoverTile
       size="lg"
       place={regionById(trip.region)?.name ?? trip.title}
+      image={coverUri(trip.cover)}
       badge={info.badge}
       title={info.title}
       lines={[info.dateText, info.countsText]}
@@ -272,6 +292,7 @@ function TripCard({
           <Btn title={nextLabel} size="sm" variant="ghost" a11yLabel={`${trip.title} ${nextLabel}`} onPress={onNext} />
         </Row>
       }
+      corner={host ? { label: '수정', a11y: `${trip.title} 수정`, onPress: onEdit } : undefined}
     />
   );
 }

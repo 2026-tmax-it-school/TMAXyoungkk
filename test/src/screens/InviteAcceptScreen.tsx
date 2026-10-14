@@ -185,7 +185,6 @@ export default function InviteAcceptScreen({ navigation, route }: RootScreenProp
             kind="code"
             value={codeInput}
             onChangeText={setCodeInput}
-            placeholder="예: 7K2D-9MQX"
             error={codeError}
             onSubmitEditing={submitCode}
           />
@@ -266,7 +265,6 @@ export default function InviteAcceptScreen({ navigation, route }: RootScreenProp
             value={nickname}
             onChangeText={setNickname}
             maxLength={NICKNAME_MAX}
-            placeholder="예: 지우"
             help={!session ? GUEST_LIMIT_HELP : undefined}
             error={joinError}
             onSubmitEditing={() => {

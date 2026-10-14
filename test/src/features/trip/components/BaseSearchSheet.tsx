@@ -59,7 +59,6 @@ export function BaseSearchSheet({
         label={`숙소나 출발할 곳 · ${region?.name ?? ''}`}
         value={query}
         onChangeText={setQuery}
-        placeholder="예: 라한셀렉트 경주, 경주역"
         // 키보드 엔터·검색 키로도 찾는다(2026-10-09 웹 실행: 엔터를 눌러도 아무 일이 없었다)
         onSubmitEditing={() => {
           if (!busy) void search();

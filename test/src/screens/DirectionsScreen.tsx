@@ -653,7 +653,6 @@ function EndpointPicker({
         label="장소 검색"
         value={query}
         onChangeText={setQuery}
-        placeholder="예: 경주역, 첨성대"
         help="두 글자 이상 입력하면 찾아요"
         onSubmitEditing={() => {
           if (timer.current) clearTimeout(timer.current);

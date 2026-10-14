@@ -6,6 +6,8 @@
  *   GET /kakao/local/keyword?query&x&y&radius&page&size&sort&category_group_code   카카오 로컬 키워드 검색
  *   GET /kakao/local/category?category_group_code&x&y&radius&page&size&sort        카카오 로컬 카테고리 검색
  *   GET /kakao/navi/directions?origin&destination&priority&summary                 카카오모빌리티 자동차 길찾기
+ *   GET /kakao/local/address?query&analyze_type&page&size                         카카오 주소 검색(여행 지역 검색)
+ *   GET /kakao/local/region?x&y                                                    카카오 좌표 → 행정구역(지도에서 지역 고르기)
  *   GET /osrm/routed-foot/route/v1/foot/{경도,위도;경도,위도}?overview&geometries&steps
  *   GET /osrm/routed-car/route/v1/driving/{…}                                       (osm.ts가 만드는 주소 꼴 그대로)
  *   GET /osrm/routed-{foot,car}/table/v1/{foot,driving}/{…}?sources&destinations&annotations
@@ -115,6 +117,18 @@ export const KAKAO_ROUTES = Object.freeze({
     // 사각형(rect) 검색은 받지 않는다. 중심·반경이 있어야 한다
     required: ['category_group_code', 'x', 'y', 'radius'],
     params: LOCAL_PARAMS,
+    cache: false,
+  },
+  'local/address': {
+    upstream: 'https://dapi.kakao.com/v2/local/search/address.json',
+    required: ['query'],
+    params: { query: text(100), analyze_type: oneOf('similar', 'exact'), page: int(1, 45), size: int(1, 30) },
+    cache: false,
+  },
+  'local/region': {
+    upstream: 'https://dapi.kakao.com/v2/local/geo/coord2regioncode.json',
+    required: ['x', 'y'],
+    params: { x: lng, y: lat },
     cache: false,
   },
   'navi/directions': {

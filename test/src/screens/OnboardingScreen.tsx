@@ -47,7 +47,6 @@ export default function OnboardingScreen({ navigation }: RootScreenProps<'Onboar
             setTouched(true);
           }}
           maxLength={NICKNAME_MAX}
-          placeholder="예: 민지"
           help={GUEST_LIMIT_HELP}
           error={touched && problem ? problem : undefined}
           onSubmitEditing={start}

@@ -37,14 +37,31 @@ export function normalizeInviteCode(input: string): string {
   return `${s.slice(0, 4)}-${s.slice(4, 8)}`;
 }
 
-/** 초대 링크 'https://youngtrip.app/j/XXXX-XXXX' */
-export function inviteUrl(code: string): string {
-  return `${INVITE_URL_PREFIX}${code}`;
+/**
+ * 초대 링크 '{주소}/j/XXXX-XXXX'. base는 앱이 실제로 열리는 주소다(config INVITE_BASE_URL: 설정값 → 웹이면 지금 앱 주소).
+ * 없으면 'https://youngtrip.app/j/…'(아직 운영하지 않는 예약 도메인이라 브라우저에서는 열리지 않는다)
+ */
+export function inviteUrl(code: string, base?: string): string {
+  const b = base?.trim().replace(/\/+$/, '');
+  return b ? `${b}/j/${code}` : `${INVITE_URL_PREFIX}${code}`;
 }
 
-/** 화면 표시용 'youngtrip.app/j/XXXX-XXXX' */
-export function inviteUrlShort(code: string): string {
-  return inviteUrl(code).replace(/^https:\/\//, '');
+/** 화면 표시용 'youngtrip.app/j/XXXX-XXXX', 'localhost:8090/j/XXXX-XXXX' */
+export function inviteUrlShort(code: string, base?: string): string {
+  return inviteUrl(code, base).replace(/^https?:\/\//, '');
+}
+
+/**
+ * 초대 링크 주소 고르기. 설정값(EXPO_PUBLIC_INVITE_BASE_URL)이 http(s) 주소면 그것, 아니면 웹의 지금 앱 주소(origin),
+ * 둘 다 없으면 undefined(예약 도메인). 끝 '/'와 경로는 뗀다
+ */
+export function pickInviteBase(configured: string | undefined, webOrigin: string | undefined): string | undefined {
+  for (const raw of [configured, webOrigin]) {
+    const v = (raw ?? '').trim();
+    const m = v.match(/^(https?:\/\/[^\s/?#]+)/);
+    if (m) return m[1];
+  }
+  return undefined;
 }
 
 export type InviteStatus = 'ok' | 'expired' | 'revoked' | 'full' | 'notFound';

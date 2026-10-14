@@ -263,7 +263,7 @@ describe('키트 조각', () => {
     assert.match(disc, /onPress\?: \(\) => void;\s*value\?: string;\s*switch\?: \{ value: boolean; onChange: \(next: boolean\) => void \}/);
     assert.match(disc, /export function ProfileEditHero/);
     assert.match(disc, /variant\?: 'card' \| 'row'/);
-    assert.match(disc, /a11yLabel \?\? `\$\{title\} 열기`/);
+    assert.match(disc, /a11yLabel \?\? (?:pressLabel \?\? )?`\$\{title\} 열기`/);
     // 누르는 목록 줄은 보조 줄(sub)과 값(value)까지 읽고, 타일은 배지까지 읽는다(P6)
     assert.match(disc, /accessibilityLabel=\{\[label, sub, value\]\.filter\(Boolean\)\.join\(', '\)\}/);
     assert.match(disc, /accessibilityLabel=\{badge \? `\$\{label\}, \$\{badge\}` : label\}/);

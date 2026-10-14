@@ -1,6 +1,7 @@
 import type { DayPatch, DaySetting, Op, Trip, TripPatch } from '../../types';
 import { regionById } from '../../data/regions';
 import { canIssueInvite, isHost, memberById } from '../group';
+import { coverProblem } from '../trip/cover';
 import { TITLE_MAX } from '../trip/create';
 import { dateRange, toMin } from '../util';
 import { patchDay } from './lww';
@@ -8,7 +9,7 @@ import { patchDay } from './lww';
 /**
  * trip/* 리듀서(WP2 소유). 권한 규칙(계약 A3, 02 결정 '권한 규칙'):
  * - trip/setDay는 전 멤버(기점 등록·변경은 그룹원 O, 권한표)
- * - trip/update(제목·지역·날짜·수단·활동시간)는 방장만. 권한표에 없어 프로토타입 가정이다.
+ * - trip/update(제목·표지·지역·날짜·수단·활동시간)는 방장만. 권한표에 없어 프로토타입 가정이다.
  *   TripPatch 키만 받는다(validate가 다른 키를 거부하고 리듀서도 한 번 더 고른다). 기간이 바뀌면 days를 새 기간에 맞춘다
  * - trip/delete는 방장만
  * - trip/issueInvite·revokeInvite는 방장 또는 초대 권한을 켠 그룹원(canInvite, 기본 false)
@@ -29,13 +30,13 @@ export const REASON = {
   outOfPeriod: '여행 기간 밖의 날짜입니다',
   badDayPatch: '날짜별 설정은 기점, 복귀 없음, 활동시간만 바꿀 수 있습니다',
   badDayHours: '날짜별 활동시간과 맞지 않습니다. 시작 시각이 끝 시각보다 앞서야 합니다',
-  badPatch: '여행방 설정은 이름, 지역, 날짜, 이동수단, 활동시간만 바꿀 수 있습니다',
+  badPatch: '여행방 설정은 이름, 표지, 지역, 날짜, 이동수단, 활동시간만 바꿀 수 있습니다',
   badTransport: '이동수단 값이 올바르지 않습니다',
   longTitle: `여행방 이름은 ${TITLE_MAX}자까지입니다`,
 } as const;
 
 /** trip/update가 바꿀 수 있는 필드(TripPatch). 원격 op에 members·invite·deletedAt 같은 키가 섞여 와도 거른다. */
-export const TRIP_PATCH_KEYS: ReadonlySet<string> = new Set(['title', 'region', 'startDate', 'endDate', 'transport', 'dayStart', 'dayEnd']);
+export const TRIP_PATCH_KEYS: ReadonlySet<string> = new Set(['title', 'cover', 'region', 'startDate', 'endDate', 'transport', 'dayStart', 'dayEnd']);
 const TRANSPORTS: ReadonlySet<string> = new Set(['car', 'walk', 'transit']);
 
 function pickTripPatch(patch: TripPatch): TripPatch {
@@ -43,6 +44,9 @@ function pickTripPatch(patch: TripPatch): TripPatch {
   for (const [k, v] of Object.entries(patch ?? {})) if (TRIP_PATCH_KEYS.has(k) && v !== undefined) out[k] = v;
   return out as TripPatch;
 }
+
+/** 여행이 끝나 잠긴 뒤에도 바꿀 수 있는 trip/update 키(알아보기용 이름·표지만. 일정은 잠금을 따른다) */
+export const TRIP_PATCH_KEYS_AFTER_END: ReadonlySet<string> = new Set(['title', 'cover']);
 
 /**
  * 기간이 바뀌면 날짜별 설정을 새 기간에 맞춘다. 남는 날짜는 설정을 그대로 두고, 기간 밖 날짜는 버린다.
@@ -77,7 +81,10 @@ export function reduce(doc: Trip, op: Op): Trip {
     case 'trip/update': {
       const patch = pickTripPatch(op.patch);
       if (patch.title != null) patch.title = patch.title.trim();
-      const next = { ...doc, ...patch };
+      const { cover, ...rest } = patch;
+      const next: Trip = { ...doc, ...rest };
+      if (cover === null) delete next.cover;
+      else if (cover) next.cover = { mime: cover.mime, data: cover.data };
       if (next.startDate !== doc.startDate || next.endDate !== doc.endDate) {
         next.days = fitDays(doc.days, next.startDate, next.endDate);
       }
@@ -124,6 +131,10 @@ export function validate(doc: Trip, op: Op): string | null {
       if (p.title != null && p.title.trim().length === 0) return REASON.badTitle;
       if (p.title != null && p.title.trim().length > TITLE_MAX) return REASON.longTitle;
       if (p.transport != null && !TRANSPORTS.has(p.transport)) return REASON.badTransport;
+      if (p.cover != null) {
+        const bad = coverProblem(p.cover);
+        if (bad) return bad;
+      }
       if (p.region != null && !regionById(p.region)) return REASON.badRegion;
       const start = p.startDate ?? doc.startDate;
       const end = p.endDate ?? doc.endDate;

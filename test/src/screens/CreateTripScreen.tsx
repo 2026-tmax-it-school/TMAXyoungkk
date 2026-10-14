@@ -1,7 +1,7 @@
 import type { NavigationAction } from '@react-navigation/native';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 
-import type { DayBase, Transport } from '../types';
+import type { DayBase, Transport, TripCover } from '../types';
 import {
   buildDays,
   checkTripForm,
@@ -15,6 +15,7 @@ import { kstDate } from '../core/util';
 import { regionById } from '../data/regions';
 import { BaseSearchSheet } from '../features/trip/components/BaseSearchSheet';
 import { CalendarRange } from '../features/trip/components/CalendarRange';
+import { CoverPicker } from '../features/trip/components/CoverPicker';
 import { PickerBox } from '../features/trip/components/PickerBox';
 import { RegionSheet } from '../features/trip/components/RegionSheet';
 import { TimeRange } from '../features/trip/components/TimeRange';
@@ -63,6 +64,7 @@ export default function CreateTripScreen({ navigation, route }: RootScreenProps<
   const back = useBack('Home');
 
   const [title, setTitle] = useState('');
+  const [cover, setCover] = useState<TripCover | undefined>(undefined);
   const [titleTouched, setTitleTouched] = useState(false);
   /** 들어올 때 받은 지역(route.params.regionId). 목록에 없는 값은 버린다. 나가기 확인은 이 값에서 바뀌었는지로 본다 */
   const [startRegion] = useState(() => {
@@ -133,6 +135,7 @@ export default function CreateTripScreen({ navigation, route }: RootScreenProps<
       dayEnd: hours.end,
       days: buildDays(range.start, range.end, base ?? null),
       hostNickname: session?.nickname || profileName || '나',
+      cover,
     });
     navigation.replace('Members', { tripId, fromCreate: true });
   };
@@ -153,11 +156,12 @@ export default function CreateTripScreen({ navigation, route }: RootScreenProps<
     <Screen keyboard>
       <Header back={back} step="1 / 2 단계" title="여행방 만들기" />
       <Body scroll>
+        <CoverPicker value={cover} onChange={(c) => setCover(c ?? undefined)} />
         <PickerBox
           label="지역"
           icon="pin"
           value={region?.label}
-          placeholder="국내 지역 목록에서 고르기"
+          placeholder="지역 검색 또는 지도에서 고르기"
           onPress={() => setSheet('region')}
           error={err.region}
         />
@@ -178,7 +182,6 @@ export default function CreateTripScreen({ navigation, route }: RootScreenProps<
             setTitleTouched(true);
           }}
           maxLength={TITLE_MAX}
-          placeholder="예: 경주 2박 3일"
           returnKeyType="done"
           error={err.title}
         />

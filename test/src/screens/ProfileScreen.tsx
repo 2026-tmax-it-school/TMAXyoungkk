@@ -230,7 +230,6 @@ export default function ProfileScreen({ navigation }: RootScreenProps<'Profile'>
               setNickError(undefined);
             }}
             maxLength={NICKNAME_MAX}
-            placeholder="예: 민지"
             returnKeyType="done"
             onSubmitEditing={() => {
               if (dirty) void save();

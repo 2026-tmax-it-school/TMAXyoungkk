@@ -42,6 +42,7 @@ import { createDeviceLocation } from './location';
 import { createDevicePhotoProvider } from './photos';
 import { createPlaceProvider } from './places';
 import { createKakaoPlaces } from './places/kakao';
+import { createRegionSearch, type RegionSearch } from './regions';
 import { createLocalPlaces } from './places/local';
 import { hasher, ids, secureRng } from './random';
 import { createRecommendProvider } from './recommend';
@@ -74,6 +75,8 @@ import { createSyncTransport } from './sync';
 
 export interface Services {
   places: PlaceProvider;
+  /** 여행 지역 검색·지도 선택(카카오 주소·행정구역, 없으면 목록 지역) */
+  regions: RegionSearch;
   routes: RouteProvider;
   extraction: ExtractionProvider;
   recommend: RecommendProvider;
@@ -117,6 +120,7 @@ function build(): Services {
   }
   return {
     places,
+    regions: createRegionSearch({ apiUrl, kakaoKey, fetch: appFetch }),
     routes,
     extraction: createExtractionProvider({ aiProxyUrl, fetch: appFetch }),
     recommend: createRecommendProvider({ aiProxyUrl, fetch: appFetch, places }),

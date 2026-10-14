@@ -12,6 +12,7 @@ import { dateRange, josa } from '../core/util';
 import { regionById } from '../data/regions';
 import { CalendarRange } from '../features/trip/components/CalendarRange';
 import { DaySheet } from '../features/trip/components/DaySheet';
+import { CoverPicker } from '../features/trip/components/CoverPicker';
 import { PickerBox } from '../features/trip/components/PickerBox';
 import { RegionSheet } from '../features/trip/components/RegionSheet';
 import { TimeRange } from '../features/trip/components/TimeRange';
@@ -50,6 +51,7 @@ import {
  * - 멤버 초대 · 관리, 보관 기한은 ListRow 두 줄이다. 오프라인 안내는 앱 공용 OfflineBar 한 줄이 맡는다(화면 Notice 없음).
  *   멤버 화면(머리말 gear)과 서로 오갈 때는 화면을 쌓지 않고 스택에 이미 있는 화면으로 돌아간다(navigate pop, 멤버는 merge로 fromCreate 유지).
  * - 이름·지역·날짜·주 이동수단·기본 활동시간은 trip/update라 방장만(프로토타입 가정). 만든 뒤에도 방장이 바꿀 수 있다(2026-10-10).
+ * - 표지 이미지도 방장이 바꾼다. 이름·표지는 여행이 끝난 뒤에도 바꿀 수 있다(core/ops TRIP_PATCH_KEYS_AFTER_END).
  *   지역을 바꾸면 장소로 정한 날짜별 기점을 비운다(확인 1회). 기간이 줄어 빠지는 날짜가 있으면 확인 1회 뒤 바꾼다.
  *   바꾸면 루트를 다시 계산한다(needsRecompute). 그룹원에게는 값만 보인다.
  * - 방장은 삭제(확인 1회), 그룹원은 나가기(확인 1회). 방장에게는 나가기 버튼 없이 '나갈 수 없어요' 한 줄만 처음부터 보인다
@@ -156,7 +158,10 @@ export default function TripSettingsScreen({ navigation, route }: RootScreenProp
 
         <Txt v="eyebrow">기본 정보</Txt>
         <Card>
-          {host && !locked ? (
+          {host ? (
+            <CoverPicker value={trip.cover} onChange={(cover) => dispatch(trip.id, { type: 'trip/update', patch: { cover } })} />
+          ) : null}
+          {host ? (
             <Field
               label="여행방 이름"
               value={title ?? trip.title}
@@ -284,6 +289,40 @@ export default function TripSettingsScreen({ navigation, route }: RootScreenProp
         visible={confirm === 'dates'}
         title="날짜를 바꿀까요"
         text={`${josa(datesBrief(dropped), '이/가')} 기간에서 빠져요. 그날의 기점·활동시간 설정은 사라지고, 그날로 날짜를 정한 스팟은 '여행 기간 밖'으로 제외돼요. 루트는 다시 계산해요.`}
+        confirmLabel="바꾸기"
+        onConfirm={() => {
+          setConfirm(undefined);
+          if (range.start && range.end) applyDates(range.start, range.end);
+        }}
+        onCancel={() => setConfirm(undefined)}
+      />
+      <RegionSheet visible={edit === 'region'} value={trip.region} onClose={() => setEdit(undefined)} onPick={pickRegion} />
+      <Sheet visible={edit === 'dates'} onClose={() => setEdit(undefined)} title="날짜 바꾸기">
+        <CalendarRange value={range} onChange={setRange} initialMonth={(range.start ?? trip.startDate).slice(0, 7)} />
+        {dropped.length > 0 ? (
+          <Txt v="mtTight" c="warn">{`${josa(datesBrief(dropped), '이/가')} 기간에서 빠집니다`}</Txt>
+        ) : null}
+        <Btn title="이 날짜로" disabled={!range.start || !range.end} onPress={pickDates} />
+      </Sheet>
+      <ConfirmSheet
+        visible={confirm === 'region'}
+        title="지역을 바꿀까요"
+        text={`${josa(regionById(nextRegion ?? '')?.label ?? '', '으로/로')} 바꾸면 날짜별로 정한 기점(숙소)을 비웁니다. 후보와 시간표는 그대로 남으니 이전 지역의 장소는 직접 정리해 주세요. 루트는 다시 계산합니다.`}
+        confirmLabel="바꾸기"
+        onConfirm={() => {
+          setConfirm(undefined);
+          if (nextRegion) applyRegion(nextRegion);
+          setNextRegion(undefined);
+        }}
+        onCancel={() => {
+          setConfirm(undefined);
+          setNextRegion(undefined);
+        }}
+      />
+      <ConfirmSheet
+        visible={confirm === 'dates'}
+        title="날짜를 바꿀까요"
+        text={`${josa(datesBrief(dropped), '이/가')} 기간에서 빠집니다. 그날의 기점·활동시간 설정은 사라지고, 그날로 날짜를 정한 스팟은 '여행 기간 밖'으로 제외됩니다. 루트는 다시 계산합니다.`}
         confirmLabel="바꾸기"
         onConfirm={() => {
           setConfirm(undefined);

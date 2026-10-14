@@ -36,7 +36,7 @@ import { ClusterListSheet, FitAllButton, MapChildren, mapHeight, type MapFailRea
  * - 정확도 원: 50m를 넘거나 모를 때만 미터 반경 원(kakao.maps.Circle)을 두른다.
  * - 화면 맞춤: LatLngBounds + setBounds(여백 위·오른쪽·아래·왼쪽, core/map/engine.mapPadding). 배율 한도는 kakaoLevel로 바꾼다.
  *   처음, 마커·선이 바뀔 때, 지도 크기가 바뀔 때(relayout 뒤, 사용자가 움직이지 않았으면) 맞춘다.
- * - 손짓: 화면 가득한 지도(flat)는 끌기·휠 확대. 스크롤 화면 안의 지도는 끌기와 두 손가락·더블클릭 확대만 되고 그냥 휠은 페이지를 스크롤한다.
+ * - 손짓: 화면 가득한 지도(flat)와 wheelZoom 지도(바닥 시트 안)는 끌기·휠 확대. 스크롤 화면 안의 지도는 끌기와 두 손가락·더블클릭 확대만 되고 그냥 휠은 페이지를 스크롤한다.
  *   Ctrl(맥은 Cmd)+휠이면 직접 레벨을 바꾼다(구글 cooperative와 같은 약속). 미리보기(compact)는 움직이지 않고 묶음도 누를 수 없다.
  * - 지도를 눌러 고르기(onPressMap)는 300ms 기다렸다 보낸다. 더블클릭 확대가 장소 고르기가 되지 않게 한다.
  * - 실패: SDK 스크립트를 못 받으면 script, kakao.maps.load 콜백이 시한 안에 안 오면 auth(앱 키 거부·도메인 미등록이면
@@ -531,12 +531,14 @@ export function KakaoMapView(props: MapViewProps & { onFail: (reason: MapFailRea
         s.cleanups.push(() => el.remove());
         const p = latest.current;
         const flat = !!p.flat;
+        // 그냥 휠로 확대하는 지도: 화면 가득한 지도, 또는 스크롤 없는 시트 안 지도(wheelZoom)
+        const greedy = flat || !!p.wheelZoom;
         const map = new K.Map(el, {
           center: new K.LatLng(DEFAULT_MAP_CENTER.latitude, DEFAULT_MAP_CENTER.longitude),
           level: kakaoLevel(13),
           draggable: !p.compact,
           // 스크롤 화면 안에서는 그냥 휠이 페이지를 스크롤한다. Ctrl·Cmd+휠은 bindGestures가 맡는다
-          scrollwheel: !p.compact && flat,
+          scrollwheel: !p.compact && greedy,
           disableDoubleClickZoom: !!p.compact,
           keyboardShortcuts: false,
         });
@@ -555,7 +557,7 @@ export function KakaoMapView(props: MapViewProps & { onFail: (reason: MapFailRea
         K.event.addListener(map, 'idle', redraw);
         const onDrag = () => userMoved();
         K.event.addListener(map, 'dragstart', onDrag);
-        if (!p.compact) s.cleanups.push(bindGestures(K, map, el, () => userMoved(), !flat));
+        if (!p.compact) s.cleanups.push(bindGestures(K, map, el, () => userMoved(), !greedy));
         s.cleanups.push(() => {
           K.event.removeListener(map, 'zoom_changed', redraw);
           K.event.removeListener(map, 'idle', redraw);

@@ -345,6 +345,9 @@ test('화면 규칙: 로그인한 계정만 글쓰기, 사진은 버튼을 누�
   const picker = read('src/services/community/picker.ts');
   assert.match(picker, /exif: false/);
   assert.match(picker, /base64: true/);
+  // 웹은 quality를 무시하므로 캔버스로 줄여 한 장 한도 아래로 맞춘다
+  assert.match(picker, /shrinkImageOnWeb/);
+  assert.match(picker, /PHOTO_BYTES_MAX/);
 });
 
 test('나가기 확인: beforeRemove로 막고, 시트 버튼은 저장하고 나가기·취소 둘뿐, 앱이 뒤로 가면 저장', () => {

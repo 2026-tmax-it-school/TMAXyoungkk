@@ -447,7 +447,7 @@ export default function CommunityComposeScreen({ navigation, route }: RootScreen
             ) : null}
           </Col>
 
-          <Field label="제목 · 선택" value={title} onChangeText={setTitle} maxLength={TITLE_MAX} placeholder="예: 불국사 새벽 산책" />
+          <Field label="제목 · 선택" value={title} onChangeText={setTitle} maxLength={TITLE_MAX} />
           <Txt v="mtTight">사진은 줄여서 올리고, 위치와 촬영 정보는 함께 올리지 않아요. 올린 글은 앱 사용자 모두가 볼 수 있어요.</Txt>
         </Body>
         <Foot>

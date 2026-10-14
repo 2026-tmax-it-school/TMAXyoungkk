@@ -1,4 +1,4 @@
-import type { DaySetting, Trip } from '../../types';
+import type { DaySetting, Trip, TripCover, TripPatch } from '../../types';
 import { dateRange } from '../util';
 
 /**
@@ -29,4 +29,29 @@ export function datesBrief(dates: readonly string[]): string {
     return `${m}/${day}`;
   });
   return md.length > 3 ? `${md.slice(0, 3).join(', ')} 외 ${md.length - 3}일` : md.join(', ');
+}
+
+/** 빠른 수정(표지·이름·날짜) 입력. cover는 바꾸지 않았으면 undefined, 뺐으면 null */
+export interface QuickEditDraft {
+  title: string;
+  cover?: TripCover | null;
+  startDate?: string;
+  endDate?: string;
+}
+
+/**
+ * 빠른 수정 → trip/update 하나에 담을 바뀐 값만. 바뀐 것이 없으면 빈 객체다.
+ * locked(여행이 끝남)면 이름·표지만 담는다(날짜는 잠금을 따른다, core/ops TRIP_PATCH_KEYS_AFTER_END).
+ */
+export function quickEditPatch(trip: Pick<Trip, 'title' | 'cover' | 'startDate' | 'endDate'>, d: QuickEditDraft, locked = false): TripPatch {
+  const out: TripPatch = {};
+  const title = d.title.trim();
+  if (title && title !== trip.title) out.title = title;
+  if (d.cover === null && trip.cover) out.cover = null;
+  else if (d.cover && (d.cover.data !== trip.cover?.data || d.cover.mime !== trip.cover?.mime)) out.cover = d.cover;
+  if (!locked && d.startDate && d.endDate && (d.startDate !== trip.startDate || d.endDate !== trip.endDate)) {
+    out.startDate = d.startDate;
+    out.endDate = d.endDate;
+  }
+  return out;
 }
