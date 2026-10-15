@@ -561,7 +561,12 @@ AI 키는 프록시 서버에만 둔다. 앱은 브라우저에서 AI 제공자�
 | `/recommend` | `{region:{id,name}, dates, tags, existing:[placeId], limit}` | `{items:[{place, reason}], fallback}` | 로컬 추천. 기존 후보·지역 밖·형식 오류를 거르고 3곳 미만이면 로컬 |
 | `/diary` | `{date, blocks}` | `{texts:[문장]}`(블록 수와 같게) | 빈 일기. 15초 안에 답이 없어도 빈 일기 |
 
-`place`는 `src/types.ts`의 `Place` 모양(placeId, name, coord{latitude,longitude}, category 등)이다. 실제 프록시로는 아직 확인하지 못했다.
+`place`는 `src/types.ts`의 `Place` 모양(placeId, name, coord{latitude,longitude}, category 등)이다.
+
+구현: `server/ai-proxy.mjs`(Google Gemini). `server/.env`에 `GEMINI_API_KEY`를 넣고 `npm run ai-proxy`(포트 8789)로 띄운 뒤
+앱 `test/.env`에 `EXPO_PUBLIC_AI_PROXY_URL=http://<이 컴퓨터 IP>:8789`를 넣는다. 모델은 `GEMINI_MODEL`(기본 `gemini-flash-latest`).
+`/recommend`는 Gemini가 고른 이름을 서버의 `KAKAO_REST_KEY`로 카카오 검색해 실제 좌표에 맞추고, 카카오 키가 없으면 빈 목록을 돌려줘 앱이 로컬 추천을 쓴다.
+가짜 Gemini·카카오 응답으로만 테스트했고(`tests/wp2-ai-proxy.test.ts`), 실제 키로는 아직 확인하지 못했다.
 
 ### 4. 동기화·중계 서버 (`test/server`)
 
