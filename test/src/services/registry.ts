@@ -12,6 +12,9 @@ import {
   roadShapeSource,
   SYNC_URL,
 } from '../config';
+import { Platform } from 'react-native';
+
+import { loadKakaoSdk } from '../components/map/kakaoLoader';
 import { pickMapEngine } from '../core/map/engine';
 import { SERVICE_KV_PREFIX, type ServiceKvArea } from '../core/constants';
 import type {
@@ -44,6 +47,7 @@ import { createPlaceProvider } from './places';
 import { createKakaoPlaces } from './places/kakao';
 import { createRegionSearch, type RegionSearch } from './regions';
 import { createLocalPlaces } from './places/local';
+import { createKakaoSdkClient } from './kakaoSdk';
 import { hasher, ids, secureRng } from './random';
 import { createRecommendProvider } from './recommend';
 import { createRouteProvider, OSM_ATTRIBUTION, OSRM_CAR_TIME_FACTOR } from './routes';
@@ -58,6 +62,9 @@ import { createSyncTransport } from './sync';
  *   서버·카카오를 못 쓰면(서버에 카카오 키 없음, 닿지 못함, 시간 초과 등) 장소는 로컬 장소 사전, 자동차는 도로 모양 · 로컬 모델로
  *   넘어가고 그 결과는 캐시에 두지 않는다. 그동안 제공자 id는 'local'이다(마지막 응답 출처. 화면의 예시 데이터 표시와 아래 상태).
  *   서버 경유 장소는 카카오 어댑터에 로컬 장소 사전을 대체로 붙여 여기서 만든다(places 팩토리는 직접 키만 받는다).
+ * - 서버 주소가 없고 웹이며 EXPO_PUBLIC_KAKAO_MAP_JS_KEY가 있으면 장소·지역 검색은 카카오맵 SDK services(지도와 같은 JavaScript 키,
+ *   services/kakaoSdk)다. 카카오 앱의 REST 키가 막혀도(403 disabled OPEN_MAP_AND_LOCAL) 검색이 된다. 실패하면 로컬 장소 사전.
+ *   자동차 경로는 SDK에 없어서 아래 REST 키 규칙 그대로다.
  * - 아니고 EXPO_PUBLIC_KAKAO_REST_KEY가 있으면 장소·경로가 앱에서 바로 카카오(시연 한정, 키가 번들에 들어간다). 없으면 로컬.
  *   바탕 지도는 카카오맵(EXPO_PUBLIC_KAKAO_MAP_JS_KEY, 기본) 또는 구글 지도(EXPO_PUBLIC_GOOGLE_MAPS_API_KEY, 선택 대체)다(components/map).
  *   구글은 바탕 지도로만 쓴다. 장소·경로 제공자에는 없다.
@@ -103,24 +110,31 @@ function kvFor(area: ServiceKvArea): KV {
 
 /** 키 숨기는 서버(EXPO_PUBLIC_API_URL)를 거치는 제공자. describeServices가 본다(덮어쓴 제공자는 여기 없다) */
 const viaServer = new WeakSet<object>();
+/** 웹 지도 SDK(JavaScript 키)로 검색하는 제공자. describeServices가 본다 */
+const viaSdk = new WeakSet<object>();
 
 function build(): Services {
   const kv = kvFor('app');
   const kakaoKey = HAS_KAKAO_KEY ? KAKAO_REST_KEY : undefined;
   const apiUrl = API_URL || undefined;
   const aiProxyUrl = AI_PROXY_URL || undefined;
+  // 웹이고 서버 주소가 없으면 장소·지역 검색은 지도 SDK(JavaScript 키)로 한다. 실패하면 로컬 장소 사전이다
+  const sdk = !apiUrl && Platform.OS === 'web' && KAKAO_MAP_JS_KEY ? createKakaoSdkClient({ load: loadKakaoSdk }) : undefined;
   const places = apiUrl
     ? createKakaoPlaces({ apiUrl, fetch: appFetch, fallback: createLocalPlaces() })
-    : createPlaceProvider({ kakaoKey, fetch: appFetch });
+    : sdk
+      ? createKakaoPlaces({ client: sdk, fetch: appFetch, fallback: createLocalPlaces() })
+      : createPlaceProvider({ kakaoKey, fetch: appFetch });
   // 경로 캐시 24시간은 실제 시각으로 잰다(시뮬레이터 가상 시각이면 300배속에서 몇 분 만에 지나고, 시연을 되돌리면 미래 항목이 남는다)
   const routes = createRouteProvider({ kakaoKey, apiUrl, fetch: appFetch, clock: systemClock, kv: kvFor('routes'), roadShapes: ROAD_SHAPES, netClock: systemClock });
   if (apiUrl) {
     viaServer.add(places);
     viaServer.add(routes);
   }
+  if (sdk) viaSdk.add(places);
   return {
     places,
-    regions: createRegionSearch({ apiUrl, kakaoKey, fetch: appFetch }),
+    regions: createRegionSearch({ apiUrl, kakaoKey, fetch: appFetch, client: sdk }),
     routes,
     extraction: createExtractionProvider({ aiProxyUrl, fetch: appFetch }),
     recommend: createRecommendProvider({ aiProxyUrl, fetch: appFetch, places }),
@@ -234,6 +248,12 @@ export function describeServices(): ServiceStatus[] {
             note: '서버가 카카오를 못 써서(키 없음·실패) 예시 데이터 · 다시 되면 카카오',
             via: 'server',
           },
+    );
+  } else if (viaSdk.has(s.places)) {
+    out.push(
+      s.places.id === 'kakao'
+        ? { key: 'places', label: '장소 검색 · 카카오 로컬 · 지도 SDK', mode: 'real', note: '지도 JavaScript 키 · 등록한 Web 도메인에서만', via: 'app' }
+        : { key: 'places', label: '장소 검색 · 로컬 장소 사전', mode: 'mock', note: '카카오 지도 SDK 검색이 안 돼서 예시 데이터 · 다시 되면 카카오' },
     );
   } else if (s.places.id === 'kakao') {
     out.push({ key: 'places', label: '장소 검색 · 카카오 로컬', mode: 'real', note: KAKAO_NOTE, via: 'app' });

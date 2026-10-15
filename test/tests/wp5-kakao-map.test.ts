@@ -66,12 +66,12 @@ test('엔진 고르기: svg 강제, google 강제(구글 키), 카카오 키, �
   assert.equal(pickMapEngine({ key: g, override: '' }), 'google');
 });
 
-test('SDK 주소: autoload=false, appkey, 추가 라이브러리 없음, 키가 비면 appkey가 없다', () => {
+test('SDK 주소: autoload=false, appkey, services 라이브러리(장소·주소 검색), 키가 비면 appkey가 없다', () => {
   const u = new URL(kakaoScriptUrl(' js-key&x=1 '));
   assert.equal(u.origin + u.pathname, 'https://dapi.kakao.com/v2/maps/sdk.js');
   assert.equal(u.searchParams.get('autoload'), 'false');
   assert.equal(u.searchParams.get('appkey'), 'js-key&x=1');
-  assert.equal(u.searchParams.has('libraries'), false);
+  assert.equal(u.searchParams.get('libraries'), 'services');
   assert.equal(new URL(kakaoScriptUrl('')).searchParams.has('appkey'), false);
   assert.ok(KAKAO_LOAD_TIMEOUT_MS >= 5000 && KAKAO_TILE_TIMEOUT_MS >= 5000);
   assert.equal(KAKAO_CLICK_DELAY_MS, 300);
@@ -464,9 +464,13 @@ test('카카오 어댑터: pointerEvents는 StyleSheet로만, 세 가지 실패�
     assert.match(src, /buildOverlayItems/, name);
     assert.match(src, /kakaoLevel\(FIT_MAX_ZOOM\)|FIT_MAX_ZOOM\)/, name);
   }
-  assert.match(webSrc, /kakaoScriptUrl\(KAKAO_MAP_JS_KEY\)/);
-  assert.match(webSrc, /new LoadError\('auth'\)/);
-  assert.match(webSrc, /new LoadError\('script'\)/);
+  // SDK 싣기는 장소 검색(services/kakaoSdk)과 같이 쓰는 kakaoLoader 한 곳에서만 한다
+  const loaderSrc = read('src/components/map/kakaoLoader.ts');
+  assert.match(webSrc, /loadKakaoSdk<KakaoMaps>\(\)/);
+  assert.doesNotMatch(webSrc, /document\.createElement\('script'\)/);
+  assert.match(loaderSrc, /kakaoScriptUrl\(KAKAO_MAP_JS_KEY\)/);
+  assert.match(loaderSrc, /new LoadError\('auth'\)/);
+  assert.match(loaderSrc, /new LoadError\('script'\)/);
   assert.match(webSrc, /fail\('tiles'\)/);
   assert.match(webSrc, /map\.setBounds\(b, pad\.top, pad\.right, pad\.bottom, pad\.left\)/);
   assert.match(webSrc, /map\.relayout\(\)/);

@@ -35,6 +35,7 @@
     "src/services/kv.ts",
     "src/services/share.ts",
     "src/services/kakaoHttp.ts",
+    "src/services/kakaoSdk.ts",
     "src/data/regions.ts",
     "src/data/scenario.ts",
     "tests/setup/**",

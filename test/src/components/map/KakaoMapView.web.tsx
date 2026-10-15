@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
-import { KAKAO_MAP_JS_KEY } from '../../config';
 import { ARRIVAL_ACCURACY_M } from '../../core/constants';
 import {
   clusterMemberIds,
@@ -21,7 +20,8 @@ import {
 import { DEFAULT_CLUSTER_PX, type MapCluster } from '../../core/map/layout';
 import type { LatLng } from '../../types';
 import { lineC, mapC, mapPinSvg, R } from '../../ui';
-import { KAKAO_CLICK_DELAY_MS, KAKAO_LOAD_TIMEOUT_MS, KAKAO_TILE_TIMEOUT_MS, kakaoScriptUrl, wheelZoomStep } from './kakaoScript';
+import { LoadError, loadKakaoSdk } from './kakaoLoader';
+import { KAKAO_CLICK_DELAY_MS, KAKAO_TILE_TIMEOUT_MS, wheelZoomStep } from './kakaoScript';
 import { buildOverlayItems, itemSig, OVERLAY_Z, type LayerData, type OverlayItem } from './overlayItems';
 import { ClusterListSheet, FitAllButton, MapChildren, mapHeight, type MapFailReason, type MapViewProps } from './parts';
 
@@ -100,57 +100,8 @@ interface KakaoMaps {
     removeListener(target: unknown, type: string, fn: (e: KMouseEvent) => void): void;
   };
 }
-type KakaoWindow = Window & { kakao?: { maps?: KakaoMaps } };
-
-let loader: Promise<KakaoMaps> | undefined;
-
-class LoadError extends Error {
-  readonly reason: 'auth' | 'script';
-  constructor(reason: 'auth' | 'script') {
-    super(reason === 'auth' ? '카카오 지도 키가 거부됐어요' : '카카오 지도 스크립트를 받지 못했어요');
-    this.reason = reason;
-  }
-}
-
-/** SDK를 한 번만 받는다. 실패하면 다음 지도가 다시 시도할 수 있게 비운다 */
-function loadKakao(): Promise<KakaoMaps> {
-  if (loader) return loader;
-  loader = new Promise<KakaoMaps>((resolve, reject) => {
-    const win = window as KakaoWindow;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const done = (fn: () => void) => {
-      clearTimeout(timer);
-      fn();
-    };
-    const afterScript = () => {
-      const maps = win.kakao?.maps;
-      if (!maps || typeof maps.load !== 'function') {
-        done(() => reject(new LoadError('script')));
-        return;
-      }
-      // 앱 키가 거부되거나 이 도메인이 등록되지 않았으면 load 콜백이 오지 않는다
-      timer = setTimeout(() => reject(new LoadError('auth')), KAKAO_LOAD_TIMEOUT_MS);
-      maps.load(() => done(() => resolve(maps)));
-    };
-    if (win.kakao?.maps) {
-      afterScript();
-      return;
-    }
-    const s = document.createElement('script');
-    s.src = kakaoScriptUrl(KAKAO_MAP_JS_KEY);
-    s.async = true;
-    s.onload = afterScript;
-    s.onerror = () => {
-      s.remove();
-      reject(new LoadError('script'));
-    };
-    document.head.appendChild(s);
-  }).catch((e: unknown) => {
-    loader = undefined;
-    throw e;
-  });
-  return loader;
-}
+/** SDK 싣기는 kakaoLoader(장소 검색과 같이 쓴다) */
+const loadKakao = () => loadKakaoSdk<KakaoMaps>();
 
 /** 키 거부는 세션 동안 기억한다(다른 화면이 다시 시한을 기다리지 않게) */
 let authFailed = false;
