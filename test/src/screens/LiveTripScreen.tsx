@@ -229,6 +229,8 @@ export default function LiveTripScreen({ navigation, route }: RootScreenProps<'L
     if (r.ok) useUi.getState().showToast(`${name}을(를) 고정으로 되돌렸어요`);
   };
   const openRecord = () => navigation.navigate('Journal', { tripId, date });
+  const me = myMemberId(trip);
+  const host = !!me && isHost(trip, me);
   const openBigMap = () => {
     useUi.getState().setCurrentTrip(tripId);
     navigation.navigate('Main', { screen: 'Map', params: { date } });
