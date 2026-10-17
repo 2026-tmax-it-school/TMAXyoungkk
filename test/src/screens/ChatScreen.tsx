@@ -9,7 +9,6 @@ import {
   type NativeScrollEvent,
   type NativeSyntheticEvent,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { orderedMessages } from '../core/chatOrder';
 import { areaIndex, groupAreas } from '../core/chatmap/areas';
@@ -18,7 +17,11 @@ import { pickOptions } from '../core/extract/manual';
 import { activeMembers, isHost, tripMode } from '../core/group';
 import { josa } from '../core/util';
 import { regionById } from '../data/regions';
-import { SCENARIO_CHAT, SCENARIO_LATE_JOIN, SCENARIO_MEMBERS } from '../data/scenario';
+import { buildSummaryRequest, localSummary, SUMMARY_MIN_MESSAGES } from '../core/chatSummary';
+import { TRANSPORT_LABEL } from '../core/constants';
+import { getServices } from '../services/registry';
+import type { ChatSummary } from '../core/ports';
+import { nightsLabel, periodLabel } from '../core/trip/create';
 import { PlacePickSheet } from '../features/candidates/components/PlacePickSheet';
 import { Bubble } from '../features/chat/components/Bubble';
 import { CandidateBar } from '../features/chat/components/CandidateBar';
@@ -27,7 +30,6 @@ import { ExtractionCardView } from '../features/chat/components/ExtractionCardVi
 import { SendButton } from '../features/chat/components/SendButton';
 import { AreaChips } from '../features/chat/map/AreaChips';
 import { ChatMapView } from '../features/chat/map/ChatMapView';
-import { playScenarioChat } from '../features/chat/scenario';
 import { resolvePick, sendChatMessage, undoExtraction } from '../features/chat/send';
 import {
   extractionCard,
@@ -57,12 +59,14 @@ import {
   lineC,
   ListRow,
   NotFound,
+  Notice,
   Row,
   Screen,
   Seg,
   Sheet,
   SP,
   Txt,
+  useBottomInset,
 } from '../ui';
 
 /**
@@ -104,17 +108,19 @@ function DayDivider({ label }: { label: string }) {
   );
 }
 
+/** 이 앱 실행 중에 대화를 AI로 보내는 것에 동의했는지 */
+let summaryConsented = false;
+
 export default function ChatScreen({ navigation, route }: RootScreenProps<'Chat'>) {
   const { tripId } = route.params;
   const trip = useTripDoc(tripId);
   const plan = usePlan(tripId);
   const online = useTrips((s) => s.online);
   const actingAs = useUi((s) => s.actingAs[tripId]);
-  const setActingAs = useUi((s) => s.setActingAs);
   const setCurrentTrip = useUi((s) => s.setCurrentTrip);
-  const toast = useUi((s) => s.showToast);
   const back = useBack('Home');
-  const insets = useSafeAreaInsets();
+  const toast = useUi((s) => s.showToast);
+  const bottom = useBottomInset();
   const { width } = useWindowDimensions();
   const wide = width >= WIDE_MIN;
   const [text, setText] = useState('');
@@ -123,12 +129,17 @@ export default function ChatScreen({ navigation, route }: RootScreenProps<'Chat'
   const [rooms, setRooms] = useState(false);
   /** 멤버 시트(방장은 여기서 내보낸다) */
   const [membersOpen, setMembersOpen] = useState(false);
+  /** AI 대화 요약: 동의 확인 → 요약 시트 */
+  const [sumStep, setSumStep] = useState<'closed' | 'consent' | 'view'>('closed');
+  const [summary, setSummary] = useState<ChatSummary | undefined>();
+  const [sumBusy, setSumBusy] = useState(false);
+  const sumTicket = useRef(0);
   const [removing, setRemoving] = useState<{ id: string; nickname: string } | undefined>();
-  const [playing, setPlaying] = useState(false);
   const [pick, setPick] = useState<{ messageId: string; phrase: string } | undefined>();
   const [undoAsk, setUndoAsk] = useState<{ messageId: string; names: string[] } | undefined>();
   // 좁은 화면은 '지도'로 연다(2026-10-17 사용자 요청: 채팅방에 들어가면 지도를 바로 보여 주기)
-  const [view, setView] = useState<ChatView>('map');
+  // 혼자 여행(채팅 메모)은 입력이 먼저라 '채팅'으로 열고, 지도는 위 탭으로 본다
+  const [view, setView] = useState<ChatView>(trip && tripMode(trip) === 'personal' ? 'chat' : 'map');
   const [mapMounted, setMapMounted] = useState(true);
   const [sel, act] = useReducer(chatMapStep, CHAT_MAP_INITIAL);
   const scroll = useRef<ScrollView>(null);
@@ -159,7 +170,7 @@ export default function ChatScreen({ navigation, route }: RootScreenProps<'Chat'
   const group = tripMode(trip) === 'group';
   const active = activeMembers(trip);
   const region = regionById(trip.region);
-  const mapOn = group && !wide && view === 'map';
+  const mapOn = !wide && view === 'map';
   const selArea = sel.selArea && areas.some((a) => a.key === sel.selArea) ? sel.selArea : null;
 
   const send = async () => {
@@ -169,22 +180,6 @@ export default function ChatScreen({ navigation, route }: RootScreenProps<'Chat'
     justSent.current = true;
     const r = await sendChatMessage(tripId, body, { actorId: me });
     if (!r.ok) setText(body);
-  };
-
-  const play = async (fromLine: number, toLine: number) => {
-    setMenu(false);
-    if (playing) return;
-    setPlaying(true);
-    const sent = await playScenarioChat(tripId, { fromLine, toLine });
-    setPlaying(false);
-    const joined = new Set(activeMembers(useTrips.getState().docs[tripId] ?? trip).map((m) => m.nickname));
-    const speakers = new Set(SCENARIO_CHAT.filter((l) => l.line >= fromLine && l.line <= toLine).map((l) => l.from));
-    const skipped = SCENARIO_MEMBERS.filter((m) => speakers.has(m.key) && !joined.has(m.nickname)).map((m) => m.nickname);
-    toast(
-      skipped.length
-        ? `시나리오 ${sent}줄을 보냈어요. 합류하지 않은 ${skipped.join('·')}의 줄은 건너뛰었어요`
-        : `시나리오 ${sent}줄을 보냈어요`,
-    );
   };
 
   const askUndo = (messageId: string) => {
@@ -221,6 +216,35 @@ export default function ChatScreen({ navigation, route }: RootScreenProps<'Chat'
   const openSearchAdd = () => {
     setCurrentTrip(trip.id);
     navigation.navigate('Main', { screen: 'Candidates', params: { add: true } });
+  };
+  /** 요약 만들기. 늦게 끝난 앞 요청은 버린다 */
+  const runSummary = async () => {
+    const t = (sumTicket.current += 1);
+    setSumStep('view');
+    setSummary(undefined);
+    setSumBusy(true);
+    try {
+      const s = await getServices().summary.summarize(buildSummaryRequest(trip));
+      if (t === sumTicket.current) setSummary(s);
+    } catch {
+      if (t === sumTicket.current) setSummary({ ...localSummary(buildSummaryRequest(trip)), aiUnavailable: true });
+    } finally {
+      if (t === sumTicket.current) setSumBusy(false);
+    }
+  };
+  /** AI에 대화가 가므로 앱을 켠 뒤 처음 한 번은 동의를 받는다(AI 서버가 없어 규칙 요약만 하면 묻지 않는다) */
+  const startSummary = () => {
+    setMenu(false);
+    if (trip.messages.filter((m) => m.text.trim() !== '').length < SUMMARY_MIN_MESSAGES) {
+      toast('요약할 대화가 아직 없어요');
+      return;
+    }
+    if (getServices().summary.id === 'ai' && !summaryConsented) setSumStep('consent');
+    else void runSummary();
+  };
+  const openTripSettings = () => {
+    setMenu(false);
+    navigation.navigate('TripSettings', { tripId });
   };
   const openCandidates = () => {
     setCurrentTrip(trip.id);
@@ -300,11 +324,12 @@ export default function ChatScreen({ navigation, route }: RootScreenProps<'Chat'
         })}
       </ScrollView>
 
-      <View style={[styles.composer, { paddingBottom: SP.l + insets.bottom }]}>
+      <View style={[styles.composer, { paddingBottom: SP.l + bottom }]}>
         <CandidateBar trip={trip} plan={plan} onPress={openCandidates} />
         {me ? (
-          <Row>
+          <Row gap={SP.s} wrap>
             <Btn title="장소 검색해서 담기" icon="search" size="sm" variant="quiet" onPress={openSearchAdd} />
+            <Btn title="AI 요약" icon="book" size="sm" variant="quiet" onPress={startSummary} />
           </Row>
         ) : null}
         {me ? (
@@ -345,18 +370,17 @@ export default function ChatScreen({ navigation, route }: RootScreenProps<'Chat'
       online={online}
       visible={visible}
       wide={wide}
+      solo={!group}
     />
   );
 
   let body: React.ReactNode;
-  if (!group) {
-    body = chatColumn;
-  } else if (wide) {
+  if (wide) {
     body = (
       <View style={styles.split}>
         <View style={styles.chatCol}>{chatColumn}</View>
         <View style={styles.fill}>
-          <AreaChips areas={areas} selected={selArea} onPick={pickArea} />
+          {group ? <AreaChips areas={areas} selected={selArea} onPick={pickArea} /> : null}
           {mapPane(true)}
         </View>
       </View>
@@ -364,7 +388,7 @@ export default function ChatScreen({ navigation, route }: RootScreenProps<'Chat'
   } else {
     body = (
       <>
-        <AreaChips areas={areas} selected={selArea} onPick={pickArea} />
+        {group ? <AreaChips areas={areas} selected={selArea} onPick={pickArea} /> : null}
         <View style={styles.fill}>
           <View
             style={[styles.layer, mapOn ? styles.offstage : null]}
@@ -391,7 +415,7 @@ export default function ChatScreen({ navigation, route }: RootScreenProps<'Chat'
         titlePressLabel={`${trip.title} 채팅방, 다른 채팅방 고르기`}
         right={
           <>
-            {group && !wide ? (
+            {!wide ? (
               <Seg<ChatView>
                 compact
                 items={[
@@ -402,7 +426,7 @@ export default function ChatScreen({ navigation, route }: RootScreenProps<'Chat'
                 onChange={switchView}
               />
             ) : null}
-            <IconBtn icon="dots" label="채팅 메뉴" onPress={() => setMenu(true)} />
+            <IconBtn icon="gear" label="채팅 설정" onPress={() => setMenu(true)} />
           </>
         }
       />
@@ -425,18 +449,14 @@ export default function ChatScreen({ navigation, route }: RootScreenProps<'Chat'
           }}
         />
       </Sheet>
-      <Sheet visible={menu} onClose={() => setMenu(false)} title="채팅 메뉴">
-        {/* 여행방 설정(이름·지역·날짜·이동수단·날짜별 기점)은 여기서 연다. 방장만 바꿀 수 있고 그룹원에게는 값만 보인다 */}
+      <Sheet visible={menu} onClose={() => setMenu(false)} title="채팅 설정">
+        {/* 여행방 설정 값(지역·날짜·이동수단·활동시간)을 여기서 바로 보고, 누르면 여행방 설정에서 고친다(방장만 바꿀 수 있고 그룹원에게는 값만 보인다) */}
         <View>
-          <ListRow
-            first
-            icon="gear"
-            label="여행방 설정"
-            onPress={() => {
-              setMenu(false);
-              navigation.navigate('TripSettings', { tripId });
-            }}
-          />
+          <ListRow first icon="pin" label="지역" value={region?.name ?? '-'} onPress={openTripSettings} />
+          <ListRow icon="cal" label="날짜" value={`${periodLabel(trip.startDate, trip.endDate)} · ${nightsLabel(trip.startDate, trip.endDate)}`} onPress={openTripSettings} />
+          <ListRow icon={trip.transport === 'car' ? 'car' : trip.transport === 'walk' ? 'walk' : 'bus'} label="이동수단" value={TRANSPORT_LABEL[trip.transport]} onPress={openTripSettings} />
+          <ListRow icon="clock" label="하루 활동시간" value={`${trip.dayStart} – ${trip.dayEnd}`} onPress={openTripSettings} />
+          <ListRow icon="book" label="AI 대화 요약" sub="지금까지 이야기를 정리해 줘요" onPress={startSummary} />
           <ListRow
             icon="users"
             label={`멤버 ${active.length}명 보기`}
@@ -455,36 +475,46 @@ export default function ChatScreen({ navigation, route }: RootScreenProps<'Chat'
             }}
           />
         </View>
-        <Txt v="eyebrow">시연</Txt>
-        <Txt v="label">보내는 사람 바꾸기 · 같은 기기 시연</Txt>
-        <Row wrap gap={SP.s}>
-          {active.map((m) => (
-            <Btn
-              key={m.id}
-              title={m.nickname}
-              size="sm"
-              variant={m.id === me ? 'primary' : 'quiet'}
-              onPress={() => {
-                setActingAs(tripId, m.id);
-                setMenu(false);
-              }}
-            />
-          ))}
-        </Row>
-        <Btn
-          title={playing ? '재생 중' : '시나리오 1~11줄 재생'}
-          variant="ghost"
-          icon="play"
-          onPress={() => play(1, SCENARIO_LATE_JOIN.afterLine)}
-          disabled={playing || !group}
-        />
-        <Btn
-          title={`시나리오 ${SCENARIO_LATE_JOIN.afterLine + 1}~${SCENARIO_CHAT.length}줄 재생`}
-          variant="quiet"
-          icon="play"
-          onPress={() => play(SCENARIO_LATE_JOIN.afterLine + 1, SCENARIO_CHAT.length)}
-          disabled={playing || !group}
-        />
+      </Sheet>
+
+      <ConfirmSheet
+        visible={sumStep === 'consent'}
+        title="대화를 AI로 요약할까요"
+        text="이 여행방의 최근 대화(80줄까지)와 후보 이름이 AI 서비스(Gemini)로 전송돼요. 요약에만 쓰고 서버에 저장하지 않아요."
+        confirmLabel="요약하기"
+        onConfirm={() => {
+          summaryConsented = true;
+          void runSummary();
+        }}
+        onCancel={() => setSumStep('closed')}
+      />
+      <Sheet visible={sumStep === 'view'} onClose={() => { sumTicket.current += 1; setSumStep('closed'); }} title="AI 대화 요약" scroll>
+        {sumBusy || !summary ? (
+          <Notice icon="clock" title="대화를 정리하는 중이에요" text="잠시만 기다려 주세요" />
+        ) : (
+          <Col gap={SP.l}>
+            {summary.aiUnavailable ? <Notice tone="warn" icon="alert" text="AI를 지금 쓸 수 없어서 간단히 정리했어요. 잠시 뒤 다시 요약해 보세요" /> : null}
+            <Txt v="body">{summary.overview}</Txt>
+            {summary.decided.length > 0 ? (
+              <Col gap={SP.s}>
+                <Txt v="eyebrow">정해진 것</Txt>
+                {summary.decided.map((d, i) => (
+                  <Txt key={`d${i}`} v="mt" c="ink">{`· ${d}`}</Txt>
+                ))}
+              </Col>
+            ) : null}
+            {summary.open.length > 0 ? (
+              <Col gap={SP.s}>
+                <Txt v="eyebrow">더 정해야 할 것</Txt>
+                {summary.open.map((d, i) => (
+                  <Txt key={`o${i}`} v="mt" c="ink">{`· ${d}`}</Txt>
+                ))}
+              </Col>
+            ) : null}
+            <Txt v="mtTight">{summary.source === 'ai' ? 'AI가 대화를 읽고 정리했어요. 틀릴 수 있으니 중요한 건 확인해 주세요' : '대화 줄 수와 후보로 만든 간단한 정리예요'}</Txt>
+            <Btn title="다시 요약하기" variant="quiet" icon="refresh" onPress={() => void runSummary()} disabled={sumBusy} />
+          </Col>
+        )}
       </Sheet>
 
       {/* 멤버 시트: 방장은 방장 아닌 멤버를 내보낼 수 있다(member/remove, 확인 1회). 규칙은 core/ops/members.validate */}

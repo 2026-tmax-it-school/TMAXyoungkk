@@ -113,8 +113,8 @@ test('화면과 진입점이 이어졌다', () => {
   const nav = read('src/navigation/RootNavigator.tsx');
   for (const n of ['Itineraries', 'ItineraryDetail', 'ShareItinerary']) assert.match(nav, new RegExp(`name="${n}"`));
   const home = read('src/screens/HomeScreen.tsx');
-  // 공유된 여행 일정 입구는 홈 구역에서 여행방 빠른 메뉴 '공유된 일정' 칸으로 옮겼다(2026-10-17)
-  assert.doesNotMatch(home, /<SectionTitle title="공유된 여행 일정" \/>/);
+  // 홈에는 공유된 일정 구역을 두지 않는다. 입구는 커뮤니티 탭 '여행 일정'과 여행방 빠른 메뉴 '공유된 일정' 칸이다
+  assert.doesNotMatch(home, /공유된 여행 일정/);
   assert.match(read('src/features/trip/components/TripActions.tsx'), /navigation\.navigate\('Itineraries'\)/);
   assert.doesNotMatch(home, /<SectionTitle title="추천 여행 일정" onMore/);
   assert.match(read('src/screens/TripSettingsScreen.tsx'), /navigate\('ShareItinerary'/);
@@ -122,4 +122,13 @@ test('화면과 진입점이 이어졌다', () => {
   const create = read('src/screens/CreateTripScreen.tsx');
   assert.match(create, /markImported/);
   assert.match(create, /applySampleTrip\(tripId, regionId, range\.start, range\.end, shared\)/);
+});
+
+test('커뮤니티 여행 일정 탭에서 바로 일정 공유: 버튼·빈 목록 버튼, 로그인 안내, 여행방 고르기', () => {
+  const c = read('src/screens/CommunityScreen.tsx');
+  assert.match(c, /<Btn title="일정 공유" icon="share"/);
+  assert.match(c, /onShare=\{shareStart\}/);
+  assert.match(c, /navigate\('ShareItinerary', \{ tripId: trips\[0\]\.id \}\)/);
+  assert.match(c, /어느 여행방의 일정을 공유할까요/);
+  assert.match(read('src/screens/ItinerariesScreen.tsx'), /label: '내 일정 공유하기'/);
 });

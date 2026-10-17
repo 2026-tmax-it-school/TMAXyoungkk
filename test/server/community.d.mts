@@ -36,6 +36,9 @@ export interface StoredPost {
   createdAt: number;
   /** 고친 시각(ms). 고친 적이 없으면 없음(null) */
   editedAt?: number | null;
+  /** 조회수·좋아요 수(2026-10-17) */
+  views?: number;
+  likes?: number;
   photos: { id: string; mime: string; bytes?: Buffer }[];
 }
 
@@ -57,6 +60,12 @@ export interface CommunityStore {
   /** 본인 글이 아니거나 없으면 null. 빠진 사진은 지운다 */
   updatePost(id: string, accountId: string, patch: PostPatch): Awaitable<StoredPost | null>;
   list(q: { before: { createdAt: number; id: string } | null; limit: number; kind: string | null; tag?: string | null; q?: string | null }): Awaitable<StoredPost[]>;
+  /** 이 계정이 좋아요를 누른 글 id들(ids 중에서) */
+  likedSet(accountId: string, ids: string[]): Awaitable<Set<string>>;
+  /** 좋아요 켜기·끄기(계정당 한 번). 없는 글이면 null */
+  setLike(id: string, accountId: string, on: boolean): Awaitable<StoredPost | null>;
+  /** 같은 보는 사람은 하루 한 번만 센다. 돌려주는 값은 조회수, 없는 글이면 null */
+  countView(id: string, viewerKey: string, day: string): Awaitable<number | null>;
   removePost(id: string, accountId: string): Awaitable<boolean>;
   removeByAccount(accountId: string): Awaitable<number>;
   photo(id: string): Awaitable<{ mime: string; bytes: Buffer } | null>;
@@ -89,6 +98,7 @@ export interface CommunityService {
     url: URL;
     headers: Record<string, string | string[] | undefined>;
     body: unknown;
+    ip?: string;
   }): Promise<{ status: number; body?: unknown; raw?: { mime: string; bytes: Buffer } }>;
   reset(): Promise<void>;
   removeByAccount(accountId: string): Promise<number>;

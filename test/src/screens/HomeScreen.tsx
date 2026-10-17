@@ -311,7 +311,7 @@ export default function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
           </ScrollView>
         </View>
 
-        {/* 공유된 여행 일정은 여행방 빠른 메뉴의 '공유된 일정' 칸으로 옮겼다(2026-10-17) */}
+        {/* 다른 사람의 일정 둘러보기는 여행방 빠른 메뉴의 '공유된 일정' 칸과 커뮤니티 탭에 있다(2026-10-17) */}
           </>
         )}
       </ScrollView>

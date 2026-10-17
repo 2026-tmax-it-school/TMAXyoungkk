@@ -41,6 +41,7 @@ import { createServer } from 'node:http';
 import { realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
+import { createMailer, mailerOptionsFromEnv } from './mailer.mjs';
 import { AI_DEFAULTS, aiOptionsFromEnv, createAiRecommender, isAiPath } from './ai.mjs';
 import { createAuthService, createMemoryAuthStore, devOutboxFromEnv, isAuthPath } from './auth.mjs';
 import { createCommunityService, createMemoryCommunityStore, isCommunityPath, POST_BODY_MAX } from './community.mjs';
@@ -374,6 +375,7 @@ export async function startSyncServer({
         url,
         headers: req.headers,
         body,
+        ip: req.socket.remoteAddress ?? '',
       });
       if (r.raw) return sendRaw(res, r.status, r.raw.mime, r.raw.bytes);
       return send(res, r.status, r.body, { 'Cache-Control': 'no-store' });
@@ -498,20 +500,23 @@ async function main() {
   const oauth = oauthOptionsFromEnv(process.env);
   // AI 추천(GEMINI_API_KEY, GEMINI_MODEL). 키 값은 로그에 남기지 않는다(켜짐·꺼짐만)
   const ai = aiOptionsFromEnv(process.env);
+  // 인증·재설정 메일을 실제로 보낸다(SMTP_HOST·SMTP_PORT·SMTP_USER·SMTP_PASS·MAIL_FROM). 값은 로그에 남기지 않는다
+  const mailOpts = mailerOptionsFromEnv(process.env);
+  const mailer = mailOpts ? createMailer({ ...mailOpts, log: (m) => console.log(m) }) : null;
   const server = await startSyncServer({
     port,
     host: '0.0.0.0',
     store,
     allowReset,
     proxy,
-    auth: { devOutbox, oauth },
+    auth: { devOutbox, oauth, ...(mailer ? { mailer } : {}) },
     ai,
     log: (m) => console.log(m),
   });
   console.log(
     `sync-server ${server.url} (저장: ${store.kind === 'postgres' ? 'PostgreSQL' : '메모리'}, 시연 리셋: ${allowReset ? '허용' : '막음'})`,
   );
-  console.log(`계정: 메일 발송 없음, 개발용 보낸편지함·모의 소셜 ${devOutbox ? '열림(GET /auth/outbox, /auth/social)' : '닫힘(AUTH_DEV_OUTBOX=1로 연다)'}`);
+  console.log(`계정: 메일 발송 ${mailer ? `켜짐(${mailer.host})` : '없음(SMTP_* 없음)'}, 개발용 보낸편지함·모의 소셜 ${devOutbox ? '열림(GET /auth/outbox, /auth/social)' : '닫힘(AUTH_DEV_OUTBOX=1로 연다)'}`);
   console.log(`소셜 로그인(OAuth): ${describeOAuth(oauth)}`);
   console.log(
     `중계: 카카오 ${proxy.kakaoKey ? '켜짐' : '꺼짐(KAKAO_REST_KEY 없음, 503)'}, 대중교통 ODsay ${proxy.odsayKey ? '켜짐' : '꺼짐(ODSAY_API_KEY 없음, 503)'}, OSRM ${new URL(proxy.osrmUrl).host}`,

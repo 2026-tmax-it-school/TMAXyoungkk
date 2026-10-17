@@ -15,6 +15,7 @@ export const IP_ATTEMPT_LIMIT: number;
 export const ATTEMPT_WINDOW_MS: number;
 export const EMAIL_IP_ATTEMPT_LIMIT: number;
 export const MAIL_LIMIT: number;
+export const MAIL_PER_ADDRESS_DAILY: number;
 export const VERIFY_TTL_MS: number;
 export const RESET_TTL_MS: number;
 export const LINK_TTL_MS: number;
@@ -87,6 +88,8 @@ export interface AuthStore {
   bumpFail(key: string, now: number, max: number, lockMs: number): Awaitable<{ count: number; lockedUntil: number | null }>;
   setLock(key: string, lock: { fails: number; lockedUntil: number | null }, now: number): Awaitable<void>;
   purge(now: number): Awaitable<void>;
+  /** 인증 안 한 이메일 가입 중 maxAgeMs보다 오래된 것을 지운다. 지운 수 */
+  purgeUnverified(now: number, maxAgeMs: number): Awaitable<number>;
   reset(): Awaitable<void>;
 }
 
@@ -116,7 +119,15 @@ export interface AuthServiceOptions {
   oauth?: OAuthClientOptions;
   /** 계정 탈퇴 뒤 부른다(커뮤니티가 그 계정의 글을 지운다) */
   onAccountRemoved?: (accountId: string) => Promise<unknown> | unknown;
+  /** 실제 메일을 보내는 곳(server/mailer.mjs createMailer). trySend가 true면 보냄, false면 실패 */
+  mailer?: { trySend(mail: { to: string; subject: string; text: string }): Promise<boolean> } | null;
+  /** 가입 응답이 메일 결과를 기다리는 시간(ms, 기본 5000). 늦으면 실패로 보지 않는다 */
+  mailWaitMs?: number;
 }
+
+export const MAIL_WAIT_MS: number;
+export const LOGIN_ACCOUNT_MAX_FAILS: number;
+export const UNVERIFIED_TTL_MS: number;
 
 export interface AuthService {
   handle(req: {
@@ -136,3 +147,7 @@ export interface AuthService {
 export function createAuthService(opts?: AuthServiceOptions): AuthService;
 export function isAuthPath(pathname: string): boolean;
 export function devOutboxFromEnv(env: Record<string, string | undefined>): boolean;
+
+/** 이 컴퓨터에서 바로 연 요청인지(루프백 + 프록시 머리글 없음). 개발용 보낸편지함 열람 조건 */
+export function isDirectLocal(ip: unknown, headers?: Record<string, unknown>): boolean;
+export function mailText(kind: 'verify' | 'reset' | 'link', token: string): string;

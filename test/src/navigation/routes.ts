@@ -22,7 +22,8 @@ export type MainTabParamList = {
   /** 채팅방 목록(내 여행방마다 하나). 하단 탭 '채팅' 칸이다. 방을 누르면 스택 화면 Chat */
   ChatList: undefined;
   /** 사진·일기 글을 앱 사용자 모두와 나누는 곳(서버 저장) */
-  Community: undefined;
+  /** tab: 'plans'면 '여행 일정'(다른 사람이 공유한 일정) 탭으로 연다. 기본은 '이야기'(사진·일기 글) */
+  Community: { tab?: 'posts' | 'plans' } | undefined;
   More: undefined;
 };
 
@@ -31,7 +32,8 @@ export type RootStackParamList = {
   /** nickname: 온보딩에서 적어 둔 닉네임을 이어 받는다 */
   InviteAccept: { code?: string; nickname?: string } | undefined;
   Login: undefined;
-  Signup: undefined;
+  /** verifyEmail: 로그인에서 '인증 메일 다시 받기'로 온 경우, 그 이메일의 코드 입력 단계로 바로 연다 */
+  Signup: { verifyEmail?: string } | undefined;
   SocialConsent: { provider: 'kakao' | 'google'; intent: 'login' | 'link' };
   Main: NavigatorScreenParams<MainTabParamList> | undefined;
   /** regionId: 추천 여행지 등에서 고른 지역을 처음 값으로 채운다 */
@@ -183,6 +185,6 @@ export const SCREEN_META: Record<Exclude<RootRouteName, 'Main'> | TabRouteName |
   TripSettings: { no: '25', title: '여행방 설정 · 날짜별 기점', fr: 'FR-201·205·204', wp: 'WP2' },
   SocialConsent: { no: '26', title: '소셜 로그인 동의', fr: 'FR-103', wp: 'WP1' },
   Directions: { no: '27', title: '길찾기', fr: 'FR-601~603', wp: 'WP5' },
-  Community: { no: '28', title: '커뮤니티 · 사진과 일기', fr: 'FR-705', wp: 'WP6' },
+  Community: { no: '28', title: '커뮤니티 · 이야기와 공유된 여행 일정', fr: 'FR-705', wp: 'WP6' },
   CommunityCompose: { no: '29', title: '커뮤니티 글쓰기', fr: 'FR-705', wp: 'WP6' },
 };

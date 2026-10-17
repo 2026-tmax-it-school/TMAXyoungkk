@@ -1,8 +1,8 @@
 import React from 'react';
-import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, View, useWindowDimensions } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Modal, Pressable, ScrollView, View, useWindowDimensions } from 'react-native';
 
 import { Btn, IconBtn } from './Btn';
+import { KeyboardAvoid, useBottomInset } from './KeyboardAvoid';
 import { Txt } from './Txt';
 import { H, lineC, R, SP, surfaceC } from './tokens';
 
@@ -11,7 +11,7 @@ const SHEET_MAX_RATIO = 0.85;
 
 /**
  * 아래에서 올라오는 시트. 라운드 16, 그림자 없음, 위쪽 잡이.
- * - 패널은 늘 KeyboardAvoidingView(iOS padding) 안에 있어 키보드가 시트 입력 칸과 버튼을 가리지 않는다.
+ * - 패널은 늘 KeyboardAvoid(iOS·안드로이드 padding) 안에 있어 키보드가 시트 입력 칸과 버튼을 가리지 않는다.
  * - scroll이 켜졌을 때 패널 높이는 창 높이의 85%까지이고 넘치는 내용은 안에서 스크롤한다.
  *   scroll이 꺼진 시트는 상한을 두지 않는다(줄일 수 없는 내용이 화면 아래로 잘리지 않게, 예: 날짜 고르기 달력).
  * - scroll: 내용을 ScrollView로 감싼다(기본 꺼짐). 켜면 키보드가 열린 채로 결과를 처음 누를 때 바로 눌린다(handled).
@@ -31,11 +31,11 @@ export function Sheet({
   scroll?: boolean;
   children?: React.ReactNode;
 }) {
-  const insets = useSafeAreaInsets();
+  const bottom = useBottomInset();
   const { height } = useWindowDimensions();
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <KeyboardAvoid>
         <Pressable accessibilityLabel="닫기" onPress={onClose} style={{ flex: 1, backgroundColor: 'rgba(26,16,20,0.28)' }} />
         <View
           style={{
@@ -47,7 +47,7 @@ export function Sheet({
             borderTopRightRadius: R.sheet,
             paddingTop: SP.xl,
             paddingHorizontal: SP.gutter,
-            paddingBottom: SP.section + insets.bottom,
+            paddingBottom: SP.section + bottom,
             gap: SP.xl,
           }}
         >
@@ -80,7 +80,7 @@ export function Sheet({
             children
           )}
         </View>
-      </KeyboardAvoidingView>
+      </KeyboardAvoid>
     </Modal>
   );
 }

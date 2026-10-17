@@ -1,9 +1,9 @@
 import { useFocusEffect } from '@react-navigation/native';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { FlatList, RefreshControl, View } from 'react-native';
 
 import type { CommunityPost } from '../core/ports';
-import { SEARCH_MAX } from '../core/community';
+import { SEARCH_MAX, failText } from '../core/community';
 import { useHomeBack } from '../navigation/useBack';
 import { PostCard } from '../features/community/components/PostCard';
 import type { TabScreenProps } from '../navigation/routes';
@@ -12,10 +12,14 @@ import { getServices } from '../services/registry';
 import { useCommunity } from '../store/community';
 import { useSession } from '../store/session';
 import { useUi } from '../store/ui';
-import { Btn, Col, ConfirmSheet, Empty, Field, Header, IconBtn, Notice, Row, Screen, SP, Tag, TextLink } from '../ui';
+import { Btn, Col, ConfirmSheet, Empty, Field, Header, IconBtn, ListRow, Notice, Row, Screen, Seg, Sheet, SP, Tag, TextLink } from '../ui';
+import { useActiveTrip } from '../features/trip/useActiveTrip';
+import { useItineraries } from '../store/itineraries';
+import { ItineraryFeed } from './ItinerariesScreen';
 
 /** 글자를 멈추고 이만큼 지나면 검색한다(엔터·검색 버튼은 바로) */
 const SEARCH_DEBOUNCE_MS = 400;
+const VIEW_CONFIG = { itemVisiblePercentThreshold: 50 };
 
 /**
  * 28 커뮤니티(WP6 소유, 2026-10-10). 여행 사진과 이야기를 앱 사용자 모두와 나눈다. 글은 서버에 있다.
@@ -27,9 +31,16 @@ const SEARCH_DEBOUNCE_MS = 400;
  * - 2026-10-17: 제목·태그 검색창. 글자를 멈추고 0.4초 뒤(엔터는 바로) 서버가 제목이나 태그에 들어 있는 글만 돌려준다. 태그 줄과 같이 쓸 수 있다.
  * - 2026-10-17: 내 글은 고칠 수 있다. 카드의 '수정'이 글쓰기 화면을 고치기(editPostId)로 연다. 고친 글은 피드에서 제자리에 바뀐다.
  */
-export default function CommunityScreen({ navigation }: TabScreenProps<'Community'>) {
-  const { posts, next, tag, query, status, loadingMore, error, moreError, setTag, setQuery, refresh, more, remove } = useCommunity();
+export default function CommunityScreen({ navigation, route }: TabScreenProps<'Community'>) {
+  const [tab, setTab] = useState<'posts' | 'plans'>(route.params?.tab === 'plans' ? 'plans' : 'posts');
+  // 홈에서 '여행 일정'으로 다시 열었을 때도 맞춘다
+  useEffect(() => {
+    if (route.params?.tab) setTab(route.params.tab);
+  }, [route.params?.tab, route.params]);
+  const { posts, next, tag, query, status, loadingMore, error, moreError, setTag, setQuery, refresh, more, remove, like, view } = useCommunity();
   const homeBack = useHomeBack();
+  const { trips } = useActiveTrip();
+  const [pickTrip, setPickTrip] = useState(false);
   const [text, setText] = useState(query);
   const session = useSession((s) => s.session);
   const now = useNow();
@@ -51,6 +62,27 @@ export default function CommunityScreen({ navigation }: TabScreenProps<'Communit
     return () => clearTimeout(t);
   }, [text, setQuery]);
 
+  // 좋아요는 로그인한 계정만. 게스트는 안내만 한다
+  const onLike = async (p: CommunityPost) => {
+    if (!canPost) {
+      useUi.getState().showToast('로그인하면 좋아요를 누를 수 있어요', 'soft');
+      return;
+    }
+    const r = await like(p.id);
+    if (!r.ok) useUi.getState().showToast(failText(r.code, r.detail), 'warn');
+  };
+  // 화면에 절반 넘게 보인 글은 조회수를 한 번 올린다(글마다 이 실행에서 한 번)
+  const viewable = useRef({ onViewableItemsChanged: ({ viewableItems }: { viewableItems: { item: CommunityPost }[] }) => viewableItems.forEach((v) => view(v.item.id)) });
+  // 내 여행 일정을 올린다: 로그인 계정만, 여행방이 여러 개면 어느 방인지 고른다
+  const shareStart = () => {
+    if (!canPost) return setLoginAsk(true);
+    if (trips.length === 0) {
+      useUi.getState().showToast('여행방을 만들면 그 일정을 공유할 수 있어요', 'soft');
+      return navigation.navigate('CreateTrip');
+    }
+    if (trips.length === 1) return navigation.navigate('ShareItinerary', { tripId: trips[0].id });
+    setPickTrip(true);
+  };
   const write = () => (canPost ? navigation.navigate('CommunityCompose') : setLoginAsk(true));
 
   const confirmDelete = async () => {
@@ -129,7 +161,30 @@ export default function CommunityScreen({ navigation }: TabScreenProps<'Communit
 
   return (
     <Screen>
-      <Header back={homeBack} title="커뮤니티" right={<IconBtn icon="refresh" label="새로 고침" onPress={() => void refresh()} />} />
+      <Header
+        back={homeBack}
+        title="커뮤니티"
+        right={<IconBtn icon="refresh" label="새로 고침" onPress={() => void (tab === 'plans' ? useItineraries.getState().refresh() : refresh())} />}
+      />
+      <View style={{ paddingHorizontal: SP.gutter, paddingBottom: SP.m }}>
+        <Seg<'posts' | 'plans'>
+          items={[
+            { key: 'posts', label: '이야기' },
+            { key: 'plans', label: '여행 일정' },
+          ]}
+          value={tab}
+          onChange={setTab}
+        />
+      </View>
+      {tab === 'plans' ? (
+        <>
+          <ItineraryFeed navigation={navigation} region={null} onShare={shareStart} />
+          <Row style={{ position: 'absolute', right: SP.gutter, bottom: SP.xxl }}>
+            <Btn title="일정 공유" icon="share" size="sm" onPress={shareStart} />
+          </Row>
+        </>
+      ) : (
+      <>
       <FlatList
         data={posts}
         keyExtractor={(p) => p.id}
@@ -142,6 +197,7 @@ export default function CommunityScreen({ navigation }: TabScreenProps<'Communit
             onTagPress={(t) => setTag(t)}
             onEdit={(p) => navigation.navigate('CommunityCompose', { editPostId: p.id })}
             onDelete={setAsking}
+            onLike={onLike}
           />
         )}
         ListHeaderComponent={head}
@@ -152,16 +208,20 @@ export default function CommunityScreen({ navigation }: TabScreenProps<'Communit
         keyboardShouldPersistTaps="handled"
         onEndReached={() => void more()}
         onEndReachedThreshold={0.5}
+        viewabilityConfig={VIEW_CONFIG}
+        onViewableItemsChanged={viewable.current.onViewableItemsChanged}
       />
       {emptyWrite ? null : (
         <Row style={{ position: 'absolute', right: SP.gutter, bottom: SP.xxl }}>
           <Btn title="글쓰기" icon="pen" size="sm" onPress={write} />
         </Row>
       )}
+      </>
+      )}
       <ConfirmSheet
         visible={loginAsk}
-        title="로그인하면 글을 올릴 수 있어요"
-        text="글은 계정 이름으로 올라가요. 글을 보는 것은 로그인 없이 돼요."
+        title={tab === 'plans' ? '로그인하면 일정을 공유할 수 있어요' : '로그인하면 글을 올릴 수 있어요'}
+        text={tab === 'plans' ? '일정은 계정 이름으로 올라가요. 일정을 보는 것은 로그인 없이 돼요.' : '글은 계정 이름으로 올라가요. 글을 보는 것은 로그인 없이 돼요.'}
         confirmLabel="로그인"
         onConfirm={() => {
           setLoginAsk(false);
@@ -169,6 +229,20 @@ export default function CommunityScreen({ navigation }: TabScreenProps<'Communit
         }}
         onCancel={() => setLoginAsk(false)}
       />
+      <Sheet visible={pickTrip} onClose={() => setPickTrip(false)} title="어느 여행방의 일정을 공유할까요" scroll>
+        {trips.map((t, i) => (
+          <ListRow
+            key={t.id}
+            first={i === 0}
+            label={t.title}
+            sub={`${t.startDate} ~ ${t.endDate}`}
+            onPress={() => {
+              setPickTrip(false);
+              navigation.navigate('ShareItinerary', { tripId: t.id });
+            }}
+          />
+        ))}
+      </Sheet>
       <ConfirmSheet
         visible={asking != null}
         title="글을 지울까요"

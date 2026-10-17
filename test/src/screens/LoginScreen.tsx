@@ -1,6 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { View } from 'react-native';
 
+import { isEmailLike, normalizeEmail } from '../core/auth';
 import type { OAuthProviderKind } from '../core/ports';
 import { FindAccountSheet } from '../features/account/FindAccountSheet';
 import { confirmLinkFlow, signInFlow } from '../features/account/flows';
@@ -77,7 +78,8 @@ export default function LoginScreen({ navigation }: RootScreenProps<'Login'>) {
     const r = await getServices().auth.resendVerification(ident);
     if (r.ok) {
       showToast('인증 메일을 새로 보냈어요');
-      navigation.navigate('Signup');
+      // 그 이메일의 코드 입력 단계로 바로 간다(빈 가입 양식으로 가면 코드를 넣을 곳이 없다). 닉네임으로 로그인한 경우는 이메일을 모른다
+      navigation.navigate('Signup', isEmailLike(ident) ? { verifyEmail: normalizeEmail(ident) } : undefined);
     } else {
       setFail({ ...authFailText(r) });
     }

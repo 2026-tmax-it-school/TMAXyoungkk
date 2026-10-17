@@ -20,11 +20,32 @@ const SEARCH_DEBOUNCE_MS = 400;
  * - 목록은 FlatList. 당겨서 새로 고치고, 끝에 닿으면 이어 받는다. 서버 주소가 없으면 이 기기 모의라고 안내한다.
  */
 export default function ItinerariesScreen({ navigation, route }: RootScreenProps<'Itineraries'>) {
+  const back = useBack('Home');
+  return (
+    <Screen>
+      <Header back={back} eyebrow="다른 사람의 여행" title="공유된 여행 일정" right={<IconBtn icon="refresh" label="새로 고침" onPress={() => void useItineraries.getState().refresh()} />} />
+      <ItineraryFeed navigation={navigation} region={route.params?.region ?? null} />
+    </Screen>
+  );
+}
+
+/**
+ * 공유된 일정 목록(검색·정렬·카드·이어 받기). 커뮤니티 탭의 '여행 일정' 탭(2026-10-17)과 이 화면이 같이 쓴다.
+ * 머리말·Screen은 부르는 쪽이 둔다.
+ */
+export function ItineraryFeed({
+  navigation,
+  region,
+  onShare,
+}: {
+  navigation: { navigate: (name: 'ItineraryDetail', params: { itineraryId: string }) => void };
+  region: string | null;
+  /** 있으면 빈 목록에 '내 일정 공유하기' 버튼을 보인다(커뮤니티 탭) */
+  onShare?: () => void;
+}) {
   const { items, next, sort, query, status, loadingMore, error, setSort, setQuery, setRegion, refresh, more } = useItineraries();
   const [text, setText] = useState(query);
-  const back = useBack('Home');
   const local = getServices().itineraries.id === 'local';
-  const region = route.params?.region ?? null;
 
   useEffect(() => {
     setRegion(region);
@@ -76,7 +97,12 @@ export default function ItinerariesScreen({ navigation, route }: RootScreenProps
       query ? (
         <Empty icon="search" title={`'${query}' 검색 결과가 없어요`} text="제목, 지역, 태그를 다른 말로 찾아 보세요" action={{ label: '검색 지우기', onPress: () => setText('') }} />
       ) : (
-        <Empty icon="share" title="아직 공유된 일정이 없어요" text="여행방의 설정에서 내 일정을 처음으로 공유해 보세요" />
+        <Empty
+          icon="share"
+          title="아직 공유된 일정이 없어요"
+          text="내 여행 일정을 처음으로 공유해 보세요"
+          action={onShare ? { label: '내 일정 공유하기', onPress: onShare } : undefined}
+        />
       )
     ) : null;
 
@@ -88,9 +114,7 @@ export default function ItinerariesScreen({ navigation, route }: RootScreenProps
   );
 
   return (
-    <Screen>
-      <Header back={back} eyebrow="다른 사람의 여행" title="공유된 여행 일정" right={<IconBtn icon="refresh" label="새로 고침" onPress={() => void refresh()} />} />
-      <FlatList
+    <FlatList
         data={items}
         keyExtractor={(i) => i.id}
         renderItem={({ item }) => <ItineraryCard item={item} onPress={() => navigation.navigate('ItineraryDetail', { itineraryId: item.id })} />}
@@ -102,8 +126,7 @@ export default function ItinerariesScreen({ navigation, route }: RootScreenProps
         keyboardShouldPersistTaps="handled"
         onEndReached={() => void more()}
         onEndReachedThreshold={0.5}
-      />
-    </Screen>
+    />
   );
 }
 

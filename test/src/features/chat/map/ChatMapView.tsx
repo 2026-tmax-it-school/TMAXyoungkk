@@ -1,5 +1,6 @@
 import React, { memo, useEffect, useMemo, useState } from 'react';
-import { BackHandler, Platform, StyleSheet, View, type LayoutChangeEvent } from 'react-native';
+import { BackHandler, Platform, Pressable, StyleSheet, View, type LayoutChangeEvent } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { MapCanvas } from '../../../components/map/MapCanvas';
 import type { ChatArea } from '../../../core/chatmap/areas';
@@ -8,12 +9,13 @@ import { mentionsOf, rankSpots, railOrder, VOTE_BUDGET, voteBlocked, voteCounts,
 import { proposerIds } from '../../../core/spotUtil';
 import { activeMembers } from '../../../core/group';
 import { isEditLocked } from '../../../core/ops';
-import type { MapPolylineInput } from '../../../core/map/layout';
+import type { MapMarkerInput, MapPolylineInput } from '../../../core/map/layout';
+import { regionById } from '../../../data/regions';
 import { useNow } from '../../../services/clock';
 import { myMemberId } from '../../../store/trips';
 import { useUi } from '../../../store/ui';
 import type { Trip } from '../../../types';
-import { Empty, PeekSheet, SHEET_MINI_H, type SheetSnap } from '../../../ui';
+import { Col, Empty, Icon, IconBtn, ListRow, MapPill, PeekSheet, Row, SHEET_MINI_H, SP, Txt, type SheetSnap } from '../../../ui';
 import { memberIndex } from '../view';
 import { canVote as canVoteNow, toggleVote } from './actions';
 import { MemberRail, type RailMember } from './MemberRail';
@@ -23,6 +25,8 @@ import type { SheetWho, Voter } from './text';
 const SNAPS: readonly SheetSnap[] = ['mini', 'peek', 'full'];
 /** 선이 없는 지도. 매번 새 배열을 넘기면 SVG 지도가 그릴 때마다 배치를 다시 계산한다 */
 const NO_LINES: MapPolylineInput[] = [];
+const NO_COUNTS: Record<string, number> = {};
+const NO_MARKERS: MapMarkerInput[] = [];
 
 /**
  * 채팅방 지도(FR-405, 명세 밖 추가). 채팅에서 나온 장소를 지도에 모으고, 지역·멤버로 거르고, 장소마다 한 표씩 준다.
@@ -47,6 +51,7 @@ export const ChatMapView = memo(function ChatMapView({
   online,
   visible,
   wide,
+  solo = false,
 }: {
   trip: Trip;
   areas: readonly ChatArea[];
@@ -56,8 +61,12 @@ export const ChatMapView = memo(function ChatMapView({
   online: boolean;
   visible: boolean;
   wide: boolean;
+  /** 혼자 여행(개인 모드): 투표·멤버 열 없이 핀과 후보 목록만 보인다(2026-10-17) */
+  solo?: boolean;
 }) {
   const [size, setSize] = useState({ w: 0, h: 0 });
+  // 채팅방은 탭 바가 없어 시트가 화면 맨 아래에 닿는다. 아래 안전 영역만큼 시트를 띄운다
+  const safeBottom = useSafeAreaInsets().bottom;
   const [sheetH, setSheetH] = useState(SHEET_MINI_H);
   const now = useNow();
   // memo라 화면이 다시 그려져도 여기는 그대로다. '나'(시연의 보내는 사람 바꾸기)가 바뀌면 직접 다시 그린다
@@ -92,8 +101,8 @@ export const ChatMapView = memo(function ChatMapView({
     [trip, member, areaBySpot, areaKey, me],
   );
   const input = useMemo(
-    () => chatMapInput(trip.spots, areaBySpot, counts, { area: areaKey, member: member?.id, focusSpotId }, avatars),
-    [trip, areaBySpot, counts, areaKey, member, focusSpotId, avatars],
+    () => chatMapInput(trip.spots, areaBySpot, solo ? NO_COUNTS : counts, { area: areaKey, member: member?.id, focusSpotId }, avatars),
+    [trip, areaBySpot, counts, areaKey, member, focusSpotId, solo, avatars],
   );
 
   const rail: RailMember[] = useMemo(
@@ -141,6 +150,33 @@ export const ChatMapView = memo(function ChatMapView({
     if (height > 0 && (width !== size.w || height !== size.h)) setSize({ w: width, h: height });
   };
 
+  if (live.length === 0 && solo) {
+    // 혼자 여행은 후보가 없어도 여행 지역 지도를 먼저 보인다(장소를 적으면 핀이 생긴다)
+    const region = regionById(trip.region);
+    // 지역 반경만큼 사방으로 벌린 네 점에 맞춰 도시 전체가 보이게 한다
+    const fit = region
+      ? (() => {
+          const { latitude: la, longitude: lo } = region.center;
+          const dLa = region.radiusKm / 111;
+          const dLo = region.radiusKm / (111 * Math.cos((la * Math.PI) / 180));
+          return [
+            { latitude: la - dLa, longitude: lo - dLo },
+            { latitude: la + dLa, longitude: lo + dLo },
+          ];
+        })()
+      : undefined;
+    return (
+      <View style={styles.fill} onLayout={onLayout}>
+        {size.h > 0 ? (
+          <MapCanvas flat height={size.h} markers={NO_MARKERS} fitTo={fit} polylines={NO_LINES}>
+            <View style={styles.soloHint}>
+              <MapPill label="장소 이름을 적으면 여기 핀으로 모여요" />
+            </View>
+          </MapCanvas>
+        ) : null}
+      </View>
+    );
+  }
   if (live.length === 0) {
     return (
       <View style={styles.fill} onLayout={onLayout}>
@@ -180,6 +216,7 @@ export const ChatMapView = memo(function ChatMapView({
           onMarkerPress={pressPin}
           overlayBottom={lay.overlayBottom}
         >
+          {solo ? null : (
           <MemberRail
             members={rail}
             total={active.length}
@@ -191,13 +228,53 @@ export const ChatMapView = memo(function ChatMapView({
             maxHeight={lay.railMaxHeight}
             onPress={(id) => send({ t: 'member', id })}
           />
+          )}
         </MapCanvas>
       ) : null}
+      {solo ? (
+        <PeekSheet
+          snap={snap}
+          onSnap={(s) => send({ t: 'snap', snap: s })}
+          snaps={SNAPS}
+          areaHeight={Math.max(0, size.h - safeBottom)}
+          bottomInset={safeBottom}
+          gripLabel="후보 목록"
+          onSettle={setSheetH}
+          style={wide ? { left: lay.sheetLeft } : undefined}
+          mini={
+            <Pressable accessibilityRole="button" accessibilityLabel="후보 목록 열기" onPress={() => send({ t: 'snap', snap: 'peek' })} style={styles.soloMini}>
+              <Icon name="list" size={20} color="ink" stroke={1.8} />
+              <Txt v="nmSm">{`후보 ${live.length}곳`}</Txt>
+            </Pressable>
+          }
+          head={
+            <Row style={styles.soloMini}>
+              <Col grow>
+                <Txt v="nm">{`후보 ${live.length}곳`}</Txt>
+              </Col>
+              <IconBtn icon="x" label="후보 목록 닫기" onPress={() => send({ t: 'close' })} />
+            </Row>
+          }
+        >
+          <Col>
+            {live.map((s, i) => (
+              <ListRow
+                key={s.id}
+                first={i === 0}
+                label={s.name}
+                sub={s.address ?? s.category}
+                onPress={() => send({ t: 'focus', spotId: s.id })}
+              />
+            ))}
+          </Col>
+        </PeekSheet>
+      ) : (
       <PeekSheet
         snap={snap}
         onSnap={(s) => send({ t: 'snap', snap: s })}
         snaps={SNAPS}
-        areaHeight={size.h}
+        areaHeight={Math.max(0, size.h - safeBottom)}
+        bottomInset={safeBottom}
         gripLabel="투표 목록"
         onSettle={setSheetH}
         style={wide ? { left: lay.sheetLeft } : undefined}
@@ -232,11 +309,14 @@ export const ChatMapView = memo(function ChatMapView({
           onFocus={(spotId) => send({ t: 'focus', spotId })}
         />
       </PeekSheet>
+      )}
     </View>
   );
 });
 
 const styles = StyleSheet.create({
+  soloHint: { position: 'absolute', top: SP.l, left: SP.gutter, right: SP.gutter, alignItems: 'center' },
+  soloMini: { flexDirection: 'row', alignItems: 'center', gap: SP.m, paddingHorizontal: SP.xl, minHeight: 48 },
   fill: {
     flex: 1,
     minHeight: 0,

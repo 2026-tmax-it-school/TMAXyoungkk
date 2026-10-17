@@ -37,6 +37,10 @@ interface CommunityState {
   publish: (draft: CommunityDraft) => Promise<CommunityResult<CommunityPost>>;
   edit: (postId: string, draft: CommunityEditDraft) => Promise<CommunityResult<CommunityPost>>;
   remove: (postId: string) => Promise<CommunityResult<true>>;
+  /** 좋아요 켜기·끄기. 누르는 즉시 숫자를 바꾸고(낙관), 서버 값으로 맞춘다. 실패하면 되돌린다 */
+  like: (postId: string) => Promise<CommunityResult<CommunityPost>>;
+  /** 화면에 보인 글의 조회수를 한 번 올린다(이 실행에서 글마다 한 번만 부른다) */
+  view: (postId: string) => void;
 }
 
 /** 지금 부르는 사람. 서버 계정이면 세션 토큰을 붙인다 */
@@ -48,6 +52,8 @@ async function ctxNow(): Promise<CommunityCtx> {
 }
 
 let ticket = 0;
+/** 이 실행에서 조회를 이미 보낸 글 */
+const viewSent = new Set<string>();
 
 export const useCommunity = create<CommunityState>()((set, get) => ({
   posts: [],
@@ -127,5 +133,26 @@ export const useCommunity = create<CommunityState>()((set, get) => ({
     const r = await getServices().community.remove(postId, await ctxNow());
     if (r.ok) set({ posts: get().posts.filter((p) => p.id !== postId) });
     return r;
+  },
+
+  like: async (postId) => {
+    const cur = get().posts.find((p) => p.id === postId);
+    const on = !(cur?.liked ?? false);
+    const patch = (liked: boolean, likes: number) => set({ posts: get().posts.map((p) => (p.id === postId ? { ...p, liked, likes } : p)) });
+    if (cur) patch(on, Math.max(0, (cur.likes ?? 0) + (on ? 1 : -1)));
+    const r = await getServices().community.like(postId, on, await ctxNow());
+    if (r.ok) patch(r.value.liked === true, r.value.likes ?? 0);
+    else if (cur) patch(cur.liked ?? false, cur.likes ?? 0);
+    return r;
+  },
+
+  view: (postId) => {
+    if (viewSent.has(postId)) return;
+    viewSent.add(postId);
+    void (async () => {
+      const r = await getServices().community.view(postId, await ctxNow());
+      if (r.ok) set({ posts: get().posts.map((p) => (p.id === postId ? { ...p, views: r.value } : p)) });
+      else viewSent.delete(postId);
+    })();
   },
 }));

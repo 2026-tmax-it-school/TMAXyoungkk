@@ -121,3 +121,16 @@ export interface AiRecommender {
 }
 
 export function createAiRecommender(opts?: AiRecommenderOptions): AiRecommender;
+
+/** 채팅 요약(POST /ai/summary, 2026-10-17) */
+export const SUMMARY_LIMITS: Readonly<{ messages: number; textMax: number; whoMax: number; spots: number; titleMax: number; itemMax: number; decidedMax: number; openMax: number }>;
+export function parseSummaryBody(body: unknown): {
+  title: string;
+  region: string;
+  start: string;
+  end: string;
+  messages: { who: string; text: string }[];
+  spots: { name: string; category: string }[];
+};
+export function buildSummaryPrompt(req: ReturnType<typeof parseSummaryBody>): string;
+export function summaryFromGemini(json: unknown): { overview: string; decided: string[]; open: string[] } | null;

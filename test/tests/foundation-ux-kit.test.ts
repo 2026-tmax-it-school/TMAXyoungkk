@@ -105,19 +105,24 @@ describe('입력과 시트', () => {
     assert.match(field, /scroll\?: boolean/);
   });
 
-  test('Body는 키보드가 열린 채로 처음 누를 때 바로 눌리고, Screen keyboard는 KeyboardAvoidingView로 감싼다', () => {
+  test('Body는 키보드가 열린 채로 처음 누를 때 바로 눌리고, Screen keyboard는 KeyboardAvoid로 감싼다', () => {
     const layout = read('src/ui/layout.tsx');
     assert.match(layout, /keyboardShouldPersistTaps="handled"/);
     assert.match(layout, /keyboardDismissMode="on-drag"/);
     assert.match(layout, /keyboard\?: boolean/);
-    assert.match(layout, /<KeyboardAvoidingView/);
+    assert.match(layout, /<KeyboardAvoid>/);
+    // 안드로이드 edge-to-edge(SDK 57)는 창이 줄지 않아 안드로이드도 padding으로 띄운다
+    const avoid = read('src/ui/KeyboardAvoid.tsx');
+    assert.match(avoid, /behavior=\{Platform\.OS === 'web' \? undefined : 'padding'\}/);
+    // Foot도 탭 바도 없는 스크롤 화면은 끝에 아래 안전 영역을 더한다
+    assert.match(layout, /const safeEnd = foot\?\.hasFoot \|\| inTabs \? 0 : bottom;/);
     assert.match(layout, /accessibilityRole="header"/);
     assert.match(layout, /size\?: 'lg' \| 'sm' \| 'row'/);
   });
 
-  test('시트: 늘 KeyboardAvoidingView, scroll은 기본 꺼짐, 제목 옆 닫기 버튼', () => {
+  test('시트: 늘 KeyboardAvoid, scroll은 기본 꺼짐, 제목 옆 닫기 버튼', () => {
     const sheet = read('src/ui/Sheet.tsx');
-    assert.match(sheet, /<KeyboardAvoidingView/);
+    assert.match(sheet, /<KeyboardAvoid>/);
     assert.match(sheet, /scroll = false/);
     // 85% 상한은 스크롤 시트에만: 줄일 수 없는 내용(달력 시트)이 화면 아래로 잘리지 않게
     assert.match(sheet, /maxHeight: scroll \? Math\.round\(height \* SHEET_MAX_RATIO\) : undefined/);

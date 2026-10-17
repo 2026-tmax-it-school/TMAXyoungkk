@@ -290,6 +290,36 @@ describe('이 기기 모의 커뮤니티', () => {
   const ids = { next: (p: string) => `${p}_${(n += 1)}` };
   const me = { userId: 'u1', nickname: '민지' };
 
+  test('조회수·좋아요(2026-10-17): 좋아요는 로그인·한 번·취소, 조회는 한 번(본인 글 제외), 피드에 liked 표시', async () => {
+    const c = createLocalCommunity({ clock, ids });
+    const you = { userId: 'u2', nickname: '준호' };
+    const made = await c.create(draft({ body: '반응 시험' }), me);
+    assert.ok(made.ok);
+    if (!made.ok) return;
+    const id = made.value.id;
+    assert.deepEqual(await c.like(id, true, {}), { ok: false, code: 'loginRequired' });
+    assert.ok((await c.like(id, true, you)).ok);
+    const again = await c.like(id, true, you);
+    assert.ok(again.ok && again.value.likes === 1 && again.value.liked === true, '두 번 눌러도 한 번');
+    const feed = await c.list({}, you);
+    assert.ok(feed.ok && feed.value.posts[0].liked === true && feed.value.posts[0].likes === 1);
+    const cancel = await c.like(id, false, you);
+    assert.ok(cancel.ok && cancel.value.likes === 0 && cancel.value.liked === false);
+    assert.deepEqual(await c.view(id, you), { ok: true, value: 1 });
+    assert.deepEqual(await c.view(id, you), { ok: true, value: 1 }, '같은 사람은 한 번');
+    assert.deepEqual(await c.view(id, me), { ok: true, value: 1 }, '본인 글은 안 센다');
+    assert.deepEqual(await c.view('nope', you), { ok: false, code: 'notFound' });
+  });
+
+  test('글 카드와 피드: 좋아요·조회 표시, 게스트 안내, 화면에 보이면 조회', () => {
+    const card = read('src/features/community/components/PostCard.tsx');
+    assert.match(card, /`좋아요 \$\{post\.likes \?\? 0\}`/);
+    assert.match(card, /`조회 \$\{post\.views \?\? 0\}`/);
+    const feed = read('src/screens/CommunityScreen.tsx');
+    assert.match(feed, /onViewableItemsChanged/);
+    assert.match(feed, /로그인하면 좋아요를 누를 수 있어요/);
+  });
+
   test('올리고 최신순으로 보고, 내 글만 지운다. 사진은 data: 주소로 보인다', async () => {
     const c = createLocalCommunity({ clock, ids });
     assert.equal(c.id, 'local');
@@ -496,7 +526,9 @@ test('화면 규칙: 로그인한 계정만 글쓰기, 사진은 버튼을 누�
   assert.match(feed, /RefreshControl/);
   assert.match(feed, /onEndReached=/);
   assert.match(feed, /setLoginAsk\(true\)/, '게스트가 글쓰기를 누르면 로그인 안내');
-  assert.ok(!/<Seg/.test(feed), '사진·일기 나누기 대신 태그로 거른다');
+  assert.ok(!/key: 'photo'|key: 'diary'/.test(feed), '사진·일기 나누기 대신 태그로 거른다(Seg는 이야기·여행 일정 탭뿐)');
+  assert.match(feed, /key: 'plans', label: '여행 일정'/);
+  assert.match(feed, /<ItineraryFeed/);
   const card = read('src/features/community/components/PostCard.tsx');
   assert.equal((card.match(/accessibilityIgnoresInvertColors/g) ?? []).length, 1);
   assert.match(card, /<PhotoViewer/);
@@ -573,7 +605,8 @@ test('연결: 여행일지 화면 → 커뮤니티 글쓰기, 채팅 메뉴 → 
   assert.match(diary, /navigation\.navigate\('CommunityCompose', \{ tripId, date \}\)/);
   assert.match(diary, /entry && entry\.blocks\.length > 0/);
   const chat = read('src/screens/ChatScreen.tsx');
-  assert.match(chat, /(?:title|label)="여행방 설정"[\s\S]{0,300}navigation\.navigate\('TripSettings', \{ tripId \}\)/);
+  assert.match(chat, /label="지역"[\s\S]{0,120}onPress=\{openTripSettings\}/);
+  assert.match(chat, /navigation\.navigate\('TripSettings', \{ tripId \}\)/);
   const more = read('src/screens/MoreScreen.tsx');
   assert.ok(!more.includes("label: '여행방 설정"), '프로필 탭 여행방 목록에는 여행방 설정이 없다');
 });
