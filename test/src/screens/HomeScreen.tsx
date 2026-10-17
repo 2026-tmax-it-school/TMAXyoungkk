@@ -1,8 +1,7 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 
 import type { Trip } from '../types';
-import { isHost } from '../core/group';
 import { coverUri } from '../core/trip/cover';
 import { tripStatus, type TripStatus } from '../core/tripStatus';
 import { kstDate } from '../core/util';
@@ -21,12 +20,11 @@ import {
 } from '../features/account/home';
 import { journalSub, recordCounts } from '../features/account/settings';
 import { useSessionKeepAlive } from '../features/account/useSessionKeepAlive';
-import { TripEditSheet } from '../features/trip/components/TripEditSheet';
 import { useActiveTrip } from '../features/trip/useActiveTrip';
 import type { TabScreenProps } from '../navigation/routes';
 import { useNow } from '../services/clock';
 import { useSession } from '../store/session';
-import { myMemberId, useTrips } from '../store/trips';
+import { useTrips } from '../store/trips';
 import { useUi } from '../store/ui';
 import {
   AvatarStack,
@@ -52,15 +50,15 @@ import {
  * - 머리줄: 왼쪽 eyebrow(게스트 · 민지)와 큰 제목 '내 여행', 오른쪽 '새 여행' 버튼 하나.
  * - 여행 표지 카드 가로 줄. 진행 중 → 예정 → 완료 순으로 한 줄에 둔다. 여행방이 4개 이상이고 보이는 칸이 2개 이상일 때만
  *   세그먼트(개수가 있는 칸만)를 그린다. 상태는 공유 tripStatus(KST, appClock)라 시뮬레이터 시각을 따른다.
- * - 카드 표지를 누르면 그 방을 고른다. 카드 아래 버튼은 다음 할 일(tripNextStep: 기록 보기, 오늘 여행 진행, 후보 모으기,
- *   루트 계산하기, 시간표 보기)이다.
+ * - 카드를 누르면 그 방을 고르고 다음 할 일(tripNextStep: 기록 보기, 오늘 여행 진행, 후보 모으기,
+ *   루트 계산하기, 시간표 보기)로 바로 간다. 카드 안에 따로 버튼을 두지 않는다(2026-10-17).
  * - 선택한 여행방 구역: 제목은 방 이름, 빠른 메뉴 4칸(homeActions, 단계별). 개인 모드면 채팅 칸 아래에 이유와 '멤버 초대' 링크.
  *   구역 끝에 '초대 코드로 합류'.
  * - 지금 보는 방은 useActiveTrip(pickCurrentTrip) 하나로 정한다. 홈이 따로 대체 규칙을 두지 않는다.
  * - 여행방이 없으면 만들기 Empty와 '초대 코드로 합류'.
  * - 추천 여행지 타일은 그 지역의 예시 2박 3일(30 예시 일정)로 간다. 거기서 '이 일정으로 여행방 만들기'나 '직접 만들기'로 이어진다.
  * - 쓰는 동안 세션을 유지한다(useSessionKeepAlive: 연장, 만료 폐기, 만료 3일 전 알림 한 번).
- * - 방장은 여행 카드의 '수정'으로 표지·이름·날짜를 바로 고친다(features/trip TripEditSheet, 2026-10-10).
+ * - 표지·이름·날짜 '수정'은 19 여행 진행의 '여행 진행 끝내기' 왼쪽으로 옮겼다(2026-10-17). 홈 카드에는 두지 않는다.
  * 판정은 features/account/home.ts(순수, wp1-home 테스트)에 있다.
  */
 export default function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
@@ -70,7 +68,6 @@ export default function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
   const today = kstDate(now);
   const session = useSession((s) => s.session);
   const setCurrentTrip = useUi((s) => s.setCurrentTrip);
-  const [editing, setEditing] = useState<string | undefined>(undefined);
 
   const seg = useMemo(() => homeSegments(trips, now), [trips, now]);
   const visible = visibleSegments(seg.counts);
@@ -185,9 +182,7 @@ export default function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
                   selected={t.id === current?.id}
                   info={tripCardInfo(t, plans[t.id], now)}
                   nextLabel={tripNextStep(t, plans[t.id], today).label}
-                  onPress={() => setCurrentTrip(t.id)}
-                  onNext={() => goNext(t)}
-                  onEdit={() => setEditing(t.id)}
+                  onPress={() => goNext(t)}
                 />
               ))}
             </ScrollView>
@@ -256,14 +251,6 @@ export default function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
         </View>
 
       </ScrollView>
-      <TripEditSheet
-        tripId={editing}
-        onClose={() => setEditing(undefined)}
-        onMore={(id) => {
-          setEditing(undefined);
-          navigation.navigate('TripSettings', { tripId: id });
-        }}
-      />
     </Screen>
   );
 }
@@ -276,21 +263,14 @@ function TripCard({
   selected,
   nextLabel,
   onPress,
-  onNext,
-  onEdit,
 }: {
   trip: Trip;
   info: ReturnType<typeof tripCardInfo>;
   selected: boolean;
   nextLabel: string;
   onPress: () => void;
-  onNext: () => void;
-  onEdit: () => void;
 }) {
-  const me = myMemberId(trip);
-  const host = !!me && isHost(trip, me);
-  // 방장은 상자 오른쪽 위 '수정'으로 표지·이름·날짜를 바로 고친다(TripEditSheet)
-  // 표지(여행방 고르기)와 다음 할 일 버튼을 나란한 두 버튼으로 둔다(웹에서 button 중첩을 피한다).
+  // 상자를 누르면 그 방을 고르고 다음 할 일(nextLabel: 오늘 여행 진행, 기록 보기 등)로 바로 간다. 따로 버튼을 두지 않는다.
   // 고른 상태는 CoverTile이 accessibilityState.selected로 알린다.
   return (
     <CoverTile
@@ -301,15 +281,13 @@ function TripCard({
       title={info.title}
       lines={[info.dateText, info.countsText]}
       selected={selected}
-      a11yLabel={`${trip.title} 고르기`}
+      a11yLabel={`${trip.title} ${nextLabel}`}
       onPress={onPress}
       footer={
-        <Row style={styles.between}>
+        <View pointerEvents="none">
           <AvatarStack names={info.memberNames} max={4} />
-          <Btn title={nextLabel} size="sm" variant="ghost" a11yLabel={`${trip.title} ${nextLabel}`} onPress={onNext} />
-        </Row>
+        </View>
       }
-      corner={host ? { label: '수정', a11y: `${trip.title} 수정`, onPress: onEdit } : undefined}
     />
   );
 }
@@ -326,5 +304,4 @@ const styles = StyleSheet.create({
   start: { alignSelf: 'flex-start' },
   picks: { marginTop: SP.section + SP.m, gap: SP.xl },
   pickRow: { paddingHorizontal: SP.gutter, paddingVertical: SP.s, gap: SP.xl },
-  between: { justifyContent: 'space-between' },
 });
