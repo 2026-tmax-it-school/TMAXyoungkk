@@ -69,6 +69,11 @@ export const surfaceC = {
   accentTint: '#EFF6E6',
   /** 카카오 로그인 버튼 면(카카오 디자인 가이드 컨테이너 색) */
   kakao: '#FEE500',
+  /** 01 스플래시 이미지(assets/splash.png) 바탕색. 이미지가 화면 비율과 달라도 가장자리가 이어지게 깐다 */
+  splash: '#3D7E19',
+  /** 01 스플래시 로딩 바. 바탕(splash) 위 흰 반투명 홈과 흰 채움. 글자를 올리지 않는다 */
+  splashBarTrack: 'rgba(255,255,255,0.3)',
+  splashBarFill: '#FFFFFF',
   /**
    * DS photo-scrim. 사진 위 작은 원형 버튼 바탕(흰 아이콘 onInk). 밝은 사진에서도 보이게 DS 어두운 테마 값(0.4)을 쓴다.
    * 반투명이라 글자 대비 검사 목록(TEXT_ON_SURFACE_PAIRS)에는 넣지 않는다. 글자를 올리지 않는다.
