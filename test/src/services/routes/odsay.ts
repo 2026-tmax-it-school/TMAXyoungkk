@@ -63,7 +63,8 @@ interface OdsaySubPath {
   endX?: number | string;
   endY?: number | string;
   way?: string;
-  trainType?: string;
+  /** 실제 ODsay는 숫자 코드(1 고속열차 KTX·SRT 등)다. 예전 가정대로 글자가 와도 받는다 */
+  trainType?: number | string;
   passStopList?: { stations?: OdsayStation[] };
 }
 export interface OdsayPath {
@@ -72,6 +73,8 @@ export interface OdsayPath {
     totalTime?: number;
     totalDistance?: number;
     payment?: number;
+    /** 도시 사이 경로(searchType 1)는 요금이 payment가 아니라 여기에 온다 */
+    totalPayment?: number;
     busTransitCount?: number;
     subwayTransitCount?: number;
     mapObj?: string;
@@ -110,6 +113,16 @@ function station(name: string | undefined): string {
 }
 
 const INTERCITY_LABEL: Record<number, string> = { 4: '열차', 5: '고속버스', 6: '시외버스', 7: '항공' };
+/**
+ * ODsay trainType 숫자 → 이름. 실제 응답(2026-10-17: 서울·수서·용산 → 익산 65~78분, 수서 → 부산 131분)으로 확인한 1만 이름을 붙인다.
+ * 그 밖의 코드는 이름을 모르므로 '열차'로만 적는다
+ */
+const TRAIN_TYPE_NAME: Record<number, string> = { 1: 'KTX·SRT' };
+
+function trainName(t: number | string | undefined): string {
+  if (typeof t === 'number') return TRAIN_TYPE_NAME[t] ?? '';
+  return typeof t === 'string' ? t.trim() : '';
+}
 
 function stepKind(trafficType: number | undefined): TransitStepKind {
   switch (trafficType) {
@@ -147,7 +160,7 @@ export function odsayStepText(sp: OdsaySubPath): string {
     return `${line}${way} · ${station(sp.startName)}에서 승차 · ${station(sp.endName)}에서 하차 (${stops}${min}분)`;
   }
   const kind = INTERCITY_LABEL[sp.trafficType ?? -1] ?? '대중교통';
-  const name = (sp.trainType ?? lanes[0]?.name ?? '').trim();
+  const name = trainName(sp.trainType) || (lanes[0]?.name ?? '').trim();
   const label = name && !name.includes(kind) ? `${kind}(${name})` : name || kind;
   return `${label} · ${sp.startName ?? '출발'}에서 승차 · ${sp.endName ?? '도착'}에서 하차 (${min}분)`;
 }
@@ -238,7 +251,8 @@ export function parseOdsayRoute(
   const info = path.info ?? {};
   const transfers = Math.max(0, rideCount(path) - 1);
   const parts = [ODSAY_ATTRIBUTION, '탑승 시간'];
-  if (info.payment) parts.push(`요금 ${info.payment.toLocaleString('ko-KR')}원`);
+  const payment = info.payment ?? info.totalPayment;
+  if (payment) parts.push(`요금 ${payment.toLocaleString('ko-KR')}원`);
   parts.push(transfers > 0 ? `환승 ${transfers}회` : '환승 없음');
   steps.push({ text: `${toName} 도착`, meters: 0, kind: 'arrive' });
   return {

@@ -183,6 +183,35 @@ test('도시 사이: 열차(KTX) 구간과 2시간대 소요', () => {
   assert.equal(odsayStepText({ trafficType: 5, sectionTime: 250, startName: '서울경부', endName: '경주' }), '고속버스 · 서울경부에서 승차 · 경주에서 하차 (250분)');
 });
 
+test('도시 사이 실제 응답: trainType은 숫자(1 KTX·SRT), 요금은 info.totalPayment로 와도 경로가 나온다(서울 → 익산)', () => {
+  // 2026-10-17 실제 ODsay 응답 꼴. trainType이 숫자라 예전에는 .trim()에서 던져 경로가 안 보였다
+  const body = {
+    result: {
+      searchType: 1,
+      path: [
+        {
+          pathType: 11,
+          info: { totalTime: 65, totalPayment: 29300, transitCount: 1, totalDistance: 211200 },
+          subPath: [{ trafficType: 4, trainType: 1, distance: 211200, sectionTime: 65, payment: 29300, startName: '용산', endName: '익산' }],
+        },
+        {
+          pathType: 11,
+          info: { totalTime: 181, totalPayment: 15600, transitCount: 1, totalDistance: 211200 },
+          subPath: [{ trafficType: 4, trainType: 3, distance: 211200, sectionTime: 181, payment: 15600, startName: '영등포', endName: '익산' }],
+        },
+      ],
+    },
+  };
+  const out = parseOdsayRoute(body, SEOUL, GYEONGJU, { toName: '익산역' });
+  assert.equal(out?.kind, 'leg');
+  if (out?.kind !== 'leg') return;
+  assert.equal(out.leg.minutes, 65);
+  assert.equal(out.leg.steps[0].text, '열차(KTX·SRT) · 용산에서 승차 · 익산에서 하차 (65분)');
+  assert.match(out.leg.note ?? '', /요금 29,300원/);
+  // 이름을 모르는 코드는 '열차'로만 적는다
+  assert.equal(odsayStepText({ trafficType: 4, trainType: 3, sectionTime: 181, startName: '영등포', endName: '익산' }), '열차 · 영등포에서 승차 · 익산에서 하차 (181분)');
+});
+
 test('ODsay 오류: 경로 없음 코드(-98 너무 가까움, -99 결과 없음)는 경로 없음, 그 밖은 알 수 없음', () => {
   assert.equal(odsayErrorCode({ error: { code: '-98', msg: '출, 도착지가 700m이내입니다.' } }), '-98');
   assert.equal(odsayErrorCode({ error: [{ code: '500', message: 'server' }] }), '500');
