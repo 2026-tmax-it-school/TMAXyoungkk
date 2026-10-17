@@ -52,7 +52,7 @@ function toResult(r: Reply): AuthResult {
   const b = r.body;
   if (b.ok === true) {
     if (!b.account || typeof b.account !== 'object') return { ok: false, code: 'providerFailed', detail: UNREACHABLE };
-    return { ok: true, account: b.account as AccountPublic };
+    return { ok: true, account: b.account as AccountPublic, ...(b.mailFailed === true ? { mailFailed: true } : {}) };
   }
   return {
     ok: false,

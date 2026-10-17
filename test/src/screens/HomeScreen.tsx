@@ -255,11 +255,6 @@ export default function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
           </ScrollView>
         </View>
 
-        {/* 다른 사람이 공유한 일정(인기순·검색·가져오기)은 추천 여행 일정과 따로 둔다 */}
-        <View style={styles.gutter}>
-          <SectionTitle title="공유된 여행 일정" />
-          <ListRow first icon="share" label="다른 사람의 여행 일정 보기" sub="인기순으로 둘러보고 내 여행방으로 가져와요" onPress={() => navigation.navigate('Itineraries')} />
-        </View>
       </ScrollView>
       <TripEditSheet
         tripId={editing}

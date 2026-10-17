@@ -142,7 +142,7 @@ test("extractionCard: 제목은 '후보 N곳에 담았어요', 고를 장소만 
   for (const t of [card.title, pickCard.title, pickCard.pickHint ?? '']) assert.doesNotMatch(t, /습니다/);
 });
 
-test('ChatScreen: 키보드 대응, Enter로 보내기, 후보 줄, 메뉴의 여행방 설정·멤버, 후보 보기 버튼 없음', () => {
+test('ChatScreen: 키보드 대응, Enter로 보내기, 후보 줄, 채팅 설정 시트의 여행방 설정 값·멤버, 후보 보기 버튼 없음', () => {
   const chatSrc = stripComments(read('src/screens/ChatScreen.tsx'));
   assert.match(chatSrc, /<Screen keyboard>/);
   assert.match(chatSrc, /returnKeyType="send"/);
@@ -155,9 +155,13 @@ test('ChatScreen: 키보드 대응, Enter로 보내기, 후보 줄, 메뉴의 �
   assert.match(chatSrc, /paddingBottom: SP\.l \+ insets\.bottom/);
   assert.match(chatSrc, /<CandidateBar trip=\{trip\} plan=\{plan\} onPress=\{openCandidates\} \/>/);
   assert.match(chatSrc, /setCurrentTrip\(trip\.id\);\s*navigation\.navigate\('Main', \{ screen: 'Candidates' \}\)/);
-  assert.match(chatSrc, /label="여행방 설정"[\s\S]{0,300}navigation\.navigate\('TripSettings', \{ tripId \}\)/);
+  // 여행방 설정 값(지역·날짜·이동수단·활동시간)을 시트에 바로 보이고 누르면 여행방 설정으로 간다. 시연(보내는 사람·시나리오)은 없앴다
+  assert.match(chatSrc, /label="지역"[\s\S]{0,120}onPress=\{openTripSettings\}/);
+  assert.match(chatSrc, /label="하루 활동시간"/);
+  assert.match(chatSrc, /navigation\.navigate\('TripSettings', \{ tripId \}\)/);
+  assert.ok(!chatSrc.includes('label="여행방 설정"'), "'여행방 설정' 메뉴 줄은 없다");
   assert.match(chatSrc, /label="멤버·초대"[\s\S]{0,200}navigation\.navigate\('Members', \{ tripId \}\)/);
-  assert.match(chatSrc, /<Txt v="eyebrow">시연<\/Txt>/);
+  assert.ok(!chatSrc.includes('시연') && !chatSrc.includes('playScenarioChat'), '채팅 설정에 시연이 없다');
   assert.ok(!chatSrc.includes('title="후보 보기"'), "메뉴의 '후보 보기' 버튼은 없다(후보 줄이 맡는다)");
   assert.ok(!/<Notice[^>]*오프라인/.test(chatSrc), '일반 오프라인 안내는 OfflineBar가 맡는다');
   assert.match(chatSrc, /text="전송 대기"/);

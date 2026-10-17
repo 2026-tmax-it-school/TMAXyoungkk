@@ -24,12 +24,15 @@ import {
   hashPassword,
   IP_ATTEMPT_LIMIT,
   LOGIN_LOCK_MS as SRV_LOCK_MS,
+  LOGIN_ACCOUNT_MAX_FAILS,
   LOGIN_MAX_FAILS as SRV_MAX_FAILS,
+  MAIL_PER_ADDRESS_DAILY,
   NICKNAME_MAX,
   PASSWORD_MIN_LENGTH,
   passwordViolations,
   SESSION_TTL_MS,
   tokenHash,
+  UNVERIFIED_TTL_MS,
   verifyPassword,
   type AuthStore,
   type OutboxMail,
@@ -245,6 +248,50 @@ for (const backend of BACKENDS) {
       assert.equal((await mails('nobody@example.com')).length, 0);
     });
 
+    test('정리: 가입 뒤 7일 안에 인증하지 않은 이메일 가입은 지워 이메일·닉네임을 풀고, 인증한 계정과 소셜 계정은 남긴다', async () => {
+      const svc = createAuthService({ store: (opened.store as SyncStore).authStore ?? createMemoryAuthStore(), now: () => now, passwordCost: COST, devOutbox: true });
+      const handle = (path: string, body: unknown) => svc.handle({ method: 'POST', path, url: new URL(`http://x/auth/${path}`), headers: {}, body, ip: '10.5.0.1' });
+      seq += 1;
+      const stale = `stale${seq}@example.com`;
+      const kept = `kept${seq}@example.com`;
+      assert.equal((await handle('signup', { email: stale, password: PW, nickname: `st${seq}` })).status, 200);
+      assert.equal((await handle('signup', { email: kept, password: PW, nickname: `kp${seq}` })).status, 200);
+      const token = svc.outbox().find((m) => m.to === kept && m.kind === 'verify' && !m.invalidated)!.token;
+      assert.equal((await handle('verify', { token })).status, 200);
+      // 6일째까지는 남는다
+      now += UNVERIFIED_TTL_MS - 60_000;
+      await svc.purge();
+      assert.equal((await handle('signup', { email: stale, password: PW, nickname: `st${seq}` })).status, 409, '아직 남아 있다');
+      // 7일이 지나면 인증 안 한 가입만 지운다
+      now += 120_000;
+      await svc.purge();
+      assert.equal((await handle('signup', { email: stale, password: PW, nickname: `st${seq}` })).status, 200, '이메일·닉네임이 풀렸다');
+      assert.equal((await handle('signup', { email: kept, password: PW, nickname: `kp${seq}x` })).status, 409, '인증한 계정은 남는다');
+    });
+
+    test('메일 한도: 한 이메일 주소로 24시간에 5통까지(가입·재발송·재설정 합쳐서, 없는 주소도 같은 횟수), 넘으면 429, 하루 뒤 다시', async () => {
+      const email = 'mailcap@example.com';
+      assert.equal(MAIL_PER_ADDRESS_DAILY, 5);
+      assert.equal((await call('/auth/signup', { email, password: PW, nickname: '한도' }))[0], 200);
+      for (let i = 0; i < 2; i += 1) assert.equal((await call('/auth/resend', { email }))[0], 200);
+      assert.equal((await call('/auth/password/reset', { email }))[0], 200);
+      assert.equal((await call('/auth/resend', { email }))[0], 200);
+      const [s, r] = await call('/auth/resend', { email });
+      assert.deepEqual([s, r.code], [429, 'deviceLimited']);
+      assert.match(String(r.detail), /하루 5통/);
+      assert.ok(Number(r.retryAt) > now);
+      // 가입 여부와 상관없이 같은 횟수(주소가 있는지 드러내지 않는다). 기기(IP)별 10분 10회 한도는 창이 지난 뒤로 넘긴다
+      now += ATTEMPT_WINDOW_MS + 1000;
+      const ghost = 'ghostcap@example.com';
+      for (let i = 0; i < 5; i += 1) assert.equal((await call('/auth/resend', { email: ghost }))[0], 200);
+      assert.equal((await call('/auth/resend', { email: ghost }))[0], 429);
+      // 다른 주소는 영향 없고, 하루가 지나면 다시 된다
+      now += ATTEMPT_WINDOW_MS + 1000;
+      assert.equal((await call('/auth/resend', { email: 'other-cap@example.com' }))[0], 200);
+      now += 24 * 60 * 60 * 1000 + 1000;
+      assert.equal((await call('/auth/resend', { email }))[0], 200);
+    });
+
     test('로그인·세션: 성공하면 Bearer 토큰, /auth/session은 쓸 때마다 30일 연장, 30일 안 쓰면 만료(401), 로그아웃하면 끝', async () => {
       const { email } = await verified('session');
       const [s, r] = await call('/auth/signin', { email: email.toUpperCase(), password: PW, deviceToken: 'dev-session' });
@@ -291,21 +338,42 @@ for (const backend of BACKENDS) {
       assert.equal((await call('/auth/signin', { email: ghost, password: 'wrongpass1' }))[1].code, 'locked');
     });
 
-    test('시도 제한: 여러 IP에서 동시에 보낸 틀린 비밀번호도 5번까지만 확인하고 잠근다(카운터는 원자적으로 먼저 올린다)', async () => {
+    test('시도 제한: 틀린 비밀번호는 기기(IP)별로 5회에 잠그고, 한 기기가 잠겨도 주인은 다른 기기에서 로그인된다', async () => {
+      // 서비스를 직접 불러 IP를 바꾼다(HTTP 테스트는 모두 127.0.0.1). 같은 서비스에서 가입·인증까지 마친다
+      const svc = createAuthService({ store: (opened.store as SyncStore).authStore ?? createMemoryAuthStore(), now: () => now, passwordCost: COST, devOutbox: true });
+      const handle = (path: string, body: unknown, ip: string) =>
+        svc.handle({ method: 'POST', path, url: new URL(`http://x/auth/${path}`), headers: {}, body, ip });
+      seq += 1;
+      const email = `pairlock${seq}@example.com`;
+      assert.equal((await handle('signup', { email, password: PW, nickname: `pl${seq}` }, '10.6.0.1')).status, 200);
+      const mail = svc.outbox().find((m) => m.to === email && m.kind === 'verify' && !m.invalidated);
+      assert.ok(mail);
+      assert.equal((await handle('verify', { token: mail.token }, '10.6.0.1')).status, 200);
+      const signin = (password: string, ip: string) => handle('signin', { email, password, deviceToken: 'dev-pair' }, ip);
+      for (let i = 1; i <= LOGIN_MAX_FAILS; i += 1) await signin('wrongpass1', '10.7.0.1');
+      assert.equal((await signin('wrongpass1', '10.7.0.1')).status, 423, '공격 기기는 잠긴다');
+      assert.equal((await signin(PW, '10.7.0.1')).status, 423, '잠긴 기기는 맞는 비밀번호도 막힌다');
+      assert.equal((await signin(PW, '10.7.0.2')).status, 200, '주인의 다른 기기는 로그인된다(이메일만 아는 남이 주인을 잠그지 못한다)');
+      now += LOGIN_LOCK_MS;
+      assert.equal((await signin(PW, '10.7.0.1')).status, 200, '10분 뒤 그 기기도 풀린다');
+    });
+
+    test('시도 제한: 여러 IP에서 동시에 나눠 보낸 틀린 비밀번호는 계정 전체 20회까지만 확인하고 모든 기기를 잠근다(카운터는 원자적으로 먼저 올린다)', async () => {
       // 같은 저장소를 쓰는 서비스를 직접 불러 IP를 바꾼다(HTTP 테스트는 모두 127.0.0.1)
       const svc = createAuthService({ store: (opened.store as SyncStore).authStore ?? createMemoryAuthStore(), now: () => now, passwordCost: COST });
       const email = `race-${backend.name.length}-${seq}@example.com`;
-      const N = 40;
+      const N = 60;
+      assert.equal(LOGIN_ACCOUNT_MAX_FAILS, 20);
       const results = await Promise.all(
         Array.from({ length: N }, (_, i) =>
           svc.handle({ method: 'POST', path: 'signin', url: new URL('http://x/auth/signin'), headers: {}, body: { email, password: `guess${i}abc` }, ip: `10.9.${i}.1` }),
         ),
       );
       const statuses = results.map((r) => r.status);
-      assert.equal(statuses.filter((s) => s === 401).length, LOGIN_MAX_FAILS - 1, statuses.join(','));
-      assert.equal(statuses.filter((s) => s === 423).length, N - (LOGIN_MAX_FAILS - 1));
+      assert.equal(statuses.filter((s) => s === 401).length, LOGIN_ACCOUNT_MAX_FAILS - 1, statuses.join(','));
+      assert.equal(statuses.filter((s) => s === 423).length, N - (LOGIN_ACCOUNT_MAX_FAILS - 1));
       const next = await svc.handle({ method: 'POST', path: 'signin', url: new URL('http://x/auth/signin'), headers: {}, body: { email, password: 'guessXabc1' }, ip: '10.8.0.1' });
-      assert.equal(next.status, 423, '잠긴 뒤에는 다른 IP도 막힌다');
+      assert.equal(next.status, 423, '잠긴 뒤에는 새 기기도 막힌다');
       now += LOGIN_LOCK_MS;
       const after = await svc.handle({ method: 'POST', path: 'signin', url: new URL('http://x/auth/signin'), headers: {}, body: { email, password: 'guessYabc1' }, ip: '10.8.0.2' });
       assert.equal(after.status, 401, '10분 뒤엔 1회부터 다시 센다');
@@ -661,4 +729,16 @@ describe('계정 서버 설정', () => {
     assert.equal(r.status, 500);
     assert.deepEqual(logs, ['인증 처리 실패(POST /auth/signin): db down']);
   });
+});
+
+test('개발용 보낸편지함은 이 컴퓨터에서 바로 연 요청만 읽는다(터널·다른 기기는 404)', async () => {
+  const { isDirectLocal } = await import('../server/auth.mjs');
+  assert.equal(isDirectLocal('127.0.0.1', {}), true);
+  assert.equal(isDirectLocal('::ffff:127.0.0.1', {}), true);
+  assert.equal(isDirectLocal('::1', {}), true);
+  assert.equal(isDirectLocal('', {}), true, '주소를 모르는 직접 호출(테스트)');
+  assert.equal(isDirectLocal('192.168.0.9', {}), false, '같은 와이파이의 다른 기기');
+  assert.equal(isDirectLocal('127.0.0.1', { 'cf-connecting-ip': '1.2.3.4' }), false, 'cloudflared 터널');
+  assert.equal(isDirectLocal('127.0.0.1', { 'x-forwarded-for': '1.2.3.4' }), false);
+  assert.equal(isDirectLocal('127.0.0.1', { host: 'localhost:8787' }), true);
 });

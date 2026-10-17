@@ -494,7 +494,7 @@ export function createPostgresStore(db, { close = async () => {}, warn = (m) => 
 
     async reset() {
       await db.query('TRUNCATE trips, trip_ops, invite_codes, trip_spots, trip_days, trip_legs RESTART IDENTITY');
-      await db.query('TRUNCATE community_photos, community_posts');
+      await db.query('TRUNCATE community_post_views, community_post_likes, community_photos, community_posts');
       await db.query('TRUNCATE shared_itinerary_views, shared_itinerary_likes, shared_itineraries');
     },
 

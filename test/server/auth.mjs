@@ -49,7 +49,7 @@
  *   POST /auth/oauth/state       {provider, redirectUri}                      → {ok, state, expiresAt} | 503(키 없음)
  *   POST /auth/oauth/google|kakao {code, codeVerifier?, redirectUri, state, clientId?, deviceToken} → AuthResult(+토큰) | linkRequired{providerEmail}
  *   POST /auth/oauth/confirm     {linkToken, accept}                           → AuthResult(+토큰) (/auth/social/confirm과 같다, 늘 열림)
- *   GET  /auth/outbox                                                         → {mails} | 404(devOutbox 아님)
+ *   GET  /auth/outbox                                                         → {mails} | 404(devOutbox 아님, 또는 터널·다른 기기에서 온 요청)
  */
 import { createHash, randomBytes, scrypt as scryptCb, timingSafeEqual } from 'node:crypto';
 
@@ -64,6 +64,8 @@ export const PASSWORD_MIN_LENGTH = 8;
 export const NICKNAME_MAX = 12;
 export const LOGIN_MAX_FAILS = 5;
 export const LOGIN_LOCK_MS = 10 * MIN;
+/** 한 계정에 대한 전체 연속 실패 한도(기기 구분 없이). 기기(IP)별 한도 LOGIN_MAX_FAILS보다 훨씬 높게 둬서, 이메일만 아는 남이 틀린 비밀번호를 넣어 주인을 잠그기 어렵게 한다 */
+export const LOGIN_ACCOUNT_MAX_FAILS = 20;
 /** IP 기준 로그인 시도(앱의 기기 기준 10분 20회와 같은 값) */
 export const IP_ATTEMPT_LIMIT = 20;
 export const ATTEMPT_WINDOW_MS = 10 * MIN;
@@ -71,7 +73,14 @@ export const ATTEMPT_WINDOW_MS = 10 * MIN;
 export const EMAIL_IP_ATTEMPT_LIMIT = 10;
 /** IP 기준 메일 보내기(가입·재발송·재설정) */
 export const MAIL_LIMIT = 10;
+/** 한 이메일 주소로 보낼 수 있는 인증·재설정 메일 수(24시간). Gmail 하루 발송 한도를 지키고 남이 한 주소로 반복해 보내지 못하게 한다 */
+export const MAIL_PER_ADDRESS_DAILY = 5;
+/** 가입 응답이 메일 발송 결과를 기다리는 최대 시간(ms). 메일 서버가 느려도 가입이 오래 멈추지 않게 한다 */
+export const MAIL_WAIT_MS = 5000;
+const ADDRESS_LIMITED = `이 이메일로 받을 수 있는 인증 메일은 하루 ${MAIL_PER_ADDRESS_DAILY}통이에요. 내일 다시 시도해 주세요`;
 export const VERIFY_TTL_MS = DAY;
+/** 이메일 가입 뒤 이 기간 안에 인증하지 않으면 계정을 지운다. 남의 이메일·마음에 드는 닉네임을 가입만 해 두고 잡아 두는 것을 막는다 */
+export const UNVERIFIED_TTL_MS = 7 * DAY;
 export const RESET_TTL_MS = 30 * MIN;
 export const LINK_TTL_MS = 10 * MIN;
 /** OAuth 요청 확인값(state) 유효 시간 */
@@ -87,6 +96,21 @@ const IMAGE_URI_MAX = 4096;
 const TAGS_MAX = 30;
 
 const PROVIDER_LABEL = { kakao: '카카오', google: '구글' };
+/** 메일 본문: 코드를 앱 칸에 붙여 넣게 한다(링크를 쓰지 않아 가짜 사이트로 코드가 새는 길이 없다) */
+export function mailText(kind, token) {
+  const purpose = { verify: '이메일 인증', reset: '비밀번호 재설정', link: '소셜 로그인 연결 확인' }[kind] ?? '확인';
+  const ttl = kind === 'verify' ? '24시간' : '30분';
+  return [
+    `Young Trip ${purpose} 코드예요.`,
+    '',
+    '앱에서 "메일로 받은 코드" 칸에 아래 코드를 그대로 붙여 넣어 주세요.',
+    '',
+    token,
+    '',
+    `${ttl} 안에 써 주세요. 직접 요청한 게 아니라면 이 메일은 무시해도 돼요.`,
+  ].join('\n');
+}
+
 const MAIL_SUBJECT = { verify: 'Young Trip 이메일 인증', reset: 'Young Trip 비밀번호 재설정', link: 'Young Trip 소셜 로그인 연결 확인' };
 /** 같은 이메일 연결 요청에는 계정이 있든 없든 이 응답 하나만 준다(가입 여부를 드러내지 않는다) */
 const LINK_SENT = (email) =>
@@ -286,6 +310,17 @@ export function createMemoryAuthStore() {
     setLock(key, { fails, lockedUntil }, now) {
       attempts.set(key, { count: fails, windowStart: now, lockedUntil: lockedUntil ?? null });
     },
+    /** 인증 안 한 이메일 가입(비밀번호가 있고 소셜이 아닌 것) 중 maxAgeMs보다 오래된 것을 지운다. 지운 수를 돌려준다 */
+    purgeUnverified(now, maxAgeMs) {
+      let n = 0;
+      for (const a of [...accounts.values()]) {
+        if (a.deletedAt == null && a.verifiedAt == null && a.passwordHash != null && a.createdAt <= now - maxAgeMs) {
+          this.removeAccount(a.accountId);
+          n += 1;
+        }
+      }
+      return n;
+    },
     purge(now) {
       for (const [k, v] of sessions) if (v.expiresAt <= now) sessions.delete(k);
       for (const [k, v] of tokens) if (v.expiresAt <= now || v.usedAt != null) tokens.delete(k);
@@ -356,6 +391,10 @@ export function createAuthService({
   oauth = {},
   /** 계정이 탈퇴한 뒤 부른다(커뮤니티가 그 계정의 글을 지운다). 실패해도 탈퇴는 이미 끝났으므로 로그만 남긴다 */
   onAccountRemoved = async () => {},
+  /** 실제로 메일을 보내는 곳(server/mailer.mjs). 없으면 보낸편지함(개발용)에만 쌓는다 */
+  mailer = null,
+  /** 가입 응답이 메일 결과를 기다리는 시간(테스트에서 줄인다) */
+  mailWaitMs = MAIL_WAIT_MS,
 } = {}) {
   const oauthClient = createOAuthClient({ now, ...oauth });
   /** 개발용 보낸편지함(메모리). 토큰 원문은 여기에만 있고 DB에는 해시만 간다 */
@@ -374,6 +413,14 @@ export function createAuthService({
       invalidated: false,
     });
     if (outbox.length > OUTBOX_LIMIT) outbox = outbox.slice(-OUTBOX_LIMIT);
+    // 실제 메일. 못 보내도 요청은 그대로 끝난다(코드는 로그에 남기지 않는다). 부르는 쪽이 결과를 기다릴지 정한다
+    if (!mailer) return Promise.resolve('off');
+    return mailer.trySend({ to, subject: MAIL_SUBJECT[kind], text: mailText(kind, token) }).then((ok) => (ok ? 'sent' : 'failed'));
+  }
+
+  /** 메일 결과를 잠깐(MAIL_WAIT_MS) 기다린다. 늦으면 'pending'(보내는 중, 실패로 보지 않는다) */
+  function mailOutcome(p) {
+    return Promise.race([p, new Promise((r) => setTimeout(() => r('pending'), mailWaitMs))]);
   }
 
   async function issueMailToken(kind, acc) {
@@ -387,7 +434,8 @@ export function createAuthService({
       createdAt: now(),
       expiresAt: now() + (kind === 'verify' ? VERIFY_TTL_MS : RESET_TTL_MS),
     });
-    sendMail(kind, acc.email, t);
+    // 감싸서 돌려준다(async 함수가 약속을 풀어 버리면 메일이 끝날 때까지 기다리게 된다)
+    return { sending: sendMail(kind, acc.email, t) };
   }
 
   async function openSession(acc, deviceToken) {
@@ -428,6 +476,12 @@ export function createAuthService({
   }
 
   /** 시도 제한 한 칸. 넘으면 풀리는 시각 */
+  /** 이 주소로 24시간에 5통까지. 가입 여부와 상관없이 요청 횟수를 세어 응답이 계정 유무를 드러내지 않는다. 막히면 다시 시도할 시각(ms) */
+  async function limitedAddress(email) {
+    const r = await store.hit(`mailto:${email}`, now(), DAY);
+    return r.count > MAIL_PER_ADDRESS_DAILY ? r.windowStart + DAY : null;
+  }
+
   async function limited(key, limit) {
     const r = await store.hit(key, now(), ATTEMPT_WINDOW_MS);
     return r.count > limit ? r.windowStart + ATTEMPT_WINDOW_MS : null;
@@ -609,6 +663,8 @@ export function createAuthService({
       const upgradeProof = userId ? tokenHash(`guest:${device}`) : null;
       const retryAt = await limited(`mail:${ip}`, MAIL_LIMIT);
       if (retryAt) return fail(429, 'deviceLimited', '잠시 뒤 다시 시도해 주세요', { retryAt });
+      const addrRetry = await limitedAddress(email);
+      if (addrRetry) return fail(429, 'deviceLimited', ADDRESS_LIMITED, { retryAt: addrRetry });
 
       // 게스트 승격은 userId를 유지한다(게스트 하나에 계정 하나). 인증을 마친 계정이 있으면 거부하고,
       // 아직 인증하지 않은 가입은 같은 기기(확인값이 같다)일 때만 이번 가입으로 대체한다(앱 모의 인증과 같은 규칙).
@@ -646,8 +702,10 @@ export function createAuthService({
       if (ins === 'email') return fail(409, 'duplicateEmail', '이미 가입한 이메일입니다. 로그인하거나 인증 메일을 다시 받아 주세요');
       if (ins === 'nickname') return fail(409, 'nicknameTaken', '이미 쓰는 닉네임입니다');
       if (ins !== 'ok') return fail(409, 'duplicateEmail', '이 게스트는 이미 계정으로 승격했습니다. 그 계정으로 로그인해 주세요');
-      await issueMailToken('verify', rec);
-      return okBody({ account: toPublic(rec) });
+      // 메일을 못 보냈으면 알린다(가입은 이미 됐고, 앱이 '인증 메일 다시 받기'를 안내한다). 가입 응답은 중복 이메일 오류가 이미 가입 여부를 알려 주므로 추가로 새는 것이 없다
+      const { sending } = await issueMailToken('verify', rec);
+      const mail = await mailOutcome(sending);
+      return okBody({ account: toPublic(rec), ...(mail === 'failed' ? { mailFailed: true } : {}) });
     },
 
     async 'POST resend'({ body, ip }) {
@@ -655,6 +713,8 @@ export function createAuthService({
       if (!isEmailLike(email)) return fail(400, 'badCredentials', '이메일 형식이 아닙니다');
       const retryAt = await limited(`mail:${ip}`, MAIL_LIMIT);
       if (retryAt) return fail(429, 'deviceLimited', '잠시 뒤 다시 시도해 주세요', { retryAt });
+      const addrRetry = await limitedAddress(email);
+      if (addrRetry) return fail(429, 'deviceLimited', ADDRESS_LIMITED, { retryAt: addrRetry });
       const acc = await store.accountByEmail(email);
       // 없는 이메일·인증을 마친 계정이어도 같은 응답이다(가입 여부를 드러내지 않는다)
       if (acc && acc.verifiedAt == null && acc.passwordHash != null) await issueMailToken('verify', acc);
@@ -692,21 +752,30 @@ export function createAuthService({
         : key.length > 0 && nicknameProblem(ident) == null
           ? await store.accountByNickname(ident)
           : null;
-      // 연속 실패는 비밀번호를 확인하기 전에 한 칸 먼저 올린다(원자적). 동시에 여러 IP에서 보내도 5번까지만 확인한다.
-      // 이메일 아이디(acct:이메일)와 닉네임 아이디(acct-nick:닉네임)는 칸이 따로다. 닉네임은 여행방·채팅에서 남에게 보이므로
-      // 닉네임으로 틀린 횟수가 이메일 로그인까지 잠그면, 이메일을 모르는 사람도 주인을 10분씩 막을 수 있다.
-      // 닉네임 칸이 잠기면 닉네임 로그인만 막히고 이메일 로그인은 된다. 없는 아이디도 같은 규칙이라 가입 여부는 드러나지 않는다
+      // 연속 실패는 비밀번호를 확인하기 전에 한 칸 먼저 올린다(원자적). 칸은 둘이다.
+      //  - 계정+기기(IP) 칸: 5회에 10분 잠금. 이메일만 아는 남이 틀린 비밀번호를 넣어도 그 기기만 잠기고 주인은 로그인할 수 있다.
+      //  - 계정 전체 칸: 20회에 10분 잠금(여러 기기에서 나눠 찍는 대입을 막는 마지막 한도).
+      // 이메일 아이디(acct:이메일)와 닉네임 아이디(acct-nick:닉네임)는 칸이 따로다. 닉네임은 여행방·채팅에서 남에게 보이므로,
+      // 닉네임으로 틀린 횟수가 이메일 로그인까지 잠그면 이메일을 모르는 사람도 주인을 막을 수 있다.
+      // 없는 아이디도 같은 규칙이라 가입 여부는 드러나지 않는다
       const lockKey = byEmail ? `acct:${key}` : `acct-nick:${key}`;
-      const r = await store.bumpFail(lockKey, at, LOGIN_MAX_FAILS, LOGIN_LOCK_MS);
-      if (r.count > LOGIN_MAX_FAILS) {
-        return fail(423, 'locked', '5회 연속 틀려 10분 동안 잠겼습니다', { retryAt: r.lockedUntil ?? at + LOGIN_LOCK_MS });
+      const pairKey = byEmail ? `acct-ip:${key}|${ip}` : `acct-nick-ip:${key}|${ip}`;
+      const r = await store.bumpFail(pairKey, at, LOGIN_MAX_FAILS, LOGIN_LOCK_MS);
+      const g = await store.bumpFail(lockKey, at, LOGIN_ACCOUNT_MAX_FAILS, LOGIN_LOCK_MS);
+      if (r.count > LOGIN_MAX_FAILS || g.count > LOGIN_ACCOUNT_MAX_FAILS) {
+        const until = Math.max(r.count > LOGIN_MAX_FAILS ? (r.lockedUntil ?? 0) : 0, g.count > LOGIN_ACCOUNT_MAX_FAILS ? (g.lockedUntil ?? 0) : 0);
+        return fail(423, 'locked', '5회 연속 틀려 10분 동안 잠겼습니다', { retryAt: until || at + LOGIN_LOCK_MS });
       }
       // 없는 계정·소셜 전용 계정도 같은 계산을 한다(응답 시간으로 가입 여부가 드러나지 않게)
       const good = acc?.passwordHash ? await verifyPassword(password, acc.passwordHash) : (await verifyPassword(password, await dummyHash), false);
       if (!good) {
-        if (r.lockedUntil != null) return fail(423, 'locked', '5회 연속 틀려 10분 동안 잠겼습니다', { retryAt: r.lockedUntil });
+        // 이 틀림이 한도에 닿았으면(기기 5번째, 또는 계정 전체 20번째) 바로 잠금으로 알린다
+        if (r.lockedUntil != null || g.lockedUntil != null) {
+          return fail(423, 'locked', '5회 연속 틀려 10분 동안 잠겼습니다', { retryAt: Math.max(r.lockedUntil ?? 0, g.lockedUntil ?? 0) });
+        }
         return fail(401, 'badCredentials', `${BAD_LOGIN}(연속 ${r.count}회, 5회면 10분 잠금)`);
       }
+      await store.setLock(pairKey, { fails: 0, lockedUntil: null }, at);
       await store.setLock(lockKey, { fails: 0, lockedUntil: null }, at);
       if (acc.verifiedAt == null) return fail(403, 'unverified', '이메일 인증을 마쳐야 로그인할 수 있습니다');
       const s = await openSession(acc, body.deviceToken);
@@ -763,12 +832,14 @@ export function createAuthService({
       if (!isEmailLike(email)) return fail(400, 'badCredentials', '이메일 형식이 아닙니다');
       const retryAt = await limited(`mail:${ip}`, MAIL_LIMIT);
       if (retryAt) return fail(429, 'deviceLimited', '잠시 뒤 다시 시도해 주세요', { retryAt });
+      const addrRetry = await limitedAddress(email);
+      if (addrRetry) return fail(429, 'deviceLimited', ADDRESS_LIMITED, { retryAt: addrRetry });
       const acc = await store.accountByEmail(email);
       if (acc && acc.passwordHash != null) await issueMailToken('reset', acc);
       return okBody();
     },
 
-    async 'POST password/confirm'({ body }) {
+    async 'POST password/confirm'({ body, ip }) {
       const password = String(body.password ?? '');
       const violations = passwordViolations(password);
       if (violations.length > 0 || password.length > PASSWORD_MAX) {
@@ -782,6 +853,7 @@ export function createAuthService({
       await store.dropSessions(acc.accountId);
       await store.dropTokens(acc.accountId, 'reset');
       await store.setLock(`acct:${acc.email}`, { fails: 0, lockedUntil: null }, now());
+      await store.setLock(`acct-ip:${acc.email}|${ip}`, { fails: 0, lockedUntil: null }, now());
       if (acc.nickname) await store.setLock(`acct-nick:${nickKey(acc.nickname)}`, { fails: 0, lockedUntil: null }, now());
       for (const m of outbox) if (m.to === acc.email && m.kind === 'reset') m.invalidated = true;
       return okBody();
@@ -889,8 +961,10 @@ export function createAuthService({
     'POST oauth/google': (ctx) => oauthSignIn('google', ctx),
     'POST oauth/kakao': (ctx) => oauthSignIn('kakao', ctx),
 
-    async 'GET outbox'() {
+    async 'GET outbox'({ ip, headers }) {
       if (!devOutbox) return { status: 404, body: { error: 'notFound' } };
+      // 터널·역방향 프록시를 거쳐 온 요청이나 다른 기기의 요청에는 닫는다(이 컴퓨터에서 바로 연 요청만 읽는다)
+      if (!isDirectLocal(ip, headers)) return { status: 404, body: { error: 'notFound' } };
       return { status: 200, body: { mails: [...outbox].sort((a, b) => b.sentAt - a.sentAt) } };
     },
   };
@@ -916,6 +990,8 @@ export function createAuthService({
     },
     async purge() {
       await store.purge(now());
+      const gone = await store.purgeUnverified(now(), UNVERIFIED_TTL_MS);
+      if (gone > 0) log(`인증하지 않은 가입 ${gone}개를 지웠습니다`);
     },
     /** Bearer 판정만 필요한 다른 서비스(커뮤니티)용. 유효하면 {account}, 아니면 null */
     async authenticate(headers) {
@@ -925,6 +1001,21 @@ export function createAuthService({
     /** 테스트용 */
     outbox: () => [...outbox],
   };
+}
+
+/** 프록시·터널이 붙이는 머리글(있으면 바깥에서 온 요청이다) */
+const PROXY_HEADERS = ['cf-connecting-ip', 'cf-ray', 'x-forwarded-for', 'x-forwarded-host', 'x-real-ip', 'forwarded'];
+
+/**
+ * 이 컴퓨터에서 바로 연 요청인지(2026-10-17). 연결 주소가 루프백이고 프록시 머리글이 없어야 한다.
+ * cloudflared 같은 터널은 이 컴퓨터(127.0.0.1)로 이어 주지만 머리글을 붙이므로 걸러진다. 주소를 모르는 호출(테스트의 직접 호출)은 직접으로 본다.
+ */
+export function isDirectLocal(ip, headers) {
+  const a = String(ip ?? '').replace(/^::ffff:/, '');
+  const loopback = a === '' || a === '127.0.0.1' || a === '::1';
+  if (!loopback) return false;
+  const h = headers ?? {};
+  return !PROXY_HEADERS.some((k) => h[k] !== undefined);
 }
 
 export function isAuthPath(pathname) {

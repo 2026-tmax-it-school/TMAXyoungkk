@@ -701,7 +701,7 @@ describe('지도 입력과 화면 상태', () => {
     assert.ok(!chat.includes('selected={sel.selArea}'), '칩은 지금 목록에서 찾은 키만 켠다');
     const view = stripComments(read('src/features/chat/map/ChatMapView.tsx'));
     assert.match(view, /const areaKey = area\?\.key \?\? null;/);
-    assert.match(view, /chatMapInput\(trip\.spots, areaBySpot, counts, \{ area: areaKey,/);
+    assert.match(view, /chatMapInput\(trip\.spots, areaBySpot, solo \? NO_COUNTS : counts, \{ area: areaKey,/);
     assert.match(view, /mentionsOf\(trip, member\.id, areaBySpot, areaKey, me\)/);
   });
 
@@ -815,12 +815,13 @@ describe('서버 저장과 소스 규칙', () => {
 
   const src = (f: string) => stripComments(read(f));
 
-  test('ChatScreen: 그룹일 때만 채팅|지도 나누기·칩·지도, 넓은 화면은 나란히', () => {
+  test('ChatScreen: 채팅|지도 나누기(혼자 여행도), 칩은 그룹만, 넓은 화면은 나란히', () => {
     const chat = src('src/screens/ChatScreen.tsx');
-    assert.match(chat, /group && !wide \? \(\s*<Seg<ChatView>\s*compact/);
+    assert.match(chat, /!wide \? \(\s*<Seg<ChatView>\s*compact/);
+    assert.match(chat, /solo=\{!group\}/, '혼자 여행은 투표 없는 지도');
+    assert.match(chat, /group \? <AreaChips/);
     assert.match(chat, /\{ key: 'chat', label: '채팅' \}/);
     assert.match(chat, /\{ key: 'map', label: '지도' \}/);
-    assert.match(chat, /if \(!group\) \{\s*body = chatColumn;/);
     assert.match(chat, /WIDE_MIN = 900/);
     assert.match(chat, /<Header\s+size="row"/);
     assert.ok(!/function ChatHeader/.test(chat), '손수 만든 머리말은 없다');

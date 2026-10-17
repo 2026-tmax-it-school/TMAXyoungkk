@@ -187,6 +187,16 @@ describe('진입 화면 소스 규칙', () => {
     assert.ok(raw.lastIndexOf("'가입하고 인증 메일 받기'") > raw.indexOf('/* ---------- 1단계'), '가입 버튼은 입력 단계에만 있다');
   });
 
+  test("가입만 하고 나간 사람: 로그인의 '인증 메일 다시 받기'가 그 이메일의 코드 입력 단계를 열고, 1단계에도 코드만 넣는 길이 있다", () => {
+    const login = code(LOGIN);
+    assert.match(login, /navigate\('Signup', isEmailLike\(ident\) \? \{ verifyEmail: normalizeEmail\(ident\) \} : undefined\)/);
+    const signup = code(SIGNUP);
+    assert.match(signup, /useState<string \| undefined>\(route\.params\?\.verifyEmail\)/);
+    assert.match(signup, /title="가입은 했고 메일로 받은 코드만 넣을게요"/);
+    assert.match(signup, /setSentTo\(normalizeEmail\(email\)\)/);
+    assert.match(code('src/navigation/routes.ts'), /Signup: \{ verifyEmail\?: string \} \| undefined;/);
+  });
+
   test('회원가입 1단계: 받은 인증 메일 안내는 입력 칸보다 위, 앞서 보낸 가입에 막히면 그 메일함으로 돌아간다', () => {
     const raw = read(SIGNUP);
     const step1 = raw.slice(raw.indexOf('/* ---------- 1단계'));
@@ -205,7 +215,8 @@ describe('진입 화면 소스 규칙', () => {
     const src = code(FIND);
     assert.match(src, /<Sheet visible=\{visible\} onClose=\{onClose\} title="비밀번호 재설정" scroll>/);
     assert.doesNotMatch(src, /<ScrollView/);
-    assert.match(src, /받은 재설정 메일이 없어요\. 잠시 뒤 다시 받아 주세요\./);
+    assert.match(src, /메일로 온 코드를 위 칸에 붙여 넣어 주세요\./);
+    assert.match(src, /<CodeEntry label="메일로 받은 재설정 코드"/);
     assert.doesNotMatch(src, /AUTH_DEV_OUTBOX/);
     assert.doesNotMatch(src, /링크 끝|token\.slice/);
     // 설명은 코드 주석으로 옮겼다

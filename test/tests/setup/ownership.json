@@ -105,6 +105,8 @@
     "src/core/ops/spots.ts",
     "src/services/extraction/**",
     "src/services/recommend/**",
+    "src/services/summary/**",
+    "src/core/chatSummary/**",
     "src/services/places/**",
     "src/data/places.ts",
     "tests/wp3-*.test.ts"

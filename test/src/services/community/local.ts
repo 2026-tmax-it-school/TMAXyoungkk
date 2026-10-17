@@ -10,6 +10,9 @@ import { checkDraft, cleanTags, matchesSearch, normalizeTag } from '../../core/c
 export function createLocalCommunity(opts: { clock: Clock; ids: IdGen }): CommunityProvider {
   const posts: CommunityPost[] = [];
   const authorOf = new Map<string, string>();
+  /** 좋아요 '글|사용자', 조회 '글|보는사람' (모의라 하루가 아니라 이 실행 동안 한 번) */
+  const likedBy = new Set<string>();
+  const viewedBy = new Set<string>();
   const PAGE = 20;
 
   return {
@@ -28,7 +31,8 @@ export function createLocalCommunity(opts: { clock: Clock; ids: IdGen }): Commun
       }
       const page = all.slice(0, PAGE);
       const next = all.length > PAGE ? `${page[page.length - 1].createdAt}:${page[page.length - 1].id}` : null;
-      return { ok: true, value: { posts: page.map((p) => ({ ...p, mine: authorOf.get(p.id) === ctx.userId && ctx.userId != null })), next } };
+      const mark = (p: CommunityPost): CommunityPost => ({ ...p, mine: authorOf.get(p.id) === ctx.userId && ctx.userId != null, liked: ctx.userId != null && likedBy.has(`${p.id}|${ctx.userId}`) });
+      return { ok: true, value: { posts: page.map(mark), next } };
     },
 
     async create(draft, ctx) {
@@ -47,6 +51,9 @@ export function createLocalCommunity(opts: { clock: Clock; ids: IdGen }): Commun
         createdAt: opts.clock.now(),
         photos,
         mine: true,
+        views: 0,
+        likes: 0,
+        liked: false,
       };
       posts.push(post);
       authorOf.set(id, ctx.userId);
@@ -85,6 +92,34 @@ export function createLocalCommunity(opts: { clock: Clock; ids: IdGen }): Commun
       posts.splice(i, 1);
       authorOf.delete(postId);
       return { ok: true, value: true };
+    },
+
+    async like(postId, on, ctx) {
+      if (!ctx.userId) return { ok: false, code: 'loginRequired' };
+      const i = posts.findIndex((p) => p.id === postId);
+      if (i < 0) return { ok: false, code: 'notFound' };
+      const key = `${postId}|${ctx.userId}`;
+      let likes = posts[i].likes ?? 0;
+      if (on && !likedBy.has(key)) {
+        likedBy.add(key);
+        likes += 1;
+      } else if (!on && likedBy.has(key)) {
+        likedBy.delete(key);
+        likes -= 1;
+      }
+      posts[i] = { ...posts[i], likes };
+      return { ok: true, value: { ...posts[i], mine: authorOf.get(postId) === ctx.userId, liked: likedBy.has(key) } };
+    },
+
+    async view(postId, ctx) {
+      const i = posts.findIndex((p) => p.id === postId);
+      if (i < 0) return { ok: false, code: 'notFound' };
+      const key = `${postId}|${ctx.userId ?? ''}`;
+      if (authorOf.get(postId) !== ctx.userId && !viewedBy.has(key)) {
+        viewedBy.add(key);
+        posts[i] = { ...posts[i], views: (posts[i].views ?? 0) + 1 };
+      }
+      return { ok: true, value: posts[i].views ?? 0 };
     },
 
     photoUri: (photo) => photo.url,

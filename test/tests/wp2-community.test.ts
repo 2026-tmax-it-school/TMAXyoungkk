@@ -525,6 +525,48 @@ for (const backend of BACKENDS) {
       assert.equal((await call('/community/posts', { kind: 'diary', body: '이제 됨' }, m.token))[0], 200);
     });
 
+    test('조회수: 같은 사람은 하루 한 번, 본인 글은 안 센다, 다음 날 다시 센다, 없는 글은 404', async () => {
+      const a = await member('vw');
+      const b = await member('vwb');
+      const [, r] = await call('/community/posts', { kind: 'diary', body: '조회 시험' }, a.token);
+      const id = r.post.id as string;
+      assert.equal(r.post.views, 0);
+      assert.equal((await call(`/community/posts/${id}/view`, {}))[1].views, 1, '로그인 없이도 센다(접속 주소 기준)');
+      assert.equal((await call(`/community/posts/${id}/view`, {}))[1].views, 1, '같은 사람은 하루 한 번');
+      assert.equal((await call(`/community/posts/${id}/view`, {}, b.token))[1].views, 2, '로그인한 사람은 따로 센다');
+      assert.equal((await call(`/community/posts/${id}/view`, {}, a.token))[1].views, 2, '본인 글은 안 센다');
+      now += 24 * 60 * MIN;
+      assert.equal((await call(`/community/posts/${id}/view`, {}, b.token))[1].views, 3, '다음 날 다시 센다');
+      assert.equal((await call('/community/posts/cmt-nope/view', {}))[0], 404);
+      const [, feed] = await call('/community/posts?limit=50');
+      assert.equal((feed.posts as Json[]).find((x) => x.id === id)!.views, 3);
+    });
+
+    test('좋아요: 로그인 필요, 계정당 한 번, 취소, 피드에 liked·likes, 탈퇴하면 숫자가 빠진다', async () => {
+      const a = await member('lk');
+      const b = await member('lkb');
+      const [, r] = await call('/community/posts', { kind: 'diary', body: '좋아요 시험' }, a.token);
+      const id = r.post.id as string;
+      assert.equal((await call(`/community/posts/${id}/like`, { on: true }))[0], 401);
+      assert.equal((await call(`/community/posts/${id}/like`, { on: 'x' }, b.token))[0], 400);
+      assert.equal((await call(`/community/posts/cmt-nope/like`, { on: true }, b.token))[0], 404);
+      assert.equal((await call(`/community/posts/${id}/like`, { on: true }, b.token))[1].post.likes, 1);
+      const again = (await call(`/community/posts/${id}/like`, { on: true }, b.token))[1].post;
+      assert.equal(again.likes, 1, '두 번 눌러도 한 번');
+      assert.equal(again.liked, true);
+      const mine = (await call('/community/posts?limit=50', undefined, b.token))[1].posts.find((x: Json) => x.id === id);
+      assert.equal(mine.liked, true);
+      assert.equal(mine.likes, 1);
+      const other = (await call('/community/posts?limit=50', undefined, a.token))[1].posts.find((x: Json) => x.id === id);
+      assert.equal(other.liked, false, '내가 안 눌렀으면 liked는 false');
+      assert.equal(other.likes, 1);
+      assert.equal((await call(`/community/posts/${id}/like`, { on: false }, b.token))[1].post.likes, 0);
+      await call(`/community/posts/${id}/like`, { on: true }, b.token);
+      assert.equal((await call('/auth/delete', {}, b.token))[0], 200);
+      const after = (await call('/community/posts?limit=50')) [1].posts.find((x: Json) => x.id === id);
+      assert.equal(after.likes, 0, '탈퇴한 사람의 좋아요는 빠진다');
+    });
+
     test('계정을 탈퇴하면 그 계정의 글과 사진도 지워진다', async () => {
       const a = await member('gone');
       const [, r] = await call('/community/posts', { kind: 'photo', body: '안녕', photos: [photo()] }, a.token);

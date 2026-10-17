@@ -39,6 +39,9 @@ function toPost(v: unknown): CommunityPost | null {
       (x): x is CommunityPhoto => !!x && typeof (x as CommunityPhoto).id === 'string' && typeof (x as CommunityPhoto).url === 'string',
     ),
     mine: p.mine === true,
+    views: typeof p.views === 'number' ? p.views : 0,
+    likes: typeof p.likes === 'number' ? p.likes : 0,
+    liked: p.liked === true,
   };
 }
 
@@ -134,6 +137,18 @@ export function createHttpCommunity(opts: { url: string; fetch: FetchLike; timeo
       const r = await call(`/community/posts/${encodeURIComponent(postId)}/delete`, { body: {}, token: ctx.token });
       if (!r || r.status !== 200) return failOf(r);
       return { ok: true, value: true };
+    },
+
+    async like(postId, on, ctx) {
+      if (!ctx.token) return { ok: false, code: 'loginRequired' };
+      const r = await call(`/community/posts/${encodeURIComponent(postId)}/like`, { body: { on }, token: ctx.token });
+      const post = r && r.status === 200 ? toPost(r.body.post) : null;
+      return post ? { ok: true, value: post } : failOf(r);
+    },
+
+    async view(postId, ctx) {
+      const r = await call(`/community/posts/${encodeURIComponent(postId)}/view`, { body: {}, token: ctx.token });
+      return r && r.status === 200 && typeof r.body.views === 'number' ? { ok: true, value: r.body.views } : failOf(r);
     },
 
     photoUri: (photo: CommunityPhoto) => resolvePhotoUrl(base, photo.url),

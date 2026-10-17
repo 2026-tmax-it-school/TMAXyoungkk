@@ -210,7 +210,7 @@ export type AuthFail =
   | 'notFound';
 
 export type AuthResult =
-  | { ok: true; account: AccountPublic }
+  | { ok: true; account: AccountPublic; /** 가입 인증 메일을 보내지 못했다(서버가 메일을 켜 뒀는데 실패). 가입은 됐다 */ mailFailed?: boolean }
   | {
       ok: false;
       code: AuthFail;
@@ -398,6 +398,10 @@ export interface CommunityPost {
   photos: CommunityPhoto[];
   /** 내가 쓴 글(고치고 지울 수 있다) */
   mine: boolean;
+  /** 조회수·좋아요 수·내가 누른 좋아요(2026-10-17). 예전 서버·예전 글이면 없다(0·false로 본다) */
+  views?: number;
+  likes?: number;
+  liked?: boolean;
 }
 
 /** 올릴 사진 한 장. data는 base64(앞의 data: 머리말 없이) */
@@ -439,6 +443,10 @@ export interface CommunityProvider {
   /** 내 글 고치기. 남의 글·없는 글은 notFound */
   update(postId: string, draft: CommunityEditDraft, ctx: CommunityCtx): Promise<CommunityResult<CommunityPost>>;
   remove(postId: string, ctx: CommunityCtx): Promise<CommunityResult<true>>;
+  /** 좋아요 켜기·끄기(로그인 계정, 글당 한 번). 바뀐 글을 돌려준다 */
+  like(postId: string, on: boolean, ctx: CommunityCtx): Promise<CommunityResult<CommunityPost>>;
+  /** 조회수 한 번 더하기(같은 사람은 하루 한 번, 본인 글은 안 센다). 센 뒤의 조회수를 돌려준다 */
+  view(postId: string, ctx: CommunityCtx): Promise<CommunityResult<number>>;
   /** 글 사진의 화면용 주소(서버면 서버 주소를 붙인다) */
   photoUri(photo: CommunityPhoto): string;
 }
@@ -516,4 +524,34 @@ export interface ItineraryProvider {
   /** 가져오기 수를 올린다(여행방을 만들 때 부른다). 실패해도 가져오기는 막지 않는다 */
   countImport(id: string, ctx: CommunityCtx): Promise<ItineraryResult<true>>;
   remove(id: string, ctx: CommunityCtx): Promise<ItineraryResult<true>>;
+}
+
+/*
+ * 2026-10-17: AI 대화 요약. 채팅방에서 지금까지 한 이야기를 정리해 준다. 대화 글이 AI 서버(Gemini)로 가므로
+ * 화면이 먼저 동의를 받는다. AI를 쓸 수 없으면(서버·키 없음, 바쁨, 시간 초과) 규칙으로 간단히 정리한다.
+ */
+export interface ChatSummaryRequest {
+  title: string;
+  region: string;
+  start: string;
+  end: string;
+  messages: { who: string; text: string }[];
+  spots: { name: string; category: string }[];
+  signal?: AbortSignal;
+}
+
+export interface ChatSummary {
+  overview: string;
+  /** 정해진 것 */
+  decided: string[];
+  /** 더 정해야 할 것 */
+  open: string[];
+  source: 'ai' | 'local';
+  /** AI를 부르려 했지만 못 써서 규칙 요약으로 대신한 경우 */
+  aiUnavailable?: boolean;
+}
+
+export interface ChatSummaryProvider {
+  id: 'ai' | 'local';
+  summarize(req: ChatSummaryRequest): Promise<ChatSummary>;
 }
