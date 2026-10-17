@@ -13,7 +13,7 @@ import { brandC, H, lineC, R, SP, surfaceC, type TextColorKey } from './tokens';
 /** 가운데 큰 제목('로그인', '회원가입') */
 export function AuthTitle({ title }: { title: string }) {
   return (
-    <View style={{ paddingTop: SP.section, paddingBottom: SP.xl }}>
+    <View accessibilityRole="header" style={{ paddingTop: SP.section, paddingBottom: SP.xl }}>
       <Txt v="authTitle" center>
         {title}
       </Txt>
@@ -78,14 +78,22 @@ export function AuthBtn({
   );
 }
 
-/** 밑줄 글자 링크('계정찾기'). align right면 오른쪽 끝에 붙는다 */
+/**
+ * 밑줄 글자 링크('계정찾기'). align right면 오른쪽 끝에 붙는다.
+ * 글자는 작아도 누르는 줄은 높이 44 이상이고 글자는 세로 가운데에 둔다.
+ */
 export function TextLink({ title, onPress, align = 'left' }: { title: string; onPress: () => void; align?: 'left' | 'right' }) {
   return (
     <Pressable
       accessibilityRole="link"
       onPress={onPress}
       hitSlop={8}
-      style={{ alignSelf: align === 'right' ? 'flex-end' : 'flex-start', paddingVertical: SP.xs }}
+      style={{
+        alignSelf: align === 'right' ? 'flex-end' : 'flex-start',
+        minHeight: H.touch,
+        justifyContent: 'center',
+        paddingVertical: SP.xs,
+      }}
     >
       <Txt v="mt" c="muted" underline>
         {title}

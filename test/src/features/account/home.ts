@@ -5,12 +5,14 @@ import { daysUntil, tripStatus, type TripStatus } from '../../core/tripStatus';
 import { daysBetween, kstDate, weekday } from '../../core/util';
 
 /**
- * 03 홈 · 메인 메뉴 판정(FR-203, WP1 소유). 순수 함수라 wp1-home 테스트가 node로 부른다.
+ * 03 홈 판정(FR-203, WP1 소유). 순수 함수라 wp1-home 테스트가 node로 부른다.
  * 상태는 공유 tripStatus(KST, appClock)이므로 시뮬레이터 시각이 바뀌면 세그먼트도 같이 바뀐다.
+ * 홈은 여행 표지 카드 줄(다음 할 일 버튼 tripNextStep)과 선택한 여행방의 빠른 메뉴 4칸(homeActions)으로 이뤄진다.
+ * tripBadge와 homeSegments는 TripBar(features/trip)도 쓴다. 이름과 모양을 바꾸지 않는다.
  */
 
-export const STATUS_LABEL: Record<TripStatus, string> = { upcoming: '예정', ongoing: '진행중', done: '완료' };
-/** 목업 03 순서: 진행중, 예정, 완료 */
+export const STATUS_LABEL: Record<TripStatus, string> = { upcoming: '예정', ongoing: '진행 중', done: '완료' };
+/** 목업 03 순서: 진행 중, 예정, 완료 */
 export const SEGMENT_ORDER: TripStatus[] = ['ongoing', 'upcoming', 'done'];
 
 export interface HomeSegments {
@@ -24,7 +26,7 @@ export function homeSegments(trips: Trip[], now: number): HomeSegments {
     if (t.deletedAt != null) continue;
     groups[tripStatus(t, now)].push(t);
   }
-  // 진행중·예정은 가까운 시작일 순, 완료는 최근에 끝난 순
+  // 진행 중·예정은 가까운 시작일 순, 완료는 최근에 끝난 순
   groups.ongoing.sort((a, b) => a.startDate.localeCompare(b.startDate) || a.createdAt - b.createdAt);
   groups.upcoming.sort((a, b) => a.startDate.localeCompare(b.startDate) || a.createdAt - b.createdAt);
   groups.done.sort((a, b) => b.endDate.localeCompare(a.endDate) || b.createdAt - a.createdAt);
@@ -34,7 +36,7 @@ export function homeSegments(trips: Trip[], now: number): HomeSegments {
   };
 }
 
-/** 처음 여는 세그먼트. 진행중이 있으면 진행중, 없으면 예정, 그다음 완료 */
+/** 처음 여는 세그먼트. 진행 중이 있으면 진행 중, 없으면 예정, 그다음 완료 */
 export function defaultSegment(counts: Record<TripStatus, number>): TripStatus {
   return SEGMENT_ORDER.find((k) => counts[k] > 0) ?? 'ongoing';
 }
@@ -52,7 +54,7 @@ export function tripDateText(trip: Pick<Trip, 'startDate' | 'endDate'>, withWeek
   return `${start} – ${end}`;
 }
 
-/** 카드 머리 칩. 예정은 'D-일', 진행중은 'N일째', 완료는 '여행 끝' */
+/** 카드 머리 칩. 예정은 'D-일', 진행 중은 'N일째', 완료는 '여행 끝' */
 export function tripBadge(trip: Trip, now: number): string {
   const s = tripStatus(trip, now);
   if (s === 'upcoming') {
@@ -104,69 +106,114 @@ export function tripCardInfo(trip: Trip, plan: Plan | undefined, now: number): T
   };
 }
 
-/* ---------- 메뉴 6칸 ---------- */
+/* ---------- 다음 할 일(여행 표지 카드 버튼) ---------- */
 
-export type HomeMenuKey = 'create' | 'chat' | 'candidates' | 'map' | 'members' | 'navigate';
-export type HomeMenuIcon = 'plus' | 'chat' | 'list' | 'map' | 'link' | 'nav';
+/** 오늘(KST 'YYYY-MM-DD') 기준 상태. tripStatus와 같은 규칙을 날짜 문자열로 판정한다 */
+function statusOn(trip: Pick<Trip, 'startDate' | 'endDate'>, today: string): TripStatus {
+  if (today < trip.startDate) return 'upcoming';
+  if (today > trip.endDate) return 'done';
+  return 'ongoing';
+}
+
+export type TripNextStep =
+  | { key: 'records'; label: '기록 보기'; route: 'RecordMap' }
+  | { key: 'live'; label: '오늘 여행 진행'; route: 'LiveTrip'; date: string }
+  | { key: 'collect'; label: '후보 모으기'; route: 'Candidates' }
+  | { key: 'plan'; label: '루트 계산하기'; route: 'Planning' }
+  | { key: 'schedule'; label: '시간표 보기'; route: 'Schedule' };
+
+/**
+ * 여행 표지 카드의 버튼(다음 할 일). 상태에서 계산해 앞에 둔다.
+ * 완료면 기록 지도, 진행 중이면 오늘 여행 진행, 후보가 0곳이면 후보 모으기, 계획이 없으면 루트 계산, 그 밖에는 시간표다.
+ */
+export function tripNextStep(trip: Trip, plan: Plan | undefined, today: string): TripNextStep {
+  const s = statusOn(trip, today);
+  if (s === 'done') return { key: 'records', label: '기록 보기', route: 'RecordMap' };
+  if (s === 'ongoing') return { key: 'live', label: '오늘 여행 진행', route: 'LiveTrip', date: today };
+  if (trip.spots.length === 0) return { key: 'collect', label: '후보 모으기', route: 'Candidates' };
+  if (!plan) return { key: 'plan', label: '루트 계산하기', route: 'Planning' };
+  return { key: 'schedule', label: '시간표 보기', route: 'Schedule' };
+}
+
+/* ---------- 세그먼트(여행방이 많을 때만) ---------- */
+
+/** 개수가 0보다 큰 칸만 진행 중 → 예정 → 완료 순으로 */
+export function visibleSegments(counts: Record<TripStatus, number>): TripStatus[] {
+  return SEGMENT_ORDER.filter((k) => counts[k] > 0);
+}
+
+/** 세그먼트 줄은 여행방이 4개 이상이고 보이는 칸이 2개 이상일 때만 그린다. 아니면 한 줄에 전부 놓는다 */
+export function showsSegmentBar(tripCount: number, visible: readonly TripStatus[]): boolean {
+  return tripCount >= 4 && visible.length >= 2;
+}
+
+/* ---------- 선택한 여행방의 빠른 메뉴 4칸 ---------- */
+
+export type HomeMenuKey =
+  | 'create'
+  | 'chat'
+  | 'candidates'
+  | 'map'
+  | 'members'
+  | 'navigate'
+  | 'recommend'
+  | 'settings'
+  | 'photos'
+  | 'diary';
+export type HomeMenuIcon = 'plus' | 'chat' | 'list' | 'map' | 'link' | 'nav' | 'compass' | 'gear' | 'camera' | 'book' | 'users';
 
 export interface HomeMenuCell {
   key: HomeMenuKey;
   label: string;
-  sub: string;
   icon: HomeMenuIcon;
   disabled: boolean;
-  /** 비활성 이유(칸 안에 적는다) */
+  /** 꺼진 이유(칸 아래 한 줄로 적는다) */
   reason?: string;
+  /** 칸이 여는 날짜(구간 안내·사진은 오늘) */
+  date?: string;
+}
+
+function chatCell(trip: Trip): HomeMenuCell {
+  return tripMode(trip) === 'personal'
+    ? { key: 'chat', label: '그룹 채팅', icon: 'chat', disabled: true, reason: '멤버를 초대하면 채팅과 대화 인식이 열려요' }
+    : { key: 'chat', label: '그룹 채팅', icon: 'chat', disabled: false };
 }
 
 /**
- * 메뉴 6칸(목업 03). 여행방이 없으면 만들기만 열린다. 개인 모드면 채팅 칸이 비활성이고 이유를 적는다.
- * 길찾기는 여행 시뮬레이터로 동작하므로 활성이다.
+ * 선택한 여행방 구역의 빠른 메뉴 4칸. 단계(예정·진행 중·완료)에 맞는 일을 돌려준다. 여행방 설정은 늘 끝 칸이다.
+ * - 예정: 그룹 채팅, 멤버 초대, 여행지 추천, 여행방 설정
+ * - 진행 중: 구간 안내(오늘 첫 구간), 그룹 채팅, 사진 올리기(오늘), 여행방 설정
+ * - 완료: 사진, 일기, 그룹 채팅, 여행방 설정
+ * 꺼지는 칸은 개인 모드의 채팅 칸 하나뿐이고 이유를 적는다(화면이 그 이유 줄을 칸 아래에 보인다). 여행방이 없으면 빈 목록이다(화면은 만들기 Empty).
+ * plan은 호출 모양을 지키려고 받는다(구간 안내 칸은 시간표가 없어도 켜 둔다).
  */
-export function homeMenu(trip: Trip | undefined, plan?: Plan): HomeMenuCell[] {
-  const noTrip = '여행방을 먼저 골라 주세요';
-  const c = trip ? tripCounts(trip, plan) : undefined;
-  const personal = trip ? tripMode(trip) === 'personal' : false;
-  const cells: HomeMenuCell[] = [
-    { key: 'create', label: '여행방 만들기', sub: '날짜와 기점부터', icon: 'plus', disabled: false },
-    trip
-      ? personal
-        ? {
-            key: 'chat',
-            label: '그룹 채팅',
-            sub: '혼자인 여행방',
-            icon: 'chat',
-            disabled: true,
-            reason: '멤버를 초대하면 채팅과 대화 인식이 열립니다',
-          }
-        : {
-            key: 'chat',
-            label: '그룹 채팅',
-            sub: `메시지 ${trip.messages.length}개`,
-            icon: 'chat',
-            disabled: false,
-          }
-      : { key: 'chat', label: '그룹 채팅', sub: '', icon: 'chat', disabled: true, reason: noTrip },
-    {
-      key: 'candidates',
-      label: '후보',
-      sub: c ? (c.excluded != null ? `${c.candidates}곳 · 제외 ${c.excluded}` : `${c.candidates}곳`) : '',
-      icon: 'list',
-      disabled: !trip,
-      reason: trip ? undefined : noTrip,
-    },
-    { key: 'map', label: '지도 · 루트', sub: '하루 단위로', icon: 'map', disabled: !trip, reason: trip ? undefined : noTrip },
-    { key: 'members', label: '멤버 초대', sub: '링크 공유', icon: 'link', disabled: !trip, reason: trip ? undefined : noTrip },
-    {
-      key: 'navigate',
-      label: '길찾기',
-      sub: '여행 시뮬레이터로 시연',
-      icon: 'nav',
-      disabled: !trip,
-      reason: trip ? undefined : noTrip,
-    },
+export function homeActions(trip: Trip | undefined, _plan: Plan | undefined, today: string): HomeMenuCell[] {
+  if (!trip) return [];
+  const settings: HomeMenuCell = { key: 'settings', label: '여행방 설정', icon: 'gear', disabled: false };
+  const s = statusOn(trip, today);
+  if (s === 'upcoming') {
+    return [
+      chatCell(trip),
+      { key: 'members', label: '멤버 초대', icon: 'users', disabled: false },
+      { key: 'recommend', label: '여행지 추천', icon: 'compass', disabled: false },
+      settings,
+    ];
+  }
+  if (s === 'ongoing') {
+    return [
+      // 늘 켠다. 오늘 구간이 없으면 구간 안내 화면이 Empty '루트 계산'으로 다음 할 일을 보여 준다(꺼진 칸은 이유가 안 보여 막다른 칸이 된다)
+      { key: 'navigate', label: '구간 안내', icon: 'nav', disabled: false, date: today },
+      chatCell(trip),
+      { key: 'photos', label: '사진 올리기', icon: 'camera', disabled: false, date: today },
+      settings,
+    ];
+  }
+  return [
+    { key: 'photos', label: '사진', icon: 'camera', disabled: false },
+    { key: 'diary', label: '일기', icon: 'book', disabled: false },
+    chatCell(trip),
+    settings,
   ];
-  return cells;
 }
 
 /* ---------- 추천 여행지 줄(2026-10-10 리디자인) ---------- */
@@ -177,7 +224,7 @@ export interface HomePick {
   blurb: string;
 }
 
-/** 홈 '추천 여행지' 가로 줄. 누르면 여행방 만들기로 간다(지역은 거기서 고른다) */
+/** 홈 '추천 여행지' 가로 줄. 누르면 그 지역을 고른 채로 여행방 만들기로 간다(id는 data/regions의 지역 id) */
 export const HOME_PICKS: HomePick[] = [
   { id: 'busan', name: '부산', blurb: '바다와 야경이 있는 항구 도시' },
   { id: 'gyeongju', name: '경주', blurb: '천년 고도를 걷는 산책' },

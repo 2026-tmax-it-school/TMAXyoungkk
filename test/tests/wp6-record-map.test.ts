@@ -4,7 +4,7 @@ import { describe, test } from 'node:test';
 
 import type { LatLng, Plan, TrackPoint, Trip, Visit } from '../src/types';
 import { dayColor, MAX_TRIP_DAYS } from '../src/core/constants';
-import { ACTUAL_DOT_TONE, dayLineColor, gapLineColor, recordMapModel } from '../src/core/journal/recordMap';
+import { ACTUAL_DOT_TONE, dayLineColor, gapLineColor, legendFlags, recordMapModel } from '../src/core/journal/recordMap';
 import { noteLivePermission, type DeniedStore } from '../src/core/live/track';
 import { addDays, atKst, dateRange } from '../src/core/util';
 import { mapPinSvg } from '../src/ui/mapPinSvg';
@@ -127,9 +127,36 @@ describe('FR-804 계획 선과 실제 이동 점 색 구분', () => {
     for (const c of ['slate', 'ok', 'warn'] as const) assert.equal(gapLineColor(c), 'ink');
   });
 
+  test('범례는 지도에 그려진 항목만 켠다(legendFlags)', () => {
+    const trip = scenarioTrip();
+    // 권한 거부: 도착 지점만 이은 점선과 계획 선, 기점은 있고 실제 이동 점과 사진 점은 없다
+    trip.visits = [arrive('s-gj-bulguksa', D1, '09:25'), arrive('s-gj-seokguram', D1, '11:07')];
+    const denied = recordMapModel(trip, planFor(trip, [D1]), D1, [], {
+      now: atKst(D1, '18:00'),
+      denied: { at: atKst(D1, '09:00'), source: 'device' },
+    });
+    assert.deepEqual(legendFlags(denied), { planned: true, actual: false, photo: false, gap: true, base: true, passed: false });
+
+    // 위치 기록이 있으면 실제 이동 점이 켜지고, 앞 순번을 건너뛰고 도착하면 지나친 스팟이 켜진다
+    trip.visits = [arrive('s-gj-seokguram', D2, '11:07')];
+    const moved = recordMapModel(trip, planFor(trip, [D2]), D2, gps(coordOf(trip, 's-gj-seokguram'), D2, 4), {
+      now: atKst(D2, '18:00'),
+    });
+    const f = legendFlags(moved);
+    assert.equal(f.actual, true);
+    assert.equal(f.passed, true);
+    assert.equal(f.planned, true);
+
+    // 계획도 기록도 없으면 범례가 없다
+    const none = recordMapModel(scenarioTrip(), undefined, D2, [], { now: atKst(D2, '18:00') });
+    assert.ok(Object.values(legendFlags(none)).every((v) => v === false));
+  });
+
   test('범례는 모델 색(계획 선·점선)과 렌더러 이동 점 색을 그대로 쓴다', () => {
     const src = readFileSync('src/screens/RecordMapScreen.tsx', 'utf8');
-    assert.match(src, /<Legend planned=\{model\.plannedColor\} gap=\{model\.gapColor\} \/>/);
+    // 범례 색은 모델 값 그대로이고, 항목은 그려진 것만 켜는 legendFlags(model)로 고른다
+    assert.match(src, /<Legend planned=\{model\.plannedColor\} gap=\{model\.gapColor\}/);
+    assert.match(src, /<Legend planned=\{model\.plannedColor\} gap=\{model\.gapColor\} flags=\{legendFlags\(model\)\} \/>/);
     assert.match(src, /stroke=\{mapC\[gap\]\} strokeWidth=\{3\.4\} strokeDasharray="6 5"/);
     assert.match(src, /r=\{3\.5\} fill=\{mapC\.user\} stroke=\{mapC\.white\}/);
   });
@@ -187,7 +214,7 @@ describe('FR-704 날짜별 권한 거부 안내', () => {
       'sim',
     ]);
     const src = readFileSync('src/screens/RecordMapScreen.tsx', 'utf8');
-    assert.match(src, /deniedNone: '이 날은 위치 권한이 없었고 도착 기록도 없어 이동 기록이 없습니다\.'/);
+    assert.match(src, /deniedNone: '이 날은 위치 권한이 없었고 도착 기록도 없어 이동 기록이 없어요\.'/);
   });
 
   test('같은 날 앞서 돌린 시뮬레이터 점이 남아 있어도 그날 기기 거부면 시연 점을 쓰지 않고 거부로 안내한다', () => {
@@ -225,6 +252,6 @@ describe('FR-704 날짜별 권한 거부 안내', () => {
     const src = readFileSync('src/screens/RecordMapScreen.tsx', 'utf8');
     assert.match(src, /useLive\(\(s\) => s\.denied\[tripId\]\)/);
     assert.doesNotMatch(src, /s\.permission/);
-    assert.match(src, /이 날은 위치 권한이 없어 도착 지점만 순서대로 이었습니다/);
+    assert.match(src, /denied: '이 날은 위치 권한이 없어 도착 지점만 순서대로 이었어요\.'/);
   });
 });

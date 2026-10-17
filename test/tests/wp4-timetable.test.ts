@@ -9,7 +9,7 @@ import { buildPlan, resolveBases } from '../src/core/planner';
 import { returnLegOf } from '../src/core/planner/day';
 import { legDrafts } from '../src/features/schedule/edit';
 import { toMin } from '../src/core/util';
-import { timelineRows } from '../src/features/schedule/timeline';
+import { spotSubLine, timelineRows } from '../src/features/schedule/timeline';
 import { createRouteProvider } from '../src/services/routes';
 import { fakeFetch, fixedClock, memoryKV, tableRoutes } from './helpers/fakes';
 import { fixturePlan1018, scenarioTrip, SCENARIO_T0 } from './helpers/fixtures';
@@ -131,6 +131,27 @@ test('timelineRows: 기점 출발 → 이동 줄 → 스팟 … → 이동 줄 �
     legs.map((l) => (l.kind === 'leg' ? l.minutes : -1)),
     [25, 12, 20, 20],
   );
+});
+
+test('timelineRows: 스팟 행은 떠나는 시각(depart)과 문서 스팟의 카테고리를 갖고, 보조 줄은 카테고리 · 체류다', () => {
+  const day = fixturePlan1018();
+  const trip = scenarioTrip();
+  const rows = timelineRows(day, undefined, trip.spots);
+  const spots = rows.filter((r) => r.kind === 'spot');
+  assert.equal(spots.length, day.items.length);
+  for (const r of spots) {
+    if (r.kind !== 'spot') continue;
+    const it = day.items.find((x) => x.spotId === r.spotId);
+    assert.ok(it);
+    assert.equal(r.depart, it.depart, `${r.title} 떠나는 시각`);
+    assert.equal(r.category, trip.spots.find((x) => x.id === r.spotId)?.category, `${r.title} 카테고리`);
+    assert.ok(r.category, '시나리오 스팟은 모두 카테고리가 있다');
+    assert.equal(spotSubLine(r), `${r.category} · 체류 ${r.stayMin}분`);
+  }
+  // 스팟 목록을 넘기지 않으면(예전 호출) 카테고리 없이 '체류 N분'만
+  const plain = timelineRows(day).find((r) => r.kind === 'spot');
+  assert.ok(plain && plain.kind === 'spot' && plain.category === undefined);
+  assert.equal(spotSubLine(plain), `체류 ${plain.stayMin}분`);
 });
 
 test('timelineRows: 복귀 없음은 끝 행, 기점 없음(firstSpot)은 첫 이동 줄이 없다', () => {

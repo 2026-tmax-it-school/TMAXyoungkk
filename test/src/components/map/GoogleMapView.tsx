@@ -9,6 +9,7 @@ import { clusterName, DEFAULT_MAP_CENTER, fitCoords, fitKey, mapPadding, pinName
 import { clusterMarkers, DEFAULT_CLUSTER_PX, type MapCluster, type MapMarkerInput, type XY } from '../../core/map/layout';
 import type { LatLng } from '../../types';
 import { GOOGLE_MAP_STYLE, lineC, mapC, mapPinSvg, R, type PinSpec } from '../../ui';
+import { pinLook } from './overlayItems';
 import { ClusterListSheet, FitAllButton, MapChildren, mapHeight, type MapFailReason, type MapViewProps } from './parts';
 
 /**
@@ -299,8 +300,8 @@ export function GoogleMapView(props: MapViewProps & { onFail: (reason: MapFailRe
             coord={m.coord}
             spec={
               m.kind === 'excluded'
-                ? { kind: 'excluded', label: m.label, compact }
-                : { kind: 'spot', label: m.label, color: m.color, compact }
+                ? { kind: 'excluded', label: m.label, compact, ...pinLook(m) }
+                : { kind: 'spot', label: m.label, color: m.color, compact, ...pinLook(m) }
             }
             name={pinName(m)}
             onPress={props.onMarkerPress ? () => props.onMarkerPress?.(m.id) : undefined}
@@ -331,7 +332,7 @@ export function GoogleMapView(props: MapViewProps & { onFail: (reason: MapFailRe
         memberIds={group}
         titleOf={titleOf}
         onClose={() => setGroup(undefined)}
-        onPick={(id) => props.onMarkerPress?.(id)}
+        onPick={(id) => (props.onClusterPick ?? props.onMarkerPress)?.(id)}
       />
       <MapChildren>{props.children}</MapChildren>
     </View>

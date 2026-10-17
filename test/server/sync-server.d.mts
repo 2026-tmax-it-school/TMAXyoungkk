@@ -3,6 +3,7 @@
  * 서버 자체는 앱 번들에 들어가지 않는다.
  */
 import type { AuthServiceOptions, AuthStore } from './auth.mjs';
+import type { CommunityStore } from './community.mjs';
 import type { ApiProxyOptions } from './proxy.mjs';
 
 export type InviteJudgement = 'ok' | 'notFound' | 'expired' | 'revoked' | 'full';
@@ -31,6 +32,7 @@ export interface SyncStore {
   readonly kind: 'memory' | 'postgres';
   /** 계정·로그인 저장소(PostgreSQL 저장소가 준다). 없으면 서버가 메모리 계정 저장소를 쓴다 */
   readonly authStore?: AuthStore;
+  readonly communityStore?: CommunityStore;
   push(tripId: string, ops: readonly unknown[], now?: number): Awaitable<Ack[]>;
   pull(tripId: string, after: number): Awaitable<StoredOp[]>;
   lookup(code: string, now: number): Awaitable<InviteLookupResult>;

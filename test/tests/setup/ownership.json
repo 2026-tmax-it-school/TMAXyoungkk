@@ -76,6 +76,8 @@
     "src/core/ops/members.ts",
     "src/core/trip/**",
     "src/services/sync/**",
+    "src/services/regions.ts",
+    "src/services/tripCover.ts",
     "server/**",
     "tests/wp2-*.test.ts"
   ],
@@ -87,6 +89,7 @@
     "src/features/chat/**",
     "src/features/candidates/**",
     "src/core/extract/**",
+    "src/core/chatmap/**",
     "src/core/recommend.ts",
     "src/core/ops/chat.ts",
     "src/core/ops/spots.ts",
@@ -131,6 +134,12 @@
     "src/core/ops/journal.ts",
     "src/services/photos/**",
     "src/services/diary/**",
-    "tests/wp6-*.test.ts"
+    "tests/wp6-*.test.ts",
+    "src/screens/CommunityScreen.tsx",
+    "src/screens/CommunityComposeScreen.tsx",
+    "src/features/community/**",
+    "src/core/community/**",
+    "src/services/community/**",
+    "src/store/community.ts"
   ]
 }

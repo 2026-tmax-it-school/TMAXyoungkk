@@ -7,7 +7,7 @@ import { Txt } from './Txt';
 import { H, lineC, surfaceC } from './tokens';
 
 /**
- * 하단 탭(홈/후보/시간표/지도/프로필 고정). 켜진 탭은 아이콘·라벨 모두 주색(연두), 꺼진 탭은 muted.
+ * 하단 탭 다섯 칸(홈/일정/지도/커뮤니티/프로필 고정). 켜진 탭은 아이콘·라벨 모두 주색(연두), 꺼진 탭은 muted.
  * 네비게이터와 무관한 표시 컴포넌트다. src/navigation이 react-navigation 탭에 연결한다.
  */
 export function TabBar<K extends string>({

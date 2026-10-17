@@ -69,6 +69,11 @@ export const surfaceC = {
   accentTint: '#EFF6E6',
   /** 카카오 로그인 버튼 면(카카오 디자인 가이드 컨테이너 색) */
   kakao: '#FEE500',
+  /**
+   * DS photo-scrim. 사진 위 작은 원형 버튼 바탕(흰 아이콘 onInk). 밝은 사진에서도 보이게 DS 어두운 테마 값(0.4)을 쓴다.
+   * 반투명이라 글자 대비 검사 목록(TEXT_ON_SURFACE_PAIRS)에는 넣지 않는다. 글자를 올리지 않는다.
+   */
+  photoScrim: 'rgba(0,0,0,0.4)',
 } as const;
 export type SurfaceColorKey = keyof typeof surfaceC;
 
@@ -283,7 +288,20 @@ export const H = {
   auth: 48,
   /** 소셜 로그인 버튼 로고 크기 */
   brandLogo: 20,
+  /** 누를 수 있는 것의 최소 높이(44pt). 보이는 크기가 작으면 hitSlop으로 채운다 */
+  touch: 44,
+  /** 큰 아바타(채팅방 지도 왼쪽 열 프로필) */
+  avatarLg: 44,
+  /** 켜고 끄는 스위치 트랙(ui/Switch) */
+  switchW: 44,
+  switchH: 26,
 } as const;
+
+/**
+ * 투명도. dim은 고르지 않은 것을 흐리게 둘 때(지도 핀, 채팅방 지도 왼쪽 열)만 쓴다.
+ * 글자를 흐리게 해서 비활성을 나타내지 않는다(비활성 글자는 muted).
+ */
+export const OPACITY = { dim: 0.4 } as const;
 
 /**
  * 그림자는 이것 하나(DS shadow-float). 지도 위에 뜬 요소에만 쓴다. 카드·시트·토스트에는 없다.
@@ -336,6 +354,18 @@ export const TEXT_ON_SURFACE_PAIRS: { text: TextColorKey; surface: SurfaceColorK
  * 비텍스트 대비(WCAG 1.4.11) 검사 대상. 진행 막대 채움과 트랙처럼 상태를 알리는 요소는 3:1 이상이다.
  * foundation-contrast가 검사한다.
  */
-export const NON_TEXT_PAIRS: { name: string; fg: SurfaceColorKey; bg: SurfaceColorKey }[] = [
+export const NON_TEXT_PAIRS: { name: string; fg: NonTextColorKey; bg: NonTextColorKey }[] = [
   { name: '진행 막대: 연두 채움 / 트랙', fg: 'accent', bg: 'track' },
+  { name: '스위치: 켜진 트랙 / 카드', fg: 'accent', bg: 'card' },
+  { name: '스위치: 꺼진 트랙 / 카드', fg: 'line.strong', bg: 'card' },
+  { name: '스위치: 손잡이 / 켜진 트랙', fg: 'card', bg: 'accent' },
+  { name: '스위치: 손잡이 / 꺼진 트랙', fg: 'card', bg: 'line.strong' },
 ];
+
+/** 비텍스트 대비 검사에서 쓰는 색 이름. 면색 키 또는 'line.<선색 키>' */
+export type NonTextColorKey = SurfaceColorKey | `line.${LineColorKey}`;
+
+/** NON_TEXT_PAIRS의 색 이름을 값으로 바꾼다 */
+export function nonTextColor(k: NonTextColorKey): string {
+  return k.startsWith('line.') ? lineC[k.slice(5) as LineColorKey] : surfaceC[k as SurfaceColorKey];
+}

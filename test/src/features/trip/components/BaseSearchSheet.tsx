@@ -40,7 +40,7 @@ export function BaseSearchSheet({
       setResults(found);
     } catch {
       setResults(undefined);
-      setError('장소 검색에 실패했습니다. 잠시 뒤 다시 시도해 주세요.');
+      setError('장소 검색에 실패했어요. 잠시 뒤 다시 시도해 주세요.');
     } finally {
       setBusy(false);
     }
@@ -59,7 +59,6 @@ export function BaseSearchSheet({
         label={`숙소나 출발할 곳 · ${region?.name ?? ''}`}
         value={query}
         onChangeText={setQuery}
-        placeholder="예: 라한셀렉트 경주, 경주역"
         // 키보드 엔터·검색 키로도 찾는다(2026-10-09 웹 실행: 엔터를 눌러도 아무 일이 없었다)
         onSubmitEditing={() => {
           if (!busy) void search();
@@ -68,7 +67,7 @@ export function BaseSearchSheet({
       <Btn title={busy ? '찾는 중' : '검색'} size="sm" variant="ghost" icon="search" disabled={busy || !query.trim() || !region} onPress={search} />
       {error ? <Notice tone="warn" icon="alert" text={error} /> : null}
       {results && results.length === 0 ? (
-        <Notice icon="search" title="결과 없음" text={`'${query.trim()}'에 맞는 장소가 없습니다.`} />
+        <Notice icon="search" title="결과 없음" text={`'${query.trim()}'에 맞는 장소가 없어요.`} />
       ) : null}
       {results && results.length > 0 ? (
         <ScrollView style={{ maxHeight: 260 }} contentContainerStyle={{ gap: SP.m }}>

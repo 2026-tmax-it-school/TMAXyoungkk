@@ -94,6 +94,17 @@ export interface Spot {
   arriveOverride?: string;
   /** 필드별 마지막 편집 op.at. patchSpot이 갱신한다. */
   edited: Partial<Record<SpotField, number>>;
+  /**
+   * 채팅방 지도에서 멤버가 준 한 표(FR-405, 명세 밖 추가). 키는 memberId이고 멤버별 op.at LWW다(patchVote).
+   * 없으면(옛 문서) 제안자가 처음부터 한 표를 가진 것으로 본다(core/chatmap/votes.hasVote).
+   */
+  votes?: Record<string, SpotVote>;
+}
+
+/** 멤버 한 사람의 한 표. on:false는 지우지 않고 남겨 늦게 도착한 옛 op가 표를 되살리지 못하게 한다. */
+export interface SpotVote {
+  on: boolean;
+  at: number;
 }
 
 export type Role = 'host' | 'member';
@@ -257,6 +268,8 @@ export interface Trip {
   /** 'HH:MM'. 하루 기본 활동시간. 날짜별 값이 있으면 그것이 우선이다. */
   dayStart: string;
   dayEnd: string;
+  /** 표지 이미지(여행방을 알아보게). 줄인 JPEG 등 base64. 없으면 지역 이름 표지 */
+  cover?: TripCover;
   days: DaySetting[];
   legs: LegOverride[];
   members: Member[];
@@ -440,9 +453,17 @@ export interface Session {
 /* Op (A3). OpBody 유니온 전체는 여기에만 있고 동결한다.               */
 /* ------------------------------------------------------------------ */
 
+/** 여행방 표지 이미지. 크기·형식 규칙은 core/trip/cover */
+export interface TripCover {
+  mime: string;
+  /** base64(머리 'data:' 없이) */
+  data: string;
+}
+
+/** cover: null이면 표지를 뺀다 */
 export type TripPatch = Partial<
   Pick<Trip, 'title' | 'region' | 'startDate' | 'endDate' | 'transport' | 'dayStart' | 'dayEnd'>
->;
+> & { cover?: TripCover | null };
 export type DayPatch = Partial<Pick<DaySetting, 'base' | 'noReturn' | 'dayStart' | 'dayEnd'>>;
 
 export type OpBody =
@@ -485,6 +506,8 @@ export type OpBody =
   | { type: 'spot/remove'; spotId: string; reason?: 'user' | 'delay' }
   | { type: 'spot/restore'; spotId: string }
   | { type: 'spot/delete'; spotId: string }
+  /** 채팅방 지도의 한 표(FR-405). placeId는 다른 기기에서 같은 장소가 합쳐져 spotId가 사라졌을 때의 별칭이다. */
+  | { type: 'spot/vote'; spotId: string; placeId: string; on: boolean }
   // ops/schedule.ts (WP4)
   | { type: 'schedule/reorder'; date: string; spotIds: string[] }
   | { type: 'schedule/setStay'; spotId: string; stayMin: number }

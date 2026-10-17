@@ -62,18 +62,27 @@ const ICONS = {
   share: [c(6, 12, 2.2), c(17.5, 6, 2.2), c(17.5, 18, 2.2), p('M8 11l7.6-4M8 13l7.6 4')],
   trash: [p('M4.5 6.5h15M9.5 6.5v-2h5v2M6.5 6.5l.9 12.6a1.5 1.5 0 0 0 1.5 1.4h6.2a1.5 1.5 0 0 0 1.5-1.4l.9-12.6M10 10.5v6M14 10.5v6')],
   mail: [r(3.5, 5.5, 17, 13, 2), p('M4 7l8 6 8-6')],
+  // 대중교통 안내(지하철·열차). 같은 선 규칙
+  train: [r(6, 3.5, 12, 13.5, 3), p('M6 10h12M9.5 13.5h.01M14.5 13.5h.01M9 17l-2.5 3.5M15 17l2.5 3.5')],
   // 2026-10-10 리디자인(같은 선 규칙)
   heart: [p('M12 20.2s-7.8-4.6-7.8-10.3A4.3 4.3 0 0 1 12 7.4a4.3 4.3 0 0 1 7.8 2.5c0 5.7-7.8 10.3-7.8 10.3z')],
   compass: [c(12, 12, 8.6), p('M15.4 8.6 13.2 13.2 8.6 15.4 10.8 10.8z')],
   help: [c(12, 12, 8.6), p('M9.6 9.5a2.5 2.5 0 0 1 4.8 1c0 1.7-2.4 2.1-2.4 3.6M12 17h.01')],
   // 27 길찾기 출발·도착 바꾸기(위아래 두 화살)
   swap: [p('M8 19.5V4.5M8 4.5 4.5 8M8 4.5 11.5 8'), p('M16 4.5v15M16 19.5 12.5 16M16 19.5l3.5-3.5')],
+  // 2026-10-11 커뮤니티: 태그(#)와 글쓰기(연필). 같은 선 규칙
+  hash: [p('M9.6 4 8 20M16 4l-1.6 16M4.5 9h15.5M4 15h15.5')],
+  pen: [p('M15.6 4.8a2 2 0 0 1 2.8 0l.8.8a2 2 0 0 1 0 2.8L9 18.6l-4.3 1 1-4.3z'), p('M14 6.4l3.6 3.6')],
+  // 2026-10-12 시트 펼치기·접기(꺾쇠 위아래)와 값 줄이기(Stepper). 같은 선 규칙
+  up: [p('M5 14.5l7-7 7 7')],
+  down: [p('M5 9.5l7 7 7-7')],
+  minus: [p('M5 12h14')],
 } satisfies Record<string, Shape[]>;
 
 export type IconName = keyof typeof ICONS;
 export const ICON_NAMES = Object.keys(ICONS) as IconName[];
 
-const DEFAULT_STROKE: Partial<Record<IconName, number>> = { back: 1.8, right: 2.2 };
+const DEFAULT_STROKE: Partial<Record<IconName, number>> = { back: 1.8, right: 2.2, up: 2.2, down: 2.2 };
 
 export function Icon({
   name,

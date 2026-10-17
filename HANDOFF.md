@@ -12,6 +12,7 @@
 2026-10-10 세션 3이 세션 2 결과를 다시 검사하고 독립 리뷰로 찾은 문제를 고쳤다. **`docs/handoff/2026-10-10/session-3-검사.md`**가 최신이다.
 그 뒤 이어서 한 일은 `docs/handoff/2026-10-10/session-3-이어서.md`, 카카오맵 마무리와 자유 길찾기는 **`docs/handoff/2026-10-10/session-4-길찾기.md`**(가장 최신)에 있다.
 **2026-10-10 밤 세션 5: 디자인 브랜치(origin/develop)와 기능 작업을 `/Users/handong-gwan/TMAXyoungkk`의 `feature/dh/merge-design-features`에 합쳤다(커밋 전). 이제 TMAXyoungkk에서 이어 작업한다. 상세는 TMAXyoungkk의 `docs/handoff/2026-10-10/session-5-디자인-병합.md`.**
+**2026-10-12 세션 6·7: 커뮤니티 v2(글 통합·태그·임시 저장·나가기 확인)는 세션 7에서 끝냄(tsc 0, 테스트 통과, 웹 확인, 커밋 전). 앱 전체 UX 점검 85건은 완료, 재배치(B)와 채팅방 지도·투표(FR-405)도 10/14 새벽 끝남(tsc 0, 테스트 1237 통과, gate·export:web 통과, 웹 확인). 남은 일은 session-6 파일 맨 아래 "끝남" 절. 상세와 다음 순서는 `docs/handoff/2026-10-12/session-6-커뮤니티v2-UX.md`(가장 최신).**
 다음 일은 session-5 파일의 "남은 일", 그다음 session-4 파일의 "남은 일"이다. 세션 2 상세는 `docs/handoff/2026-10-09/session-2-이어하기.md`.
 
 ### 진행 표

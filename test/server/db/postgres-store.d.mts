@@ -2,6 +2,7 @@
  * postgres-store.mjs의 타입 선언(WP2 소유). 테스트는 PGlite를 sqlDb()로 감싸 같은 저장소를 돌린다.
  */
 import type { AuthStore } from '../auth.mjs';
+import type { CommunityStore } from '../community.mjs';
 import type { Ack, InviteLookupResult, StoredOp, SyncStore } from '../sync-server.mjs';
 import type { DayView, LegView, SpotView, TripView } from './projection.mjs';
 
@@ -30,6 +31,7 @@ export function jsonText(value: unknown): string;
 export interface PostgresSyncStore extends SyncStore {
   readonly kind: 'postgres';
   readonly authStore: AuthStore;
+  readonly communityStore: CommunityStore;
   push(tripId: string, ops: readonly unknown[], now?: number): Promise<Ack[]>;
   pull(tripId: string, after: number): Promise<StoredOp[]>;
   lookup(code: string, now: number): Promise<InviteLookupResult>;

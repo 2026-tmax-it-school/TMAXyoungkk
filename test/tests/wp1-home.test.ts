@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { describe, test } from 'node:test';
 
 import type { Plan, Trip } from '../src/types';
@@ -6,12 +7,15 @@ import { atKst } from '../src/core/util';
 import {
   countsText,
   defaultSegment,
-  homeMenu,
+  homeActions,
   homeSegments,
+  showsSegmentBar,
   tripBadge,
   tripCardInfo,
   tripCounts,
   tripDateText,
+  tripNextStep,
+  visibleSegments,
 } from '../src/features/account/home';
 import { NOTIFY_ROWS, retentionText, sessionSummary } from '../src/features/account/settings';
 import { issueGuest } from '../src/core/session';
@@ -20,7 +24,8 @@ import { scenarioTrip } from './helpers/fixtures';
 import { seededRng } from './helpers/fakes';
 
 /**
- * WP1 03 홈(FR-203): 예정·진행중·완료 세그먼트 집계(공유 tripStatus, KST), 카드 문구, 메뉴 6칸 판정.
+ * WP1 03 홈(FR-203): 예정·진행 중·완료 세그먼트 집계(공유 tripStatus, KST), 카드 문구와 다음 할 일 버튼,
+ * 선택한 여행방의 단계별 빠른 메뉴 4칸 판정.
  * UTC 회귀 자체는 foundation-core가 본다. 여기서는 홈이 그 판정을 그대로 쓰는지만 본다.
  */
 
@@ -108,44 +113,141 @@ describe('카드 문구', () => {
   });
 });
 
-describe('메뉴 6칸', () => {
-  test('목업 03 순서의 6칸이다', () => {
-    assert.deepEqual(
-      homeMenu(trip('a', '2026-10-17', '2026-10-19')).map((c) => c.key),
-      ['create', 'chat', 'candidates', 'map', 'members', 'navigate'],
-    );
+describe('세그먼트는 칸이 있을 때만', () => {
+  test('개수가 0보다 큰 칸만 진행 중 → 예정 → 완료 순으로 보인다', () => {
+    assert.deepEqual(visibleSegments({ upcoming: 2, ongoing: 1, done: 1 }), ['ongoing', 'upcoming', 'done']);
+    assert.deepEqual(visibleSegments({ upcoming: 2, ongoing: 0, done: 3 }), ['upcoming', 'done']);
+    assert.deepEqual(visibleSegments({ upcoming: 0, ongoing: 0, done: 0 }), []);
   });
 
-  test('개인 모드(활성 멤버 1명)면 채팅 칸이 비활성이고 이유를 적는다', () => {
-    const chat = homeMenu(personal(trip('a', '2026-10-17', '2026-10-19'))).find((c) => c.key === 'chat');
-    assert.ok(chat);
-    assert.equal(chat.disabled, true);
-    assert.match(chat.reason ?? '', /초대/);
+  test('세그먼트 줄은 여행방 4개 이상이고 보이는 칸이 2개 이상일 때만 그린다', () => {
+    assert.equal(showsSegmentBar(4, ['ongoing', 'upcoming']), true);
+    assert.equal(showsSegmentBar(3, ['ongoing', 'upcoming', 'done']), false);
+    assert.equal(showsSegmentBar(5, ['upcoming']), false);
+  });
+});
+
+describe('여행 표지 카드의 다음 할 일', () => {
+  const today = '2026-10-18';
+  const plan = { days: [{ date: '2026-11-01', items: [] }], excluded: [] } as unknown as Plan;
+
+  test('완료면 기록 보기(기록 지도)', () => {
+    const s = tripNextStep(trip('past', '2026-09-01', '2026-09-03'), plan, today);
+    assert.equal(s.label, '기록 보기');
+    assert.equal(s.route, 'RecordMap');
+  });
+
+  test('진행 중이면 오늘 여행 진행(오늘 날짜로)', () => {
+    const s = tripNextStep(trip('now', '2026-10-17', '2026-10-19'), undefined, today);
+    assert.equal(s.label, '오늘 여행 진행');
+    assert.deepEqual(s.route === 'LiveTrip' ? s.date : undefined, today);
+  });
+
+  test('예정인데 후보가 0곳이면 후보 모으기', () => {
+    const s = tripNextStep(trip('soon', '2026-11-01', '2026-11-02', { spots: [] }), plan, today);
+    assert.equal(s.label, '후보 모으기');
+    assert.equal(s.route, 'Candidates');
+  });
+
+  test('예정이고 후보는 있는데 계획이 없으면 루트 계산하기', () => {
+    const s = tripNextStep(trip('soon', '2026-11-01', '2026-11-02'), undefined, today);
+    assert.equal(s.label, '루트 계산하기');
+    assert.equal(s.route, 'Planning');
+  });
+
+  test('그 밖에는 시간표 보기', () => {
+    const s = tripNextStep(trip('soon', '2026-11-01', '2026-11-02'), plan, today);
+    assert.equal(s.label, '시간표 보기');
+    assert.equal(s.route, 'Schedule');
+  });
+});
+
+describe('선택한 여행방의 빠른 메뉴 4칸', () => {
+  const today = '2026-10-18';
+  const keys = (t: Trip | undefined, plan?: Plan) => homeActions(t, plan, today).map((c) => c.key);
+
+  test('예정: 그룹 채팅, 멤버 초대, 여행지 추천, 여행방 설정', () => {
+    assert.deepEqual(keys(trip('a', '2026-11-01', '2026-11-02')), ['chat', 'members', 'recommend', 'settings']);
+  });
+
+  test('진행 중: 구간 안내, 그룹 채팅, 사진 올리기(오늘), 여행방 설정', () => {
+    const cells = homeActions(trip('a', '2026-10-17', '2026-10-19'), undefined, today);
+    assert.deepEqual(
+      cells.map((c) => c.key),
+      ['navigate', 'chat', 'photos', 'settings'],
+    );
+    assert.equal(cells.find((c) => c.key === 'photos')?.date, today);
+  });
+
+  test('완료: 사진, 일기, 그룹 채팅, 여행방 설정', () => {
+    assert.deepEqual(keys(trip('a', '2026-09-01', '2026-09-03')), ['photos', 'diary', 'chat', 'settings']);
+  });
+
+  test("구간 안내 칸 이름은 '구간 안내'이고 늘 켜져 있다(시간표가 없으면 구간 안내 화면이 '루트 계산'을 안내)", () => {
+    const plan = { days: [{ date: today, items: [{}] }], excluded: [] } as unknown as Plan;
+    const nav = homeActions(trip('a', '2026-10-17', '2026-10-19'), plan, today).find((c) => c.key === 'navigate');
+    assert.equal(nav?.label, '구간 안내');
+    assert.equal(nav?.disabled, false);
+    assert.equal(nav?.date, today);
+    const none = homeActions(trip('a', '2026-10-17', '2026-10-19'), undefined, today).find((c) => c.key === 'navigate');
+    assert.equal(none?.disabled, false);
+    assert.equal(none?.date, today);
+    const empty = { days: [{ date: today, items: [] }], excluded: [] } as unknown as Plan;
+    assert.equal(homeActions(trip('a', '2026-10-17', '2026-10-19'), empty, today).find((c) => c.key === 'navigate')?.disabled, false);
+  });
+
+  test('꺼지는 칸은 채팅 칸뿐이다(홈은 채팅 칸의 이유 줄만 그리므로, 이유 없이 회색인 칸이 생기지 않는다)', () => {
+    for (const [s, e] of [
+      ['2026-11-01', '2026-11-02'],
+      ['2026-10-17', '2026-10-19'],
+      ['2026-09-01', '2026-09-03'],
+    ]) {
+      for (const p of [undefined, { days: [], excluded: [] } as unknown as Plan]) {
+        for (const t of [trip('a', s, e), personal(trip('a', s, e))]) {
+          const off = homeActions(t, p, today).filter((c) => c.disabled);
+          assert.ok(off.every((c) => c.key === 'chat' && (c.reason ?? '').length > 0), `${s}: ${off.map((c) => c.key).join(',')}`);
+        }
+      }
+    }
+  });
+
+  test('빠른 메뉴 4칸 간격은 SP.xs: 360px에서 칸 너비 75px로 가장 긴 라벨(여행방 설정 72.3px)이 잘리지 않는다', () => {
+    const home = readFileSync('src/screens/HomeScreen.tsx', 'utf8');
+    assert.match(home, /<Row gap=\{SP\.xs\} top>\s*\{actions\.map\(\(c\) => \(\s*<QuickAction/);
+  });
+
+  test('개인 모드(활성 멤버 1명)면 채팅 칸이 꺼지고 이유에 초대를 적는다', () => {
+    for (const [s, e] of [
+      ['2026-11-01', '2026-11-02'],
+      ['2026-10-17', '2026-10-19'],
+      ['2026-09-01', '2026-09-03'],
+    ]) {
+      const chat = homeActions(personal(trip('a', s, e)), undefined, today).find((c) => c.key === 'chat');
+      assert.ok(chat);
+      assert.equal(chat.disabled, true);
+      assert.match(chat.reason ?? '', /초대/);
+    }
   });
 
   test('그룹 모드면 채팅 칸이 열린다', () => {
-    const chat = homeMenu(trip('a', '2026-10-17', '2026-10-19')).find((c) => c.key === 'chat');
+    const chat = homeActions(trip('a', '2026-10-17', '2026-10-19'), undefined, today).find((c) => c.key === 'chat');
     assert.equal(chat?.disabled, false);
   });
 
   test('방장 외 전원이 나가면 다시 개인 모드라 채팅이 닫힌다', () => {
     const t = trip('a', '2026-10-17', '2026-10-19');
     const alone = { ...t, members: t.members.map((m) => (m.role === 'host' ? m : { ...m, leftAt: NOW })) };
-    assert.equal(homeMenu(alone).find((c) => c.key === 'chat')?.disabled, true);
+    assert.equal(homeActions(alone, undefined, today).find((c) => c.key === 'chat')?.disabled, true);
   });
 
-  test('길찾기 칸은 활성이다(여행 시뮬레이터로 동작)', () => {
-    const nav = homeMenu(trip('a', '2026-10-17', '2026-10-19')).find((c) => c.key === 'navigate');
-    assert.equal(nav?.disabled, false);
+  test('여행방 설정 칸은 개인 모드에서도 늘 열려 있다', () => {
+    for (const t of [trip('a', '2026-11-01', '2026-11-02'), personal(trip('b', '2026-09-01', '2026-09-03'))]) {
+      assert.equal(homeActions(t, undefined, today).find((c) => c.key === 'settings')?.disabled, false);
+    }
   });
 
-  test('여행방이 없으면 만들기만 열린다', () => {
-    const cells = homeMenu(undefined);
-    assert.deepEqual(
-      cells.filter((c) => !c.disabled).map((c) => c.key),
-      ['create'],
-    );
-    assert.ok(cells.filter((c) => c.disabled).every((c) => (c.reason ?? '').length > 0));
+  test('여행방이 없으면 빈 목록이다(화면은 만들기 Empty)', () => {
+    assert.deepEqual(homeActions(undefined, undefined, today), []);
   });
 });
 

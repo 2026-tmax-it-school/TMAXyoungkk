@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Pressable, View } from 'react-native';
 
 import {
+  dateLong,
   inRange,
   monthGrid,
   monthLabel,
@@ -17,7 +18,7 @@ const CELL = 40;
 /**
  * 달력 범위 선택(FR-201, 의존성 없음). 처음 누른 날이 시작, 다음에 누른 날이 종료다.
  * 앞 날짜를 누르면 거기서 새로 시작하므로 종료일 < 시작일을 만들 수 없다(판정은 core/trip/create.tapRange).
- * 텍스트 입력은 없다. 켜진 끝 날짜는 로즈 면, 사이 날짜는 틴트 면이다.
+ * 텍스트 입력은 없다. 켜진 끝 날짜는 로즈 면, 사이 날짜는 틴트 면이다. 날짜 칸은 '10월 17일 (토)'로 읽힌다(dateLong).
  */
 export function CalendarRange({
   value,
@@ -62,7 +63,7 @@ export function CalendarRange({
               <Pressable
                 key={date}
                 accessibilityRole="button"
-                accessibilityLabel={date}
+                accessibilityLabel={dateLong(date)}
                 accessibilityState={{ selected: end || mid, disabled: blocked }}
                 disabled={blocked}
                 onPress={() => onChange(tapRange(value, date))}

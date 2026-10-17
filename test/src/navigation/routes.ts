@@ -2,6 +2,7 @@ import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import type { CompositeScreenProps, LinkingOptions, NavigatorScreenParams } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 
+import { INVITE_BASE_URL } from '../config';
 import { APP_SCHEME, INVITE_HOST } from '../core/constants';
 
 /**
@@ -17,17 +18,21 @@ export type MainTabParamList = {
   Candidates: undefined;
   Schedule: { date?: string } | undefined;
   Map: { date?: string } | undefined;
+  /** 사진·일기 글을 앱 사용자 모두와 나누는 곳(서버 저장) */
+  Community: undefined;
   More: undefined;
 };
 
 export type RootStackParamList = {
   Onboarding: undefined;
-  InviteAccept: { code?: string } | undefined;
+  /** nickname: 온보딩에서 적어 둔 닉네임을 이어 받는다 */
+  InviteAccept: { code?: string; nickname?: string } | undefined;
   Login: undefined;
   Signup: undefined;
   SocialConsent: { provider: 'kakao' | 'google'; intent: 'login' | 'link' };
   Main: NavigatorScreenParams<MainTabParamList> | undefined;
-  CreateTrip: undefined;
+  /** regionId: 추천 여행지 등에서 고른 지역을 처음 값으로 채운다 */
+  CreateTrip: { regionId?: string } | undefined;
   TripSettings: { tripId: string };
   /** fromCreate: 여행방 만들기에서 넘어왔을 때만 '2 / 2 단계'를 보인다 */
   Members: { tripId: string; fromCreate?: boolean };
@@ -42,10 +47,13 @@ export type RootStackParamList = {
   /** 자유 길찾기. 여행방 없이도 연다(검색·지도 선택만). fromSpotId·toSpotId는 처음 채울 스팟 */
   Directions: { tripId?: string; fromSpotId?: string; toSpotId?: string } | undefined;
   LiveTrip: { tripId: string; date?: string };
-  Photos: { tripId: string };
+  /** date가 없으면 '전체'(날짜별 묶음)로 연다 */
+  Photos: { tripId: string; date?: string };
   Diary: { tripId: string; date?: string };
   RecordMap: { tripId: string; date?: string };
   Profile: undefined;
+  /** 커뮤니티 글쓰기. tripId·date를 주면 그 날짜 일기로 본문을 채운다 */
+  CommunityCompose: { tripId?: string; date?: string } | undefined;
 };
 
 export type RootRouteName = keyof RootStackParamList;
@@ -69,7 +77,8 @@ export const ALWAYS_ROUTES = ['InviteAccept', 'Login', 'Signup', 'SocialConsent'
 
 /** 딥링크. youngtrip://j/코드, https://youngtrip.app/j/코드 → 02 초대 수락 */
 export const linking: LinkingOptions<RootStackParamList> = {
-  prefixes: [`${APP_SCHEME}://`, `https://${INVITE_HOST}`],
+  // 초대 링크 주소(INVITE_BASE_URL)로 열려도 초대 수락으로 간다(웹은 지금 앱 주소, 설정하면 그 주소)
+  prefixes: [`${APP_SCHEME}://`, `https://${INVITE_HOST}`, ...(INVITE_BASE_URL ? [INVITE_BASE_URL] : [])],
   config: {
     screens: {
       InviteAccept: 'j/:code',
@@ -79,6 +88,7 @@ export const linking: LinkingOptions<RootStackParamList> = {
           Candidates: 'candidates',
           Schedule: 'schedule',
           Map: 'map',
+          Community: 'community',
           More: 'more',
         },
       },
@@ -87,16 +97,36 @@ export const linking: LinkingOptions<RootStackParamList> = {
 };
 
 /**
- * 하단 탭(홈/후보/시간표/지도/프로필 고정). 채팅은 탭이 아니라 스택 화면이다.
- * 다섯째 탭(More)은 숙박 앱처럼 '프로필'로 보이고, 안에 계정·설정·시연 도구를 모은다.
+ * 하단 탭 다섯 칸(홈/일정/지도/커뮤니티/프로필 고정). 채팅은 탭이 아니라 스택 화면이다.
+ * 후보(Candidates)는 탭 라우트로 남지만 칸이 없다. 일정 탭 위의 '시간표 | 후보' 나누기(PlanSwitch)로 오가고,
+ * 후보를 보는 동안에는 '일정' 칸이 켜진다(TAB_HIGHLIGHT). 딥링크 'candidates'도 그대로 연다.
+ * 마지막 탭(More)은 숙박 앱처럼 '프로필'로 보이고, 안에 계정·설정·시연 도구를 모은다.
  */
-export const TAB_ITEMS: { key: TabRouteName; label: string; icon: 'home' | 'heart' | 'cal' | 'map' | 'user' }[] = [
+export const TAB_ITEMS: { key: TabRouteName; label: string; icon: 'home' | 'cal' | 'map' | 'users' | 'user' }[] = [
   { key: 'Home', label: '홈', icon: 'home' },
-  { key: 'Candidates', label: '후보', icon: 'heart' },
-  { key: 'Schedule', label: '시간표', icon: 'cal' },
+  { key: 'Schedule', label: '일정', icon: 'cal' },
   { key: 'Map', label: '지도', icon: 'map' },
+  { key: 'Community', label: '커뮤니티', icon: 'users' },
   { key: 'More', label: '프로필', icon: 'user' },
 ];
+
+/** 칸이 없는 탭 라우트를 볼 때 켜 둘 칸 */
+export const TAB_HIGHLIGHT: Partial<Record<TabRouteName, TabRouteName>> = { Candidates: 'Schedule' };
+
+/** 지금 탭 라우트에서 켜 둘 하단 탭 칸(순수) */
+export function activeTabKey(route: TabRouteName): TabRouteName {
+  return TAB_HIGHLIGHT[route] ?? route;
+}
+
+/**
+ * 뒤로 가기의 목적지(순수, navigation/useBack이 쓴다). 쌓인 화면이 있으면 그 화면으로,
+ * 없으면(딥링크·새로고침으로 바로 연 화면) 대체 탭으로 간다. 막다른 화면을 만들지 않는다.
+ */
+export type BackTarget = { kind: 'back' } | { kind: 'tab'; screen: TabRouteName };
+
+export function backTarget(canGoBack: boolean, fallback: TabRouteName): BackTarget {
+  return canGoBack ? { kind: 'back' } : { kind: 'tab', screen: fallback };
+}
 
 export interface ScreenMeta {
   no: string;
@@ -120,7 +150,7 @@ export const SCREEN_META: Record<Exclude<RootRouteName, 'Main'> | TabRouteName |
   ScheduleEdit: { no: '10', title: '일정 편집', fr: 'FR-503', wp: 'WP4' },
   Map: { no: '11', title: '지도 · 루트', fr: 'FR-801~803', wp: 'WP5' },
   LegTransport: { no: '12', title: '이동수단 · 경로 비교', fr: 'FR-504', wp: 'WP4' },
-  Navigate: { no: '13', title: '길찾기 · 구간 내비', fr: 'FR-601~603', wp: 'WP5' },
+  Navigate: { no: '13', title: '구간 안내', fr: 'FR-601~603', wp: 'WP5' },
   Members: { no: '14', title: '멤버 초대 · 링크 공유', fr: 'FR-301·303', wp: 'WP2' },
   Login: { no: '15', title: '로그인 · 소셜 로그인', fr: 'FR-102·103', wp: 'WP1' },
   Signup: { no: '16', title: '회원가입 · 이메일 인증', fr: 'FR-101', wp: 'WP1' },
@@ -134,4 +164,6 @@ export const SCREEN_META: Record<Exclude<RootRouteName, 'Main'> | TabRouteName |
   TripSettings: { no: '25', title: '여행방 설정 · 날짜별 기점', fr: 'FR-201·205·204', wp: 'WP2' },
   SocialConsent: { no: '26', title: '소셜 로그인 동의', fr: 'FR-103', wp: 'WP1' },
   Directions: { no: '27', title: '길찾기', fr: 'FR-601~603', wp: 'WP5' },
+  Community: { no: '28', title: '커뮤니티 · 사진과 일기', fr: 'FR-705', wp: 'WP6' },
+  CommunityCompose: { no: '29', title: '커뮤니티 글쓰기', fr: 'FR-705', wp: 'WP6' },
 };

@@ -67,6 +67,34 @@ export function gapLineColor(planned: MapPolylineInput['color']): MapPolylineInp
 /** 실제 이동 점 tone. 렌더러는 ink tone을 현재 위치와 같은 파랑(mapC.user)으로 그린다. 날짜 선 색에는 파랑이 없다 */
 export const ACTUAL_DOT_TONE: MapDotInput['tone'] = 'ink';
 
+/** 22 범례 항목 중 지금 지도에 그려진 것. 그려지지 않은 견본은 범례에 두지 않는다 */
+export interface LegendFlags {
+  /** 계획 루트 실선 */
+  planned: boolean;
+  /** 실제 이동 점(파랑) */
+  actual: boolean;
+  /** 사진 위치 점 */
+  photo: boolean;
+  /** 기록 없는 구간 점선 */
+  gap: boolean;
+  /** 기점 핀 */
+  base: boolean;
+  /** 지나친 스팟(흰 핀) */
+  passed: boolean;
+}
+
+/** 모델에서 범례 항목을 고른다(순수). 화면은 켜진 항목만 그린다 */
+export function legendFlags(model: Pick<RecordMapModel, 'polylines' | 'dots' | 'markers'>): LegendFlags {
+  return {
+    planned: model.polylines.some((l) => !l.dashed),
+    actual: model.dots.some((d) => d.tone === ACTUAL_DOT_TONE),
+    photo: model.dots.some((d) => d.tone !== ACTUAL_DOT_TONE),
+    gap: model.polylines.some((l) => l.dashed === true),
+    base: model.markers.some((m) => m.kind === 'base'),
+    passed: model.markers.some((m) => m.kind === 'excluded'),
+  };
+}
+
 export function recordMapModel(
   trip: Trip,
   plan: Plan | undefined,

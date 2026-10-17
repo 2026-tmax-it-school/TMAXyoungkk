@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import type { DayPlan, LegOverride, Op, OpDraft, Plan, PlanStep, Trip } from '../src/types';
+import type { Adjustment, DayPlan, LegOverride, Op, OpDraft, Plan, PlanDiff, PlanStep, Trip } from '../src/types';
 import { liveLegs, reduce } from '../src/core/ops/schedule';
 import { buildPlan } from '../src/core/planner';
+import { josa, toHHMM } from '../src/core/util';
 import {
   canPinArrive,
   dayTransportDrafts,
@@ -18,13 +19,29 @@ import {
   stepStay,
 } from '../src/features/schedule/edit';
 import {
+  adjustmentToast,
+  arrivePinText,
+  dayFill,
+  daySummary,
+  dayTransport,
   deltaChip,
+  editHeaderSub,
+  editOrderLabel,
+  editOverflow,
+  editToast,
+  excludeTarget,
+  legAppliedToast,
+  legApplyLabels,
+  legPreviewChips,
   newlyExcludedLines,
   overflowCause,
+  planMeta,
   planningProgress,
   planningStepRows,
   previewSentence,
+  scheduleOverflowText,
   SELECTION_RULES,
+  stepRowA11y,
 } from '../src/features/schedule/view';
 import { createRouteProvider } from '../src/services/routes';
 import { fakeFetch, fixedClock, memoryKV } from './helpers/fakes';
@@ -283,4 +300,142 @@ test('12 미리보기 문장: 도보로 바꾸면 늘어나는 시간과 새로 
   assert.match(text, /^도보로 바꾸/);
   if (diff.newlyExcluded.length > 0) assert.match(text, /제외 스팟이 됩니다/);
   assert.doesNotMatch(text, /늦었습니다|지연되었습니다|서두르세요/);
+});
+
+/* ---------- 일정 탭 UX 정리(09 요약 줄·10 상태 자리·12 미리보기 표) ---------- */
+
+test('dayTransport: 날짜 설정 수단이 있으면 그것, 없으면 여행방 기본 수단(구간 지정은 보지 않는다)', () => {
+  let t = scenarioTrip();
+  const base = t.transport;
+  const other = base === 'walk' ? 'transit' : 'walk';
+  assert.equal(dayTransport(t, '2026-10-18'), base);
+  assert.equal(dayTransport(t), base, '날짜가 없으면 기본 수단');
+  t = applyAll(
+    t,
+    [
+      { type: 'schedule/setDayTransport', date: '2026-10-18', transport: other },
+      { type: 'schedule/setLegTransport', date: '2026-10-19', fromId: 'base', toId: 's-gj-bulguksa', transport: other },
+    ],
+    T,
+  );
+  assert.equal(dayTransport(t, '2026-10-18'), other);
+  assert.equal(dayTransport(t, '2026-10-19'), base, '구간 지정만 있는 날은 기본 수단');
+});
+
+test('dayFill: 쓴 몫(0~1)과 막대 옆 한 줄. 넘치면 가득 차고 넘친 시간을 적는다', () => {
+  assert.deepEqual(dayFill({ usedMin: 360, capacityMin: 720, overMin: 0 }), { value: 0.5, over: false, text: '6시간 남아요' });
+  assert.deepEqual(dayFill({ usedMin: 720, capacityMin: 720, overMin: 0 }), { value: 1, over: false, text: '꽉 찼어요' });
+  assert.deepEqual(dayFill({ usedMin: 800, capacityMin: 720, overMin: 80 }), { value: 1, over: true, text: '1시간 20분 넘어요' });
+  assert.equal(dayFill({ usedMin: 0, capacityMin: 0, overMin: 0 }).value, 0, '수용량 0이면 0으로 나누지 않는다');
+});
+
+test('09 요약 줄은 곳 수와 시작–끝 시각만 적는다(넘친 시간은 채움 막대와 WarnCard가 말한다)', () => {
+  const items = new Array(4).fill({}) as DayPlan['items'];
+  assert.equal(daySummary({ items, startMin: 9 * 60, usedMin: 317 }), '4곳 · 09:00–14:17');
+  // 넘친 날도 꼬리를 붙이지 않아 360px 한 줄에서 끝 시각이 잘리지 않는다
+  assert.equal(daySummary({ items, startMin: 9 * 60, usedMin: 13 * 60 + 30 }), '4곳 · 09:00–22:30');
+  assert.equal(daySummary({ items: [], startMin: 9 * 60, usedMin: 0 }), '확정 스팟 없음');
+});
+
+test('09 초과 WarnCard 문장은 ~요 톤이고 제목의 넘친 시간을 되풀이하지 않는다', () => {
+  const text = scheduleOverflowText();
+  assert.match(text, /요\.$/);
+  assert.doesNotMatch(text, /니다/);
+  assert.doesNotMatch(text, /\d/, '시간은 제목(활동시간을 1시간 넘어요)에만 있다');
+});
+
+test('10 도착 시각 링크는 계산된 도착 시각을 그대로 한 번에 지정한다', () => {
+  assert.equal(arrivePinText('14:17'), '14:17 그대로 지정');
+});
+
+test('legPreviewChips: 시간 차이 → 초과 → 빠지는 곳 → 돌아오는 곳, 그대로면 그대로라고 적는다', () => {
+  const trip = scenarioTrip();
+  const [a, b] = trip.spots;
+  const slower: PlanDiff = { newlyExcluded: [a.id], newlyConfirmed: [], dayDelta: [{ date: '2026-10-18', usedMinDelta: 58, overMin: 20 }] };
+  assert.deepEqual(legPreviewChips(trip, '2026-10-18', slower), [
+    { text: '+58분', tone: 'warn' },
+    { text: '활동시간 20분 넘어요', tone: 'warn' },
+    { text: `${a.name} 빠져요`, tone: 'warn' },
+  ]);
+  const faster: PlanDiff = { newlyExcluded: [], newlyConfirmed: [a.id, b.id], dayDelta: [{ date: '2026-10-18', usedMinDelta: -5, overMin: 0 }] };
+  assert.deepEqual(legPreviewChips(trip, '2026-10-18', faster), [
+    { text: '-5분', tone: 'ok' },
+    { text: '2곳 돌아와요', tone: 'ok' },
+  ]);
+  const same: PlanDiff = { newlyExcluded: [], newlyConfirmed: [], dayDelta: [] };
+  assert.deepEqual(legPreviewChips(trip, '2026-10-18', same), [
+    { text: '시간 그대로', tone: 'soft' },
+    { text: '확정·제외 그대로', tone: 'line' },
+  ]);
+});
+
+test('planMeta: 경로 조회 건수 줄의 수단은 그날 수단이고 활동시간은 그날 계획 값이다', async () => {
+  const routes = createRouteProvider({ fetch: fakeFetch(), clock: fixedClock(SCENARIO_T0), kv: memoryKV() });
+  let t = scenarioTrip();
+  const other = t.transport === 'walk' ? 'transit' : 'walk';
+  t = applyAll(t, [{ type: 'schedule/setDayTransport', date: '2026-10-18', transport: other }], T);
+  const plan = await buildPlan(t, { routes, now: 0 });
+  const LABEL = { car: '자동차', walk: '도보', transit: '대중교통' } as const;
+  const d18 = planMeta(t, plan, '2026-10-18');
+  assert.match(d18[0], new RegExp(`^경로 조회 \\d+건.* · ${LABEL[other]} 기준$`));
+  const day = plan.days.find((d) => d.date === '2026-10-18');
+  assert.ok(day);
+  assert.ok(d18[1].endsWith(`활동시간 ${toHHMM(day.startMin)}–${toHHMM(day.endLimitMin)}`));
+  const d19 = planMeta(t, plan, '2026-10-19');
+  assert.ok(d19[0].endsWith(`${LABEL[t.transport]} 기준`), '수단을 바꾸지 않은 날은 여행방 기본 수단');
+  assert.deepEqual(planMeta(t, undefined), [], '계획이 없으면 줄이 없다');
+});
+
+test('10 머리말 보조 줄·순서 줄·초과 카드 문구', () => {
+  const day = dayOf({ usedMin: 317 });
+  assert.equal(editHeaderSub('2026-10-18', day, false), '10월 18일 (일) · 3곳 · 5시간 17분');
+  assert.equal(editHeaderSub('2026-10-18', day, true), '10월 18일 (일) · 3곳 · 5시간 17분 · 계산 중');
+  assert.equal(editOrderLabel(dayOf({ orderMethod: 'manual' })), '순서 · 직접 정함');
+  assert.equal(editOrderLabel(dayOf({})), '순서 · 이동 짧은 순');
+  const over = editOverflow('2026-10-18', dayOf({ usedMin: 780, overMin: 60 }));
+  assert.equal(over.title, '10/18 수용량을 1시간 넘었어요');
+  assert.match(over.text, /^이대로 두면 22:00에 끝나 활동시간\(21:00까지\)을 넘어요/);
+});
+
+test('10 토스트: 카드가 이 날에서 사라지는 편집(다른 날로 옮기기, 빼기)과 조정안만 한 문장으로 알린다', () => {
+  const trip = scenarioTrip();
+  const s = trip.spots.find((x) => x.id === 's-gj-bulguksa');
+  assert.ok(s);
+  assert.equal(
+    editToast(trip, '2026-10-18', [{ type: 'schedule/setDate', spotId: s.id, date: '2026-10-19' }]),
+    `${josa(s.name, '을/를')} 10/19로 옮겼어요`,
+  );
+  assert.equal(editToast(trip, '2026-10-18', [{ type: 'schedule/setDate', spotId: s.id, date: null }]), undefined, '자동 날짜는 남을 수 있다');
+  assert.equal(editToast(trip, '2026-10-18', [{ type: 'schedule/setDate', spotId: s.id, date: '2026-10-18' }]), undefined);
+  assert.equal(editToast(trip, '2026-10-18', [{ type: 'schedule/setStay', spotId: s.id, stayMin: 45 }]), undefined);
+  assert.match(editToast(trip, '2026-10-18', [{ type: 'spot/remove', spotId: s.id, reason: 'user' }]) ?? '', /뺐어요/);
+  const shorten: Adjustment = {
+    id: 'x',
+    kind: 'shortenStay',
+    label: '대릉원 체류를 60분으로',
+    savedMin: 30,
+    ops: [{ type: 'schedule/setStay', spotId: s.id, stayMin: 60 }],
+  };
+  assert.equal(adjustmentToast(trip, '2026-10-18', shorten), '대릉원 체류를 60분으로 줄였어요');
+  const exclude: Adjustment = { id: 'y', kind: 'exclude', label: `${s.name} 빼기`, savedMin: 90, ops: [{ type: 'spot/remove', spotId: s.id, reason: 'user' }] };
+  assert.equal(excludeTarget(trip, exclude), s.name, '빼기 확인 시트 제목의 이름');
+  assert.equal(excludeTarget(trip, shorten), undefined, '빼기가 아니면 확인을 거치지 않는다');
+});
+
+test('12 Foot 버튼과 토스트는 고른 수단 이름을 쓴다', () => {
+  assert.deepEqual(legApplyLabels('walk'), { leg: '이 구간만 도보로 바꾸기', day: '이날 전체를 도보로' });
+  assert.deepEqual(legApplyLabels('transit'), { leg: '이 구간만 대중교통으로 바꾸기', day: '이날 전체를 대중교통으로' });
+  assert.equal(legAppliedToast('leg', 'car'), '이 구간을 자동차로 바꿨어요');
+  assert.equal(legAppliedToast('day', 'transit'), '이날 전체를 대중교통으로 바꿨어요');
+});
+
+test('08 단계 행의 스크린리더 이름은 상태를 말로 읽는다', () => {
+  const rows = planningStepRows([{ key: 'locate', label: '', done: 14, total: 14, ms: 400 }], true, 14, true);
+  assert.deepEqual(rows.map(stepRowA11y), [
+    '후보 14곳 위치 확인, 진행 중',
+    '기점에서 이동시간 조회, 대기',
+    '하루 수용량에 맞춰 배치, 대기',
+    '제외 사유 정리, 대기',
+  ]);
+  assert.equal(stepRowA11y({ label: '후보 14곳 위치 확인', state: 'done' }), '후보 14곳 위치 확인, 완료');
 });

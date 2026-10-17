@@ -209,7 +209,7 @@ export function distanceText(meters: number): string {
 /**
  * 구간 안내 줄. 경로 제공자가 steps를 주면 그대로 쓰고, 없으면(로컬 추정) 방위와 거리로 한 줄을 만든다.
  */
-export function legSteps(leg: Pick<MapLeg, 'from' | 'to' | 'toName'>, geo: RouteLeg | null | undefined): { text: string; meters: number }[] {
+export function legSteps(leg: Pick<MapLeg, 'from' | 'to' | 'toName'>, geo: RouteLeg | null | undefined): RouteLeg['steps'] {
   if (geo && geo.steps.length > 0) return geo.steps;
   const meters = geo?.meters ?? Math.round(haversineKm(leg.from, leg.to) * 1000);
   return [

@@ -35,6 +35,17 @@ export interface OverlayItem {
   action?: OverlayAction;
 }
 
+/**
+ * 마커의 크기 배율·흐림(채팅방 지도)을 PinSpec에 넘긴다. 값이 있을 때만 키를 둔다
+ * (없으면 전과 같은 PinSpec이라 기존 비교·서명이 그대로다). 누름 동작은 화면이 정한다.
+ */
+export function pinLook(m: Pick<MapMarkerInput, 'scale' | 'dim'>): { scale?: number; dim?: boolean } {
+  const out: { scale?: number; dim?: boolean } = {};
+  if (m.scale != null && m.scale !== 1) out.scale = m.scale;
+  if (m.dim) out.dim = true;
+  return out;
+}
+
 export function centroid(cs: LatLng[]): LatLng {
   let lat = 0;
   let lng = 0;
@@ -64,8 +75,8 @@ export function buildOverlayItems(d: LayerData, pointOf: (m: MapMarkerInput, ind
   for (const m of singles) {
     const spec: PinSpec =
       m.kind === 'excluded'
-        ? { kind: 'excluded', label: m.label, compact: d.compact }
-        : { kind: 'spot', label: m.label, color: m.color, compact: d.compact };
+        ? { kind: 'excluded', label: m.label, compact: d.compact, ...pinLook(m) }
+        : { kind: 'spot', label: m.label, color: m.color, compact: d.compact, ...pinLook(m) };
     out.push({
       key: `m:${m.id}`,
       kind: 'pin',

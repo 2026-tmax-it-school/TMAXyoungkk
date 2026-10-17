@@ -175,6 +175,9 @@ test('내용 키: 새 배열이어도 내용이 같으면 같고, 좌표·순번
   const m = [marker('a'), { ...marker('b', B), label: '2' }];
   assert.equal(markersKey(m), markersKey(m.map((x) => ({ ...x }))));
   assert.notEqual(markersKey(m), markersKey([marker('a'), { ...marker('b', B), label: '3' }]));
+  // 핀 크기(표 수)나 흐림(지역 밖)만 바뀌어도 다시 그린다
+  assert.notEqual(markersKey(m), markersKey([{ ...marker('a'), scale: 1.2 }, m[1]]));
+  assert.notEqual(markersKey(m), markersKey([{ ...marker('a'), dim: true }, m[1]]));
   const l = [{ id: 'd1', coords: [A, B], color: 'ink' as const }];
   assert.equal(polylinesKey(l), polylinesKey([{ ...l[0], coords: [{ ...A }, { ...B }] }]));
   assert.notEqual(polylinesKey(l), polylinesKey([{ ...l[0], dashed: true }]));
@@ -234,7 +237,7 @@ test('웹 기본 지도(SVG) 누르기: onClick과 함께 onPress: null을 줘�
 test('웹 구글 지도: 핀은 노드를 다시 쓰고, 스크롤 화면 안에서는 cooperative, 타일 시한은 보일 때만 잰다', () => {
   const src = readFileSync('src/components/map/GoogleMapView.web.tsx', 'utf8');
   assert.doesNotMatch(src, /replaceChildren/, '핀을 매번 통째로 갈아 끼우면 포커스와 누르는 중인 핀이 사라진다');
-  assert.match(src, /gestureHandling: p\.compact \? 'none' : p\.flat \? 'greedy' : 'cooperative'/);
+  assert.match(src, /gestureHandling: p\.compact \? 'none' : p\.flat \|\| p\.wheelZoom \? 'greedy' : 'cooperative'/);
   assert.match(src, /document\.visibilityState === 'visible'/);
   assert.match(src, /fail\('tiles'\)/);
   // 이동 점은 화면 읽기에서 숨긴다

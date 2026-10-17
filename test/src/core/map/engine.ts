@@ -142,7 +142,10 @@ const r5 = (n: number) => n.toFixed(5);
 /** 내용이 같으면 같은 키. 화면이 다시 그려질 때마다 새 배열이 와도 지도를 다시 그리지 않게 한다 */
 export function markersKey(markers: MapMarkerInput[]): string {
   return markers
-    .map((m) => `${m.id}~${m.kind}~${m.label ?? ''}~${m.color ?? ''}~${m.title}~${r5(m.coord.latitude)},${r5(m.coord.longitude)}`)
+    .map(
+      (m) =>
+        `${m.id}~${m.kind}~${m.label ?? ''}~${m.color ?? ''}~${m.title}~${m.scale ?? ''}~${m.dim ? 1 : 0}~${r5(m.coord.latitude)},${r5(m.coord.longitude)}`,
+    )
     .join('|');
 }
 

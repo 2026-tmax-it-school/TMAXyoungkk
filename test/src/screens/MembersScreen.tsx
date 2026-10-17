@@ -3,10 +3,12 @@ import { Pressable, View } from 'react-native';
 
 import { activeMembers, canIssueInvite, isHost } from '../core/group';
 import { dateLongShort } from '../core/trip/format';
+import { INVITE_BASE_URL } from '../config';
 import { inviteStatus, inviteUrlShort, seatsLeft, INVITE_ERROR_TEXT } from '../core/trip/invite';
 import { memberRows, type MemberRow } from '../core/trip/members';
-import { copyInvite, issueInvite, shareInvite } from '../features/trip/actions';
+import { copyInvite, issueAndShare, issueInvite } from '../features/trip/actions';
 import type { RootScreenProps } from '../navigation/routes';
+import { useBack } from '../navigation/useBack';
 import { useNow } from '../services/clock';
 import { getUserId } from '../store/session';
 import { myMemberId, useTripDoc, useTrips } from '../store/trips';
@@ -19,30 +21,34 @@ import {
   Chip,
   Col,
   ConfirmSheet,
-  Empty,
+  Foot,
   Header,
   Icon,
   IconBtn,
   lineC,
+  ListRow,
   Notice,
+  NotFound,
   R,
   Row,
- 
   Screen,
   Sheet,
   SP,
   surfaceC,
-  Tag,
   Txt,
 } from '../ui';
 
 /**
  * 14 멤버 초대 · 링크 공유(FR-301·303, WP2 소유).
- * - 초대 링크: youngtrip.app/j/코드, 복사(expo-clipboard), 공유(공유 시트가 안 되면 복사로 대체하고 토스트), 만료일·남은 자리.
- *   발급·재발급은 방장 또는 초대 권한이 있는 멤버만. 재발급하면 이전 링크는 무효다(확인 1회).
- *   초대 권한이 없는 그룹원에게는 링크·복사·공유·시연 합류를 보이지 않는다(권한표 '멤버 초대' 그룹원 X). 링크를 건네는 것도 초대다.
- * - 멤버 행: 후보 N곳(0곳도 표시, 제안자 규칙), 전송 대기 칩, 나간 멤버는 뒤에 '나간 멤버'로 남는다. 초대 가능은 보조 줄에 붙인다.
- * - 방장은 행 오른쪽 메뉴에서 초대 권한 토글과 내보내기(ScopeBadge 2차, 프로토타입 가정). 로즈를 위험 신호로 쓰지 않는다.
+ * - 주 행동은 Foot의 버튼 하나다. 쓸 수 있는 링크가 없거나 무효면 '링크 만들고 공유하기', 있으면 '링크 공유하기'(둘 다 issueAndShare).
+ *   만들기에서 왔으면(fromCreate) quiet '나중에 초대하기'로 그 방을 현재 여행방으로 두고 후보 화면으로 간다.
+ * - 초대 링크 카드: youngtrip.app/j/코드, 복사(expo-clipboard), 만료일·남은 자리, '새 링크 만들기'(재발급하면 이전 링크는 무효, 확인 1회).
+ *   발급·재발급은 방장 또는 초대 권한이 있는 멤버만. 초대 권한이 없는 그룹원에게는 링크·복사·공유·시연 합류를 보이지 않는다
+ *   (권한표 '멤버 초대' 그룹원 X). 링크를 건네는 것도 초대다.
+ * - 멤버 행: 보조 줄 뒤에 ' · 후보 N곳'(0곳도 표시, 제안자 규칙, core의 sub 문자열은 그대로), 칩은 '전송 대기'만.
+ *   나간 멤버는 뒤에 '나간 멤버'로 남는다.
+ * - 방장은 행 오른쪽 메뉴 시트에서 '초대 권한' 스위치와 '{이름}님 내보내기'(확인 1회). 로즈를 위험 신호로 쓰지 않는다.
+ * - 시연 합류(같은 기기에서 다른 사람으로 합류)는 맨 아래 '시연' 구역에 둔다. 머리말 오른쪽 톱니는 여행방 설정이다.
  */
 export default function MembersScreen({ navigation, route }: RootScreenProps<'Members'>) {
   const { tripId, fromCreate } = route.params;
@@ -58,16 +64,14 @@ export default function MembersScreen({ navigation, route }: RootScreenProps<'Me
   const me = trip ? myMemberId(trip) : undefined;
   const rows = useMemo(() => (trip ? memberRows(trip, { meId: me, pending }) : []), [trip, me, pending]);
 
-  const back = () => (navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Main', { screen: 'Home' }));
+  const back = useBack('Home');
 
   if (!trip || trip.deletedAt != null || !me) {
     return (
       <Screen>
         <Header back={back} title="멤버 초대" size="sm" />
         <Body>
-          <Card>
-            <Empty title="여행방을 찾을 수 없습니다" action={{ label: '홈으로', onPress: () => navigation.navigate('Main', { screen: 'Home' }) }} />
-          </Card>
+          <NotFound title="여행방을 찾을 수 없어요" onHome={() => navigation.navigate('Main', { screen: 'Home' })} />
         </Body>
       </Screen>
     );
@@ -83,6 +87,11 @@ export default function MembersScreen({ navigation, route }: RootScreenProps<'Me
   const own = activeMembers(trip).find((m) => m.userId === getUserId());
   const actingOther = own != null && own.id !== me;
   const actingName = trip.members.find((m) => m.id === me)?.nickname;
+  // 나중에 초대하기: 이 방을 현재 여행방으로 두고 후보 화면부터 시작한다(만들기 → 멤버 초대 스택은 남기지 않는다).
+  const later = () => {
+    useUi.getState().setCurrentTrip(trip.id);
+    navigation.reset({ index: 0, routes: [{ name: 'Main', params: { screen: 'Candidates' } }] });
+  };
 
   return (
     <Screen>
@@ -91,11 +100,12 @@ export default function MembersScreen({ navigation, route }: RootScreenProps<'Me
         step={fromCreate ? '2 / 2 단계' : undefined}
         title="멤버 초대"
         size="sm"
+        right={<IconBtn icon="gear" label="여행방 설정" onPress={() => navigation.navigate('TripSettings', { tripId: trip.id }, { pop: true })} />}
       />
       <Body scroll>
         {actingOther && own ? (
           <Card variant="tinted">
-            <Txt v="mtTight" c="accentStrong">{`이 기기에서 ${actingName ?? '다른 멤버'}님으로 행동하는 중입니다(시연).`}</Txt>
+            <Txt v="mtTight" c="accentStrong">{`이 기기에서 ${actingName ?? '다른 멤버'}님으로 행동하는 중이에요(시연).`}</Txt>
             <Btn
               title={`${own.nickname}(나)로 돌아가기`}
               variant="ghost"
@@ -128,7 +138,7 @@ export default function MembersScreen({ navigation, route }: RootScreenProps<'Me
                   <Icon name="link" size={16} />
                   <View style={{ flex: 1, minWidth: 0 }}>
                     <Txt v="body" numberOfLines={1}>
-                      {inviteUrlShort(inv.code)}
+                      {inviteUrlShort(inv.code, INVITE_BASE_URL)}
                     </Txt>
                   </View>
                   <Pressable
@@ -146,37 +156,21 @@ export default function MembersScreen({ navigation, route }: RootScreenProps<'Me
                   <View style={{ flex: 1 }}>
                     <Txt v="mtTight">{`${dateLongShort(inv.expiresAt)} 만료 · 남은 자리 ${seatsLeft(trip)}`}</Txt>
                   </View>
-                  <Pressable accessibilityRole="button" hitSlop={HIT} onPress={() => setConfirm('reissue')}>
-                    <Txt v="mtTight">새 링크 만들기</Txt>
-                  </Pressable>
+                  <Btn title="새 링크 만들기" variant="quiet" size="sm" onPress={() => setConfirm('reissue')} />
                 </Row>
                 {status === 'full' ? <Notice tone="warn" icon="alert" text={INVITE_ERROR_TEXT.full} /> : null}
               </>
             ) : (
-              <>
-                <Txt v="mt">
-                  {!inv
-                    ? '아직 초대 링크가 없습니다.'
-                    : status === 'expired'
-                      ? '초대 링크가 만료되었습니다(7일). 새 링크를 만들어 주세요.'
-                      : '이 링크는 더 이상 쓸 수 없습니다. 새 링크를 만들어 주세요.'}
-                </Txt>
-                <Btn title="초대 링크 만들기" size="sm" variant="ghost" icon="link" onPress={() => issueInvite(trip.id)} />
-              </>
+              <Txt v="mt">
+                {!inv
+                  ? '아직 초대 링크가 없어요. 아래 버튼으로 만들고 바로 공유해요.'
+                  : status === 'expired'
+                    ? '초대 링크가 만료됐어요(7일). 새 링크를 만들어 공유해 주세요.'
+                    : '이 링크는 더 이상 쓸 수 없어요. 새 링크를 만들어 공유해 주세요.'}
+              </Txt>
             )}
           </Col>
         </Card>
-
-        {mayInvite && inv && usable ? <Btn title="링크 공유하기" icon="share" onPress={() => void shareInvite(trip)} /> : null}
-        {mayInvite && inv && status === 'ok' ? (
-          <Btn
-            title="이 기기에서 다른 사람으로 합류해 보기(시연)"
-            variant="quiet"
-            size="sm"
-            icon="users"
-            onPress={() => navigation.navigate('InviteAccept', { code: inv.code })}
-          />
-        ) : null}
 
         <Txt v="eyebrow">{`멤버 ${active}명`}</Txt>
         <Col gap={SP.m}>
@@ -184,39 +178,54 @@ export default function MembersScreen({ navigation, route }: RootScreenProps<'Me
             <MemberLine key={r.id} row={r} index={i} canManage={host && !r.isMe && !r.left && r.role !== 'host'} onMenu={() => setMenuFor(r)} />
           ))}
         </Col>
+
+        {mayInvite && inv && status === 'ok' ? (
+          <Col gap={SP.s}>
+            <Txt v="eyebrow">시연</Txt>
+            <Btn
+              title="이 기기에서 다른 사람으로 합류해 보기"
+              variant="quiet"
+              size="sm"
+              icon="users"
+              onPress={() => navigation.navigate('InviteAccept', { code: inv.code })}
+            />
+          </Col>
+        ) : null}
       </Body>
+      {mayInvite || fromCreate ? (
+        <Foot>
+          {mayInvite ? (
+            <Btn title={usable ? '링크 공유하기' : '링크 만들고 공유하기'} icon="share" onPress={() => void issueAndShare(trip.id)} />
+          ) : null}
+          {fromCreate ? <Btn title="나중에 초대하기" variant="quiet" onPress={later} /> : null}
+        </Foot>
+      ) : null}
 
       <Sheet visible={menuFor != null && confirm == null} onClose={() => setMenuFor(undefined)} title={menuFor?.nickname}>
         {menuFor ? (
-          <>
-            <Row>
-              <Row gap={SP.s} style={{ flex: 1 }}>
-                <Txt v="nm">초대 권한</Txt>
-              </Row>
-              <Tag
-                label={menuFor.canInvite ? '켜짐' : '꺼짐'}
-                on={menuFor.canInvite}
-                onPress={() => {
-                  const r = dispatch(trip.id, { type: 'member/setCanInvite', memberId: menuFor.id, canInvite: !menuFor.canInvite });
-                  if (r.ok) setMenuFor({ ...menuFor, canInvite: !menuFor.canInvite });
-                }}
-              />
-            </Row>
-            <View style={{ height: 1, backgroundColor: lineC.line }} />
-            <Row>
-              <Row gap={SP.s} style={{ flex: 1 }}>
-                <Txt v="nm">내보내기</Txt>
-              </Row>
-              <Btn title="내보내기" variant="quiet" size="sm" onPress={() => setConfirm('remove')} />
-            </Row>
-          </>
+          <Col>
+            <ListRow
+              first
+              icon="link"
+              label="초대 권한"
+              sub="이 멤버도 초대 링크를 만들고 공유할 수 있어요"
+              switch={{
+                value: menuFor.canInvite,
+                onChange: (next) => {
+                  const r = dispatch(trip.id, { type: 'member/setCanInvite', memberId: menuFor.id, canInvite: next });
+                  if (r.ok) setMenuFor({ ...menuFor, canInvite: next });
+                },
+              }}
+            />
+            <ListRow icon="user" label={`${menuFor.nickname}님 내보내기`} onPress={() => setConfirm('remove')} />
+          </Col>
         ) : null}
       </Sheet>
 
       <ConfirmSheet
         visible={confirm === 'reissue'}
         title="새 초대 링크를 만들까요"
-        text="지금 링크는 바로 쓸 수 없게 됩니다. 이미 합류한 멤버는 그대로입니다."
+        text="지금 링크는 바로 쓸 수 없게 돼요. 이미 합류한 멤버는 그대로예요."
         confirmLabel="새 링크 만들기"
         onConfirm={() => {
           setConfirm(undefined);
@@ -227,7 +236,7 @@ export default function MembersScreen({ navigation, route }: RootScreenProps<'Me
       <ConfirmSheet
         visible={confirm === 'remove' && menuFor != null}
         title={`${menuFor?.nickname ?? ''}님을 내보낼까요`}
-        text="이 멤버는 더 이상 여행방을 보거나 편집할 수 없습니다. 제안한 후보와 채팅은 남습니다."
+        text="이 멤버는 더 이상 여행방을 보거나 편집할 수 없어요. 제안한 후보와 채팅은 남아요."
         confirmLabel="내보내기"
         onConfirm={() => {
           if (menuFor) dispatch(trip.id, { type: 'member/remove', memberId: menuFor.id });
@@ -262,11 +271,10 @@ function MemberLine({
           {row.nickname}
         </Txt>
         <Txt v="mtTight" numberOfLines={2}>
-          {row.sub}
+          {`${row.sub} · 후보 ${row.candidates}곳`}
         </Txt>
       </Col>
       {row.waiting ? <Chip text="전송 대기" tone="warn" /> : null}
-      <Chip text={`후보 ${row.candidates}곳`} tone="line" />
       {canManage ? <IconBtn icon="dots" label={`${row.nickname} 메뉴`} onPress={onMenu} /> : null}
     </Row>
   );

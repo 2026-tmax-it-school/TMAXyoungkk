@@ -354,6 +354,8 @@ export function createAuthService({
   passwordCost = 16384,
   log = () => {},
   oauth = {},
+  /** 계정이 탈퇴한 뒤 부른다(커뮤니티가 그 계정의 글을 지운다). 실패해도 탈퇴는 이미 끝났으므로 로그만 남긴다 */
+  onAccountRemoved = async () => {},
 } = {}) {
   const oauthClient = createOAuthClient({ now, ...oauth });
   /** 개발용 보낸편지함(메모리). 토큰 원문은 여기에만 있고 DB에는 해시만 간다 */
@@ -748,6 +750,11 @@ export function createAuthService({
       await store.dropIdentities(id);
       await store.updateAccount(id, { email: null, nickname: null, passwordHash: null, profile: {}, providers: [], upgradeProof: null, deletedAt: now() });
       outbox = outbox.filter((m) => m.to !== auth.account.email);
+      try {
+        await onAccountRemoved(id);
+      } catch (e) {
+        log(`탈퇴 뒤 정리 실패: ${e?.message ?? e}`);
+      }
       return okBody();
     },
 
@@ -909,6 +916,11 @@ export function createAuthService({
     },
     async purge() {
       await store.purge(now());
+    },
+    /** Bearer 판정만 필요한 다른 서비스(커뮤니티)용. 유효하면 {account}, 아니면 null */
+    async authenticate(headers) {
+      const a = await authed(headers);
+      return a ? { account: a.account } : null;
     },
     /** 테스트용 */
     outbox: () => [...outbox],

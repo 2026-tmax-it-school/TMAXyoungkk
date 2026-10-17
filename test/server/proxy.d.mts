@@ -38,9 +38,15 @@ export const KAKAO_ROUTES: Readonly<
   Record<string, { upstream: string; required: string[]; params: Record<string, (v: string) => boolean>; cache: boolean }>
 >;
 
+export const ODSAY_ROUTES: Readonly<
+  Record<string, { upstream: string; required: string[]; params: Record<string, (v: string) => boolean>; cache: boolean }>
+>;
+
 export interface ApiProxyOptions {
   /** 카카오 REST 키. 비우면 카카오 경로는 503 */
   kakaoKey?: string;
+  /** ODsay 서버 키. 비우면 ODsay 경로는 503 */
+  odsayKey?: string;
   /** OSRM 상류(기본 공개 서버) */
   osrmUrl?: string;
   fetch?: UpstreamFetch;
@@ -65,12 +71,13 @@ export interface ProxyResult {
 }
 
 export interface ApiProxy {
-  info(): { kakao: boolean; osrm: string; osrmConcurrency: number; ratePerMin: number };
+  info(): { kakao: boolean; odsay: boolean; osrm: string; osrmConcurrency: number; ratePerMin: number };
   handle(req: { method?: string; url: URL; rawLength?: number; ip?: string }): Promise<ProxyResult>;
 }
 
 export function proxyOptionsFromEnv(env: Record<string, string | undefined>): {
   kakaoKey: string;
+  odsayKey: string;
   osrmUrl: string;
   osrmConcurrency: number;
   ratePerMin: number;

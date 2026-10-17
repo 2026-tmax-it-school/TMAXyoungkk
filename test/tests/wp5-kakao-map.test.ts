@@ -472,7 +472,9 @@ test('카카오 어댑터: pointerEvents는 StyleSheet로만, 세 가지 실패�
   assert.match(webSrc, /map\.relayout\(\)/);
   assert.match(webSrc, /new ResizeObserver/);
   assert.match(webSrc, /document\.visibilityState === 'visible'/);
-  assert.match(webSrc, /scrollwheel: !p\.compact && flat/);
+  // 그냥 휠 확대는 화면 가득한 지도(flat)와 시트 안 지도(wheelZoom)만. 스크롤 화면 안의 지도는 Ctrl·Cmd+휠
+  assert.match(webSrc, /const greedy = flat \|\| !!p\.wheelZoom;/);
+  assert.match(webSrc, /scrollwheel: !p\.compact && greedy/);
   assert.match(webSrc, /e\.ctrlKey && !e\.metaKey/);
   assert.match(webSrc, /KAKAO_CLICK_DELAY_MS/);
   assert.doesNotMatch(webSrc, /replaceChildren/);

@@ -6,15 +6,24 @@ import { TRANSPORT_LABEL } from '../core/constants';
 import { buildPlan } from '../core/planner';
 import { returnLegOf } from '../core/planner/day';
 import { compareLeg, legEndpoints, type LegOption } from '../core/planner/legs';
+import { liveLegs } from '../core/ops/schedule';
 import { previewOps } from '../core/planner/preview';
-import { dayShort, humanMin } from '../core/util';
-import { dayTransportDrafts, legDrafts, legPositionText } from '../features/schedule/edit';
+import { dayShort, humanMin, josa } from '../core/util';
+import { dayTransportDrafts, legDrafts, legIndexes, legPositionText } from '../features/schedule/edit';
 import { transportIcon } from '../features/schedule/timeline';
-import { deltaChip, previewSentence } from '../features/schedule/view';
+import {
+  dayTransport,
+  deltaChip,
+  legAppliedToast,
+  legApplyLabels,
+  legPreviewChips,
+  previewSentence,
+} from '../features/schedule/view';
 import type { RootScreenProps } from '../navigation/routes';
 import { appClock } from '../services/clock';
 import { getServices } from '../services/registry';
 import { usePlan, useTripDoc, useTrips } from '../store/trips';
+import { useUi } from '../store/ui';
 import { Body, Btn, Card, Chip, Col, Empty, Foot, Header, Icon, IconBtn, lineC, Notice, Row, Screen, SP, Txt } from '../ui';
 
 /**
@@ -22,13 +31,20 @@ import { Body, Btn, Card, Chip, Col, Empty, Foot, Header, Icon, IconBtn, lineC, 
  * - route()로 자동차·도보·대중교통을 모두 조회해 결과를 먼저 보여주고 고르게 한다. 차이 칩은 느리면 +분(warn)
  * - 대중교통은 모의 모델(도보 접근 + 배차 대기 + 승차 + 환승 벌점)이다
  * - 경로가 없는 수단은 제외 면 카드에 대체 수단 안내를 적는다
- * - 고른 수단으로 '바꾸면 이렇게 됩니다'(previewOps, 문서를 바꾸지 않는다)를 이 구간만·하루 전체 두 경우로 보여준다
+ * - 머리말(Header row): '이동수단 비교'와 날짜 한 줄, 오른쪽에 이전·다음 구간 버튼과 '구간 2 / 6'(같은 화면에서 구간만 바꾼다).
+ *   출발·도착 이름은 360px에서도 잘리지 않게 본문 맨 위에 줄바꿈 제목으로 두고, 구간 지정이면 '구간 지정됨' 칩을 단다
+ * - 고른 수단으로 '바꾸면 이렇게 돼요'(previewOps, 문서를 바꾸지 않는다)를 이 구간만·이날 전체 두 줄 표로 보여준다.
+ *   칩은 순수 legPreviewChips(시간 차이, 활동시간 초과, 빠지는 곳, 돌아오는 곳)이고 줄의 스크린리더 이름은 previewSentence다
+ * - Foot: 주 버튼 '이 구간만 {수단}으로 바꾸기', 보조 '이날 전체를 {수단}으로'. 지금 수단과 같으면 끈다
  * - '이 구간만'은 그날 지금 순서를 수동 순서로 굳히고(schedule/reorder) schedule/setLegTransport를 보낸다(legDrafts).
  *   순서를 굳히지 않으면 느린 수단 비용 때문에 두 스팟이 떨어져 지정한 구간이 시간표에서 사라진다
- * - '하루 전체 적용'은 setDayTransport와 그날 구간 지정 해제
+ * - '이날 전체'는 setDayTransport와 그날 구간 지정 해제. 성공하면 토스트를 띄우고 돌아가고, 실패하면 warn 토스트로 알리고 머문다
  * - 미리보기는 계산 입력(스팟·날짜 설정·구간·기간)이 바뀔 때만 다시 돌고, 비교 기준 계획도 같은 문서로 새로 계산한다
  * 수단 비교 route() 호출은 24시간 캐시를 거치고 08의 경로 조회 건수에 넣지 않는다(A11).
  */
+
+/** 미리보기 표의 왼쪽 범위 이름 칸 폭('이 구간만', '이날 전체') */
+const PREVIEW_LABEL_W = 64;
 
 interface Previews {
   leg?: PlanDiff;
@@ -45,6 +61,12 @@ export default function LegTransportScreen({ navigation, route }: RootScreenProp
   const [picked, setPicked] = useState<Transport | undefined>(undefined);
   const [preview, setPreview] = useState<Previews>({});
   const [previewBusy, setPreviewBusy] = useState(false);
+  const showToast = useUi((s) => s.showToast);
+
+  // 이전·다음 구간으로 넘기면 고른 수단을 비운다(새 구간의 지금 수단에서 시작)
+  useEffect(() => {
+    setPicked(undefined);
+  }, [legIndex]);
 
   const back = () => (navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Main', { screen: 'Schedule', params: { date } }));
 
@@ -101,9 +123,9 @@ export default function LegTransportScreen({ navigation, route }: RootScreenProp
   if (!trip || !day || !ends) {
     return (
       <Screen>
-        <Header back={back} title="이동수단 비교" size="sm" />
+        <Header back={back} title="이동수단 비교" size="row" />
         <Body>
-          <Empty title="이 구간을 찾을 수 없습니다" />
+          <Empty title="이 구간을 찾을 수 없어요" action={{ label: '시간표로', onPress: back }} />
         </Body>
       </Screen>
     );
@@ -116,15 +138,26 @@ export default function LegTransportScreen({ navigation, route }: RootScreenProp
     ends.toId === 'base' ? returnLegOf(day)?.notices ?? [] : day.items.find((it) => it.spotId === ends.toId)?.notices ?? [];
   const fallbackNotice = legNotices.find((n) => n.kind === 'fallbackTransport' || n.kind === 'noRoute' || n.kind === 'estimated');
 
-  const applyLeg = () => {
-    if (!choice) return;
-    const r = useTrips.getState().dispatchMany(trip.id, legDrafts(trip, day, ends.fromId, ends.toId, choice));
-    if (r.ok) back();
+  // 지금 수단과 같으면 끈다. 이날 전체는 날짜 수단이 같아도 그날 구간 지정이 있으면 풀 수 있다
+  const sameLeg = choice === ends.transport;
+  const sameDay = choice === dayTransport(trip, date) && !liveLegs(trip.legs).some((l) => l.date === date);
+  const labels = legApplyLabels(choice ?? ends.transport);
+  const all = legIndexes(day);
+  const at = all.indexOf(legIndex);
+  const goLeg = (i: number | undefined) => {
+    if (i != null) navigation.setParams({ legIndex: i });
   };
-  const applyDay = () => {
+
+  const run = (scope: 'leg' | 'day') => {
     if (!choice) return;
-    const r = useTrips.getState().dispatchMany(trip.id, dayTransportDrafts(trip, date, choice));
-    if (r.ok) back();
+    const drafts = scope === 'leg' ? legDrafts(trip, day, ends.fromId, ends.toId, choice) : dayTransportDrafts(trip, date, choice);
+    const r = useTrips.getState().dispatchMany(trip.id, drafts);
+    if (!r.ok) {
+      showToast(`바꾸지 못했어요. ${r.reason}`, 'warn');
+      return;
+    }
+    showToast(legAppliedToast(scope, choice));
+    back();
   };
 
   const renderOption = (o: LegOption) => {
@@ -142,7 +175,7 @@ export default function LegTransportScreen({ navigation, route }: RootScreenProp
                   {TRANSPORT_LABEL[o.transport]}
                 </Txt>
               </Row>
-              <Txt v="mtTight">{o.fallbackText ?? '경로가 없습니다'}</Txt>
+              <Txt v="mtTight">{o.fallbackText ?? '경로가 없어요'}</Txt>
             </Col>
           </Row>
         </Card>
@@ -177,61 +210,74 @@ export default function LegTransportScreen({ navigation, route }: RootScreenProp
     );
   };
 
+  /** 미리보기 표 한 줄: 왼쪽 범위 이름, 오른쪽 칩. 스크린리더는 같은 내용을 문장으로 읽는다 */
+  const previewRow = (scope: string, diff: PlanDiff) => (
+    <View
+      key={scope}
+      accessible
+      accessibilityLabel={`${scope}: ${choice ? previewSentence(trip, date, choice, diff) : ''}`}
+      style={{ flexDirection: 'row', alignItems: 'flex-start', gap: SP.m }}
+    >
+      <View style={{ width: PREVIEW_LABEL_W, paddingTop: SP.xs }}>
+        <Txt v="mtSemi" c="accentStrong">
+          {scope}
+        </Txt>
+      </View>
+      <Row gap={SP.s} wrap style={{ flex: 1 }}>
+        {legPreviewChips(trip, date, diff).map((c) => (
+          <Chip key={c.text} text={c.text} tone={c.tone} />
+        ))}
+      </Row>
+    </View>
+  );
+
   return (
     <Screen>
-      <View style={{ paddingTop: SP.s, paddingHorizontal: SP.gutter, paddingBottom: 14, gap: SP.xl }}>
-        <Row gap={SP.l}>
-          <IconBtn icon="back" label="뒤로" onPress={back} />
-          <Col grow>
-            <Txt v="mt">{legPositionText(day, legIndex)}</Txt>
-          </Col>
-        </Row>
-        <Col gap={SP.xs}>
-          <Txt v="eyebrow">{`${dayShort(date)} · 구간 이동수단${ends.overridden ? ' · 구간 지정됨' : ''}`}</Txt>
-          <Txt v="ttlSm">{`${ends.fromName}에서 ${ends.toName}까지`}</Txt>
-        </Col>
-      </View>
+      <Header
+        back={back}
+        size="row"
+        title="이동수단 비교"
+        sub={dayShort(date)}
+        right={
+          <>
+            <IconBtn icon="back" label="이전 구간" disabled={at <= 0} onPress={() => goLeg(all[at - 1])} />
+            <Txt v="mtTight">{legPositionText(day, legIndex)}</Txt>
+            <IconBtn icon="right" label="다음 구간" disabled={at < 0 || at >= all.length - 1} onPress={() => goLeg(all[at + 1])} />
+          </>
+        }
+      />
       <Body scroll>
+        {/* 구간 끝점은 머리말(한 줄로 잘림) 대신 여기서 줄바꿈으로 다 보여 준다. 이전·다음 구간으로 넘겨도 지금 구간을 알 수 있다 */}
+        <Col gap={SP.xs}>
+          <Txt v="ttlSm">{`${ends.fromName}에서 ${ends.toName}까지`}</Txt>
+          {ends.overridden ? <Chip text="구간 지정됨" tone="line" /> : null}
+        </Col>
         {fallbackNotice ? <Notice icon="alert" tone={fallbackNotice.kind === 'estimated' ? 'line' : 'warn'} text={fallbackNotice.text} /> : null}
-        {!options ? <Txt v="mtTight">세 가지 수단의 경로를 조회하고 있습니다.</Txt> : options.map(renderOption)}
+        {!options ? <Txt v="mtTight">세 가지 수단의 경로를 조회하고 있어요.</Txt> : options.map(renderOption)}
         <View style={{ height: 1, backgroundColor: lineC.line }} />
         <Col gap={SP.m}>
-          <Txt v="eyebrow">바꾸면 이렇게 됩니다</Txt>
+          <Txt v="eyebrow">바꾸면 이렇게 돼요</Txt>
           <Card variant="tinted">
-            <Col gap={SP.s}>
-              {!choice || choice === ends.transport ? (
-                <Txt v="note" c="accentStrong">
-                  {`지금 이 구간은 ${TRANSPORT_LABEL[ends.transport]}입니다.`}
-                </Txt>
-              ) : previewBusy || !preview.leg ? (
-                <Txt v="note" c="accentStrong">
-                  다시 계산해 보고 있습니다.
-                </Txt>
-              ) : (
-                <>
-                  <Txt v="note" c="accentStrong">
-                    {`이 구간만: ${previewSentence(trip, date, choice, preview.leg)}`}
-                  </Txt>
-                  {preview.day ? (
-                    <Txt v="note" c="accentStrong">
-                      {`하루 전체: ${previewSentence(trip, date, choice, preview.day)}`}
-                    </Txt>
-                  ) : null}
-                </>
-              )}
-            </Col>
+            {!choice || sameLeg ? (
+              <Txt v="note" c="accentStrong">
+                {`지금 이 구간은 ${josa(TRANSPORT_LABEL[ends.transport], '으로/로')} 가요. 다른 수단을 고르면 달라지는 점을 보여 드려요.`}
+              </Txt>
+            ) : previewBusy || !preview.leg ? (
+              <Txt v="note" c="accentStrong">
+                다시 계산해 보고 있어요.
+              </Txt>
+            ) : (
+              <Col gap={SP.m}>
+                {previewRow('이 구간만', preview.leg)}
+                {preview.day ? previewRow('이날 전체', preview.day) : null}
+              </Col>
+            )}
           </Card>
         </Col>
       </Body>
       <Foot>
-        <Row gap={SP.m}>
-          <View style={{ flex: 1 }}>
-            <Btn title="이 구간만" variant="quiet" disabled={!canApply} onPress={applyLeg} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Btn title="하루 전체 적용" disabled={!canApply} onPress={applyDay} />
-          </View>
-        </Row>
+        <Btn title={labels.leg} disabled={!canApply || sameLeg} onPress={() => run('leg')} />
+        <Btn title={labels.day} variant="quiet" size="sm" disabled={!canApply || sameDay} onPress={() => run('day')} />
       </Foot>
     </Screen>
   );

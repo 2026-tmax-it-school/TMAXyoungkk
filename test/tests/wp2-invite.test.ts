@@ -12,6 +12,7 @@ import {
   inviteStatus,
   inviteUrl,
   inviteUrlShort,
+  pickInviteBase,
   makeInviteCode,
   newInvite,
   normalizeInviteCode,
@@ -127,6 +128,16 @@ describe('FR-301 초대 코드', () => {
     assert.equal(inv.capacity, MEMBER_CAPACITY);
     assert.equal(inviteUrl('AB12-CD34'), 'https://youngtrip.app/j/AB12-CD34');
     assert.equal(inviteUrlShort('AB12-CD34'), 'youngtrip.app/j/AB12-CD34');
+  });
+
+  test('초대 링크 주소: 설정값 → 웹의 지금 앱 주소 → 예약 도메인. 링크는 그 주소의 /j/코드다', () => {
+    assert.equal(pickInviteBase('http://192.168.0.10:8090/', 'http://localhost:8090'), 'http://192.168.0.10:8090');
+    assert.equal(pickInviteBase(undefined, 'http://localhost:8090'), 'http://localhost:8090');
+    assert.equal(pickInviteBase('youngtrip', 'null'), undefined, '주소가 아니면 쓰지 않는다');
+    assert.equal(pickInviteBase('https://trip.example.com/app', undefined), 'https://trip.example.com');
+    assert.equal(inviteUrl('AB12-CD34', 'http://localhost:8090/'), 'http://localhost:8090/j/AB12-CD34');
+    assert.equal(inviteUrlShort('AB12-CD34', 'http://localhost:8090'), 'localhost:8090/j/AB12-CD34');
+    assert.equal(normalizeInviteCode('http://localhost:8090/j/ab12-cd34'), 'AB12-CD34');
   });
 
   test('사람이 입력한 코드와 링크를 정규화한다', () => {

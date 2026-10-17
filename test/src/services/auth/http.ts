@@ -22,8 +22,8 @@ import type { AccountPublic, AuthAck, AuthFail, AuthProvider, AuthResult, FetchL
  * - 비밀번호·토큰·인가 코드는 로그에 남기지 않는다.
  */
 
-const UNREACHABLE = '계정 서버에 닿지 못했습니다. 잠시 뒤 다시 시도해 주세요';
-const SESSION_GONE = '로그인이 만료됐습니다. 다시 로그인해 주세요';
+const UNREACHABLE = '계정 서버에 닿지 못했어요. 잠시 뒤 다시 시도해 주세요';
+const SESSION_GONE = '로그인이 만료됐어요. 다시 로그인해 주세요';
 const TOKENS_KEY = 'tokens';
 
 const FAILS: readonly AuthFail[] = [
@@ -168,12 +168,13 @@ export function createHttpAuth(opts: { url: string; fetch: FetchLike; kv: KV; ti
     return {
       ...result,
       linkToken: mail.token,
-      detail: `${to} 계정으로 온 연결 확인 메일을 열었습니다(개발용 메일함). 이 계정에 소셜 로그인을 연결할까요?`,
+      detail: `${to} 계정으로 온 연결 확인 메일을 열었어요(개발용 메일함). 이 계정에 소셜 로그인을 연결할까요?`,
     };
   }
 
   return {
     id: 'server',
+    bearer: (accountId) => tokenOf(accountId),
 
     signUp: async (input) => toResult(await call('/auth/signup', { body: input })),
 
@@ -186,7 +187,7 @@ export function createHttpAuth(opts: { url: string; fetch: FetchLike; kv: KV; ti
     async social(input) {
       const link = input.linkToAccountId != null;
       const token = link ? await tokenOf(input.linkToAccountId) : undefined;
-      if (link && !token) return { ok: false, code: 'notFound', detail: '지금 계정을 찾지 못했습니다. 다시 로그인해 주세요' };
+      if (link && !token) return { ok: false, code: 'notFound', detail: '지금 계정을 찾지 못했어요. 다시 로그인해 주세요' };
       const r = await call('/auth/social', {
         body: {
           provider: input.provider,

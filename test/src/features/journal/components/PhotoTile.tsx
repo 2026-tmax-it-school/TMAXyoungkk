@@ -3,7 +3,8 @@ import { Image, View } from 'react-native';
 import Svg, { Circle, Polygon, Rect } from 'react-native-svg';
 
 import type { Photo } from '../../../types';
-import { R, SP, surfaceC, SvgLabel, Txt, type SurfaceColorKey } from '../../../ui';
+import { isDateAssigned, isPlaceEstimated } from '../../../core/journal/photo';
+import { Chip, R, SP, surfaceC, SvgLabel, Txt, type SurfaceColorKey } from '../../../ui';
 import { sessionPhotoUri } from '../api';
 
 /**
@@ -11,13 +12,24 @@ import { sessionPhotoUri } from '../api';
  * 웹 기기 사진은 이 세션 메모리 맵에만 있어, 새로고침 뒤나 다른 기기에서는 '이 세션에서만 보임' 타일이 된다.
  * 면과 산 모양은 같은 계열 면 토큰끼리 짝짓는다(초록 계열 선 토큰이 없어 okBg는 흰 산). 라벨은 card 띠 위의 ink라
  * TEXT_ON_SURFACE_PAIRS에 있는 조합(ink/card)만 쓴다.
+ * 배지는 하나만 둔다(photoBadge 우선순위 '날짜 지정' > '추정' > '장소 추정'). 예시 라벨 띠는 96 이상이고 배지가 없을 때만 그린다.
  */
 
 const TONE_BG: SurfaceColorKey[] = ['soft', 'okBg', 'warnBg', 'off'];
 const TONE_FG: SurfaceColorKey[] = ['softLine', 'card', 'warnLine', 'softLine'];
 const LABEL_BAND = 22;
+/** 예시 라벨 띠를 그리는 최소 타일 크기 */
+const LABEL_MIN = 96;
 
-export function PhotoTile({ photo, size, badge }: { photo: Photo; size: number; badge?: React.ReactNode }) {
+/** 타일 배지 하나. 날짜를 정해 넣은 사진 > 시각 추정 > 장소만 추정 순이다. 없으면 undefined */
+export function photoBadge(p: Photo): string | undefined {
+  if (isDateAssigned(p)) return '날짜 지정';
+  if (p.source === 'estimated') return '추정';
+  if (isPlaceEstimated(p)) return '장소 추정';
+  return undefined;
+}
+
+export function PhotoTile({ photo, size, badge }: { photo: Photo; size: number; badge?: string }) {
   const uri = photo.uri ?? sessionPhotoUri(photo.id);
   let body: React.ReactNode;
   if (photo.sim) {
@@ -31,7 +43,7 @@ export function PhotoTile({ photo, size, badge }: { photo: Photo; size: number; 
           points={`0,${s * 0.8} ${s * 0.32},${s * 0.46} ${s * 0.55},${s * 0.68} ${s * 0.72},${s * 0.54} ${s},${s * 0.82} ${s},${s} 0,${s}`}
           fill={surfaceC[TONE_FG[tone]]}
         />
-        {size >= 64 ? (
+        {size >= LABEL_MIN && !badge ? (
           <>
             <Rect x={0} y={s - LABEL_BAND} width={s} height={LABEL_BAND} fill={surfaceC.card} />
             <SvgLabel x={8} y={s - 7} text={photo.sim.label} v="tile" c="ink" anchor="start" />
@@ -71,7 +83,11 @@ export function PhotoTile({ photo, size, badge }: { photo: Photo; size: number; 
       style={{ width: size, height: size, borderRadius: R.photo, overflow: 'hidden' }}
     >
       {body}
-      {badge ? <View style={{ position: 'absolute', top: SP.s, left: SP.s, gap: SP.xs }}>{badge}</View> : null}
+      {badge ? (
+        <View style={{ position: 'absolute', top: SP.s, left: SP.s }}>
+          <Chip text={badge} tone="line" />
+        </View>
+      ) : null}
     </View>
   );
 }

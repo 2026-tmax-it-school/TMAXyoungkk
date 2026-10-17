@@ -16,6 +16,7 @@
  *   GET  /kakao/…, /osrm/…                          → 키 숨기는 중계(server/proxy.mjs). 카카오 장소·자동차 길찾기, OSRM 길
  *   /auth/…                                         → 계정·로그인(server/auth.mjs. 가입·인증·로그인·세션·프로필·탈퇴·재설정·모의 소셜·
  *                                                      구글·카카오 OAuth(server/oauth.mjs))
+ *   /community/…                                    → 커뮤니티(사진·일기 글, server/community.mjs. 읽기는 누구나, 쓰기는 로그인 계정)
  *   OPTIONS *                                       → 204(CORS 사전 요청)
  *
  * 시연 리셋은 서버의 여행방을 모두 지운다. 메모리 저장소는 늘 허용하고, PostgreSQL은 SYNC_ALLOW_RESET=1일 때만 허용한다
@@ -27,7 +28,8 @@
  * 요청 본문이 잘못되면 400, 저장소 오류는 500이다. 앱은 둘 다 실패로 보고 다음 차례에 다시 보낸다.
  * 경로의 tripId가 키로 못 쓰는 값(NUL, 짝 없는 서로게이트, 200자 초과)이면 400, 그런 초대 코드는 notFound다(server/ids.mjs).
  *
- * 중계: 앱(EXPO_PUBLIC_API_URL)이 카카오 키 없이 여기를 거친다. 카카오 키는 서버 변수 KAKAO_REST_KEY에만 두고,
+ * 중계: 앱(EXPO_PUBLIC_API_URL)이 카카오·ODsay 키 없이 여기를 거친다. 카카오 키는 서버 변수 KAKAO_REST_KEY,
+ * 대중교통(ODsay) 키는 ODSAY_API_KEY에만 두고,
  * OSRM 상류는 OSRM_URL(기본 공개 서버)이다. 허용 목록·속도 제한·캐시·동시 요청 규칙은 server/proxy.mjs에 있다.
  * 중계 응답 캐시는 저장소의 routeCache다(PostgreSQL route_cache, 메모리면 MEMORY_ROUTE_CACHE_LIMIT까지).
  *
@@ -38,6 +40,7 @@ import { realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 import { createAuthService, createMemoryAuthStore, devOutboxFromEnv, isAuthPath } from './auth.mjs';
+import { createCommunityService, createMemoryCommunityStore, isCommunityPath, POST_BODY_MAX } from './community.mjs';
 import { projectOps } from './db/projection.mjs';
 import { storableId } from './ids.mjs';
 import { judgeInvite, lookupInTrips } from './invites.mjs';
@@ -57,6 +60,18 @@ const CORS = {
 
 const MAX_BODY = 2 * 1024 * 1024;
 
+/** 사진 원본. 파일 머리글로 종류를 정한 값만 보낸다(nosniff, 한 번 올린 사진은 바뀌지 않으므로 오래 캐시) */
+function sendRaw(res, status, mime, bytes) {
+  res.writeHead(status, {
+    ...CORS,
+    'Content-Type': mime,
+    'Content-Length': bytes.length,
+    'X-Content-Type-Options': 'nosniff',
+    'Cache-Control': 'public, max-age=31536000, immutable',
+  });
+  res.end(bytes);
+}
+
 function send(res, status, body, headers = {}) {
   if (body === undefined) {
     res.writeHead(status, { ...CORS, ...headers });
@@ -67,20 +82,28 @@ function send(res, status, body, headers = {}) {
   res.end(JSON.stringify(body));
 }
 
-function readBody(req) {
+function readBody(req, limit = MAX_BODY, { drain = false } = {}) {
   return new Promise((resolve, reject) => {
     let size = 0;
+    let over = false;
     const chunks = [];
     req.on('data', (c) => {
       size += c.length;
-      if (size > MAX_BODY) {
-        reject(new Error('tooLarge'));
-        req.destroy();
+      if (size > limit) {
+        if (!drain) {
+          reject(new Error('tooLarge'));
+          req.destroy();
+          return;
+        }
+        // 사진 글: 연결을 바로 끊으면 앱이 413을 받지 못한다. 쌓지 않고 버리며 끝까지 받고, 한도의 두 배를 넘으면 끊는다
+        over = true;
+        chunks.length = 0;
+        if (size > limit * 2) req.destroy();
         return;
       }
-      chunks.push(c);
+      if (!over) chunks.push(c);
     });
-    req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
+    req.on('end', () => (over ? reject(new Error('tooLarge')) : resolve(Buffer.concat(chunks).toString('utf8'))));
     req.on('error', reject);
   });
 }
@@ -218,10 +241,26 @@ export async function startSyncServer({
   auth = {},
 } = {}) {
   const api = proxy === false ? null : createApiProxy({ cache: store.routeCache, now, log, ...proxy });
+  // 커뮤니티는 계정 서비스가 있어야 열린다(쓰기는 로그인 계정). 계정 탈퇴가 그 계정의 글을 지운다
+  let community = null;
   const accounts =
     auth === false
       ? null
-      : createAuthService({ store: store.authStore ?? createMemoryAuthStore(), now, log, ...auth });
+      : createAuthService({
+          store: store.authStore ?? createMemoryAuthStore(),
+          now,
+          log,
+          onAccountRemoved: (accountId) => community?.removeByAccount(accountId),
+          ...auth,
+        });
+  if (accounts) {
+    community = createCommunityService({
+      store: store.communityStore ?? createMemoryCommunityStore(),
+      authenticate: (headers) => accounts.authenticate(headers),
+      now,
+      log,
+    });
+  }
   const purge = async () => {
     await accounts?.purge();
     const removed = await store.purgeExpired(now());
@@ -255,6 +294,25 @@ export async function startSyncServer({
       });
       return send(res, r.status, r.body, { 'Cache-Control': 'no-store' });
     }
+    if (community && isCommunityPath(url.pathname)) {
+      let body = {};
+      if (req.method === 'POST') {
+        try {
+          body = JSON.parse((await readBody(req, POST_BODY_MAX, { drain: true })) || '{}');
+        } catch (e) {
+          return send(res, e?.message === 'tooLarge' ? 413 : 400, { error: e?.message === 'tooLarge' ? 'tooLarge' : 'badRequest' });
+        }
+      }
+      const r = await community.handle({
+        method: req.method,
+        path: url.pathname.slice('/community/'.length),
+        url,
+        headers: req.headers,
+        body,
+      });
+      if (r.raw) return sendRaw(res, r.status, r.raw.mime, r.raw.bytes);
+      return send(res, r.status, r.body, { 'Cache-Control': 'no-store' });
+    }
     let parts;
     try {
       parts = url.pathname.split('/').filter(Boolean).map(decodeURIComponent);
@@ -272,6 +330,7 @@ export async function startSyncServer({
         return send(res, 403, { error: 'resetDisabled' });
       }
       await store.reset();
+      await community?.reset();
       return send(res, 204);
     }
     if (parts[0] === 'trips' && parts.length === 3 && parts[2] === 'ops') {
@@ -386,7 +445,7 @@ async function main() {
   console.log(`계정: 메일 발송 없음, 개발용 보낸편지함·모의 소셜 ${devOutbox ? '열림(GET /auth/outbox, /auth/social)' : '닫힘(AUTH_DEV_OUTBOX=1로 연다)'}`);
   console.log(`소셜 로그인(OAuth): ${describeOAuth(oauth)}`);
   console.log(
-    `중계: 카카오 ${proxy.kakaoKey ? '켜짐' : '꺼짐(KAKAO_REST_KEY 없음, 503)'}, OSRM ${new URL(proxy.osrmUrl).host}`,
+    `중계: 카카오 ${proxy.kakaoKey ? '켜짐' : '꺼짐(KAKAO_REST_KEY 없음, 503)'}, 대중교통 ODsay ${proxy.odsayKey ? '켜짐' : '꺼짐(ODSAY_API_KEY 없음, 503)'}, OSRM ${new URL(proxy.osrmUrl).host}`,
   );
   const stop = () => {
     server

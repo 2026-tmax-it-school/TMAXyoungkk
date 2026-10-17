@@ -1,77 +1,72 @@
 import React, { useState } from 'react';
-import { Pressable, View } from 'react-native';
+import { View } from 'react-native';
 
 import { hoursLabel, stepTime } from '../../../core/trip/create';
-import { Btn, H, Icon, lineC, R, Row, SP, Sheet, surfaceC, Txt } from '../../../ui';
+import { Btn, Row, SP, Sheet, Txt } from '../../../ui';
+import { PickerBox } from './PickerBox';
 
 /**
- * 하루 활동시간(목업 04 '09:00 – 21:00 · 하루 12시간'). 값 상자 한 줄이고, 누르면 시트에서 30분 단위로 시작·끝을 옮긴다.
- * 스테퍼를 한 줄에 두면 25 카드 안(316px)에서 넘쳐서 값 상자와 시트로 나눴다(04 코드리뷰 회의).
- * 시작이 끝과 같거나 늦어지는 쪽, 05:00~24:00 밖으로는 옮기지 않는다. 값이 그대로면 onChange를 부르지 않는다
- * (같은 값의 op가 로그에 쌓이지 않게). 판정은 core/trip/create.
+ * 하루 활동시간(목업 04 '09:00 – 21:00 · 하루 12시간'). PickerBox와 같은 상자(라벨이 상자 안 위쪽)이고,
+ * 누르면 시트에서 30분 단위로 시작·끝을 옮긴다.
+ * 시트 안에서는 초안만 바꾸고, '완료'를 누를 때 onChange를 한 번만 부른다(같은 값이면 부르지 않는다,
+ * 같은 값의 op가 로그에 쌓이지 않게). 닫기·바깥 누르기는 초안을 버린다.
+ * 시작이 끝과 같거나 늦어지는 쪽, 05:00~24:00 밖으로는 옮기지 않는다. 판정은 core/trip/create.
  */
 export function TimeRange({
+  label,
   start,
   end,
   onChange,
   disabled,
-  title = '활동시간',
+  error,
+  title,
 }: {
+  /** 상자 안 라벨('하루 활동시간', '이날 활동시간') */
+  label: string;
   start: string;
   end: string;
   onChange: (next: { start: string; end: string }) => void;
   disabled?: boolean;
-  /** 시트 제목 */
+  error?: string;
+  /** 시트 제목. 없으면 label */
   title?: string;
 }) {
-  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState<{ start: string; end: string } | undefined>(undefined);
+  const cur = draft ?? { start, end };
 
   const nextOf = (which: 'start' | 'end', delta: number) =>
-    which === 'start' ? { start: stepTime(start, delta), end } : { start, end: stepTime(end, delta) };
+    which === 'start' ? { start: stepTime(cur.start, delta), end: cur.end } : { start: cur.start, end: stepTime(cur.end, delta) };
   const canMove = (which: 'start' | 'end', delta: number) => {
     const next = nextOf(which, delta);
-    if (next.start === start && next.end === end) return false;
+    if (next.start === cur.start && next.end === cur.end) return false;
     return next.start < next.end;
   };
   const move = (which: 'start' | 'end', delta: number) => {
     if (disabled || !canMove(which, delta)) return;
-    onChange(nextOf(which, delta));
+    setDraft(nextOf(which, delta));
+  };
+  const done = () => {
+    if (draft && !disabled && (draft.start !== start || draft.end !== end)) onChange(draft);
+    setDraft(undefined);
   };
 
   return (
     <>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={`${title} ${start}부터 ${end}까지`}
-        accessibilityState={{ disabled: !!disabled }}
+      <PickerBox
+        label={label}
+        icon="clock"
+        value={`${start} – ${end}`}
+        trailing={<Txt v="mtTight">{hoursLabel(start, end)}</Txt>}
+        a11yLabel={`${label} ${start}부터 ${end}까지`}
         disabled={disabled}
-        onPress={() => setOpen(true)}
-        style={{
-          minHeight: H.field,
-          paddingHorizontal: 13,
-          paddingVertical: SP.m,
-          borderWidth: 1,
-          borderColor: lineC.line,
-          borderRadius: R.field,
-          backgroundColor: disabled ? surfaceC.off : surfaceC.card,
-          flexDirection: 'row',
-          alignItems: 'center',
-          gap: SP.m,
-        }}
-      >
-        <Icon name="clock" size={16} />
-        <View style={{ flex: 1, minWidth: 0 }}>
-          <Txt v="body" c="ink" numberOfLines={1}>
-            {`${start} – ${end}`}
-          </Txt>
-        </View>
-        <Txt v="mtTight">{hoursLabel(start, end)}</Txt>
-      </Pressable>
-      <Sheet visible={open} onClose={() => setOpen(false)} title={title}>
-        <StepRow label="시작" value={start} minus={canMove('start', -30)} plus={canMove('start', 30)} onMove={(d) => move('start', d)} />
-        <StepRow label="끝" value={end} minus={canMove('end', -30)} plus={canMove('end', 30)} onMove={(d) => move('end', d)} />
-        <Txt v="mtTight">{hoursLabel(start, end)}</Txt>
-        <Btn title="완료" onPress={() => setOpen(false)} />
+        error={error}
+        onPress={() => setDraft({ start, end })}
+      />
+      <Sheet visible={draft != null} onClose={() => setDraft(undefined)} title={title ?? label}>
+        <StepRow label="시작" value={cur.start} minus={canMove('start', -30)} plus={canMove('start', 30)} onMove={(d) => move('start', d)} />
+        <StepRow label="끝" value={cur.end} minus={canMove('end', -30)} plus={canMove('end', 30)} onMove={(d) => move('end', d)} />
+        <Txt v="mtTight">{hoursLabel(cur.start, cur.end)}</Txt>
+        <Btn title="완료" onPress={done} />
       </Sheet>
     </>
   );

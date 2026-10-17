@@ -86,10 +86,16 @@ test('주색·유채색 전체면을 쓰지 않는다(Screen bg는 bg·card만)'
   check(eachLine(outside, 'color-fullscreen', /<Screen\b[^>]*\bbg\s*=\s*\{?\s*['"](accent|rose|amber|moss|ink)['"]/));
 });
 
-/** E.float(그림자)를 참조해도 되는 곳: 토큰 정의, 지도 컴포넌트, 지도 위에 요소를 띄우는 화면 */
+/**
+ * E.float(그림자)를 참조해도 되는 곳: 토큰 정의, 지도 위에 뜨는 공용 조각(화면 안 하단 시트, 지도 위 알약),
+ * 지도 컴포넌트, 지도 위에 요소를 띄우는 화면, 채팅방 지도
+ */
 const FLOAT_ALLOWED = [
   'src/ui/tokens.ts',
+  'src/ui/PeekSheet.tsx',
+  'src/ui/MapPill.tsx',
   'src/components/map/**',
+  'src/features/chat/map/**',
   'src/features/live/**',
   'src/screens/MapScreen.tsx',
   'src/screens/NavigateScreen.tsx',
@@ -222,8 +228,25 @@ test('지연은 경고가 아니라 조정안이다(금지 문구 없음)', () =
   check(eachLine(FILES, 'delay-wording', /늦었습니다|지연되었습니다|서두르세요/, 'raw'));
 });
 
-test('용어를 바꾸지 않는다(확정 장소·제외 장소·투표·출발지 금지)', () => {
-  check(eachLine(FILES, 'terms', /확정 장소|제외 장소|투표|출발지/));
+/**
+ * '투표'를 써도 되는 곳. 사용자 요청(명세 밖, FR-405): 채팅방 지도에서 장소마다 한 표씩 주는 기능이라
+ * 그 폴더 안에서만 '투표'라고 부른다. 확정 장소·제외 장소·출발지는 그 폴더에서도 계속 금지한다.
+ */
+const VOTE_WORD_ALLOWED = ['src/features/chat/map/**'];
+
+test('용어를 바꾸지 않는다(확정 장소·제외 장소·투표·출발지 금지, 투표는 채팅방 지도 폴더만 예외)', () => {
+  check([
+    ...eachLine(FILES, 'terms', /확정 장소|제외 장소|출발지/),
+    ...eachLine(FILES.filter((f) => !matches(f, VOTE_WORD_ALLOWED)), 'terms-vote', /투표/),
+  ]);
+});
+
+test("'투표' 예외는 채팅방 지도 폴더 하나뿐이고, 지도 위 그림자 허용 목록에 공용 시트·알약이 있다", () => {
+  assert.deepEqual(VOTE_WORD_ALLOWED, ['src/features/chat/map/**']);
+  for (const g of ['src/ui/PeekSheet.tsx', 'src/ui/MapPill.tsx', 'src/features/chat/map/**']) assert.ok(FLOAT_ALLOWED.includes(g), g);
+  assert.ok(matches('src/features/chat/map/VoteToggle.tsx', VOTE_WORD_ALLOWED));
+  assert.ok(!matches('src/features/chat/components/CandidateBar.tsx', VOTE_WORD_ALLOWED));
+  assert.ok(!matches('src/screens/ChatScreen.tsx', VOTE_WORD_ALLOWED));
 });
 
 test('검사 대상에 화면과 ui가 들어 있다', () => {

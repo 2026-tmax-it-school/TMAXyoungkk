@@ -12,7 +12,8 @@ import {
   osmProxyBase,
   OSRM_CAR_TIME_FACTOR,
 } from './osm';
-import { withTransitModel } from './transit';
+import { createOdsayTransit } from './odsay';
+import { TRANSIT_MODEL_VERSION, withTransitModel } from './transit';
 
 /**
  * 경로 제공자 팩토리(WP4 소유, 순수). 24시간 캐시 → 대중교통 모의 모델 → 카카오(자동차만 실제) → 실제 길(OSM) → 로컬.
@@ -20,7 +21,7 @@ import { withTransitModel } from './transit';
  * roadShapes가 있으면(2026-10-09 결정) 도보·자동차 시간도 OpenStreetMap 길(OSRM)에서 받는다. 행렬은 OSRM table,
  * 경로는 선 모양·거리·안내 줄과 그 경로의 시간이다. 예시 구간표에 있는 구간은 구간표 시간이 우선이다(osm.ts).
  * 자동차는 카카오가 있으면 카카오가 먼저다. 같은 구간이면 행렬과 경로가 같은 분을 낸다(cache.ts가 맞춘다).
- * 대중교통은 모의 모델 그대로(언제나 estimated)이고 선만 자동차 도로 모양을 빌린다.
+ * 대중교통은 서버(apiUrl)가 있으면 ODsay 실제 노선(버스·지하철·열차, 노선 모양의 선)이고, 못 쓰면 추정 모델(직선)이다(transit.ts).
  *
  * apiUrl(EXPO_PUBLIC_API_URL)이 있으면 키 숨기는 서버를 거친다. 카카오 자동차는 키 없이 서버로 가고(kakaoKey는 쓰지 않는다),
  * 서버·카카오를 못 쓰면(서버에 카카오 키 없음 503, 닿지 못함, 시간 초과 등) 실제 길(OSRM, roadShapes가 있을 때) · 로컬 모델로
@@ -29,7 +30,6 @@ import { withTransitModel } from './transit';
  * netClock(실제 시계)을 주면 경로 서버가 막히거나(429·5xx) 닿지 않을 때 OSM_COOLDOWN_MS 동안 묻지 않고 바로 대체한다(osm.ts).
  * 서버가 카카오 키 없음(503 kakaoDisabled)이라고 하면 KAKAO_DISABLED_COOLDOWN_MS 동안 카카오에 묻지 않고, 그동안의 실제 대체 값은
  * 캐시에 KAKAO_FALLBACK_TTL_MS만 둔다(kakao.ts). 재계산마다 카카오 503과 대체 요청을 되풀이해 서버 요청 한도에 걸리지 않게 한다.
- * 대중교통 선이 빌리는 자동차 모양은 캐시를 거친다(같은 구간의 자동차 경로와 요청을 나눠 쓴다).
  * 캐시 서명(routeCacheSignature)은 도로 모양·카카오 방식·예시 구간표가 바뀌면 달라져 예전 캐시를 버린다(cache.ts).
  */
 
@@ -41,8 +41,10 @@ export function routeCacheSignature(opts: { kakaoKey?: string; apiUrl?: string; 
   const shapeBase = opts.roadShapes?.baseUrl || (opts.apiUrl ? osmProxyBase(opts.apiUrl) : OSM_ROUTING_URL);
   const road = opts.roadShapes ? `osm:${shapeBase}` : 'off';
   const kakao = opts.apiUrl ? `server:${opts.apiUrl}` : opts.kakaoKey ? 'key' : 'none';
+  // 대중교통: 서버가 있으면 ODsay, 없으면 추정 모델. 추정 계산이 바뀌면(TRANSIT_MODEL_VERSION) 예전 캐시를 버린다
+  const transit = `${opts.apiUrl ? `odsay:${opts.apiUrl}` : 'model'}:v${TRANSIT_MODEL_VERSION}`;
   const data = sha256Hex(JSON.stringify({ table: SCENARIO_ROUTE_TABLE, transit: SCENARIO_TRANSIT }));
-  return sha256Hex(['road', road, 'kakao', kakao, 'car', OSRM_CAR_TIME_FACTOR, 'data', data].join('|')).slice(0, 16);
+  return sha256Hex(['road', road, 'kakao', kakao, 'transit', transit, 'car', OSRM_CAR_TIME_FACTOR, 'data', data].join('|')).slice(0, 16);
 }
 
 export function createRouteProvider(opts: {
@@ -73,11 +75,8 @@ export function createRouteProvider(opts: {
   const kakao = opts.apiUrl ? { apiUrl: opts.apiUrl } : opts.kakaoKey ? { key: opts.kakaoKey } : undefined;
   const inner = kakao ? createKakaoRoutes({ ...kakao, fetch: opts.fetch, fallback: shaped, netClock: opts.netClock }) : shaped;
   const cache = createRouteCache({ clock: opts.clock, kv: opts.kv, signature: routeCacheSignature(opts) });
-  // 대중교통 선이 빌리는 자동차 모양도 캐시를 거친다(아래 cached를 늦게 이어 붙인다)
-  let cached: RouteProvider | undefined;
-  const transit = withTransitModel(inner, { carShape: (a, b) => (cached ?? inner).route(a, b, 'car') });
-  cached = cache.wrap(transit);
-  return cached;
+  const real = opts.apiUrl ? createOdsayTransit({ apiUrl: opts.apiUrl, fetch: opts.fetch, netClock: opts.netClock }) : undefined;
+  return cache.wrap(withTransitModel(inner, { real }));
 }
 
 export { createRouteCache, type RouteLegOut, type RouteMatrix } from './cache';
@@ -107,4 +106,22 @@ export {
   parseOsmRoute,
   parseOsmTable,
 } from './osm';
-export { transitBreakdown, withTransitModel } from './transit';
+export {
+  INTERCITY,
+  INTERCITY_KM,
+  ODSAY_FALLBACK_TTL_MS,
+  transitBreakdown,
+  withTransitModel,
+  type RealTransit,
+} from './transit';
+export {
+  createOdsayTransit,
+  ODSAY_ATTRIBUTION,
+  ODSAY_DISABLED_COOLDOWN_MS,
+  odsayErrorCode,
+  odsayLaneUrl,
+  odsaySearchUrl,
+  odsayStepText,
+  parseOdsayLanes,
+  parseOdsayRoute,
+} from './odsay';

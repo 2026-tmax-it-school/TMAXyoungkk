@@ -3,7 +3,7 @@ import { Linking, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { LatLng, Place, Transport } from '../types';
-import type { RouteLeg } from '../core/ports';
+import type { RouteLeg, TransitStepKind } from '../core/ports';
 import type { MapMarkerInput, MapPolylineInput } from '../core/map/layout';
 import {
   createRequestGuard,
@@ -16,13 +16,13 @@ import {
   mapPickEndpoint,
   ME_NAME,
   ME_NOTICE,
-  MODE_ORDER,
+  modesFor,
   modeRows,
   pickMode,
   routeReady,
   searchable,
   searchBiasFor,
-  searchesAnywhere,
+  DIRECTIONS_SEARCH_ANYWHERE,
   searchRegionFor,
   swapEndpoints,
   tripBaseFor,
@@ -36,6 +36,7 @@ import { pickLiveDate } from '../core/live/session';
 import { MapCanvas } from '../components/map/MapCanvas';
 import { regionById, REGIONS } from '../data/regions';
 import type { RootScreenProps } from '../navigation/routes';
+import { useBack } from '../navigation/useBack';
 import { useNow } from '../services/clock';
 import { readLocationOnce } from '../services/location/once';
 import { getServices } from '../services/registry';
@@ -47,6 +48,8 @@ import {
   Card,
   Chip,
   Field,
+  H,
+  Header,
   Icon,
   IconBtn,
   lineC,
@@ -58,7 +61,6 @@ import {
   SP,
   surfaceC,
   Txt,
-  H,
   type IconName,
 } from '../ui';
 
@@ -70,14 +72,35 @@ import {
  * - 지도 오른쪽 아래 '내 위치' 버튼(MapCanvas locate)은 지도만 내 자리로 옮기고 따라간다. 출발·도착은 바꾸지 않고 좌표를 어디에도 보내지 않는다.
  * - 경로 요청은 두 끝이 다 정해진 뒤에만 세 수단을 한꺼번에 묻는다. 끝점이 바뀌면 앞 응답은 버린다(createRequestGuard).
  * - 검색은 두 글자 이상에서 잠깐 멈추면(400ms) 찾고, 엔터는 바로 찾는다. 같은 검색어는 다시 묻지 않는다.
- * - 구성은 13처럼 위에 끝점 두 줄, 가운데 지도, 아래 시트(수단 비교 · 칩 · 안내 줄 · 버튼)다.
+ * - 구성은 13처럼 한 줄 머리말(Header row, 뒤로는 useBack('Map')), 끝점 두 줄(줄마다 높이 44), 가운데 지도, 아래 시트다.
+ * - 끝점이 비어 있으면 아래 시트가 그 쪽의 바로 고르기 목록이 된다(기점, 여행방 스팟 최대 5곳, 장소 검색, 지도에서 고르기).
+ *   이 목록은 위치를 읽지 않는다. '내 위치'는 위치 읽기 규칙 때문에 장소 검색 시트(EndpointPicker) 안에만 있다.
+ * - 경로가 준비되면 시트는 수단 비교 · 칩 · 안내 줄이고, 아래에 전체 폭 주 버튼 '카카오맵으로 열기'를 둔다.
+ *   여행 진행 중이면 그 아래 '여행 진행으로 돌아가기'(19)를 둔다.
  */
 
 const SEARCH_DEBOUNCE_MS = 400;
 /** 지도에서 누른 곳 근처 장소를 찾는 반경(m) */
 const MAP_PICK_RADIUS_M = 150;
 const STEPS_MAX_H = 84;
+/** 실제 대중교통 노선 안내는 따라 탈 정보라 더 길게 보인다 */
+const TRANSIT_STEPS_MAX_H = 220;
+
+/** 대중교통 안내 줄 종류 → 아이콘 */
+const STEP_ICON: Record<TransitStepKind, IconName> = {
+  walk: 'walk',
+  bus: 'bus',
+  subway: 'train',
+  train: 'train',
+  intercityBus: 'bus',
+  air: 'nav',
+  arrive: 'pin',
+};
 const LIST_MAX_H = 240;
+/** 바로 고르기 목록에 보이는 여행방 스팟 수 */
+const QUICK_SPOTS = 5;
+/** 바로 고르기 목록 높이. 줄 3개 반만 보여(넘치면 스크롤) 360px에서도 지도가 남는다 */
+const QUICK_LIST_MAX_H = H.touch * 3.5;
 
 type Results = Partial<Record<Transport, ModeResult>>;
 
@@ -87,6 +110,7 @@ export default function DirectionsScreen({ navigation, route }: RootScreenProps<
   const plan = usePlan(params.tripId);
   const now = useNow();
   const insets = useSafeAreaInsets();
+  const back = useBack('Map');
   const liveTripId = useLive((s) => (s.mode !== 'off' ? s.tripId : undefined));
   const liveDate = useLive((s) => (s.mode !== 'off' ? s.date : undefined));
   const last = useLive((s) => (s.mode !== 'off' ? s.last : undefined));
@@ -118,7 +142,7 @@ export default function DirectionsScreen({ navigation, route }: RootScreenProps<
     setResults({});
     if (!key || !ends.from || !ends.to) return;
     const { from, to } = ends;
-    for (const t of MODE_ORDER) {
+    for (const t of modesFor(from.coord, to.coord)) {
       void getServices()
         .routes.route(from.coord, to.coord, t)
         .catch(() => null)
@@ -131,7 +155,8 @@ export default function DirectionsScreen({ navigation, route }: RootScreenProps<
   }, [key]);
   useEffect(() => () => routeGuard.cancel(), [routeGuard]);
 
-  const rows = useMemo(() => modeRows(results), [results]);
+  const modes = useMemo(() => modesFor(ends.from?.coord, ends.to?.coord), [ends.from?.coord, ends.to?.coord]);
+  const rows = useMemo(() => modeRows(results, modes), [results, modes]);
   const shown = pickMode(rows, mode);
   const row = rows.find((r) => r.transport === shown);
   const leg: RouteLeg | null | undefined = results[shown];
@@ -197,20 +222,20 @@ export default function DirectionsScreen({ navigation, route }: RootScreenProps<
 
   const openKakao = () => {
     if (!from || !to) return;
-    Linking.openURL(kakaoDirectionsUrl(from, to)).catch(() => useUi.getState().showToast('카카오맵을 열지 못했습니다', 'warn'));
+    Linking.openURL(kakaoDirectionsUrl(from, to)).catch(() => useUi.getState().showToast('카카오맵을 열지 못했어요', 'warn'));
   };
-
-  const back = navigation.canGoBack() ? navigation.goBack : undefined;
+  // 비어 있는 끝점(출발 먼저). 비어 있으면 아래 시트가 그 쪽의 바로 고르기 목록이 된다
+  const emptySide: EndpointSide | undefined = !from ? 'from' : !to ? 'to' : undefined;
+  // 바로 고르기에는 반대쪽 끝과 같은 곳(15m 안)을 두지 않는다. 기본 출발이 기점이라 기점을 도착으로 고르면 막힌다
+  const quickOther = emptySide ? ends[emptySide === 'from' ? 'to' : 'from'] : undefined;
+  const notOther = (e: Endpoint) => !quickOther || routeReady({ from: e, to: quickOther }).ready;
+  const baseEnd: Endpoint | undefined = base ? { kind: 'base', name: base.name, coord: base.coord, id: base.placeId } : undefined;
+  const quickBase = baseEnd && notOther(baseEnd) ? baseEnd : undefined;
 
   return (
     <Screen>
-      <View style={{ paddingTop: SP.s, paddingHorizontal: SP.gutter, paddingBottom: SP.m, gap: SP.m }}>
-        <Row gap={SP.l}>
-          {back ? <IconBtn icon="back" label="뒤로" onPress={back} /> : null}
-          <Txt v="eyebrow" numberOfLines={1} style={{ flex: 1 }}>
-            {trip ? `길찾기 · ${trip.title}` : '길찾기'}
-          </Txt>
-        </Row>
+      <Header size="row" back={back} title="길찾기" sub={trip?.title} />
+      <View style={styles.ends}>
         <Card>
           <Row gap={SP.m}>
             <View style={{ flex: 1, gap: SP.s }}>
@@ -255,7 +280,7 @@ export default function DirectionsScreen({ navigation, route }: RootScreenProps<
                   <Row gap={SP.l}>
                     <Icon name="pin" size={18} color="accent" />
                     <Txt v="nm" style={{ flex: 1 }}>
-                      {mapPick === 'from' ? '지도를 눌러 출발 위치를 고르세요' : '지도를 눌러 도착 위치를 고르세요'}
+                      {mapPick === 'from' ? '지도를 눌러 출발 위치를 골라 주세요' : '지도를 눌러 도착 위치를 골라 주세요'}
                     </Txt>
                     <Btn title="취소" size="sm" variant="quiet" onPress={() => setMapPick(undefined)} />
                   </Row>
@@ -280,15 +305,25 @@ export default function DirectionsScreen({ navigation, route }: RootScreenProps<
           gap: SP.l,
         }}
       >
-        <View
-          style={{ width: H.grabberW, height: H.grabberH, borderRadius: H.grabberH / 2, backgroundColor: surfaceC.grabber, alignSelf: 'center' }}
-        />
-        {!ready.ready ? (
-          <Txt v="mt">
-            {ready.reason === 'same'
-              ? '출발과 도착이 같은 곳입니다. 한쪽을 다른 곳으로 골라 주세요.'
-              : '출발과 도착을 고르면 자동차 · 대중교통 · 도보를 견줘 보여 드립니다.'}
-          </Txt>
+        <View style={styles.grabber} />
+        {emptySide ? (
+          // 지도에서 고르는 동안은 목록을 접어 지도를 넓게 둔다(위 안내 카드의 '취소'로 돌아온다)
+          mapPick ? null : (
+            <QuickPick
+              side={emptySide}
+              base={quickBase}
+              spots={spots
+                .filter((s) => s.id !== quickOther?.id)
+                .map((s) => ({ kind: 'spot' as const, name: s.name, coord: s.coord, id: s.id }))
+                .filter(notOther)
+                .slice(0, QUICK_SPOTS)}
+              onPick={(e) => setEnd(emptySide, e)}
+              onSearch={() => setPicker(emptySide)}
+              onMapPick={() => setMapPick(emptySide)}
+            />
+          )
+        ) : !ready.ready ? (
+          <Txt v="mt">출발과 도착이 같은 곳이에요. 한쪽을 다른 곳으로 골라 주세요.</Txt>
         ) : (
           <>
             <Row gap={SP.s}>
@@ -328,40 +363,53 @@ export default function DirectionsScreen({ navigation, route }: RootScreenProps<
               </Row>
             ) : null}
             {leg?.note ? <Txt v="mtTight">{leg.note}</Txt> : null}
-            {row?.state === 'none' ? <Txt v="mt">{`${row.label} 경로가 없습니다. 다른 수단을 골라 주세요.`}</Txt> : null}
+            {row?.state === 'none' ? <Txt v="mt">{`${row.label} 경로가 없어요. 다른 수단을 골라 주세요.`}</Txt> : null}
             {steps.length > 0 ? (
-              <ScrollView style={{ flexGrow: 0, maxHeight: STEPS_MAX_H }} contentContainerStyle={{ gap: SP.s }}>
-                {steps.map((s, i) => (
-                  <Row key={`${i}-${s.text}`} gap={SP.l}>
-                    <Icon name={i === steps.length - 1 ? 'pin' : 'right'} size={14} color={i === 0 ? 'accent' : 'faint'} />
-                    <Txt v="mt" c={i === 0 ? 'ink' : 'muted'} style={{ flex: 1 }}>
-                      {s.text}
-                    </Txt>
-                    {s.meters > 0 ? <Txt v="mtTight">{distanceText(s.meters)}</Txt> : null}
-                  </Row>
-                ))}
+              <ScrollView
+                style={{ flexGrow: 0, maxHeight: leg?.road === 'odsay' ? TRANSIT_STEPS_MAX_H : STEPS_MAX_H }}
+                contentContainerStyle={{ gap: SP.s }}
+              >
+                {steps.map((s, i) =>
+                  s.kind ? (
+                    // 실제 대중교통 노선: 구간 종류 아이콘과 잉크 글씨(버스 번호·노선·승하차가 따라 탈 정보다)
+                    <Row key={`${i}-${s.text}`} gap={SP.l} top>
+                      <Icon name={STEP_ICON[s.kind]} size={16} color={s.kind === 'walk' ? 'muted' : 'accent'} stroke={1.9} />
+                      <Txt v="mt" c={s.kind === 'walk' ? 'muted' : 'ink'} style={{ flex: 1 }}>
+                        {s.text}
+                      </Txt>
+                      {s.meters > 0 ? <Txt v="mtTight">{distanceText(s.meters)}</Txt> : null}
+                    </Row>
+                  ) : (
+                    <Row key={`${i}-${s.text}`} gap={SP.l}>
+                      <Icon name={i === steps.length - 1 ? 'pin' : 'right'} size={14} color={i === 0 ? 'accent' : 'faint'} />
+                      <Txt v="mt" c={i === 0 ? 'ink' : 'muted'} style={{ flex: 1 }}>
+                        {s.text}
+                      </Txt>
+                      {s.meters > 0 ? <Txt v="mtTight">{distanceText(s.meters)}</Txt> : null}
+                    </Row>
+                  ),
+                )}
               </ScrollView>
             ) : null}
           </>
         )}
-        <Row gap={SP.m}>
-          <View style={{ flex: 1 }}>
-            <Btn title="카카오맵으로 열기" size="sm" variant="quiet" disabled={!ready.ready} onPress={openKakao} />
-          </View>
-          {liveTripId ? (
-            <View style={{ flex: 1 }}>
-              <Btn title="안내 시작" size="sm" onPress={() => navigation.navigate('LiveTrip', { tripId: liveTripId, date: liveDate })} />
-            </View>
-          ) : null}
-        </Row>
+        {ready.ready ? <Btn title="카카오맵으로 열기" icon="map" onPress={openKakao} /> : null}
+        {/* 여행 진행 중일 때만 19로 돌아가는 길을 둔다 */}
+        {liveTripId ? (
+          <Btn
+            title="여행 진행으로 돌아가기"
+            size="sm"
+            variant="quiet"
+            onPress={() => navigation.navigate('LiveTrip', { tripId: liveTripId, date: liveDate })}
+          />
+        ) : null}
       </View>
 
       <EndpointPicker
         side={picker}
         other={picker ? ends[picker === 'from' ? 'to' : 'from'] : undefined}
         regionFor={(near) => searchRegionFor(REGIONS, trip ? regionById(trip.region) : undefined, near)}
-        anywhereFor={(near) => searchesAnywhere(REGIONS, trip ? regionById(trip.region) : undefined, near)}
-        base={base ? { kind: 'base', name: base.name, coord: base.coord, id: base.placeId } : undefined}
+        base={baseEnd}
         spots={spots.map((s) => ({ kind: 'spot' as const, name: s.name, coord: s.coord, id: s.id }))}
         liveCoord={liveTripId && last ? last.coord : undefined}
         onClose={() => setPicker(undefined)}
@@ -381,7 +429,12 @@ export default function DirectionsScreen({ navigation, route }: RootScreenProps<
 function EndRow({ side, end, onPress }: { side: EndpointSide; end: Endpoint | undefined; onPress: () => void }) {
   const word = side === 'from' ? '출발' : '도착';
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel={`${word} 바꾸기${end ? `, 지금 ${endpointLabel(end)}` : ''}`} onPress={onPress}>
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`${word} 바꾸기${end ? `, 지금 ${endpointLabel(end)}` : ''}`}
+      onPress={onPress}
+      style={styles.endRow}
+    >
       <Row gap={SP.l}>
         <Txt v="label" style={{ width: 30 }}>
           {word}
@@ -413,6 +466,48 @@ function PickLine({ icon, title, sub, onPress }: { icon: IconName; title: string
 }
 
 /**
+ * 끝점이 비었을 때 아래 시트의 바로 고르기 목록. 기점, 여행방 스팟(최대 5곳)을 한 번 눌러 고르고,
+ * 그 밖은 [장소 검색](EndpointPicker를 그 쪽으로 연다)과 [지도에서 고르기]로 간다. 위치는 읽지 않는다.
+ */
+function QuickPick({
+  side,
+  base,
+  spots,
+  onPick,
+  onSearch,
+  onMapPick,
+}: {
+  side: EndpointSide;
+  base: Endpoint | undefined;
+  spots: Endpoint[];
+  onPick: (e: Endpoint) => void;
+  onSearch: () => void;
+  onMapPick: () => void;
+}) {
+  return (
+    <>
+      <Txt v="label">{side === 'to' ? '도착 고르기' : '출발 고르기'}</Txt>
+      {base || spots.length > 0 ? (
+        <ScrollView style={styles.quickList} contentContainerStyle={styles.quickBody}>
+          {base ? <PickLine icon="home" title={endpointLabel(base)} onPress={() => onPick(base)} /> : null}
+          {spots.map((s) => (
+            <PickLine key={s.id} icon="pin" title={s.name} sub="여행방 스팟" onPress={() => onPick(s)} />
+          ))}
+        </ScrollView>
+      ) : null}
+      <Row gap={SP.m}>
+        <View style={styles.grow}>
+          <Btn title="장소 검색" icon="search" size="sm" variant="quiet" onPress={onSearch} />
+        </View>
+        <View style={styles.grow}>
+          <Btn title="지도에서 고르기" icon="map" size="sm" variant="quiet" onPress={onMapPick} />
+        </View>
+      </Row>
+    </>
+  );
+}
+
+/**
  * 끝점 고르기 시트. 검색 · 내 위치 · 지도에서 고르기 · 기점 · 여행방 스팟.
  * 검색은 두 글자 이상에서 400ms 멈추면 찾고 엔터는 바로 찾는다. 앞선 검색 응답이 늦게 와도 덮어쓰지 않는다.
  */
@@ -420,7 +515,6 @@ function EndpointPicker({
   side,
   other,
   regionFor,
-  anywhereFor,
   base,
   spots,
   liveCoord,
@@ -431,7 +525,6 @@ function EndpointPicker({
   side: EndpointSide | undefined;
   other: Endpoint | undefined;
   regionFor: (near: LatLng | undefined) => ReturnType<typeof searchRegionFor>;
-  anywhereFor: (near: LatLng | undefined) => boolean;
   base: Endpoint | undefined;
   spots: Endpoint[];
   liveCoord: LatLng | undefined;
@@ -467,7 +560,7 @@ function EndpointPicker({
     const region = regionFor(other?.coord);
     const term = q.trim();
     if (!searchable(term) || !region) return;
-    const anywhere = anywhereFor(other?.coord);
+    const anywhere = DIRECTIONS_SEARCH_ANYWHERE;
     const ask = `${anywhere ? '*' : region.id}:${term}`;
     if (ask === lastAsked.current) return;
     lastAsked.current = ask;
@@ -481,7 +574,7 @@ function EndpointPicker({
       if (guard.isCurrent(token)) {
         lastAsked.current = undefined;
         setFound(undefined);
-        setError('장소 검색에 실패했습니다. 잠시 뒤 다시 시도해 주세요.');
+        setError('장소 검색에 실패했어요. 잠시 뒤 다시 시도해 주세요.');
       }
     } finally {
       if (guard.isCurrent(token)) setBusy(false);
@@ -548,8 +641,8 @@ function EndpointPicker({
     else
       setError(
         r.reason === 'denied'
-          ? '위치 권한이 없어 내 위치를 쓸 수 없습니다. 검색이나 지도에서 골라 주세요.'
-          : '지금 위치를 받지 못했습니다. 잠시 뒤 다시 시도하거나 검색으로 골라 주세요.',
+          ? '위치 권한이 없어 내 위치를 쓸 수 없어요. 검색이나 지도에서 골라 주세요.'
+          : '지금 위치를 받지 못했어요. 잠시 뒤 다시 시도하거나 검색으로 골라 주세요.',
       );
   };
 
@@ -560,8 +653,7 @@ function EndpointPicker({
         label="장소 검색"
         value={query}
         onChangeText={setQuery}
-        placeholder="예: 경주역, 첨성대"
-        help="두 글자 이상 입력하면 찾습니다"
+        help="두 글자 이상 입력하면 찾아요"
         onSubmitEditing={() => {
           if (timer.current) clearTimeout(timer.current);
           void run(query);
@@ -570,7 +662,7 @@ function EndpointPicker({
       {error ? <Notice tone="warn" icon="alert" text={error} /> : null}
       <ScrollView style={{ flexGrow: 0, maxHeight: LIST_MAX_H }} contentContainerStyle={{ gap: SP.xs }}>
         {busy ? <Txt v="mtTight">찾는 중</Txt> : null}
-        {found && found.length === 0 && !busy ? <Txt v="mt">{`'${query.trim()}'에 맞는 장소가 없습니다.`}</Txt> : null}
+        {found && found.length === 0 && !busy ? <Txt v="mt">{`'${query.trim()}'에 맞는 장소가 없어요.`}</Txt> : null}
         {found && found.length > 0
           ? found.map((p) => (
               <PickLine
@@ -584,7 +676,7 @@ function EndpointPicker({
           : null}
         {!found ? (
           <>
-            <PickLine icon="locate" title={locBusy ? '내 위치 찾는 중' : ME_NAME} sub="고를 때만 위치를 읽습니다" onPress={() => void pickMe()} />
+            <PickLine icon="locate" title={locBusy ? '내 위치 찾는 중' : ME_NAME} sub="고를 때만 위치를 읽어요" onPress={() => void pickMe()} />
             <PickLine
               icon="map"
               title="지도에서 고르기"
@@ -605,6 +697,12 @@ function EndpointPicker({
 }
 
 const styles = StyleSheet.create({
+  grow: { flex: 1, minWidth: 0 },
+  ends: { paddingHorizontal: SP.gutter, paddingBottom: SP.m, gap: SP.m },
+  endRow: { minHeight: H.fieldSm, justifyContent: 'center' },
+  grabber: { width: H.grabberW, height: H.grabberH, borderRadius: H.grabberH / 2, backgroundColor: surfaceC.grabber, alignSelf: 'center' },
+  quickList: { flexGrow: 0, maxHeight: QUICK_LIST_MAX_H },
+  quickBody: { gap: SP.xs },
   pickBanner: { position: 'absolute', left: SP.gutter, right: SP.gutter, top: 14 },
   modeCell: {
     flex: 1,
@@ -618,5 +716,5 @@ const styles = StyleSheet.create({
     backgroundColor: surfaceC.card,
   },
   modeOn: { borderWidth: 2, borderColor: lineC.accent, paddingVertical: SP.m - 1, paddingHorizontal: SP.m - 1 },
-  pickLine: { flexDirection: 'row', alignItems: 'center', gap: SP.l, paddingVertical: SP.m },
+  pickLine: { flexDirection: 'row', alignItems: 'center', gap: SP.l, paddingVertical: SP.m, minHeight: H.touch },
 });

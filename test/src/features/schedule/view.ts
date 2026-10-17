@@ -1,4 +1,4 @@
-import type { DayPlan, Plan, PlanDiff, PlanStep, Transport, Trip, Visit } from '../../types';
+import type { Adjustment, DayPlan, OpDraft, Plan, PlanDiff, PlanStep, Transport, Trip, Visit } from '../../types';
 import { TRANSPORT_LABEL } from '../../core/constants';
 import { dayShort, humanMin, josa, toHHMM, weekday } from '../../core/util';
 
@@ -67,6 +67,13 @@ export function planningProgress(rows: readonly StepRow[], steps: readonly PlanS
   return v / rows.length;
 }
 
+const STEP_STATE_LABEL: Record<StepState, string> = { done: '완료', active: '진행 중', wait: '대기' };
+
+/** 08 단계 행의 스크린리더 이름 '후보 14곳 위치 확인, 완료'(표시 모양이 아니라 상태를 말로 읽는다) */
+export function stepRowA11y(r: Pick<StepRow, 'label' | 'state'>): string {
+  return `${r.label}, ${STEP_STATE_LABEL[r.state]}`;
+}
+
 /** 선별 규칙 전문(08). 06·07 문구와 같은 규칙이다. */
 export const SELECTION_RULES: string[] = [
   '수용량을 넘으면 제안자가 적은 곳부터 뺍니다. 같으면 늦게 등록된 곳을 뺍니다.',
@@ -76,19 +83,29 @@ export const SELECTION_RULES: string[] = [
   '확정 버튼은 없습니다. 후보가 바뀌면 다시 계산합니다.',
 ];
 
+/**
+ * 08 계산 정보 줄. 수단은 그날 수단(dayTransport: 날짜 설정 → 여행방 기본)이다.
+ * 날짜가 없거나 계획에 없는 날이면 계획의 첫날 기준이다.
+ */
 export function planMeta(trip: Trip, plan: Plan | undefined, date?: string): string[] {
   const out: string[] = [];
+  const day = plan?.days.find((d) => d.date === date) ?? plan?.days[0];
   if (plan) {
     const cache = plan.cacheHits > 0 ? ` · 캐시 ${plan.cacheHits}건` : '';
-    out.push(`경로 조회 ${plan.routeCalls}건${cache} · ${TRANSPORT_LABEL[trip.transport]} 기준`);
+    out.push(`경로 조회 ${plan.routeCalls}건${cache} · ${TRANSPORT_LABEL[dayTransport(trip, day?.date ?? date)]} 기준`);
   }
-  const day = plan?.days.find((d) => d.date === date) ?? plan?.days[0];
   if (day) {
     const base = day.baseSource === 'firstSpot' ? '기점 없음(첫 스팟에서 시작)' : `기점 ${day.base?.name ?? ''}`;
     out.push(`${base} · 활동시간 ${toHHMM(day.startMin)}–${toHHMM(day.endLimitMin)}`);
   }
-  if (plan?.estimated) out.push('일부 구간은 직선거리로 추정했습니다');
+  if (plan?.estimated) out.push('일부 구간은 직선거리로 추정했어요');
   return out;
+}
+
+/** 그날 수단: 날짜 설정의 하루 전체 수단, 없으면 여행방 기본 수단(planner/day와 같은 규칙). 구간 지정은 보지 않는다 */
+export function dayTransport(trip: Pick<Trip, 'transport' | 'days'>, date?: string): Transport {
+  const setting = date ? trip.days.find((d) => d.date === date) : undefined;
+  return setting?.transport ?? trip.transport;
 }
 
 /** 활동시간 초과 안내(09 Notice, 12 미리보기가 같은 문장을 쓴다). 넘친 원인은 빠지지 않는 곳뿐이다 */
@@ -107,6 +124,58 @@ export function newlyExcludedLines(before: readonly string[], plan: Plan): strin
   return plan.excluded
     .filter((e) => !was.has(e.spotId) && (e.reasonCode === 'dayFull' || e.reasonCode === 'tooFar'))
     .map((e) => `${josa(e.name, '이/가')} 제외 스팟이 됐습니다 · ${e.reason}`);
+}
+
+/** 10 머리말 보조 줄 '10월 18일 (일) · 4곳 · 5시간 17분'. 계산 중이면 ' · 계산 중'을 붙인다 */
+export function editHeaderSub(date: string, day: Pick<DayPlan, 'items' | 'usedMin'>, busy: boolean): string {
+  const base = `${dayTitle(date)} · ${day.items.length}곳 · ${humanMin(day.usedMin)}`;
+  return busy ? `${base} · 계산 중` : base;
+}
+
+/** 10 목록 위 순서 줄. 직접 바꾼 순서면 '직접 정함', 아니면 계산한 '이동 짧은 순' */
+export function editOrderLabel(day: Pick<DayPlan, 'orderMethod'>): string {
+  return day.orderMethod === 'manual' ? '순서 · 직접 정함' : '순서 · 이동 짧은 순';
+}
+
+/**
+ * 10 편집 토스트. 카드가 이 날에서 사라지는 편집(다른 날로 옮기기, 빼기)만 알린다('불국사를 10/19로 옮겼어요').
+ * 자동 날짜(null)나 같은 날 지정은 카드가 남을 수 있어 알리지 않는다.
+ */
+export function editToast(trip: Pick<Trip, 'spots'>, date: string, drafts: readonly OpDraft[]): string | undefined {
+  const name = (id: string) => trip.spots.find((s) => s.id === id)?.name ?? id;
+  for (const d of drafts) {
+    if (d.type === 'schedule/setDate' && d.date && d.date !== date) {
+      return `${josa(name(d.spotId), '을/를')} ${josa(dayShort(d.date), '으로/로')} 옮겼어요`;
+    }
+    if (d.type === 'spot/remove') return `${josa(name(d.spotId), '을/를')} 뺐어요. 후보에서 되돌릴 수 있어요`;
+  }
+  return undefined;
+}
+
+/** 10 조정안 적용 토스트. 옮기기·빼기는 editToast, 체류 줄이기는 '대릉원 체류를 60분으로 줄였어요' */
+export function adjustmentToast(trip: Pick<Trip, 'spots'>, date: string, a: Pick<Adjustment, 'kind' | 'label' | 'ops'>): string {
+  const moved = editToast(trip, date, a.ops);
+  if (moved) return moved;
+  return a.kind === 'shortenStay' ? `${a.label} 줄였어요` : `${a.label} 적용했어요`;
+}
+
+/** 조정안 '빼기'의 스팟 이름(확인 시트 제목). 빼기가 아니면 없다 */
+export function excludeTarget(trip: Pick<Trip, 'spots'>, a: Pick<Adjustment, 'kind' | 'ops'>): string | undefined {
+  if (a.kind !== 'exclude') return undefined;
+  const op = a.ops.find((o) => o.type === 'spot/remove');
+  if (!op || op.type !== 'spot/remove') return undefined;
+  return trip.spots.find((s) => s.id === op.spotId)?.name ?? op.spotId;
+}
+
+/** 10 목록 맨 위 초과 WarnCard의 제목과 문장 */
+export function editOverflow(
+  date: string,
+  day: Pick<DayPlan, 'startMin' | 'usedMin' | 'endLimitMin' | 'overMin'>,
+): { title: string; text: string } {
+  return {
+    title: `${dayShort(date)} 수용량을 ${humanMin(day.overMin)} 넘었어요`,
+    text: `이대로 두면 ${toHHMM(day.startMin + day.usedMin)}에 끝나 활동시간(${toHHMM(day.endLimitMin)}까지)을 넘어요. 조정안을 누르면 바로 적용해요.`,
+  };
 }
 
 /* ---------- 09 시간표 ---------- */
@@ -129,11 +198,51 @@ export function daySegLabel(date: string): string {
   return `${dayShort(date)} ${WEEK[weekday(date)]}`;
 }
 
-export function daySummary(day: DayPlan): string {
+/**
+ * 09 요약 줄 '4곳 · 09:00–14:17'. 넘친 시간은 채움 막대('1시간 30분 넘어요')와 WarnCard가 말하므로 여기 붙이지 않는다
+ * (요약 줄은 높이 고정 한 줄이라 360px에서 끝 시각이 잘리지 않게 짧게 둔다)
+ */
+export function daySummary(day: Pick<DayPlan, 'items' | 'startMin' | 'usedMin'>): string {
   if (day.items.length === 0) return '확정 스팟 없음';
   const end = toHHMM(day.startMin + day.usedMin);
-  const over = day.overMin > 0 ? ` · ${humanMin(day.overMin)} 초과` : '';
-  return `${day.items.length}곳 · ${toHHMM(day.startMin)}–${end}${over}`;
+  return `${day.items.length}곳 · ${toHHMM(day.startMin)}–${end}`;
+}
+
+/** 09 초과 WarnCard 문장. 제목('활동시간을 1시간 넘어요')의 시간을 되풀이하지 않고 까닭과 고칠 길만 말한다 */
+export function scheduleOverflowText(): string {
+  return '고정하거나 날짜를 지정한 곳만으로도 활동시간이 모자라요. 조정안으로 체류를 줄이거나 다른 날로 옮길 수 있어요.';
+}
+
+/** 10 도구 카드 도착 Stepper 아래 링크: 지정이 없을 때 계산된 도착 시각을 그대로 한 번에 지정한다 */
+export function arrivePinText(arrive: string): string {
+  return `${arrive} 그대로 지정`;
+}
+
+/** 09 채움 막대. value는 활동시간 중 쓴 몫(0~1), text는 막대 옆 한 줄 */
+export interface DayFill {
+  value: number;
+  over: boolean;
+  text: string;
+}
+
+/** 하루를 얼마나 채웠는지(09 요약 줄 아래 막대). 넘치면 막대는 가득이고 넘친 시간을, 아니면 남은 시간을 적는다 */
+export function dayFill(day: Pick<DayPlan, 'usedMin' | 'capacityMin' | 'overMin'>): DayFill {
+  const cap = day.capacityMin;
+  const value = cap > 0 ? Math.max(0, Math.min(1, day.usedMin / cap)) : day.usedMin > 0 ? 1 : 0;
+  if (day.overMin > 0) return { value: 1, over: true, text: `${humanMin(day.overMin)} 넘어요` };
+  const left = Math.max(0, cap - day.usedMin);
+  return { value, over: false, text: left > 0 ? `${humanMin(left)} 남아요` : '꽉 찼어요' };
+}
+
+/** 활동시간 '활동 09:00–21:00'. 계획이 있으면 계산한 값, 없으면 날짜 설정 → 여행방 기본 */
+export function activityText(
+  trip: Pick<Trip, 'dayStart' | 'dayEnd' | 'days'>,
+  date: string,
+  day?: Pick<DayPlan, 'startMin' | 'endLimitMin'>,
+): string {
+  if (day) return `활동 ${toHHMM(day.startMin)}–${toHHMM(day.endLimitMin)}`;
+  const setting = trip.days.find((d) => d.date === date);
+  return `활동 ${setting?.dayStart ?? trip.dayStart}–${setting?.dayEnd ?? trip.dayEnd}`;
 }
 
 export const VISIT_LABEL: Record<Visit['status'], string> = {
@@ -170,6 +279,47 @@ export function previewSentence(trip: Trip, date: string, transport: Transport, 
   }
   if (!diff.newlyExcluded.length && !diff.newlyConfirmed.length) parts.push('확정·제외는 바뀌지 않습니다');
   return `${parts.join('. ')}.`;
+}
+
+export interface PreviewChip {
+  text: string;
+  tone: 'warn' | 'ok' | 'soft' | 'line';
+}
+
+/**
+ * 12 미리보기 표 한 줄의 칩(이 구간만, 이날 전체). diff는 previewOps 결과.
+ * 그날 시간 차이(+분 warn, -분 ok, 같으면 soft) → 활동시간 초과 → 새로 빠지는 곳 → 돌아오는 곳 순서다.
+ * 확정·제외가 그대로면 '확정·제외 그대로'를 붙인다. 이름은 한 곳일 때만 적고 여러 곳이면 수로 적는다.
+ */
+export function legPreviewChips(trip: Pick<Trip, 'spots'>, date: string, diff: PlanDiff): PreviewChip[] {
+  const name = (id: string) => trip.spots.find((s) => s.id === id)?.name ?? id;
+  const many = (ids: readonly string[]) => (ids.length === 1 ? name(ids[0]) : `${ids.length}곳`);
+  const d = diff.dayDelta.find((x) => x.date === date);
+  const delta = d?.usedMinDelta ?? 0;
+  const out: PreviewChip[] = [
+    delta > 0
+      ? { text: `+${humanMin(delta)}`, tone: 'warn' }
+      : delta < 0
+        ? { text: `-${humanMin(-delta)}`, tone: 'ok' }
+        : { text: '시간 그대로', tone: 'soft' },
+  ];
+  if (d && d.overMin > 0) out.push({ text: `활동시간 ${humanMin(d.overMin)} 넘어요`, tone: 'warn' });
+  if (diff.newlyExcluded.length) out.push({ text: `${many(diff.newlyExcluded)} 빠져요`, tone: 'warn' });
+  if (diff.newlyConfirmed.length) out.push({ text: `${many(diff.newlyConfirmed)} 돌아와요`, tone: 'ok' });
+  if (!diff.newlyExcluded.length && !diff.newlyConfirmed.length) out.push({ text: '확정·제외 그대로', tone: 'line' });
+  return out;
+}
+
+/** 12 Foot 버튼 문구('이 구간만 도보로 바꾸기', '이날 전체를 도보로') */
+export function legApplyLabels(t: Transport): { leg: string; day: string } {
+  const to = josa(TRANSPORT_LABEL[t], '으로/로');
+  return { leg: `이 구간만 ${to} 바꾸기`, day: `이날 전체를 ${to}` };
+}
+
+/** 12 적용 뒤 토스트 한 문장 */
+export function legAppliedToast(scope: 'leg' | 'day', t: Transport): string {
+  const to = josa(TRANSPORT_LABEL[t], '으로/로');
+  return scope === 'leg' ? `이 구간을 ${to} 바꿨어요` : `이날 전체를 ${to} 바꿨어요`;
 }
 
 export function deltaChip(delta: number | null): { text: string; tone: 'warn' | 'ok' | 'soft' } | undefined {

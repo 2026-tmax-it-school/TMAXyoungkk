@@ -10,17 +10,20 @@ import { lineC, R, SP, surfaceC } from './tokens';
 /**
  * 안내 한 줄. line은 범위·시뮬레이터·가정 안내, warn(앰버)은 오류 문구다.
  * 주색을 오류에 쓰지 않는다.
+ * action: 안내에서 바로 할 일(작은 quiet 버튼, 예: '다시 만들기'). 막다른 안내를 두지 않는다.
  */
 export function Notice({
   icon,
   title,
   text,
   tone = 'line',
+  action,
 }: {
   icon?: IconName;
   title?: string;
   text: string;
   tone?: 'line' | 'warn';
+  action?: { label: string; onPress: () => void };
 }) {
   const warn = tone === 'warn';
   return (
@@ -47,13 +50,18 @@ export function Notice({
         <Txt v="mt" c={warn ? 'warn' : 'muted'}>
           {text}
         </Txt>
+        {action ? (
+          <View style={{ alignSelf: 'flex-start', marginTop: SP.s }}>
+            <Btn title={action.label} size="sm" variant="quiet" onPress={action.onPress} />
+          </View>
+        ) : null}
       </View>
     </View>
   );
 }
 
 /**
- * 앰버 경고 카드. 계획 단계의 수용량 초과(10)와 고정 초과 전용이다.
+ * 앰버 경고 카드. 계획 단계의 수용량 초과와 고정 초과(06·09·10) 전용이다.
  * items는 조정안(라벨, 숫자, 누르면 적용)이다. 목업 10: 설명 문장은 앰버, 조정안 행은 warnLine 테두리의
  * 누를 수 있는 행(라운드 9)이고 라벨은 SemiBold 12.5, 값은 warn 칩이다.
  */
@@ -166,4 +174,20 @@ export function Empty({
       ) : null}
     </View>
   );
+}
+
+/**
+ * 찾을 수 없는 화면(지워졌거나 나간 여행방, 없는 스팟). Empty 모양에 주 버튼 '홈으로' 하나다.
+ * 막다른 화면을 두지 않는다. onHome은 보통 navigate('Main', { screen: 'Home' })이다.
+ */
+export function NotFound({
+  title,
+  text = '지워졌거나 더 이상 볼 수 없는 화면이에요.',
+  onHome,
+}: {
+  title: string;
+  text?: string;
+  onHome: () => void;
+}) {
+  return <Empty icon="compass" title={title} text={text} action={{ label: '홈으로', onPress: onHome }} />;
 }

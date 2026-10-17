@@ -32,6 +32,7 @@ import {
 import type { LatLng } from '../../types';
 import { GOOGLE_MAP_STYLE, lineC, mapC, mapPinSvg, R, type PinSpec } from '../../ui';
 import { googleScriptUrl } from './googleScript';
+import { pinLook } from './overlayItems';
 import { ClusterListSheet, FitAllButton, MapChildren, mapHeight, type MapFailReason, type MapViewProps } from './parts';
 
 /**
@@ -239,8 +240,8 @@ function createPinLayer(libs: Libs, on: LayerHandlers) {
       for (const m of singles) {
         const spec: PinSpec =
           m.kind === 'excluded'
-            ? { kind: 'excluded', label: m.label, compact: d.compact }
-            : { kind: 'spot', label: m.label, color: m.color, compact: d.compact };
+            ? { kind: 'excluded', label: m.label, compact: d.compact, ...pinLook(m) }
+            : { kind: 'spot', label: m.label, color: m.color, compact: d.compact, ...pinLook(m) };
         out.push({
           key: `m:${m.id}`,
           kind: 'pin',
@@ -566,7 +567,7 @@ export function GoogleMapView(props: MapViewProps & { onFail: (reason: MapFailRe
           disableDefaultUI: true,
           clickableIcons: false,
           keyboardShortcuts: !p.compact,
-          gestureHandling: p.compact ? 'none' : p.flat ? 'greedy' : 'cooperative',
+          gestureHandling: p.compact ? 'none' : p.flat || p.wheelZoom ? 'greedy' : 'cooperative',
           styles: GOOGLE_MAP_STYLE,
           backgroundColor: mapC.bg,
         });
@@ -580,7 +581,7 @@ export function GoogleMapView(props: MapViewProps & { onFail: (reason: MapFailRe
         s.layer = layer;
 
         map.addListener('dragstart', () => userMoved());
-        s.cleanups.push(bindGestures(el, () => userMoved(), !p.compact && !p.flat));
+        s.cleanups.push(bindGestures(el, () => userMoved(), !p.compact && !p.flat && !p.wheelZoom));
 
         const tiles = watchTiles(map, el, () => {
           console.warn('구글 지도 타일을 받지 못해 이 지도를 기본 지도로 바꿔요(키·결제·API 사용 설정·하루 한도 확인)');
@@ -744,7 +745,7 @@ export function GoogleMapView(props: MapViewProps & { onFail: (reason: MapFailRe
         memberIds={group}
         titleOf={titleOf}
         onClose={() => setGroup(undefined)}
-        onPick={(id) => latest.current.onMarkerPress?.(id)}
+        onPick={(id) => (latest.current.onClusterPick ?? latest.current.onMarkerPress)?.(id)}
       />
       <MapChildren>{props.children}</MapChildren>
     </View>

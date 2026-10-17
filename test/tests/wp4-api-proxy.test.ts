@@ -21,6 +21,7 @@ import {
   osmRouteUrl,
 } from '../src/services/routes';
 import { KAKAO_ROUTES } from '../server/proxy.mjs';
+import { KAKAO_ADDRESS_URL, KAKAO_REGION_CODE_URL } from '../src/services/regions';
 import { fakeFetch, fixedClock, memoryKV, type FakeFetchCall } from './helpers/fakes';
 
 /**
@@ -86,7 +87,7 @@ function assertNoKey(calls: FakeFetchCall[], key?: string) {
 test('카카오 주소와 서버 중계 경로가 짝이 맞다(server/proxy.mjs KAKAO_ROUTES)', () => {
   assert.deepEqual(
     Object.keys(KAKAO_PROXY_PATHS).sort(),
-    [KAKAO_DIRECTIONS_URL, KAKAO_CATEGORY_URL, KAKAO_KEYWORD_URL].sort(),
+    [KAKAO_DIRECTIONS_URL, KAKAO_CATEGORY_URL, KAKAO_KEYWORD_URL, KAKAO_ADDRESS_URL, KAKAO_REGION_CODE_URL].sort(),
   );
   for (const [url, path] of Object.entries(KAKAO_PROXY_PATHS)) {
     const route = KAKAO_ROUTES[path.replace(/^\/kakao\//, '')];
