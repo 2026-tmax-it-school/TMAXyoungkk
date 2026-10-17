@@ -70,12 +70,19 @@ const ICONS = {
   help: [c(12, 12, 8.6), p('M9.6 9.5a2.5 2.5 0 0 1 4.8 1c0 1.7-2.4 2.1-2.4 3.6M12 17h.01')],
   // 27 길찾기 출발·도착 바꾸기(위아래 두 화살)
   swap: [p('M8 19.5V4.5M8 4.5 4.5 8M8 4.5 11.5 8'), p('M16 4.5v15M16 19.5 12.5 16M16 19.5l3.5-3.5')],
+  // 2026-10-11 커뮤니티: 태그(#)와 글쓰기(연필). 같은 선 규칙
+  hash: [p('M9.6 4 8 20M16 4l-1.6 16M4.5 9h15.5M4 15h15.5')],
+  pen: [p('M15.6 4.8a2 2 0 0 1 2.8 0l.8.8a2 2 0 0 1 0 2.8L9 18.6l-4.3 1 1-4.3z'), p('M14 6.4l3.6 3.6')],
+  // 2026-10-12 시트 펼치기·접기(꺾쇠 위아래)와 값 줄이기(Stepper). 같은 선 규칙
+  up: [p('M5 14.5l7-7 7 7')],
+  down: [p('M5 9.5l7 7 7-7')],
+  minus: [p('M5 12h14')],
 } satisfies Record<string, Shape[]>;
 
 export type IconName = keyof typeof ICONS;
 export const ICON_NAMES = Object.keys(ICONS) as IconName[];
 
-const DEFAULT_STROKE: Partial<Record<IconName, number>> = { back: 1.8, right: 2.2 };
+const DEFAULT_STROKE: Partial<Record<IconName, number>> = { back: 1.8, right: 2.2, up: 2.2, down: 2.2 };
 
 export function Icon({
   name,

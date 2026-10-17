@@ -1,4 +1,4 @@
-import type { DayPlan, ItemNotice, Transport, Visit } from '../../types';
+import type { Category, DayPlan, ItemNotice, Spot, Transport, Visit } from '../../types';
 import { returnLegOf } from '../../core/planner/day';
 import { toHHMM, toMin } from '../../core/util';
 
@@ -10,6 +10,8 @@ import { toHHMM, toMin } from '../../core/util';
  * - 활동시간을 넘는 스팟은 carryOver(다음 날 이월 제안)로 표시한다
  * - 방문 상태(19 여행 진행)는 visitStatus로 받는다
  * - 복귀 줄의 수단·추정과 복귀 행의 대체 안내는 계획의 복귀 구간 값(returnLegOf)을 쓴다. 없으면(예전 계획) 마지막 도착 구간 값
+ * - 스팟 행은 시각 열 두 줄(도착 time, 떠나는 depart)과 보조 줄 '관광지 · 체류 90분'(spotSubLine)을 그린다.
+ *   카테고리는 계획 항목에 없어 문서의 스팟(spots)에서 찾는다. 스팟을 못 찾으면 카테고리 없이 '체류 90분'만 적는다
  */
 
 export type TimelineRow =
@@ -23,6 +25,8 @@ export type TimelineRow =
       time: string;
       depart: string;
       title: string;
+      /** 문서 스팟의 카테고리. spots를 넘기지 않았거나 스팟이 없으면 없다 */
+      category?: Category;
       stayMin: number;
       pinned: boolean;
       proposerCount: number;
@@ -40,8 +44,13 @@ export function baseSub(day: DayPlan): string {
   return '기점 · 출발';
 }
 
-export function timelineRows(day: DayPlan, visitStatus?: Record<string, Visit['status']>): TimelineRow[] {
+export function timelineRows(
+  day: DayPlan,
+  visitStatus?: Record<string, Visit['status']>,
+  spots?: readonly Pick<Spot, 'id' | 'category'>[],
+): TimelineRow[] {
   const rows: TimelineRow[] = [];
+  const categoryOf = new Map((spots ?? []).map((s) => [s.id, s.category]));
   const noBase = day.baseSource === 'firstSpot';
   if (!noBase || day.items.length === 0) {
     rows.push({
@@ -73,6 +82,7 @@ export function timelineRows(day: DayPlan, visitStatus?: Record<string, Visit['s
       time: it.arrive,
       depart: it.depart,
       title: it.name,
+      category: categoryOf.get(it.spotId),
       stayMin: it.stayMin,
       pinned: it.pinned,
       proposerCount: it.proposerCount,
@@ -106,6 +116,12 @@ export function timelineRows(day: DayPlan, visitStatus?: Record<string, Visit['s
     rows.push({ kind: 'end', key: 'day-end', time: last.depart, title: '여기서 일정 끝 · 복귀 없음' });
   }
   return rows;
+}
+
+/** 스팟 카드 보조 줄 '관광지 · 체류 90분'(카테고리가 없으면 '체류 90분') */
+export function spotSubLine(row: { category?: Category; stayMin: number }): string {
+  const stay = `체류 ${row.stayMin}분`;
+  return row.category ? `${row.category} · ${stay}` : stay;
 }
 
 /** 이동수단 아이콘 이름 */

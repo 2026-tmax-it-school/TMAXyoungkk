@@ -2,11 +2,14 @@ import React, { useState } from 'react';
 import { Image, Pressable, View } from 'react-native';
 
 import type { CommunityPhoto, CommunityPost } from '../../../core/ports';
-import { KIND_LABEL, timeAgo } from '../../../core/community';
-import { Card, Chip, Col, Icon, R, Row, SP, surfaceC, Txt } from '../../../ui';
+import { timeAgo } from '../../../core/community';
+import { Avatar, Card, Col, Icon, R, Row, SP, surfaceC, Txt } from '../../../ui';
+import { PhotoViewer } from './PhotoViewer';
 
 /**
- * 커뮤니티 글 카드(WP6 소유). 닉네임·시각·종류, 제목, 본문(길면 접기), 사진 격자, 내 글이면 삭제.
+ * 커뮤니티 글 카드(WP6 소유). 닉네임·시각, 사진, 제목, 본문(길면 접기), 태그, 내 글이면 삭제.
+ * 2026-10-11: 사진·일기 종류 칩을 없앴다(글은 한 가지). 사진이 먼저 보이게 위로 올리고, 누르면 크게 본다(PhotoViewer).
+ * 태그를 누르면 그 태그로 피드를 거른다(onTagPress). 지금 거르는 태그는 진하게 보인다.
  * 사진은 한 장이면 가로 가득 4:3, 여러 장이면 두 칸 격자다. 사진 주소는 부르는 쪽이 만든다(photoUri).
  */
 
@@ -14,16 +17,32 @@ import { Card, Chip, Col, Icon, R, Row, SP, surfaceC, Txt } from '../../../ui';
 const FOLD_AT = 140;
 const PHOTO_ROW = 2;
 
-function PhotoGrid({ photos, uri, name }: { photos: CommunityPhoto[]; uri: (p: CommunityPhoto) => string; name: string }) {
+function PhotoGrid({
+  photos,
+  uri,
+  name,
+  onOpen,
+}: {
+  photos: CommunityPhoto[];
+  uri: (p: CommunityPhoto) => string;
+  name: string;
+  onOpen: (i: number) => void;
+}) {
   if (photos.length === 0) return null;
   const tile = (p: CommunityPhoto, i: number, ratio: number) => (
-    <Image
+    <Pressable
       key={p.id}
-      source={{ uri: uri(p) }}
-      accessibilityIgnoresInvertColors
-      accessibilityLabel={`${name}의 사진 ${i + 1}`}
-      style={{ flex: 1, aspectRatio: ratio, borderRadius: R.photo, backgroundColor: surfaceC.off }}
-    />
+      accessibilityRole="imagebutton"
+      accessibilityLabel={`${name}의 사진 ${i + 1} 크게 보기`}
+      onPress={() => onOpen(i)}
+      style={{ flex: 1 }}
+    >
+      <Image
+        source={{ uri: uri(p) }}
+        accessibilityIgnoresInvertColors
+        style={{ width: '100%', aspectRatio: ratio, borderRadius: R.photo, backgroundColor: surfaceC.off }}
+      />
+    </Pressable>
   );
   if (photos.length === 1) return <View style={{ flexDirection: 'row' }}>{tile(photos[0], 0, 4 / 3)}</View>;
   const rows: CommunityPhoto[][] = [];
@@ -40,31 +59,61 @@ function PhotoGrid({ photos, uri, name }: { photos: CommunityPhoto[]; uri: (p: C
   );
 }
 
+/** 글 카드의 태그 하나. 누르면 그 태그로 거른다 */
+function TagLink({ tag, on, onPress }: { tag: string; on: boolean; onPress: () => void }) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ selected: on }}
+      accessibilityLabel={on ? `#${tag} 태그로 거르는 중` : `#${tag} 태그 글만 보기`}
+      onPress={onPress}
+      hitSlop={6}
+    >
+      <Txt v={on ? 'mtSemi' : 'mtTight'} c={on ? 'accent' : 'muted'}>{`#${tag}`}</Txt>
+    </Pressable>
+  );
+}
+
 export function PostCard({
   post,
   now,
   photoUri,
+  activeTag,
+  onTagPress,
   onDelete,
 }: {
   post: CommunityPost;
   now: number;
   photoUri: (p: CommunityPhoto) => string;
+  /** 지금 피드를 거르는 태그(없으면 null) */
+  activeTag?: string | null;
+  onTagPress?: (tag: string) => void;
   onDelete: (post: CommunityPost) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [viewing, setViewing] = useState<number | null>(null);
   const long = post.body.length > FOLD_AT;
   return (
     <Card>
       <Col gap={SP.l}>
         <Row gap={SP.m}>
+          <Avatar name={post.authorNickname} index={0} />
           <Col grow gap={SP.xs}>
             <Txt v="nm" numberOfLines={1}>
               {post.authorNickname}
             </Txt>
             <Txt v="mtTight">{timeAgo(post.createdAt, now)}</Txt>
           </Col>
-          <Chip text={KIND_LABEL[post.kind]} tone="line" icon={post.kind === 'photo' ? 'camera' : 'book'} />
+          {post.mine ? (
+            <Pressable accessibilityRole="button" accessibilityLabel="내 글 삭제" onPress={() => onDelete(post)} hitSlop={8}>
+              <Row gap={SP.xs}>
+                <Icon name="trash" size={14} color="muted" />
+                <Txt v="mtTight">삭제</Txt>
+              </Row>
+            </Pressable>
+          ) : null}
         </Row>
+        <PhotoGrid photos={post.photos} uri={photoUri} name={post.authorNickname} onOpen={setViewing} />
         {post.title ? <Txt v="nmLg">{post.title}</Txt> : null}
         {post.body ? (
           <Col gap={SP.xs}>
@@ -72,7 +121,7 @@ export function PostCard({
               {post.body}
             </Txt>
             {long ? (
-              <Pressable accessibilityRole="button" accessibilityLabel={open ? '접기' : '더 보기'} onPress={() => setOpen(!open)} hitSlop={8}>
+              <Pressable accessibilityRole="button" accessibilityLabel={open ? '본문 접기' : '본문 더 보기'} onPress={() => setOpen(!open)} hitSlop={8}>
                 <Txt v="time" c="accent">
                   {open ? '접기' : '더 보기'}
                 </Txt>
@@ -80,19 +129,24 @@ export function PostCard({
             ) : null}
           </Col>
         ) : null}
-        <PhotoGrid photos={post.photos} uri={photoUri} name={post.authorNickname} />
-        {post.mine ? (
-          <Row>
-            <View style={{ flex: 1 }} />
-            <Pressable accessibilityRole="button" accessibilityLabel="내 글 삭제" onPress={() => onDelete(post)} hitSlop={8}>
-              <Row gap={SP.xs}>
-                <Icon name="trash" size={14} color="muted" />
-                <Txt v="mtTight">삭제</Txt>
-              </Row>
-            </Pressable>
+        {post.tags.length > 0 ? (
+          <Row gap={SP.l} wrap>
+            {post.tags.map((t) => (
+              <TagLink key={t} tag={t} on={activeTag === t} onPress={() => onTagPress?.(t)} />
+            ))}
           </Row>
         ) : null}
       </Col>
+      {post.photos.length > 0 ? (
+        <PhotoViewer
+          visible={viewing != null}
+          photos={post.photos}
+          index={viewing ?? 0}
+          name={post.authorNickname}
+          uri={photoUri}
+          onClose={() => setViewing(null)}
+        />
+      ) : null}
     </Card>
   );
 }

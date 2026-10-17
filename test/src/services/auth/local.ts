@@ -91,7 +91,7 @@ const LINK_TTL_MS = 10 * 60 * 1000;
 const RESET_TTL_MS = 30 * 60 * 1000;
 const isReset = (m: MockMail) => m.kind === 'reset';
 /** 로그인 실패 문구. 아이디가 없든 비밀번호가 틀렸든 같다(계정 서버와 같은 문구) */
-const BAD_LOGIN = '아이디(이메일·닉네임)나 비밀번호가 맞지 않습니다';
+const BAD_LOGIN = '아이디(이메일·닉네임)나 비밀번호가 맞지 않아요';
 
 function emptyDb(): AuthDb {
   return { accounts: [], mails: [], links: [], attempts: {}, socialAccounts: {} };
@@ -174,7 +174,7 @@ export function createLocalAuth(opts: { clock: Clock; rng: Rng; hasher: Hasher; 
     return {
       ok: false,
       code: 'duplicateEmail',
-      detail: `이 ${PROVIDER_LABEL[provider]} 계정은 이미 다른 Young Trip 계정(${other.nickname})에 묶여 있어 연결할 수 없습니다`,
+      detail: `이 ${PROVIDER_LABEL[provider]} 계정은 이미 다른 Young Trip 계정(${other.nickname})에 묶여 있어 연결할 수 없어요`,
     };
   }
 
@@ -188,7 +188,7 @@ export function createLocalAuth(opts: { clock: Clock; rng: Rng; hasher: Hasher; 
     async signUp({ email, password, nickname, userId }): Promise<AuthResult> {
       const db = await load();
       const e = normalizeEmail(email);
-      if (!isEmailLike(e)) return { ok: false, code: 'badCredentials', detail: '이메일 형식이 아닙니다' };
+      if (!isEmailLike(e)) return { ok: false, code: 'badCredentials', detail: '이메일 형식이 아니에요' };
       // 게스트 승격은 userId를 유지하므로 게스트 하나에 계정 하나다. 인증을 마친 계정이 있으면 거부하고,
       // 아직 인증하지 않은 가입(오타 이메일 등)은 이번 가입으로 대체한다(그 주소의 인증 메일도 무효).
       const prior = userId ? db.accounts.find((a) => a.userId === userId) : undefined;
@@ -196,12 +196,12 @@ export function createLocalAuth(opts: { clock: Clock; rng: Rng; hasher: Hasher; 
         return {
           ok: false,
           code: 'duplicateEmail',
-          detail: `이 게스트는 이미 ${prior.email} 계정으로 승격했습니다. 그 계정으로 로그인해 주세요`,
+          detail: `이 게스트는 이미 ${prior.email} 계정으로 승격했어요. 그 계정으로 로그인해 주세요`,
         };
       }
       const others = db.accounts.filter((a) => a !== prior);
       if (others.some((a) => a.email === e)) {
-        return { ok: false, code: 'duplicateEmail', detail: '이미 가입한 이메일입니다. 로그인하거나 인증 메일을 다시 받아 주세요' };
+        return { ok: false, code: 'duplicateEmail', detail: '이미 가입한 이메일이에요. 로그인하거나 인증 메일을 다시 받아 주세요' };
       }
       const violations = passwordViolations(password);
       if (violations.length > 0) {
@@ -210,7 +210,7 @@ export function createLocalAuth(opts: { clock: Clock; rng: Rng; hasher: Hasher; 
       const nickProblem = nicknameProblem(nickname);
       if (nickProblem) return { ok: false, code: 'badCredentials', detail: nickProblem };
       if (nicknameTaken(db, nickname, prior?.accountId)) {
-        return { ok: false, code: 'nicknameTaken', detail: '이미 쓰는 닉네임입니다' };
+        return { ok: false, code: 'nicknameTaken', detail: '이미 쓰는 닉네임이에요' };
       }
       if (prior) {
         for (const m of db.mails) if (m.to === prior.email) m.invalidated = true;
@@ -241,8 +241,8 @@ export function createLocalAuth(opts: { clock: Clock; rng: Rng; hasher: Hasher; 
       const db = await load();
       const e = normalizeEmail(email);
       const acc = db.accounts.find((a) => a.email === e);
-      if (!acc) return { ok: false, code: 'notFound', detail: '가입한 이메일이 아닙니다' };
-      if (acc.verified) return { ok: false, code: 'invalidToken', detail: '이미 인증을 마친 계정입니다' };
+      if (!acc) return { ok: false, code: 'notFound', detail: '가입한 이메일이 아니에요' };
+      if (acc.verified) return { ok: false, code: 'invalidToken', detail: '이미 인증을 마친 계정이에요' };
       sendVerification(db, e);
       await save(db);
       return { ok: true };
@@ -252,7 +252,7 @@ export function createLocalAuth(opts: { clock: Clock; rng: Rng; hasher: Hasher; 
       const db = await load();
       const mail = db.mails.find((m) => m.token === t && !isReset(m));
       if (!mail || mail.invalidated) {
-        return { ok: false, code: 'invalidToken', detail: '쓸 수 없는 인증 링크입니다. 가장 최근 메일로 인증해 주세요' };
+        return { ok: false, code: 'invalidToken', detail: '쓸 수 없는 인증 링크예요. 가장 최근 메일로 인증해 주세요' };
       }
       const acc = db.accounts.find((a) => a.email === mail.to);
       if (!acc) return { ok: false, code: 'notFound' };
@@ -271,7 +271,7 @@ export function createLocalAuth(opts: { clock: Clock; rng: Rng; hasher: Hasher; 
           ok: false,
           code: 'deviceLimited',
           retryAt: device.retryAt,
-          detail: '이 기기에서 10분 안에 로그인을 20번 넘게 시도했습니다',
+          detail: '이 기기에서 10분 안에 로그인을 20번 넘게 시도했어요',
         };
       }
       db.attempts[deviceToken] = [...pruneAttempts(db.attempts[deviceToken] ?? [], now), now];
@@ -290,17 +290,17 @@ export function createLocalAuth(opts: { clock: Clock; rng: Rng; hasher: Hasher; 
       acc.lock = settleLock(acc.lock, now);
       if (isLocked(acc.lock, now)) {
         await save(db);
-        return { ok: false, code: 'locked', retryAt: acc.lock.lockedUntil, detail: '5회 연속 틀려 10분 동안 잠겼습니다' };
+        return { ok: false, code: 'locked', retryAt: acc.lock.lockedUntil, detail: '5회 연속 틀려 10분 동안 잠겼어요' };
       }
       if (!acc.salt || !acc.hash) {
         await save(db);
-        return { ok: false, code: 'badCredentials', detail: '소셜 로그인으로 만든 계정입니다. 카카오·구글로 로그인해 주세요' };
+        return { ok: false, code: 'badCredentials', detail: '소셜 로그인으로 만든 계정이에요. 카카오·구글로 로그인해 주세요' };
       }
       if ((await hashOf(acc.salt, password)) !== acc.hash) {
         acc.lock = registerFailure(acc.lock, now);
         await save(db);
         if (isLocked(acc.lock, now)) {
-          return { ok: false, code: 'locked', retryAt: acc.lock.lockedUntil, detail: '5회 연속 틀려 10분 동안 잠겼습니다' };
+          return { ok: false, code: 'locked', retryAt: acc.lock.lockedUntil, detail: '5회 연속 틀려 10분 동안 잠겼어요' };
         }
         return {
           ok: false,
@@ -311,7 +311,7 @@ export function createLocalAuth(opts: { clock: Clock; rng: Rng; hasher: Hasher; 
       acc.lock = { fails: 0 };
       if (!acc.verified) {
         await save(db);
-        return { ok: false, code: 'unverified', detail: '이메일 인증을 마쳐야 로그인할 수 있습니다' };
+        return { ok: false, code: 'unverified', detail: '이메일 인증을 마쳐야 로그인할 수 있어요' };
       }
       await save(db);
       return { ok: true, account: toPublic(acc) };
@@ -321,7 +321,7 @@ export function createLocalAuth(opts: { clock: Clock; rng: Rng; hasher: Hasher; 
       const { provider, scenario } = input;
       const label = PROVIDER_LABEL[provider];
       if (scenario === 'fail') {
-        return { ok: false, code: 'providerFailed', detail: `${label} 응답을 받지 못했습니다. 잠시 뒤 다시 시도해 주세요` };
+        return { ok: false, code: 'providerFailed', detail: `${label} 응답을 받지 못했어요. 잠시 뒤 다시 시도해 주세요` };
       }
       const db = await load();
       const now = clock.now();
@@ -329,7 +329,7 @@ export function createLocalAuth(opts: { clock: Clock; rng: Rng; hasher: Hasher; 
       // 17 연결: 지금 계정에만 붙인다. 동의 화면 자체가 확인이라 linkRequired를 한 번 더 거치지 않는다.
       if (input.linkToAccountId != null) {
         const target = db.accounts.find((a) => a.accountId === input.linkToAccountId);
-        if (!target) return { ok: false, code: 'notFound', detail: '지금 계정을 찾지 못했습니다. 다시 로그인해 주세요' };
+        if (!target) return { ok: false, code: 'notFound', detail: '지금 계정을 찾지 못했어요. 다시 로그인해 주세요' };
         const other = boundElsewhere(db, provider, target.accountId);
         if (other) return boundFail(provider, other);
         if (!target.providers.includes(provider)) target.providers.push(provider);
@@ -346,13 +346,13 @@ export function createLocalAuth(opts: { clock: Clock; rng: Rng; hasher: Hasher; 
         }
         const target = db.accounts.find((a) => a.email === e && a.providers.includes('email'));
         if (!target) {
-          return { ok: false, code: 'notFound', detail: `${e}로 가입한 이메일 계정이 없습니다. 정상을 고르면 새 소셜 계정을 만듭니다` };
+          return { ok: false, code: 'notFound', detail: `${e}로 가입한 이메일 계정이 없어요. 정상을 고르면 새 소셜 계정을 만들어요` };
         }
         if (target.providers.includes(provider) && db.socialAccounts[provider] === target.accountId) {
           return { ok: true, account: toPublic(target) };
         }
         if (!target.verified) {
-          return { ok: false, code: 'unverified', detail: `${e} 계정은 아직 이메일 인증 전입니다. 인증을 마친 뒤 연결할 수 있습니다` };
+          return { ok: false, code: 'unverified', detail: `${e} 계정은 아직 이메일 인증 전이에요. 인증을 마친 뒤 연결할 수 있어요` };
         }
         const other = boundElsewhere(db, provider, target.accountId);
         if (other) return boundFail(provider, other);
@@ -363,7 +363,7 @@ export function createLocalAuth(opts: { clock: Clock; rng: Rng; hasher: Hasher; 
           ok: false,
           code: 'linkRequired',
           linkToken: link.token,
-          detail: `${target.email}으로 가입한 계정이 있습니다. ${label} 로그인을 이 계정에 연결할까요?`,
+          detail: `${target.email}으로 가입한 계정이 있어요. ${label} 로그인을 이 계정에 연결할까요?`,
         };
       }
       const existingId = db.socialAccounts[provider];
@@ -394,7 +394,7 @@ export function createLocalAuth(opts: { clock: Clock; rng: Rng; hasher: Hasher; 
       db.links = db.links.filter((l) => l.token !== linkToken);
       if (!link) {
         await save(db);
-        return { ok: false, code: 'invalidToken', detail: '연동 확인 시간이 지났습니다. 소셜 로그인을 다시 시작해 주세요' };
+        return { ok: false, code: 'invalidToken', detail: '연동 확인 시간이 지났어요. 소셜 로그인을 다시 시작해 주세요' };
       }
       const acc = db.accounts.find((a) => a.accountId === link.accountId);
       if (!acc) {
@@ -403,12 +403,12 @@ export function createLocalAuth(opts: { clock: Clock; rng: Rng; hasher: Hasher; 
       }
       if (!accept) {
         await save(db);
-        return { ok: false, code: 'linkRequired', detail: '연결하지 않았습니다. 기존 계정은 이메일로 로그인할 수 있습니다' };
+        return { ok: false, code: 'linkRequired', detail: '연결하지 않았어요. 기존 계정은 이메일로 로그인할 수 있어요' };
       }
       // 미인증 계정은 연결하지 않는다(이메일 인증을 소셜 연결로 건너뛰지 않는다).
       if (!acc.verified) {
         await save(db);
-        return { ok: false, code: 'unverified', detail: '이 이메일 계정은 아직 인증 전입니다. 인증을 마친 뒤 연결해 주세요' };
+        return { ok: false, code: 'unverified', detail: '이 이메일 계정은 아직 인증 전이에요. 인증을 마친 뒤 연결해 주세요' };
       }
       const other = boundElsewhere(db, link.provider, acc.accountId);
       if (other) {
@@ -430,7 +430,7 @@ export function createLocalAuth(opts: { clock: Clock; rng: Rng; hasher: Hasher; 
       const acc = db.accounts.find((a) => a.accountId === accountId);
       if (!acc) return { ok: false, code: 'notFound' };
       if (patch.nickname != null && nicknameTaken(db, patch.nickname, accountId)) {
-        return { ok: false, code: 'nicknameTaken', detail: '이미 쓰는 닉네임입니다' };
+        return { ok: false, code: 'nicknameTaken', detail: '이미 쓰는 닉네임이에요' };
       }
       acc.profile = { ...acc.profile, ...patch, tags: [...(patch.tags ?? acc.profile.tags)] };
       if (patch.nickname != null) acc.nickname = patch.nickname.trim();
@@ -460,7 +460,7 @@ export function createLocalAuth(opts: { clock: Clock; rng: Rng; hasher: Hasher; 
     async requestPasswordReset(email): Promise<AuthAck> {
       const db = await load();
       const e = normalizeEmail(email);
-      if (!isEmailLike(e)) return { ok: false, code: 'badCredentials', detail: '이메일 형식이 아닙니다' };
+      if (!isEmailLike(e)) return { ok: false, code: 'badCredentials', detail: '이메일 형식이 아니에요' };
       const acc = db.accounts.find((a) => a.email === e);
       if (acc?.salt && acc.hash) {
         for (const m of db.mails) if (m.to === e && isReset(m)) m.invalidated = true;
@@ -486,7 +486,7 @@ export function createLocalAuth(opts: { clock: Clock; rng: Rng; hasher: Hasher; 
       const mail = db.mails.find((m) => m.token === t && isReset(m) && !m.invalidated && now - m.sentAt < RESET_TTL_MS);
       const acc = mail ? db.accounts.find((a) => a.email === mail.to) : undefined;
       if (!mail || !acc) {
-        return { ok: false, code: 'invalidToken', detail: '쓸 수 없는 재설정 링크입니다. 재설정 메일을 다시 받아 주세요' };
+        return { ok: false, code: 'invalidToken', detail: '쓸 수 없는 재설정 링크예요. 재설정 메일을 다시 받아 주세요' };
       }
       mail.invalidated = true;
       acc.salt = token();

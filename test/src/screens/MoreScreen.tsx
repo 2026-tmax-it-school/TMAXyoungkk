@@ -1,38 +1,47 @@
 import React, { useState } from 'react';
-import { Pressable, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 import { isSeeding, resetDemo, seedScenario, type SeedProgress } from '../demo/tools';
 import type { ScenarioStage } from '../demo/scenarioSteps';
 import { signOutFlow } from '../features/account/flows';
-import { NOTIFY_ROWS, PERMISSION_LABEL, providerNotice, retentionText, sessionSummary } from '../features/account/settings';
+import {
+  heroLine,
+  notifySummary,
+  NOTIFY_ROWS,
+  PERMISSION_LABEL,
+  providerNotice,
+  recordCounts,
+  recordTileLabels,
+  retentionShort,
+  retentionText,
+  sessionSummary,
+} from '../features/account/settings';
+import { useActiveTrip } from '../features/trip/useActiveTrip';
 import { SCREEN_META, type RootStackParamList, type TabScreenProps } from '../navigation/routes';
 import { useNow } from '../services/clock';
 import { describeServices } from '../services/registry';
 import { useLive } from '../store/live';
 import { useSession } from '../store/session';
-import { useCurrentTrip, useTrips } from '../store/trips';
+import { useTrips } from '../store/trips';
 import { useUi } from '../store/ui';
 import {
   Body,
   Btn,
-  Card,
   Chip,
   Choice,
   Col,
   ConfirmSheet,
   FeatureTile,
+  H,
   Icon,
   ListRow,
-  lineC,
   ProfileHero,
-  Notice,
   ProgressBar,
   Row,
   Screen,
- 
+  Sheet,
   SP,
   Txt,
-  type IconName,
 } from '../ui';
 
 type TripRoute =
@@ -50,17 +59,7 @@ type TripRoute =
   | 'Members'
   | 'TripSettings';
 
-/** 여행방 진입점(목업 18). */
-const TRIP_ENTRIES: { route: TripRoute; label: string; icon: IconName }[] = [
-  { route: 'Members', label: '멤버 · 초대 링크', icon: 'users' },
-  { route: 'LiveTrip', label: '여행 진행 · 시뮬레이터', icon: 'play' },
-  { route: 'Recommend', label: '여행지 추천', icon: 'search' },
-  { route: 'Photos', label: '사진', icon: 'camera' },
-  { route: 'Diary', label: '일기', icon: 'book' },
-  { route: 'RecordMap', label: '기록 지도', icon: 'map' },
-];
-
-/** 시연 도구의 화면 목록(번호순). 위 진입점에 없는 화면까지 전부 연다. */
+/** 시연 도구의 화면 목록(번호순). 탭과 홈에서 닿지 않는 화면까지 전부 연다. */
 const ALL_TRIP_ROUTES: TripRoute[] = [
   'Chat',
   'SpotDetail',
@@ -89,25 +88,28 @@ const SEED_ROWS: { key: ScenarioStage; label: string }[][] = [
   ],
 ];
 
+type OpenSheet = 'notify' | 'retention' | null;
+
 /**
- * 18 더보기 · 설정 · 시연 도구(WP1 소유). 탭 라벨은 '프로필'이다.
- * - 2026-10-10 리디자인: 큰 '프로필' 제목, 프로필 머리 카드(연보라 원), 두 칸 타일(여행 진행·멤버),
- *   그 아래 꺾쇠 목록 줄(ListRow). 설정·시연 도구 카드는 그 뒤에 그대로 둔다.
- * - 진입점: 멤버, 여행방 설정, 여행 진행(19), 추천(23), 기록(20~22), 계정(15~17).
- * - 설정: 알림 유형별 끄기(notifyPrefs), 위치 권한 상태와 기기 위치 사용, 그룹원 위치 공유 '꺼짐 · 미결정',
- *   제공자 상태(describeServices, 카카오 키 유무와 '국내 SDK 선정 미결정'), 세션 만료와 토큰 끝 4자리,
- *   데이터 보존 안내(종료 후 1년).
- * - 시연 도구: 시연 리셋(확인 1회), 시나리오 채우기(단계 선택, 진행 표시), 네트워크 끊기 토글, 화면 목록.
- *   채우는 동안에는 리셋을 막는다. 다시 채우면 이전 시나리오 방은 지우고 새로 만든다.
- * - 켜고 끄는 줄(ToggleRow)은 줄 전체가 스위치다(접근성 이름 = 항목 이름). 켜짐은 주색 채움이 아니라
- *   tint 칩으로 보인다. 주색 채움은 주 버튼에만 쓴다.
+ * 18 프로필 탭 · 설정 · 시연 도구(WP1 소유). 탭 라벨은 '프로필'이다.
+ * 위에서부터
+ * 1. 큰 제목 '프로필'
+ * 2. 프로필 머리 한 줄(ProfileHero row) → 내 프로필(17)
+ * 3. 지금 보는 여행방이 있으면 '내 여행 기록' 타일 3칸(사진 N장 · 일기 N일 · 기록 지도). 방은 useActiveTrip이 정한다.
+ * 4. '설정': 알림(유형별 끄기는 시트 안 스위치 4줄), 기기 위치 사용(스위치, sub는 권한 상태), 데이터 보존(안내 시트)
+ * 5. '계정': 게스트는 계정 만들기와 다른 계정으로 로그인, 계정은 로그아웃(확인 1회)
+ * 6. 맨 아래 접힌 '시연 도구': 시나리오 채우기, 오프라인 흉내(시연) 스위치, 시연 리셋(확인 1회), 제공자 상태, 화면 목록.
+ *    채우는 동안에는 리셋을 막는다. 다시 채우면 이전 시나리오 방은 지우고 새로 만든다.
+ * 켜고 끄는 줄은 ListRow switch(줄 전체가 스위치, 접근성 이름 = 항목 이름)로 그린다.
+ * 여행방 바로가기 목록은 두지 않는다(여행방 일은 홈의 선택한 여행방 구역과 일정·지도 탭 맨 위 TripBar에서 한다).
  */
 export default function MoreScreen({ navigation }: TabScreenProps<'More'>) {
-  const trip = useCurrentTrip();
+  const { trip } = useActiveTrip();
   const online = useTrips((s) => s.online);
   const setOnline = useTrips((s) => s.setOnline);
   const showToast = useUi((s) => s.showToast);
   const session = useSession((s) => s.session);
+  const profile = useSession((s) => s.profile);
   const notifyPrefs = useSession((s) => s.notifyPrefs);
   const setNotifyPref = useSession((s) => s.setNotifyPref);
   const useDeviceLocation = useSession((s) => s.useDeviceLocation);
@@ -119,10 +121,14 @@ export default function MoreScreen({ navigation }: TabScreenProps<'More'>) {
   const [seeding, setSeeding] = useState<SeedProgress | null>(null);
   const [confirmReset, setConfirmReset] = useState(false);
   const [confirmSignOut, setConfirmSignOut] = useState(false);
+  const [sheet, setSheet] = useState<OpenSheet>(null);
+  // 시연 도구는 처음에 접혀 있다(실제 기능과 같은 무게로 두지 않는다)
+  const [demoOpen, setDemoOpen] = useState(false);
   const [showScreens, setShowScreens] = useState(false);
 
   const summary = sessionSummary(session, now);
-  const services = describeServices();
+  const isAccount = session?.kind === 'account';
+  const records = trip ? recordTileLabels(recordCounts(trip)) : undefined;
 
   const open = (route: TripRoute) => {
     if (!trip) return;
@@ -150,213 +156,186 @@ export default function MoreScreen({ navigation }: TabScreenProps<'More'>) {
     setSeeding({ done: 0, total: 1, label: '시작하는 중' });
     try {
       await seedScenario(stage, { onProgress: setSeeding });
-      showToast('경주 2박 3일 시나리오 여행방을 채웠습니다');
+      showToast('경주 2박 3일 시나리오 여행방을 채웠어요');
     } catch (e) {
-      showToast(`시나리오를 채우지 못했습니다: ${String(e)}`, 'warn');
+      showToast(`시나리오를 채우지 못했어요: ${String(e)}`, 'warn');
     } finally {
       setSeeding(null);
     }
   };
 
+  const soonChip = summary.soon ? <Chip text="곧 만료" tone="warn" /> : undefined;
+
   return (
     <Screen>
       <Body scroll>
-        <Txt v="hero" style={{ paddingTop: SP.l }}>
-          프로필
-        </Txt>
+        <View accessibilityRole="header" style={styles.hero}>
+          <Txt v="hero">프로필</Txt>
+        </View>
 
         <ProfileHero
-          name={session?.nickname ?? ''}
-          sub={session?.kind === 'account' ? '계정' : '게스트'}
+          variant="row"
+          name={profile.nickname || session?.nickname || ''}
+          sub={heroLine(session, now)}
+          imageUri={profile.imageUri}
           onPress={() => navigation.navigate('Profile')}
         />
 
-        <Row gap={SP.xl}>
-          <FeatureTile
-            icon="play"
-            label="여행 진행"
-            disabled={!trip}
-            onPress={() => open('LiveTrip')}
-          />
-          <FeatureTile icon="users" label="멤버 초대" disabled={!trip} onPress={() => open('Members')} />
-        </Row>
+        {trip && records ? (
+          <Col gap={SP.xl}>
+            <Col gap={SP.xs}>
+              <Txt v="section">내 여행 기록</Txt>
+              <Txt v="mt">{trip.title}</Txt>
+            </Col>
+            <Row gap={SP.l} style={styles.stretch}>
+              <FeatureTile
+                icon="camera"
+                label={records.photos}
+                onPress={() => navigation.navigate('Photos', { tripId: trip.id })}
+              />
+              <FeatureTile icon="book" label={records.diary} onPress={() => navigation.navigate('Diary', { tripId: trip.id })} />
+              <FeatureTile icon="map" label={records.map} onPress={() => navigation.navigate('RecordMap', { tripId: trip.id })} />
+            </Row>
+          </Col>
+        ) : null}
 
-        {/* 여행방 */}
+        {/* 설정 */}
         <Col>
-          <Txt v="section" style={{ marginTop: SP.l }}>
-            {trip ? trip.title : '여행방'}
+          <Txt v="section" style={styles.sectionTop}>
+            설정
           </Txt>
-          {TRIP_ENTRIES.filter((e) => e.route !== 'Members' && e.route !== 'LiveTrip').map((e, i) => (
-            <ListRow
-              key={e.route}
-              first={i === 0}
-              icon={e.icon}
-              label={e.label}
-                            disabled={!trip}
-              onPress={() => open(e.route)}
-            />
-          ))}
+          <ListRow first icon="bell" label="알림" sub={notifySummary(notifyPrefs)} onPress={() => setSheet('notify')} />
+          <ListRow
+            icon="locate"
+            label="기기 위치 사용"
+            sub={`위치 권한 ${PERMISSION_LABEL[permission]}`}
+            switch={{ value: useDeviceLocation, onChange: setUseDeviceLocation }}
+          />
+          <ListRow icon="clock" label="데이터 보존" sub={retentionShort(trip)} onPress={() => setSheet('retention')} />
         </Col>
 
         {/* 계정 */}
         <Col>
-          <Txt v="section" style={{ marginTop: SP.l }}>
+          <Txt v="section" style={styles.sectionTop}>
             계정
           </Txt>
-          {/* 계정 메뉴는 로그인·로그아웃만 둔다(2026-10-10). 게스트는 로그인, 계정은 로그아웃. sub는 지금 세션 */}
-          {session?.kind === 'account' ? (
+          {isAccount ? (
             <ListRow
               first
               icon="x"
               label="로그아웃"
               sub={summary.title}
-              right={summary.soon ? <Chip text="곧 만료" tone="warn" /> : undefined}
+              right={soonChip}
               onPress={() => setConfirmSignOut(true)}
             />
           ) : (
-            <ListRow
-              first
-              icon="pinlock"
-              label="로그인"
-              sub={summary.title}
-              right={summary.soon ? <Chip text="곧 만료" tone="warn" /> : undefined}
-              onPress={() => navigation.navigate('Login')}
-            />
+            <>
+              <ListRow
+                first
+                icon="user"
+                label="계정 만들기"
+                sub="여행방은 그대로 유지돼요"
+                right={soonChip}
+                onPress={() => navigation.navigate('Signup')}
+              />
+              <ListRow icon="pinlock" label="다른 계정으로 로그인" onPress={() => navigation.navigate('Login')} />
+            </>
           )}
         </Col>
 
-        {/* 알림 */}
-        <Col gap={8}>
-          <Txt v="label">알림</Txt>
-          <Card>
-            {NOTIFY_ROWS.map((r, i) => (
-              <ToggleRow
-                key={r.kind}
-                first={i === 0}
-                label={r.label}
-                sub={r.sub}
-                on={notifyPrefs[r.kind]}
-                onChange={(on) => setNotifyPref(r.kind, on)}
-              />
-            ))}
-          </Card>
-        </Col>
-
-        {/* 위치 */}
-        <Col gap={8}>
-          <Txt v="label">위치</Txt>
-          <Card>
-            <Row>
-              <Icon name="locate" size={18} color="muted" />
-              <Col gap={2} grow>
-                <Txt v="nm">위치 권한</Txt>
-                <Txt v="mtTight">{PERMISSION_LABEL[permission]}</Txt>
-              </Col>
-            </Row>
-            <ToggleRow
-              label="기기 위치 사용"
-              sub="끄면 여행 시뮬레이터나 수동 진행만 씁니다. 웹은 HTTPS에서만 위치를 받습니다."
-              on={useDeviceLocation}
-              onChange={setUseDeviceLocation}
-            />
-            <Row style={{ borderTopWidth: 1, borderTopColor: lineC.line, paddingTop: 10 }}>
-              <Txt v="nm" style={{ flex: 1 }}>
-                그룹원 위치 공유
-              </Txt>
-              <Chip text="준비 중" tone="line" />
-            </Row>
-          </Card>
-        </Col>
-
-        {/* 제공자 상태 */}
-        <Col gap={8}>
-          <Txt v="label">제공자 상태</Txt>
-          <Card>
-            {services.map((s, i) => (
-              <Row
-                key={s.key}
-                top
-                style={i === 0 ? undefined : { borderTopWidth: 1, borderTopColor: lineC.line, paddingTop: 10 }}
-              >
-                <Col gap={2} grow>
-                  <Txt v="nm">{s.label}</Txt>
-                  {s.note ? <Txt v="mtTight">{s.note}</Txt> : null}
-                </Col>
-                <Chip text={s.mode === 'real' ? '실제' : '예시 데이터'} tone={s.mode === 'real' ? 'ok' : 'line'} />
-              </Row>
-            ))}
-          </Card>
-        </Col>
-
-        {/* 데이터 보존 */}
-        <Col gap={8}>
-          <Txt v="label">데이터 보존</Txt>
-          <Notice icon="clock" text={retentionText(trip)} />
-        </Col>
-
-        {/* 시연 도구 */}
-        <Col gap={8}>
-          <Txt v="label">시연 도구</Txt>
-          <Card>
-            <Txt v="nm">시나리오 채우기</Txt>
-            <Col gap={8}>
-              {SEED_ROWS.map((row) => (
-                <Choice<ScenarioStage> key={row[0].key} options={row} value={stage} onChange={setStage} />
-              ))}
-            </Col>
-            {seeding ? (
-              <Col gap={6}>
-                <ProgressBar value={seeding.total > 0 ? seeding.done / seeding.total : 0} />
-                <Txt v="mtTight">{`${seeding.label} · ${seeding.done} / ${seeding.total}`}</Txt>
-              </Col>
-            ) : null}
-            <Btn title={seeding ? '채우는 중' : '시나리오 채우기'} size="sm" disabled={seeding != null} onPress={() => void seed()} />
-          </Card>
-          <Card>
-            <ToggleRow
-              first
-              label="네트워크"
-              sub={online ? '연결됨. 끊으면 메시지와 편집이 전송 대기로 남고 재계산을 멈춥니다.' : '끊김. 다시 연결하면 대기 중인 것을 순서대로 보내고 다시 계산합니다.'}
-              on={online}
-              onLabel="연결"
-              offLabel="끊김"
-              onChange={setOnline}
-            />
-          </Card>
-          <Btn
-            title={seeding ? '채우는 중에는 리셋할 수 없습니다' : '시연 리셋'}
-            variant="quiet"
-            disabled={seeding != null}
-            onPress={() => setConfirmReset(true)}
-          />
-          <Btn
-            title={showScreens ? '화면 목록 닫기' : '화면 목록 열기'}
-            variant="quiet"
-            size="sm"
-            onPress={() => setShowScreens((v) => !v)}
-          />
-          {showScreens ? (
-            <Card>
-              {ALL_TRIP_ROUTES.map((r, i) => (
-                <EntryRow
-                  key={r}
-                  first={i === 0}
-                  label={`${SCREEN_META[r].no} ${SCREEN_META[r].title}`}
-                  disabled={!trip || (r === 'SpotDetail' && trip.spots.length === 0)}
-                  onPress={() => open(r)}
+        {/* 시연 도구(접힘) */}
+        <Col>
+          <DisclosureRow label="시연 도구" open={demoOpen} onToggle={() => setDemoOpen((v) => !v)} />
+          {demoOpen ? (
+            <Col gap={SP.xxl}>
+              <Col gap={SP.m}>
+                <Txt v="nm">시나리오 채우기</Txt>
+                {SEED_ROWS.map((row) => (
+                  <Choice<ScenarioStage> key={row[0].key} options={row} value={stage} onChange={setStage} />
+                ))}
+                {seeding ? (
+                  <Col gap={SP.s}>
+                    <ProgressBar value={seeding.total > 0 ? seeding.done / seeding.total : 0} />
+                    <Txt v="mtTight">{`${seeding.label} · ${seeding.done} / ${seeding.total}`}</Txt>
+                  </Col>
+                ) : null}
+                <Btn
+                  title={seeding ? '채우는 중' : '시나리오 채우기'}
+                  size="sm"
+                  disabled={seeding != null}
+                  onPress={() => void seed()}
                 />
-              ))}
-              {(['Profile', 'Login', 'Signup', 'InviteAccept'] as const).map((r) => (
-                <EntryRow key={r} label={`${SCREEN_META[r].no} ${SCREEN_META[r].title}`} onPress={() => navigation.navigate(r)} />
-              ))}
-              <EntryRow
-                label={`${SCREEN_META.SocialConsent.no} ${SCREEN_META.SocialConsent.title}`}
-                onPress={() => navigation.navigate('SocialConsent', { provider: 'kakao', intent: 'login' })}
-              />
-            </Card>
+              </Col>
+
+              <Col>
+                <ListRow
+                  first
+                  icon="alert"
+                  label="오프라인 흉내(시연)"
+                  sub={online ? '연결됨' : '끊김 · 다시 끄면 대기 중인 것을 보내요'}
+                  switch={{ value: !online, onChange: (off) => setOnline(!off) }}
+                />
+                <ListRow
+                  icon="undo"
+                  label={seeding ? '채우는 중에는 리셋할 수 없어요' : '시연 리셋'}
+                  disabled={seeding != null}
+                  onPress={() => setConfirmReset(true)}
+                />
+              </Col>
+
+              <ProviderStatus />
+
+              <Col>
+                <ListRow
+                  first
+                  icon="list"
+                  label={showScreens ? '화면 목록 닫기' : '화면 목록 열기'}
+                  onPress={() => setShowScreens((v) => !v)}
+                />
+                {showScreens ? (
+                  <>
+                    {ALL_TRIP_ROUTES.map((r) => (
+                      <ListRow
+                        key={r}
+                        label={`${SCREEN_META[r].no} ${SCREEN_META[r].title}`}
+                        disabled={!trip || (r === 'SpotDetail' && trip.spots.length === 0)}
+                        onPress={() => open(r)}
+                      />
+                    ))}
+                    {(['Profile', 'Login', 'Signup', 'InviteAccept'] as const).map((r) => (
+                      <ListRow key={r} label={`${SCREEN_META[r].no} ${SCREEN_META[r].title}`} onPress={() => navigation.navigate(r)} />
+                    ))}
+                    <ListRow
+                      label={`${SCREEN_META.SocialConsent.no} ${SCREEN_META.SocialConsent.title}`}
+                      onPress={() => navigation.navigate('SocialConsent', { provider: 'kakao', intent: 'login' })}
+                    />
+                  </>
+                ) : null}
+              </Col>
+            </Col>
           ) : null}
         </Col>
       </Body>
+
+      <Sheet visible={sheet === 'notify'} title="알림" onClose={() => setSheet(null)}>
+        <View>
+          {NOTIFY_ROWS.map((r, i) => (
+            <ListRow
+              key={r.kind}
+              first={i === 0}
+              label={r.label}
+              sub={r.sub}
+              switch={{ value: notifyPrefs[r.kind], onChange: (on) => setNotifyPref(r.kind, on) }}
+            />
+          ))}
+        </View>
+      </Sheet>
+
+      <Sheet visible={sheet === 'retention'} title="데이터 보존" onClose={() => setSheet(null)}>
+        <Txt v="body" c="muted">
+          {retentionText(trip)}
+        </Txt>
+      </Sheet>
 
       <ConfirmSheet
         visible={confirmSignOut}
@@ -366,7 +345,7 @@ export default function MoreScreen({ navigation }: TabScreenProps<'More'>) {
         onConfirm={() => {
           setConfirmSignOut(false);
           signOutFlow();
-          showToast('로그아웃했습니다. 같은 계정으로 다시 로그인하면 여행방을 이어 씁니다');
+          showToast('로그아웃했어요');
         }}
         onCancel={() => setConfirmSignOut(false)}
       />
@@ -379,7 +358,7 @@ export default function MoreScreen({ navigation }: TabScreenProps<'More'>) {
         onConfirm={() => {
           setConfirmReset(false);
           if (isSeeding()) return;
-          void resetDemo().then(() => showToast('시연을 처음 상태로 되돌렸습니다'));
+          void resetDemo().then(() => showToast('시연을 처음 상태로 되돌렸어요'));
         }}
         onCancel={() => setConfirmReset(false)}
       />
@@ -387,73 +366,59 @@ export default function MoreScreen({ navigation }: TabScreenProps<'More'>) {
   );
 }
 
-function EntryRow({
-  icon,
-  label,
-  disabled,
-  first,
-  onPress,
-}: {
-  icon?: IconName;
-  label: string;
-  disabled?: boolean;
-  first?: boolean;
-  onPress: () => void;
-}) {
+/** 접고 펴는 구역 머리 줄. 줄 전체가 버튼이고 펼침 상태를 스크린리더에 알린다 */
+function DisclosureRow({ label, open, onToggle }: { label: string; open: boolean; onToggle: () => void }) {
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={label}
-      accessibilityState={{ disabled: !!disabled }}
-      disabled={disabled}
-      onPress={onPress}
-      style={first ? { paddingVertical: 4 } : { borderTopWidth: 1, borderTopColor: lineC.line, paddingTop: 10, paddingBottom: 4 }}
+      accessibilityState={{ expanded: open }}
+      onPress={onToggle}
+      style={styles.disclosure}
     >
-      <Row>
-        {icon ? <Icon name={icon} size={18} color={disabled ? 'faint' : 'muted'} /> : null}
-        <Txt v="nm" c={disabled ? 'muted' : 'ink'} style={{ flex: 1 }}>
-          {label}
-        </Txt>
-        <Icon name="right" size={14} color="faint" />
-      </Row>
+      <Icon name="gear" size={24} color="ink" stroke={1.5} />
+      <View style={styles.grow}>
+        <Txt v="body">{label}</Txt>
+      </View>
+      <Icon name={open ? 'up' : 'down'} size={18} color="muted" stroke={2} />
     </Pressable>
   );
 }
 
-function ToggleRow({
-  label,
-  sub,
-  on,
-  onChange,
-  first,
-  onLabel = '켜짐',
-  offLabel = '꺼짐',
-}: {
-  label: string;
-  sub?: string;
-  on: boolean;
-  onChange: (on: boolean) => void;
-  first?: boolean;
-  onLabel?: string;
-  offLabel?: string;
-}) {
+/** 제공자 상태(카카오 키 유무, 서버 경유 여부). 시연 도구 안에서만 보인다 */
+function ProviderStatus() {
+  const services = describeServices();
   return (
-    <Pressable
-      accessibilityRole="switch"
-      accessibilityLabel={label}
-      accessibilityHint={sub}
-      accessibilityState={{ checked: on }}
-      onPress={() => onChange(!on)}
-      style={first ? undefined : { borderTopWidth: 1, borderTopColor: lineC.line, paddingTop: 10 }}
-    >
-      <Row>
-        <Row gap={6} style={{ flex: 1 }}>
-          <Txt v="nm">{label}</Txt>
-        </Row>
-        <View importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
-          <Chip text={on ? onLabel : offLabel} tone={on ? 'soft' : 'line'} icon={on ? 'check' : undefined} />
-        </View>
-      </Row>
-    </Pressable>
+    <Col gap={SP.s}>
+      <Txt v="nm">제공자 상태</Txt>
+      <View>
+        {services.map((s, i) => (
+          <ListRow
+            key={s.key}
+            first={i === 0}
+            label={s.label}
+            sub={s.note}
+            right={<Chip text={s.mode === 'real' ? '실제' : '예시 데이터'} tone={s.mode === 'real' ? 'ok' : 'line'} />}
+          />
+        ))}
+      </View>
+      <Txt v="mtTight">{providerNotice(services)}</Txt>
+    </Col>
   );
 }
+
+const styles = StyleSheet.create({
+  hero: { paddingTop: SP.l },
+  sectionTop: { marginTop: SP.l },
+  grow: { flex: 1, minWidth: 0 },
+  /** 기록 타일 세 칸을 같은 높이로 */
+  stretch: { alignItems: 'stretch' },
+  disclosure: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SP.xxl,
+    minHeight: H.btn,
+    paddingVertical: SP.xxl,
+    marginTop: SP.l,
+  },
+});

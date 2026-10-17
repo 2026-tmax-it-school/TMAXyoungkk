@@ -19,6 +19,7 @@ const LOOK: Record<BtnVariant, { box: ViewStyle; text: TextColorKey; icon: IconC
  * 버튼(DS Button). primary는 brand 면, 화면당 하나. ghost는 DS secondary(잉크 1px 테두리).
  * quiet는 회색 선의 보조 버튼. 높이 48/36, 라운드 12/8. danger는 없다. 삭제·나가기·내보내기·계정 탈퇴는 quiet + ConfirmSheet 1회로 한다.
  * disabled면 off 모양이 된다.
+ * a11yLabel은 스크린리더가 읽는 이름이다. 없으면 title을 읽는다. 같은 title의 버튼이 여러 개일 때 대상을 붙여 구분한다.
  */
 export function Btn({
   title,
@@ -27,6 +28,7 @@ export function Btn({
   size = 'lg',
   icon,
   disabled,
+  a11yLabel,
 }: {
   title: string;
   onPress: () => void;
@@ -34,12 +36,14 @@ export function Btn({
   size?: 'lg' | 'sm';
   icon?: IconName;
   disabled?: boolean;
+  a11yLabel?: string;
 }) {
   const look = LOOK[disabled ? 'off' : variant];
   const sm = size === 'sm';
   return (
     <Pressable
       accessibilityRole="button"
+      accessibilityLabel={a11yLabel}
       accessibilityState={{ disabled: !!disabled }}
       disabled={disabled}
       onPress={onPress}
@@ -67,7 +71,10 @@ export function Btn({
 /**
  * 40 × 40 원형 아이콘 버튼(DS IconButton). label은 스크린리더용이다. disabled면 누를 수 없고 아이콘이 faint가 된다.
  * plain(기본): 머리말 뒤로·닫기, soft: 연회색 원(탭 첫 화면 오른쪽 위).
+ * 보이는 원은 40이고 hitSlop 4로 실제 누르는 넓이는 48이다(44pt 이상).
  */
+const ICON_HIT_SLOP = 4;
+
 export function IconBtn({
   icon,
   onPress,
@@ -90,6 +97,7 @@ export function IconBtn({
       accessibilityState={{ disabled: !!disabled }}
       disabled={disabled}
       onPress={onPress}
+      hitSlop={ICON_HIT_SLOP}
       style={{
         width: H.iconBtn,
         height: H.iconBtn,

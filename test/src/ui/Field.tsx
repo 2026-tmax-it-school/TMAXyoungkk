@@ -1,12 +1,15 @@
 import React, { useState } from 'react';
-import { Pressable, TextInput, View, type KeyboardTypeOptions } from 'react-native';
+import { Pressable, ScrollView, TextInput, View, type KeyboardTypeOptions } from 'react-native';
 
+import { fieldKindProps, type FieldKind } from './fieldKind';
 import { Icon, type IconName } from './Icon';
 import { Txt } from './Txt';
 import { H, lineC, R, SP, surfaceC, T, textC } from './tokens';
 
 /** 여러 줄 입력의 한 줄 높이(T.field 행간) */
 const LINE_H = T.field.lineHeight;
+/** '보기'/'숨기기' 글자 버튼의 위아래 hitSlop. 글자 행간(btnSm)에 더해 누르는 높이가 44(H.touch)가 되게 한다 */
+const REVEAL_SLOP_V = (H.touch - T.btnSm.lineHeight) / 2;
 
 /**
  * 입력 칸(DS TextField). 높이 56, 라운드 8, line-strong 1px. 라벨은 칸 안의 안내문으로 보인다(선택 상자 PickerBox와 같은 모양,
@@ -16,6 +19,13 @@ const LINE_H = T.field.lineHeight;
  * - size 'sm': 높이 44(H.fieldSm). 옆의 44 아이콘 버튼과 줄을 맞춘다.
  * - multiline: 여러 줄 입력(21 일기 문단). minLines 줄만큼 높이를 잡고 글자는 위에서 시작한다.
  * - look 'auth': 15 로그인·16 회원가입 모양(높이 48, 작은 라운드 6). 소셜 버튼(ui/Auth AuthBtn)과 줄을 맞춘다.
+ * - keepFocusOnSubmit: 엔터를 눌러도 키보드를 내리지 않는다(29 커뮤니티 태그처럼 연달아 넣는 칸). 네이티브는 submitBehavior,
+ *   웹(react-native-web)은 blurOnSubmit를 본다. returnKeyType·autoCapitalize·onBlur는 그대로 넘긴다.
+ * - kind: 칸 종류(이메일·아이디·비밀번호·새 비밀번호·닉네임·초대 코드). 자동완성·자동 고침·키보드·엔터 키 기본값을
+ *   ui/fieldKind 표에서 정한다. 직접 준 keyboardType·returnKeyType·autoCapitalize가 이긴다. 비밀번호 종류는 secure가 기본이다.
+ * - inputRef: 앞 칸의 엔터(returnKeyType 'next')에서 이 칸으로 포커스를 넘길 때 쓴다.
+ * - secure 칸에는 오른쪽에 '보기'/'숨기기' 글자 버튼이 있다. 칸 높이는 그대로이고, 누르는 높이는 hitSlop으로 44(H.touch)다.
+ * - 오류 줄은 accessibilityLiveRegion polite로 스크린리더가 바로 읽는다.
  */
 export function Field({
   label,
@@ -33,6 +43,12 @@ export function Field({
   minLines = 3,
   onSubmitEditing,
   look = 'default',
+  keepFocusOnSubmit,
+  returnKeyType,
+  autoCapitalize,
+  onBlur,
+  kind,
+  inputRef,
 }: {
   label: string;
   value: string;
@@ -49,8 +65,17 @@ export function Field({
   minLines?: number;
   onSubmitEditing?: () => void;
   look?: 'default' | 'auth';
+  keepFocusOnSubmit?: boolean;
+  returnKeyType?: 'done' | 'next' | 'go' | 'search' | 'send';
+  autoCapitalize?: 'none' | 'sentences' | 'words' | 'characters';
+  onBlur?: () => void;
+  kind?: FieldKind;
+  inputRef?: React.Ref<TextInput>;
 }) {
   const [focus, setFocus] = useState(false);
+  const [shown, setShown] = useState(false);
+  const k = kind ? fieldKindProps(kind) : undefined;
+  const masked = secure ?? (kind === 'password' || kind === 'newPassword');
   // DS TextField: 라벨이 칸 안 안내문이다. 라벨을 숨기면 44/56 한 줄 칸에 placeholder만 보인다.
   // look auth(15·16)는 높이 48·라운드 6이다(안내문만 보인다).
   const auth = look === 'auth';
@@ -80,35 +105,62 @@ export function Field({
           gap: SP.m,
         }}
       >
-        <TextInput
-          value={value}
-          onChangeText={onChangeText}
-          placeholder={inside ? label : placeholder}
-          placeholderTextColor={textC.muted}
-          maxLength={maxLength}
-          secureTextEntry={secure}
-          keyboardType={keyboardType}
-          multiline={multiline}
-          onSubmitEditing={onSubmitEditing}
-          onFocus={() => setFocus(true)}
-          onBlur={() => setFocus(false)}
-          accessibilityLabel={label}
-          style={[
-            T.field,
-            { flex: 1, minWidth: 0, color: textC.ink, paddingVertical: padV, outlineWidth: 0, outlineStyle: 'solid' },
-            multiline ? { minHeight: LINE_H * minLines, textAlignVertical: 'top' } : null,
-          ]}
-        />
-        {inside && maxLength ? (
-          <View style={{ paddingTop: multiline ? padV : 0 }}>
-            <Txt v="mtTight">{`${value.length} / ${maxLength}`}</Txt>
-          </View>
-        ) : null}
+        <View style={{ flex: 1, flexDirection: 'row', alignItems: multiline ? 'flex-start' : 'center', gap: SP.m }}>
+          <TextInput
+            ref={inputRef}
+            value={value}
+            onChangeText={onChangeText}
+            placeholder={inside ? label : placeholder}
+            placeholderTextColor={textC.muted}
+            maxLength={maxLength}
+            secureTextEntry={masked && !shown}
+            keyboardType={keyboardType ?? k?.keyboardType}
+            multiline={multiline}
+            onSubmitEditing={onSubmitEditing}
+            submitBehavior={keepFocusOnSubmit ? 'submit' : undefined}
+            blurOnSubmit={keepFocusOnSubmit ? false : undefined}
+            returnKeyType={returnKeyType ?? k?.returnKeyType}
+            autoCapitalize={autoCapitalize ?? k?.autoCapitalize}
+            autoCorrect={k?.autoCorrect}
+            autoComplete={k?.autoComplete}
+            textContentType={k?.textContentType}
+            onFocus={() => setFocus(true)}
+            onBlur={() => {
+              setFocus(false);
+              onBlur?.();
+            }}
+            accessibilityLabel={label}
+            style={[
+              T.field,
+              { flex: 1, minWidth: 0, color: textC.ink, paddingVertical: padV, outlineWidth: 0, outlineStyle: 'solid' },
+              multiline ? { minHeight: LINE_H * minLines, textAlignVertical: 'top' } : null,
+            ]}
+          />
+          {masked ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={shown ? `${label} 숨기기` : `${label} 보기`}
+              onPress={() => setShown((v) => !v)}
+              hitSlop={{ top: REVEAL_SLOP_V, bottom: REVEAL_SLOP_V, left: SP.m, right: SP.m }}
+            >
+              <Txt v="btnSm" c="muted">
+                {shown ? '숨기기' : '보기'}
+              </Txt>
+            </Pressable>
+          ) : null}
+          {inside && maxLength ? (
+            <View style={{ paddingTop: multiline ? padV : 0 }}>
+              <Txt v="mtTight">{`${value.length} / ${maxLength}`}</Txt>
+            </View>
+          ) : null}
+        </View>
       </View>
       {error ? (
-        <Txt v="mtTight" c="warn">
-          {error}
-        </Txt>
+        <View accessibilityLiveRegion="polite">
+          <Txt v="mtTight" c="warn">
+            {error}
+          </Txt>
+        </View>
       ) : help ? (
         <Txt v="mtTight">{help}</Txt>
       ) : null}
@@ -119,17 +171,20 @@ export function Field({
 /**
  * 선택 상자 묶음(04 이동수단). 높이 36, 라운드 8. DS 규칙대로 선택은 잉크로 표시한다:
  * 켜진 것은 흰 면에 잉크 2px 테두리·잉크 글씨, 안 고른 것은 line-strong 1px, 비활성은 Btn off와 같은 면과 글씨.
+ * scroll: 칸이 많을 때(일정 편집 날짜) 가로 한 줄로 두고 넘치면 가로로 민다. 칸은 글자 폭만큼이다.
  */
 export function Choice<K extends string>({
   options,
   value,
   onChange,
+  scroll,
 }: {
   options: { key: K; label: string; icon?: IconName; badge?: React.ReactNode; disabled?: boolean }[];
   value: K;
   onChange: (key: K) => void;
+  scroll?: boolean;
 }) {
-  return (
+  const row = (
     <View style={{ flexDirection: 'row', gap: SP.m }}>
       {options.map((o) => {
         const on = o.key === value;
@@ -141,9 +196,9 @@ export function Choice<K extends string>({
             disabled={o.disabled}
             onPress={() => onChange(o.key)}
             style={{
-              flex: 1,
+              flex: scroll ? undefined : 1,
               minHeight: H.btnSm,
-              paddingHorizontal: SP.l,
+              paddingHorizontal: scroll ? SP.xl : SP.l,
               borderRadius: R.btnSm,
               borderWidth: o.disabled && !on ? 0 : on ? 2 : 1,
               borderColor: on ? lineC.ink : lineC.strong,
@@ -163,6 +218,12 @@ export function Choice<K extends string>({
         );
       })}
     </View>
+  );
+  if (!scroll) return row;
+  return (
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+      {row}
+    </ScrollView>
   );
 }
 

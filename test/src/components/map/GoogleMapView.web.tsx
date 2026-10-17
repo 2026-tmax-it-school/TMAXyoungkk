@@ -32,6 +32,7 @@ import {
 import type { LatLng } from '../../types';
 import { GOOGLE_MAP_STYLE, lineC, mapC, mapPinSvg, R, type PinSpec } from '../../ui';
 import { googleScriptUrl } from './googleScript';
+import { pinLook } from './overlayItems';
 import { ClusterListSheet, FitAllButton, MapChildren, mapHeight, type MapFailReason, type MapViewProps } from './parts';
 
 /**
@@ -239,8 +240,8 @@ function createPinLayer(libs: Libs, on: LayerHandlers) {
       for (const m of singles) {
         const spec: PinSpec =
           m.kind === 'excluded'
-            ? { kind: 'excluded', label: m.label, compact: d.compact }
-            : { kind: 'spot', label: m.label, color: m.color, compact: d.compact };
+            ? { kind: 'excluded', label: m.label, compact: d.compact, ...pinLook(m) }
+            : { kind: 'spot', label: m.label, color: m.color, compact: d.compact, ...pinLook(m) };
         out.push({
           key: `m:${m.id}`,
           kind: 'pin',
@@ -744,7 +745,7 @@ export function GoogleMapView(props: MapViewProps & { onFail: (reason: MapFailRe
         memberIds={group}
         titleOf={titleOf}
         onClose={() => setGroup(undefined)}
-        onPick={(id) => latest.current.onMarkerPress?.(id)}
+        onPick={(id) => (latest.current.onClusterPick ?? latest.current.onMarkerPress)?.(id)}
       />
       <MapChildren>{props.children}</MapChildren>
     </View>

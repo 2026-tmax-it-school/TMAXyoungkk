@@ -1,10 +1,10 @@
 import type { Clock, CommunityPost, CommunityPhoto, CommunityProvider, IdGen } from '../../core/ports';
-import { checkDraft } from '../../core/community';
+import { checkDraft, cleanTags, normalizeTag } from '../../core/community';
 
 /**
  * 이 기기 모의 커뮤니티(WP6 소유, 2026-10-10). 서버 주소가 없을 때 쓴다. 메모리에만 두므로 앱을 새로 열면 사라진다
  * (프로토타입). 사진은 data: 주소로 그대로 보인다. 같은 기기의 계정만 쓰고 다른 사람은 볼 수 없다.
- * 규칙(종류별 필수 값, 한도)은 서버와 같은 core/community/checkDraft를 쓴다.
+ * 규칙(본문이나 사진 하나, 한도, 태그)은 서버와 같은 core/community/checkDraft를 쓴다. 태그 거르기도 서버처럼 맞춘 값으로 본다.
  */
 export function createLocalCommunity(opts: { clock: Clock; ids: IdGen }): CommunityProvider {
   const posts: CommunityPost[] = [];
@@ -16,7 +16,10 @@ export function createLocalCommunity(opts: { clock: Clock; ids: IdGen }): Commun
 
     async list(q, ctx) {
       let all = [...posts].sort((a, b) => b.createdAt - a.createdAt || (a.id < b.id ? 1 : -1));
-      if (q.kind) all = all.filter((p) => p.kind === q.kind);
+      if (q.tag) {
+        const tag = normalizeTag(q.tag);
+        all = tag ? all.filter((p) => p.tags.includes(tag)) : [];
+      }
       if (q.before) {
         const [ms, id] = q.before.split(':');
         all = all.filter((p) => p.createdAt < Number(ms) || (p.createdAt === Number(ms) && p.id < id));
@@ -34,9 +37,9 @@ export function createLocalCommunity(opts: { clock: Clock; ids: IdGen }): Commun
       const photos: CommunityPhoto[] = draft.photos.map((p, i) => ({ id: `${id}-${i}`, url: `data:${p.mime};base64,${p.data}` }));
       const post: CommunityPost = {
         id,
-        kind: draft.kind,
         title: draft.title.trim(),
         body: draft.body.trim(),
+        tags: cleanTags(draft.tags),
         authorId: ctx.userId,
         authorNickname: ctx.nickname || '여행자',
         createdAt: opts.clock.now(),
