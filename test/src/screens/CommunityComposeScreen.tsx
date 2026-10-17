@@ -1,59 +1,231 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { Image, Pressable, View } from 'react-native';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { AppState, Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, View } from 'react-native';
 
-import type { CommunityDraft, CommunityKind, CommunityPhotoInput } from '../core/ports';
-import { checkDraft, diaryAsText, failText, KIND_LABEL, PHOTOS_MAX, TITLE_MAX, BODY_MAX } from '../core/community';
+import type { CommunityPhotoInput } from '../core/ports';
+import {
+  addTag,
+  BODY_MAX,
+  checkDraft,
+  diaryAsText,
+  failText,
+  leaveDecision,
+  openPlan,
+  PHOTOS_MAX,
+  restoredText,
+  splitTagInput,
+  tagSuggestions,
+  TAGS_MAX,
+  timeAgo,
+  TITLE_MAX,
+  withPendingTag,
+  type ComposeContent,
+  type DraftOrigin,
+  type SavedDraft,
+} from '../core/community';
 import { dayLabel } from '../core/util';
+import { regionById } from '../data/regions';
+import { communityDrafts } from '../features/community/drafts';
 import type { RootScreenProps } from '../navigation/routes';
+import { appClock } from '../services/clock';
 import { pickCommunityPhotos } from '../services/community/picker';
 import { useCommunity } from '../store/community';
 import { useSession } from '../store/session';
 import { useTripDoc } from '../store/trips';
 import { useUi } from '../store/ui';
-import { Body, Btn, Card, Choice, Col, Empty, Field, Foot, Header, IconBtn, Notice, R, Row, Screen, Sheet, SP, surfaceC, Txt } from '../ui';
+import { Body, Btn, Card, Col, ConfirmSheet, Empty, Field, Foot, Header, Icon, IconBtn, lineC, Notice, R, Row, Screen, Sheet, SP, surfaceC, Tag, TextLink, Txt } from '../ui';
 
 /**
- * 29 커뮤니티 글쓰기(WP6 소유, 2026-10-10). 사진 글과 일기 글을 올린다. 글은 서버에 올라가 앱 사용자 모두가 본다.
- * - 로그인한 계정만. 게스트에는 로그인 안내를 보인다.
- * - 사진 글은 사진이 한 장 이상, 일기 글은 본문이 있어야 한다(core/community/checkDraft, 서버와 같은 규칙).
- *   사진은 네 장까지, 사진 고르기는 버튼을 누른 뒤에만 열고 한 장을 1.5MB 아래로 줄여 받는다. 위치·촬영 정보는 받지 않는다.
- * - '내 일기 불러오기': 이 여행방의 일기 한 편을 골라 본문과 제목을 채운다. tripId·date로 열면 그 날짜 일기로 처음부터 채운다.
- * - 올리기는 한 번만 보낸다(빠르게 두 번 눌러도 글이 둘이 되지 않게).
+ * 29 커뮤니티 글쓰기(WP6 소유, 2026-10-10, 2026-10-11 v2). 글은 서버에 올라가 앱 사용자 모두가 본다.
+ * - 글은 한 가지다(사진·일기 고르기 없음). 사진 0~4장·본문·태그 0~5개·제목(선택). 본문이나 사진 하나면 올린다(core/community checkDraft).
+ * - 배치: 사진 줄을 맨 위에 크게, 그 아래 본문(글자 수는 Field가 보인다), 태그 줄(입력 + 추천), 제목은 가볍게 맨 아래. '올리기'는 아래에 늘 있고
+ *   못 올리면 그 이유를 버튼 위에 적는다. iOS는 키보드가 버튼을 가리지 않게 밀어 올린다.
+ * - 태그: 띄어쓰기·쉼표·Enter로 하나씩 넣는다(한글 조합 중에는 끊지 않는다: 조합 글자에는 구분 기호가 없다).
+ *   추천은 여행 지역 → 최근에 쓴 태그 → 기본 태그(core/community tagSuggestions).
+ * - 임시 저장(features/community/drafts, 사람마다 하나, 앱을 껐다 켜도 남는다): 앱이 뒤로 가면 저장한다. 다시 열면 이어 쓰고
+ *   '새로 쓰기'로 지울 수 있다(확인 1회). 일기에서 열었는데 다른 곳에서 쓰던 글이 있으면 둘 중 고른다(core/community openPlan).
+ *   사진 저장이 실패해도 글은 남고 '사진은 임시 저장하지 못했어요'를 한 번 알린다.
+ * - 나가기 확인: 저장하지 않은 바뀐 내용이 있으면 beforeRemove로 막고 '나가시겠습니까?' 시트에 '저장하고 나가기'·'취소' 두 버튼만 둔다.
+ *   뒤로 버튼·안드로이드 뒤로·iOS 밀기·웹 뒤로가 모두 beforeRemove를 지난다. 올린 직후·빈 글·안 바뀐 글은 묻지 않는다(leaveDecision).
+ * - 로그인한 계정만. 사진 고르기는 버튼을 누른 뒤에만 연다. 올리기는 한 번만 보낸다.
  */
+
+const TILE = 112;
+
 export default function CommunityComposeScreen({ navigation, route }: RootScreenProps<'CommunityCompose'>) {
   const session = useSession((s) => s.session);
+  const userId = session?.kind === 'account' ? session.userId : undefined;
   const publish = useCommunity((s) => s.publish);
-  const trip = useTripDoc(route.params?.tripId);
-  const [kind, setKind] = useState<CommunityKind>(route.params?.date ? 'diary' : 'photo');
+  const routeTripId = route.params?.tripId;
+  const routeDate = route.params?.date;
+  const trip = useTripDoc(routeTripId);
+
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
+  const [tags, setTags] = useState<string[]>([]);
+  const [tagText, setTagText] = useState('');
   const [photos, setPhotos] = useState<CommunityPhotoInput[]>([]);
+  const [origin, setOrigin] = useState<DraftOrigin | null>(null);
+  const [recent, setRecent] = useState<string[]>([]);
+  const [ready, setReady] = useState(false);
+  const [restoredAt, setRestoredAt] = useState<number | null>(null);
+  const [choice, setChoice] = useState<SavedDraft | null>(null);
+  const [leaving, setLeaving] = useState(false);
+  const [freshAsk, setFreshAsk] = useState(false);
+  const [importing, setImporting] = useState(false);
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | undefined>(undefined);
+  const [tagProblem, setTagProblem] = useState<string | undefined>(undefined);
   const [pickErr, setPickErr] = useState<string | undefined>(undefined);
-  const [importing, setImporting] = useState(false);
+
   const sending = useRef(false);
-  const prefilled = useRef(false);
+  const published = useRef(false);
+  const bypass = useRef(false);
+  const savedRef = useRef<ComposeContent | null>(null);
+  const pendingAction = useRef<Parameters<typeof navigation.dispatch>[0] | null>(null);
+  const pendingDiary = useRef<string | null>(null);
+  const photoWarned = useRef(false);
 
-  const draft: CommunityDraft = { kind, title, body, photos };
-  const check = checkDraft(draft);
+  const content: ComposeContent = { title, body, tags: withPendingTag(tags, tagText), photos };
+  const contentRef = useRef(content);
+  contentRef.current = content;
+  const originRef = useRef(origin);
+  originRef.current = origin;
 
-  const fillFromDiary = (date: string) => {
-    const entry = trip?.diaries[date];
-    if (!trip || !entry) return;
-    setKind('diary');
-    setBody(diaryAsText(entry));
-    setTitle(`${trip.title} · ${dayLabel(date)}`.slice(0, TITLE_MAX));
+  const setContent = (c: ComposeContent) => {
+    setTitle(c.title);
+    setBody(c.body);
+    setTags(c.tags);
+    setTagText('');
+    setPhotos(c.photos);
   };
 
-  useEffect(() => {
-    if (prefilled.current || !route.params?.date) return;
-    prefilled.current = true;
-    fillFromDiary(route.params.date);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [trip]);
+  const fillFromDiary = useCallback(
+    (date: string) => {
+      const entry = trip?.diaries[date];
+      if (!trip || !entry) return;
+      setBody(diaryAsText(entry));
+      setTitle(`${trip.title} · ${dayLabel(date)}`.slice(0, TITLE_MAX));
+      setOrigin({ tripId: trip.id, date });
+    },
+    [trip],
+  );
 
-  const back = () => (navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Main'));
+  // 열 때: 저장한 글과 어디서 열었는지 보고 새 글·일기·이어 쓰기·고르기 중 하나
+  useEffect(() => {
+    if (!userId) return;
+    let live = true;
+    const from: DraftOrigin | null = routeTripId && routeDate ? { tripId: routeTripId, date: routeDate } : null;
+    void (async () => {
+      const store = communityDrafts();
+      const [saved, rec] = await Promise.all([store.load(userId), store.recentTags(userId)]);
+      if (!live) return;
+      setRecent(rec);
+      const plan = openPlan({ saved, origin: from });
+      if (plan === 'restore' && saved) {
+        setContent(saved);
+        setOrigin(saved.origin);
+        savedRef.current = { title: saved.title, body: saved.body, tags: saved.tags, photos: saved.photos };
+        setRestoredAt(saved.updatedAt);
+      } else if (plan === 'ask' && saved) setChoice(saved);
+      else if (plan === 'diary' && from) pendingDiary.current = from.date;
+      setReady(true);
+    })();
+    return () => {
+      live = false;
+    };
+  }, [userId, routeTripId, routeDate]);
+
+  // 일기로 채우기는 여행방 문서가 있어야 한다(늦게 올 수 있다)
+  useEffect(() => {
+    if (!ready || !trip || !pendingDiary.current) return;
+    const date = pendingDiary.current;
+    pendingDiary.current = null;
+    fillFromDiary(date);
+  }, [ready, trip, fillFromDiary]);
+
+  const saveNow = useCallback(async (): Promise<boolean> => {
+    if (!userId) return true;
+    const c = contentRef.current;
+    const r = await communityDrafts().save(userId, { ...c, origin: originRef.current, updatedAt: appClock().now() });
+    if (r.ok) savedRef.current = c;
+    if (r.photos === 'failed' && !photoWarned.current) {
+      photoWarned.current = true;
+      useUi.getState().showToast('사진은 임시 저장하지 못했어요', 'warn');
+    }
+    return r.ok;
+  }, [userId]);
+
+  const isDirtyNow = () => leaveDecision({ current: contentRef.current, saved: savedRef.current, published: published.current }) === 'ask';
+
+  // 앱이 뒤로 가거나(홈 버튼·다른 앱) 웹 탭이 가려지면 저장한다
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (s) => {
+      if (s !== 'active' && isDirtyNow()) void saveNow();
+    });
+    return () => sub.remove();
+  }, [saveNow]);
+
+  // 웹: 탭을 닫거나 새로 고칠 때 바뀐 내용이 있으면 저장하고 브라우저 확인을 띄운다
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof window === 'undefined') return;
+    const onUnload = (e: BeforeUnloadEvent) => {
+      if (!isDirtyNow()) return;
+      void saveNow();
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', onUnload);
+    return () => window.removeEventListener('beforeunload', onUnload);
+  }, [saveNow]);
+
+  // 나가기 확인. 뒤로 버튼·안드로이드 뒤로·iOS 밀기·웹 뒤로 모두 여기를 지난다
+  useEffect(
+    () =>
+      navigation.addListener('beforeRemove', (e) => {
+        if (bypass.current) return;
+        const d = leaveDecision({ current: contentRef.current, saved: savedRef.current, published: published.current });
+        if (d === 'leave') return;
+        if (d === 'clear') {
+          if (userId) void communityDrafts().clear(userId);
+          return;
+        }
+        e.preventDefault();
+        pendingAction.current = e.data.action;
+        setLeaving(true);
+      }),
+    [navigation, userId],
+  );
+
+  const goOut = () => {
+    bypass.current = true;
+    const a = pendingAction.current;
+    pendingAction.current = null;
+    if (a) navigation.dispatch(a);
+    else if (navigation.canGoBack()) navigation.goBack();
+    else navigation.navigate('Main');
+  };
+
+  /** 화면 위 뒤로. 뒤로 갈 곳이 없으면(바로 연 주소) beforeRemove가 돌지 않으니 여기서 같은 확인을 한다 */
+  const back = () => {
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+      return;
+    }
+    const d = leaveDecision({ current: contentRef.current, saved: savedRef.current, published: published.current });
+    if (d === 'ask') {
+      pendingAction.current = null;
+      setLeaving(true);
+      return;
+    }
+    if (d === 'clear' && userId) void communityDrafts().clear(userId);
+    goOut();
+  };
+
+  const saveAndLeave = async () => {
+    setLeaving(false);
+    await saveNow();
+    goOut();
+  };
 
   if (session?.kind !== 'account') {
     return (
@@ -63,13 +235,15 @@ export default function CommunityComposeScreen({ navigation, route }: RootScreen
           <Empty
             icon="user"
             title="로그인하면 글을 올릴 수 있어요"
-            text="사진과 일기를 올리려면 계정이 필요해요"
+            text="글은 계정 이름으로 올라가요"
             action={{ label: '로그인', onPress: () => navigation.navigate('Login') }}
           />
         </Body>
       </Screen>
     );
   }
+
+  const check = checkDraft(content);
 
   const addPhotos = async () => {
     setPickErr(undefined);
@@ -81,19 +255,49 @@ export default function CommunityComposeScreen({ navigation, route }: RootScreen
     if (r.photos.length > 0) setPhotos([...photos, ...r.photos].slice(0, PHOTOS_MAX));
   };
 
+  /** 태그 칸 글자: 구분 기호로 끝난 것은 태그로 넣고, 치는 중인 글자는 칸에 둔다 */
+  const onTagText = (text: string) => {
+    const { done, rest } = splitTagInput(text);
+    let next = tags;
+    let issue: string | undefined;
+    for (const d of done) {
+      const r = addTag(next, d);
+      next = r.tags;
+      issue = r.problem ?? issue;
+    }
+    if (next !== tags) setTags(next);
+    setTagText(rest);
+    setTagProblem(issue);
+  };
+
+  const commitTag = () => {
+    if (!tagText.trim()) return;
+    const r = addTag(tags, tagText);
+    setTags(r.tags);
+    setTagProblem(r.problem);
+    if (!r.problem) setTagText('');
+  };
+
   const submit = async () => {
     if (sending.current) return;
-    if (!check.ok) {
-      setProblem(check.problem);
+    const c = contentRef.current;
+    const draft = { title: c.title.trim(), body: c.body.trim(), tags: c.tags, photos: c.photos };
+    const ck = checkDraft(draft);
+    if (!ck.ok) {
+      setProblem(ck.problem);
       return;
     }
     sending.current = true;
     setBusy(true);
     setProblem(undefined);
-    const r = await publish({ kind, title: title.trim(), body: body.trim(), photos });
+    const r = await publish(draft);
     if (r.ok) {
+      published.current = true;
+      const store = communityDrafts();
+      await store.clear(session.userId);
+      await store.rememberTags(session.userId, draft.tags);
       useUi.getState().showToast('글을 올렸어요');
-      back();
+      goOut();
       return;
     }
     sending.current = false;
@@ -101,84 +305,225 @@ export default function CommunityComposeScreen({ navigation, route }: RootScreen
     setProblem(failText(r.code, r.detail));
   };
 
+  const startFresh = async () => {
+    setFreshAsk(false);
+    await communityDrafts().clear(session.userId);
+    savedRef.current = null;
+    setRestoredAt(null);
+    setContent({ title: '', body: '', tags: [], photos: [] });
+    setOrigin(null);
+  };
+
   const diaries = trip ? Object.values(trip.diaries).filter((d) => diaryAsText(d).length > 0).sort((a, b) => (a.date < b.date ? -1 : 1)) : [];
+  const region = trip ? regionById(trip.region)?.name : undefined;
+  const suggestions = tags.length >= TAGS_MAX ? [] : tagSuggestions({ current: tags, region, recent, limit: 6 });
+  const now = appClock().now();
 
   return (
     <Screen>
-      <Header back={back} eyebrow="사진과 일기" title="글쓰기" />
-      <Body scroll>
-        <Choice<CommunityKind>
-          options={[
-            { key: 'photo', label: KIND_LABEL.photo, icon: 'camera' },
-            { key: 'diary', label: KIND_LABEL.diary, icon: 'book' },
-          ]}
-          value={kind}
-          onChange={(k) => {
-            setKind(k);
-            setProblem(undefined);
-          }}
-        />
-        <Field label="제목 · 선택" value={title} onChangeText={setTitle} maxLength={TITLE_MAX} />
-        <Field
-          label={kind === 'photo' ? '사진 설명 · 선택' : '일기'}
-          value={body}
-          onChangeText={setBody}
-          maxLength={BODY_MAX}
-          multiline
-          minLines={kind === 'diary' ? 8 : 4}
-          placeholder={kind === 'diary' ? '오늘 여행은 어땠나요' : '사진에 대한 이야기를 적어 보세요'}
-        />
-        {kind === 'diary' && diaries.length > 0 ? (
-          <Btn title="내 여행 일기 불러오기" icon="book" variant="quiet" size="sm" onPress={() => setImporting(true)} />
-        ) : null}
+      <Header back={back} eyebrow="여행 이야기" title="글쓰기" />
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <Body scroll>
+          {restoredAt != null ? (
+            <Row gap={SP.m}>
+              <Icon name="clock" size={14} color="muted" />
+              <Txt v="mtTight" style={{ flex: 1 }}>
+                {restoredText(timeAgo(restoredAt, now))}
+              </Txt>
+              <TextLink title="새로 쓰기" onPress={() => setFreshAsk(true)} />
+            </Row>
+          ) : null}
 
-        <Col gap={SP.m}>
-          <Row>
-            <Txt v="label" style={{ flex: 1 }}>
-              {kind === 'photo' ? '사진' : '사진 · 선택'}
-            </Txt>
-            <Txt v="mtTight">{`${photos.length} / ${PHOTOS_MAX}`}</Txt>
-          </Row>
-          {photos.length > 0 ? (
-            <Row gap={SP.s} wrap>
+          <Col gap={SP.m}>
+            <Row>
+              <Txt v="label" style={{ flex: 1 }}>
+                사진
+              </Txt>
+              <Txt v="mtTight">{`${photos.length} / ${PHOTOS_MAX}`}</Txt>
+            </Row>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: SP.m }}>
               {photos.map((p, i) => (
-                <View key={`${i}-${p.data.length}`} style={{ width: 84, height: 84 }}>
+                <View key={`${i}-${p.data.length}`} style={{ width: TILE, height: TILE }}>
                   <Image
                     source={{ uri: `data:${p.mime};base64,${p.data}` }}
                     accessibilityIgnoresInvertColors
                     accessibilityLabel={`고른 사진 ${i + 1}`}
-                    style={{ width: 84, height: 84, borderRadius: R.photo, backgroundColor: surfaceC.off }}
+                    style={{ width: TILE, height: TILE, borderRadius: R.photo, backgroundColor: surfaceC.off }}
                   />
-                  <View style={{ position: 'absolute', top: 2, right: 2 }}>
-                    <IconBtn icon="x" label={`사진 ${i + 1} 빼기`} onPress={() => setPhotos(photos.filter((_, j) => j !== i))} />
+                  <View style={{ position: 'absolute', top: SP.xs, right: SP.xs, borderRadius: R.iconBtn, backgroundColor: surfaceC.photoScrim }}>
+                    <IconBtn icon="x" color="onInk" label={`사진 ${i + 1} 빼기`} onPress={() => setPhotos(photos.filter((_, j) => j !== i))} />
                   </View>
                 </View>
               ))}
+              {photos.length < PHOTOS_MAX ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="사진 고르기"
+                  disabled={photos.length >= PHOTOS_MAX || busy}
+                  onPress={() => void addPhotos()}
+                  style={{
+                    width: TILE,
+                    height: TILE,
+                    borderRadius: R.photo,
+                    borderWidth: 1,
+                    borderStyle: 'dashed',
+                    borderColor: lineC.strong,
+                    backgroundColor: surfaceC.card,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: SP.s,
+                  }}
+                >
+                  <Icon name="camera" size={22} color="muted" />
+                  <Txt v="mtTight">사진 고르기</Txt>
+                </Pressable>
+              ) : null}
+            </ScrollView>
+            {pickErr ? <Notice tone="warn" icon="alert" text={pickErr} /> : null}
+          </Col>
+
+          <Col gap={SP.xs}>
+            <Field
+              label="내용"
+              value={body}
+              onChangeText={setBody}
+              maxLength={BODY_MAX}
+              multiline
+              minLines={6}
+              placeholder="여행에서 있었던 일을 적어 보세요"
+            />
+            {diaries.length > 0 ? (
+              <Row>
+                <TextLink title="내 여행 일기 불러오기" onPress={() => setImporting(true)} />
+              </Row>
+            ) : null}
+          </Col>
+
+          <Col gap={SP.m}>
+            <Row>
+              <Txt v="label" style={{ flex: 1 }}>
+                태그
+              </Txt>
+              <Txt v="mtTight">{tags.length > 0 ? `누르면 빠져요 · ${tags.length} / ${TAGS_MAX}` : `${tags.length} / ${TAGS_MAX}`}</Txt>
             </Row>
-          ) : null}
-          <Btn
-            title={photos.length >= PHOTOS_MAX ? '사진은 네 장까지예요' : '사진 고르기'}
-            icon="camera"
-            variant="quiet"
-            size="sm"
-            disabled={photos.length >= PHOTOS_MAX || busy}
-            onPress={() => void addPhotos()}
-          />
-          {pickErr ? <Notice tone="warn" icon="alert" text={pickErr} /> : null}
+            {tags.length > 0 ? (
+              <Row gap={SP.m} wrap>
+                {tags.map((t) => (
+                  <Tag key={t} label={`#${t}`} on onPress={() => setTags(tags.filter((x) => x !== t))} />
+                ))}
+              </Row>
+            ) : null}
+            {tags.length < TAGS_MAX ? (
+              <Field
+                label="태그 넣기"
+                hideLabel
+                size="sm"
+                value={tagText}
+                onChangeText={onTagText}
+                onSubmitEditing={commitTag}
+                onBlur={commitTag}
+                keepFocusOnSubmit
+                returnKeyType="done"
+                autoCapitalize="none"
+                placeholder="#맛집처럼 적고 띄어쓰기"
+              />
+            ) : null}
+            {tagProblem ? <Txt v="mtTight" c="accent">{tagProblem}</Txt> : null}
+            {suggestions.length > 0 ? (
+              <Row gap={SP.m} wrap>
+                {suggestions.map((t) => (
+                  <Tag
+                    key={t}
+                    label={`#${t}`}
+                    on={false}
+                    onPress={() => {
+                      const r = addTag(tags, t);
+                      setTags(r.tags);
+                      setTagProblem(r.problem);
+                    }}
+                  />
+                ))}
+              </Row>
+            ) : null}
+          </Col>
+
+          <Field label="제목 · 선택" value={title} onChangeText={setTitle} maxLength={TITLE_MAX} />
           <Txt v="mtTight">사진은 줄여서 올리고, 위치와 촬영 정보는 함께 올리지 않아요. 올린 글은 앱 사용자 모두가 볼 수 있어요.</Txt>
-        </Col>
-      </Body>
-      <Foot>
-        {problem ? (
-          <Notice tone="warn" icon="alert" text={problem} />
-        ) : !check.ok && (title || body || photos.length > 0) ? (
-          // 올리기가 꺼진 까닭(사진이 너무 큼 등)을 바로 알린다
-          <Txt v="mtTight" c="warn">
-            {check.problem}
-          </Txt>
-        ) : null}
-        <Btn title={busy ? '올리는 중' : '올리기'} disabled={busy || !check.ok} onPress={() => void submit()} />
-      </Foot>
+        </Body>
+        <Foot>
+          {problem ? <Notice tone="warn" icon="alert" text={problem} /> : null}
+          {!problem && !check.ok && check.problem ? (
+            <Txt v="mtTight">
+              {check.problem}
+            </Txt>
+          ) : null}
+          <Btn title={busy ? '올리는 중' : '올리기'} disabled={busy || !ready || !check.ok} onPress={() => void submit()} />
+        </Foot>
+      </KeyboardAvoidingView>
+
+      <ConfirmSheet
+        visible={leaving}
+        title="나가시겠습니까?"
+        text="쓰던 글을 임시 저장해 두면 다음에 글쓰기를 열 때 이어서 쓸 수 있어요."
+        confirmLabel="저장하고 나가기"
+        onConfirm={() => void saveAndLeave()}
+        onCancel={() => {
+          pendingAction.current = null;
+          setLeaving(false);
+        }}
+      />
+
+      <ConfirmSheet
+        visible={freshAsk}
+        title="새로 쓸까요"
+        text="임시 저장한 글을 지우고 빈 글로 시작해요. 지운 글은 되돌릴 수 없어요."
+        confirmLabel="새로 쓰기"
+        onConfirm={() => void startFresh()}
+        onCancel={() => setFreshAsk(false)}
+      />
+
+      <Sheet
+        visible={choice != null}
+        onClose={() => {
+          if (choice) {
+            setContent(choice);
+            setOrigin(choice.origin);
+            savedRef.current = { title: choice.title, body: choice.body, tags: choice.tags, photos: choice.photos };
+            setRestoredAt(choice.updatedAt);
+          }
+          setChoice(null);
+        }}
+        title="쓰던 글이 있어요"
+      >
+        <Txt v="body" c="muted">
+          {choice ? `${timeAgo(choice.updatedAt, now)} 저장한 글이 있어요. 어느 쪽으로 쓸까요?` : ''}
+        </Txt>
+        <View style={{ gap: 9 }}>
+          <Btn
+            title="쓰던 글 이어 쓰기"
+            onPress={() => {
+              if (choice) {
+                setContent(choice);
+                setOrigin(choice.origin);
+                savedRef.current = { title: choice.title, body: choice.body, tags: choice.tags, photos: choice.photos };
+                setRestoredAt(choice.updatedAt);
+              }
+              setChoice(null);
+            }}
+          />
+          <Btn
+            title="이 일기로 새로 쓰기"
+            variant="quiet"
+            onPress={() => {
+              setChoice(null);
+              if (routeDate) {
+                if (trip) fillFromDiary(routeDate);
+                else pendingDiary.current = routeDate;
+              }
+            }}
+          />
+        </View>
+      </Sheet>
 
       <Sheet visible={importing} onClose={() => setImporting(false)} title="일기 불러오기">
         <Col gap={SP.s}>

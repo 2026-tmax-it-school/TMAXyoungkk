@@ -1,7 +1,9 @@
 import React from 'react';
 import { Image, Pressable, View, type StyleProp, type ViewStyle } from 'react-native';
 
+import { Chip } from './Chip';
 import { Icon, type IconName } from './Icon';
+import { Switch } from './Switch';
 import { Txt } from './Txt';
 import { H, lineC, R, SP, surfaceC } from './tokens';
 
@@ -109,8 +111,9 @@ export function QuickAction({
 /**
  * 여행 카드(DS TripCard). 사진 자리가 주인공이고 카드 테두리·그림자는 없다. 사진 모서리만 radius-lg.
  * 사진이 없으면 연회색(surface-soft) 자리에 핀과 장소 이름만 둔다. 색 면이나 무늬로 사진을 흉내 내지 않는다.
- * 사진 위에는 왼쪽 위 badge 하나. 선택된 카드는 사진 자리에 잉크 2px 테두리.
+ * 사진 위에는 왼쪽 위 badge 하나. 선택된 카드는 사진 자리에 잉크 2px 테두리이고 스크린리더에는 selected로 알린다.
  * size 'lg'는 홈 가로 줄의 내 여행(20:19), 'sm'은 추천 여행지(정사각).
+ * a11yLabel: 스크린리더 이름(기본 '{title} 열기'). 실제 동작과 같게 쓴다('경주 여행 보기, 여행 중 · 2일째').
  */
 export function CoverTile({
   place,
@@ -124,6 +127,7 @@ export function CoverTile({
   corner,
   footer,
   style,
+  a11yLabel,
   image,
 }: {
   /** 표지 이미지 주소(data URI 등). 있으면 지역 이름 대신 사진을 꽉 채운다 */
@@ -141,6 +145,7 @@ export function CoverTile({
   corner?: { label: string; a11y: string; onPress: () => void };
   footer?: React.ReactNode;
   style?: StyleProp<ViewStyle>;
+  a11yLabel?: string;
 }) {
   const lg = size === 'lg';
   const width = lg ? 272 : 148;
@@ -209,7 +214,7 @@ export function CoverTile({
         ) : null}
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={pressLabel ?? `${title} 열기`}
+          accessibilityLabel={a11yLabel ?? pressLabel ?? `${title} 열기`}
           accessibilityState={{ selected: !!selected }}
           onPress={onPress}
           style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
@@ -260,8 +265,79 @@ export function CoverTile({
   );
 }
 
-/** 프로필 머리 카드. brand-soft 원 안 머리글자, 이름, 그 아래 한 줄(게스트·계정). 1px line 테두리 */
-export function ProfileHero({ name, sub, onPress }: { name: string; sub: string; onPress?: () => void }) {
+/** 머리글자 원(프로필 머리). 사진이 있으면 사진을 원 안에 채운다 */
+function Monogram({ name, size, imageUri }: { name: string; size: number; imageUri?: string }) {
+  return (
+    <View
+      style={{
+        width: size,
+        height: size,
+        borderRadius: R.chip,
+        backgroundColor: surfaceC.accentTint,
+        alignItems: 'center',
+        justifyContent: 'center',
+        overflow: 'hidden',
+      }}
+    >
+      {imageUri ? (
+        <Image
+          source={{ uri: imageUri }}
+          accessibilityIgnoresInvertColors
+          style={{ width: size, height: size }}
+        />
+      ) : (
+        <Txt v={size >= H.monogram ? 'monogram' : 'ttl'} c="accentDeep">
+          {name.slice(0, 1) || '?'}
+        </Txt>
+      )}
+    </View>
+  );
+}
+
+/**
+ * 프로필 머리 카드. brand-soft 원 안 머리글자, 이름, 그 아래 한 줄(게스트·계정). 1px line 테두리.
+ * variant 'row'(프로필 탭): 왼쪽 원(56), 이름과 한 줄, 오른쪽 꺾쇠가 한 줄에 있다. 누르면 내 프로필로 간다.
+ */
+export function ProfileHero({
+  name,
+  sub,
+  onPress,
+  variant = 'card',
+  imageUri,
+}: {
+  name: string;
+  sub: string;
+  onPress?: () => void;
+  variant?: 'card' | 'row';
+  imageUri?: string;
+}) {
+  if (variant === 'row') {
+    return (
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`${name || '이름 없음'} 프로필 보기`}
+        onPress={onPress}
+        style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: SP.xxl,
+          minHeight: 80,
+          paddingVertical: SP.xl,
+        }}
+      >
+        <Monogram name={name} size={H.quick} imageUri={imageUri} />
+        <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
+          <Txt v="ttlSm" numberOfLines={1}>
+            {name || '이름 없음'}
+          </Txt>
+          <Txt v="mt" numberOfLines={1}>
+            {sub}
+          </Txt>
+        </View>
+        {onPress ? <Icon name="right" size={18} color="muted" stroke={2} /> : null}
+      </Pressable>
+    );
+  }
   return (
     <Pressable
       accessibilityRole="button"
@@ -278,20 +354,8 @@ export function ProfileHero({ name, sub, onPress }: { name: string; sub: string;
         gap: SP.xs,
       }}
     >
-      <View
-        style={{
-          width: H.monogram,
-          height: H.monogram,
-          borderRadius: R.chip,
-          backgroundColor: surfaceC.accentTint,
-          alignItems: 'center',
-          justifyContent: 'center',
-          marginBottom: SP.m,
-        }}
-      >
-        <Txt v="monogram" c="accentDeep">
-          {name.slice(0, 1) || '?'}
-        </Txt>
+      <View style={{ marginBottom: SP.m }}>
+        <Monogram name={name} size={H.monogram} imageUri={imageUri} />
       </View>
       <Txt v="ttl" center>
         {name || '이름 없음'}
@@ -300,6 +364,60 @@ export function ProfileHero({ name, sub, onPress }: { name: string; sub: string;
         {sub}
       </Txt>
     </Pressable>
+  );
+}
+
+/**
+ * 내 프로필 맨 위(17). 가운데 큰 원(사진 또는 머리글자)과 오른쪽 아래 사진 바꾸기 버튼(camera, 44),
+ * 이름, 계정 종류 칩, 그 아래 한 줄(sub). 사진 바꾸기는 원 전체를 눌러도 된다.
+ */
+export function ProfileEditHero({
+  name,
+  imageUri,
+  onPhotoPress,
+  chip,
+  sub,
+}: {
+  name: string;
+  imageUri?: string;
+  onPhotoPress: () => void;
+  chip: string;
+  sub?: string;
+}) {
+  return (
+    <View style={{ alignItems: 'center', gap: SP.m, paddingVertical: SP.xxl }}>
+      <Pressable accessibilityRole="button" accessibilityLabel="프로필 사진 바꾸기" onPress={onPhotoPress}>
+        <Monogram name={name} size={H.monogram} imageUri={imageUri} />
+        <View
+          style={{
+            position: 'absolute',
+            right: -SP.xs,
+            bottom: -SP.xs,
+            width: H.iconBtn,
+            height: H.iconBtn,
+            borderRadius: R.chip,
+            borderWidth: 1,
+            borderColor: lineC.line,
+            backgroundColor: surfaceC.card,
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <Icon name="camera" size={20} color="ink" stroke={1.8} />
+        </View>
+      </Pressable>
+      <Txt v="ttl" center>
+        {name || '이름 없음'}
+      </Txt>
+      <View style={{ alignItems: 'center' }}>
+        <Chip text={chip} tone="soft" />
+      </View>
+      {sub ? (
+        <Txt v="mt" center>
+          {sub}
+        </Txt>
+      ) : null}
+    </View>
   );
 }
 
@@ -320,7 +438,7 @@ export function FeatureTile({
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={label}
+      accessibilityLabel={badge ? `${label}, ${badge}` : label}
       accessibilityState={{ disabled: !!disabled }}
       disabled={disabled}
       onPress={onPress}
@@ -376,6 +494,9 @@ export function FeatureTile({
 /**
  * 목록 한 줄(DS ListRow). 아이콘 24(선 1.5), 라벨 본문 16, 오른쪽 꺾쇠. 카드로 감싸지 않고 구분선으로 나눈다.
  * 구분선은 위에 둔다(first면 없음). sub는 현재 값만(설명 문장 금지).
+ * - onPress가 없으면 누를 수 없는 정보 줄이다(꺾쇠 없음).
+ * - value: 오른쪽 현재 값 글자(muted, 예: 이메일 주소).
+ * - switch: 켜고 끄는 줄. 줄 전체가 토글이고(role switch, checked) 꺾쇠 대신 Switch를 그린다. 높이 64 이상.
  */
 export function ListRow({
   icon,
@@ -385,6 +506,8 @@ export function ListRow({
   first,
   disabled,
   onPress,
+  value,
+  switch: toggle,
 }: {
   icon?: IconName;
   label: string;
@@ -392,33 +515,70 @@ export function ListRow({
   right?: React.ReactNode;
   first?: boolean;
   disabled?: boolean;
-  onPress: () => void;
+  onPress?: () => void;
+  value?: string;
+  switch?: { value: boolean; onChange: (next: boolean) => void };
 }) {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      accessibilityState={{ disabled: !!disabled }}
-      disabled={disabled}
-      onPress={onPress}
-      style={{
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: SP.xxl,
-        minHeight: 64,
-        paddingVertical: SP.xxl,
-        borderTopWidth: first ? 0 : 1,
-        borderTopColor: lineC.line,
-      }}
-    >
+  const box: ViewStyle = {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SP.xxl,
+    minHeight: 64,
+    paddingVertical: SP.xxl,
+    borderTopWidth: first ? 0 : 1,
+    borderTopColor: lineC.line,
+  };
+  const body = (
+    <>
       {icon ? <Icon name={icon} size={24} color={disabled ? 'faint' : 'ink'} stroke={1.5} /> : null}
-      <View style={{ flex: 1, gap: 2 }}>
+      <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
         <Txt v="body" c={disabled ? 'muted' : 'ink'}>
           {label}
         </Txt>
         {sub ? <Txt v="mt">{sub}</Txt> : null}
       </View>
+      {value ? (
+        <View style={{ flexShrink: 1, maxWidth: '50%' }}>
+          <Txt v="mt" numberOfLines={1}>
+            {value}
+          </Txt>
+        </View>
+      ) : null}
       {right}
+    </>
+  );
+  if (toggle) {
+    return (
+      <Pressable
+        accessibilityRole="switch"
+        accessibilityLabel={sub ? `${label}, ${sub}` : label}
+        accessibilityState={{ checked: toggle.value, disabled: !!disabled }}
+        disabled={disabled}
+        onPress={() => toggle.onChange(!toggle.value)}
+        style={box}
+      >
+        {body}
+        <Switch value={toggle.value} disabled={disabled} />
+      </Pressable>
+    );
+  }
+  if (!onPress) {
+    return (
+      <View style={box}>
+        {body}
+      </View>
+    );
+  }
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={[label, sub, value].filter(Boolean).join(', ')}
+      accessibilityState={{ disabled: !!disabled }}
+      disabled={disabled}
+      onPress={onPress}
+      style={box}
+    >
+      {body}
       <Icon name="right" size={18} color={disabled ? 'faint' : 'muted'} stroke={2} />
     </Pressable>
   );

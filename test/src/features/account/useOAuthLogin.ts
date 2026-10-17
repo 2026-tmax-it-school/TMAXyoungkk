@@ -75,7 +75,7 @@ export function useOAuthLogin(provider: OAuthProviderKind): {
       setStateFail(null);
     } else {
       setServerState(null);
-      setStateFail({ text: r.detail ?? '계정 서버에 닿지 못했습니다. 잠시 뒤 다시 시도해 주세요', unconfigured: r.unconfigured === true });
+      setStateFail({ text: r.detail ?? '계정 서버에 닿지 못했어요. 잠시 뒤 다시 시도해 주세요', unconfigured: r.unconfigured === true });
     }
   }, [ready, provider, redirectUri]);
 
@@ -113,7 +113,7 @@ export function useOAuthLogin(provider: OAuthProviderKind): {
     }
     if (!serverState || !request || request.state !== serverState.state || stateNeedsRefresh(serverState, systemClock.now())) {
       void loadState();
-      return { kind: 'unavailable', text: '로그인을 준비하고 있습니다. 잠시 뒤 다시 눌러 주세요', mockFallback: false };
+      return { kind: 'unavailable', text: '로그인을 준비하고 있어요. 잠시 뒤 다시 눌러 주세요', mockFallback: false };
     }
     setBusy(true);
     try {

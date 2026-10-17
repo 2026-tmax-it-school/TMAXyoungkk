@@ -3,6 +3,7 @@ import { TRANSPORT_LABEL } from '../../core/constants';
 import { memberById } from '../../core/group';
 import { proposerIds } from '../../core/spotUtil';
 import { daysBetween, dayShort, josa } from '../../core/util';
+import { daySegLabel } from '../schedule/view';
 import { kindLabel } from './rows';
 
 /**
@@ -26,6 +27,14 @@ export interface SpotDetail {
   excluded?: ExcludedSpot;
   date?: string;
   item?: TimetableItem;
+  /** 체류 분과 사용자가 바꿨는지(라벨 '체류'/'기본 체류') */
+  stayMin: number;
+  stayEdited: boolean;
+  /** 사용자가 지정한 날짜(없으면 자동 배분) */
+  fixedDate?: string;
+  pinned: boolean;
+  /** 기점에서 오는 이동 '자동차 12분'(구할 수 없거나 기점이 곧 이 스팟이면 없음) */
+  move?: string;
 }
 
 /** 스팟이 배치된 날짜·항목과 그날 안의 자리(0부터) */
@@ -77,7 +86,8 @@ export function spotDetail(trip: Trip, plan: Plan | undefined, spot: Spot, baseM
   const firstIsBase = !!(at && at.index === 0 && dayPlan?.baseSource === 'firstSpot');
   const transport = firstWithBase && at?.item.legTransport ? at.item.legTransport : baseTransport(trip, at?.date);
   const fromBase = firstIsBase ? undefined : firstWithBase ? at?.item.travelMin : baseMin;
-  if (fromBase != null) cells.push({ label: '기점에서', value: `${TRANSPORT_LABEL[transport]} ${Math.round(fromBase)}분` });
+  const move = fromBase != null ? `${TRANSPORT_LABEL[transport]} ${Math.round(fromBase)}분` : undefined;
+  if (move) cells.push({ label: '기점에서', value: move });
   if (at) cells.push({ label: '배치 시각', value: at.item.arrive });
 
   const ids = proposerIds(spot);
@@ -92,7 +102,20 @@ export function spotDetail(trip: Trip, plan: Plan | undefined, spot: Spot, baseM
   }
   if (quotes.length === 0 && spot.sourceText) quotes.push({ text: spot.sourceText, who: proposerNames[0] ?? '' });
 
-  const out: SpotDetail = { status, eyebrow, sub, cells, proposerNames, proposers, quotes };
+  const out: SpotDetail = {
+    status,
+    eyebrow,
+    sub,
+    cells,
+    proposerNames,
+    proposers,
+    quotes,
+    stayMin: spot.stayMin,
+    stayEdited: spot.edited.stayMin != null,
+    pinned: spot.pinned,
+  };
+  if (spot.fixedDate) out.fixedDate = spot.fixedDate;
+  if (move) out.move = move;
   if (excluded) out.excluded = excluded;
   if (at) {
     out.date = at.date;
@@ -101,10 +124,72 @@ export function spotDetail(trip: Trip, plan: Plan | undefined, spot: Spot, baseM
   return out;
 }
 
-/** 07 예고 문장. 체류를 늘리면 무엇이 제외되는지 */
+/* ------------------------------------------------------------------ */
+/* 07 정보 목록과 아래 버튼                                               */
+/* ------------------------------------------------------------------ */
+
+export type DetailRowKey = 'stay' | 'date' | 'move' | 'arrive';
+
+export interface DetailRow {
+  key: DetailRowKey;
+  label: string;
+  value: string;
+  /** 누르면 시트가 열리는 줄(체류·날짜). 이동과 배치 시각은 읽기 전용이다 */
+  editable: boolean;
+}
+
+/**
+ * 07 정보 칸을 키-값 목록(ListRow)으로(순수). 체류와 날짜는 늘 있고 눌러서 바꾼다.
+ * 기점에서 오는 이동과 배치 시각은 있을 때만, 읽기 전용이다. 날짜는 '10/18 토'로 적는다.
+ */
+export function detailRows(detail: SpotDetail): DetailRow[] {
+  const rows: DetailRow[] = [
+    { key: 'stay', label: detail.stayEdited ? '체류' : '기본 체류', value: `${detail.stayMin}분`, editable: true },
+    {
+      key: 'date',
+      label: '날짜',
+      value: detail.fixedDate
+        ? `${daySegLabel(detail.fixedDate)} 지정`
+        : detail.date
+          ? `자동 배분 · ${daySegLabel(detail.date)}`
+          : '자동 배분',
+      editable: true,
+    },
+  ];
+  if (detail.move) rows.push({ key: 'move', label: '기점에서', value: detail.move, editable: false });
+  if (detail.item) rows.push({ key: 'arrive', label: '배치 시각', value: detail.item.arrive, editable: false });
+  return rows;
+}
+
+export type FootActionKey = 'timetable' | 'pin' | 'unpin' | 'restore';
+
+export interface FootAction {
+  key: FootActionKey;
+  title: string;
+  variant: 'primary' | 'quiet';
+}
+
+/**
+ * 07 아래 버튼(순수). 주 버튼은 하나뿐이다.
+ * - 제외 스팟: primary '고정해서 다시 넣기' 하나(spot/restore는 고정으로 되돌린다).
+ * - 확정·배치 전: 배치됐으면 quiet '시간표에서 보기', 그 옆에 primary '고정하기' 또는 quiet '고정 풀기'.
+ */
+export function footActions(state: { status: SpotDetail['status']; pinned: boolean }, placed: boolean): FootAction[] {
+  if (state.status === 'excluded') return [{ key: 'restore', title: '고정해서 다시 넣기', variant: 'primary' }];
+  const out: FootAction[] = [];
+  if (placed) out.push({ key: 'timetable', title: '시간표에서 보기', variant: 'quiet' });
+  out.push(
+    state.pinned
+      ? { key: 'unpin', title: '고정 풀기', variant: 'quiet' }
+      : { key: 'pin', title: '고정하기', variant: 'primary' },
+  );
+  return out;
+}
+
+/** 07 예고 문장(체류 시트 안 안내). 체류를 늘리면 무엇이 제외되는지 */
 export function stayPreviewText(stayMin: number, newlyExcludedNames: string[]): string {
-  if (newlyExcludedNames.length === 0) return `체류를 ${stayMin}분으로 늘려도 새로 빠지는 스팟이 없습니다.`;
-  return `체류를 ${stayMin}분으로 늘리면 ${josa(newlyExcludedNames.join(', '), '이/가')} 제외 스팟이 됩니다.`;
+  if (newlyExcludedNames.length === 0) return `체류를 ${stayMin}분으로 늘려도 새로 빠지는 스팟이 없어요.`;
+  return `체류를 ${stayMin}분으로 늘리면 ${josa(newlyExcludedNames.join(', '), '이/가')} 제외 스팟이 돼요.`;
 }
 
 /**
@@ -114,10 +199,10 @@ export function stayPreviewText(stayMin: number, newlyExcludedNames: string[]): 
 export function deleteNotice(spot: Pick<Spot, 'proposals'>, me: string | undefined): { label: string; text: string } {
   const fromChat = spot.proposals.some((p) => p.source === 'chat');
   const others = spot.proposals.filter((p) => p.memberId !== me).length;
-  const head = fromChat ? '대화 인식이 잘못 잡은 장소를 지웁니다.' : '잘못 담은 후보를 지웁니다.';
-  const tail = others > 0 ? ` 다른 멤버 제안 ${others}건도 함께 지워집니다.` : '';
+  const head = fromChat ? '대화 인식이 잘못 잡은 장소를 지워요.' : '잘못 담은 후보를 지워요.';
+  const tail = others > 0 ? ` 다른 멤버 제안 ${others}건도 함께 지워져요.` : '';
   return {
     label: fromChat ? '잘못 잡은 장소라 후보에서 지우기' : '후보에서 지우기',
-    text: `${head}${tail} 제안 기록과 말풍선 강조도 함께 사라지고 되돌릴 수 없습니다.`,
+    text: `${head}${tail} 제안 기록과 말풍선 강조도 함께 사라지고 되돌릴 수 없어요.`,
   };
 }

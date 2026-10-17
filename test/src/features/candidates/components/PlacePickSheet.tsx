@@ -18,7 +18,7 @@ export function PlacePickSheet({
   onPick,
   onDismiss,
   onClose,
-  dismissLabel = '닫기',
+  dismissLabel,
 }: {
   visible: boolean;
   title: string;
@@ -28,6 +28,7 @@ export function PlacePickSheet({
   onDismiss: () => void;
   /** 바깥을 눌러 닫을 때. 없으면 onDismiss */
   onClose?: () => void;
+  /** 닫기와 다른 일을 하는 아래 버튼('해당 없음' 등). 없으면 버튼을 두지 않는다(제목 줄 X가 닫는다) */
   dismissLabel?: string;
 }) {
   return (
@@ -52,7 +53,7 @@ export function PlacePickSheet({
           </Card>
         ))}
       </ScrollView>
-      <Btn title={dismissLabel} variant="quiet" onPress={onDismiss} />
+      {dismissLabel ? <Btn title={dismissLabel} variant="quiet" onPress={onDismiss} /> : null}
     </Sheet>
   );
 }

@@ -1,19 +1,20 @@
-import type { CommunityDraft, CommunityKind } from '../ports';
+import type { CommunityDraft } from '../ports';
 import type { DiaryEntry } from '../../types';
+import { BODY_MAX, PHOTO_BYTES_MAX, PHOTOS_MAX, TITLE_MAX } from './limits';
+import { normalizeTag, TAG_FULL_TEXT, TAG_RULE_TEXT, TAGS_MAX } from './tags';
 
 /**
- * 커뮤니티 규칙(WP6 소유, 2026-10-10). 앱 사용자 전체가 보는 사진·일기 글. 서버(server/community.mjs)와 값이 같다.
+ * 커뮤니티 규칙(WP6 소유, 2026-10-10). 앱 사용자 전체가 보는 여행 글. 서버(server/community.mjs)와 값이 같다.
+ * 2026-10-11: 사진 글·일기 글을 한 가지 글로 합쳤다(본문이나 사진 하나면 된다). 태그(tags.ts), 임시 저장(draft.ts)을 더했다.
  * 순수 함수만 둔다(시계는 호출하는 쪽이 넘긴다).
  */
 
-export const COMMUNITY_KINDS: readonly CommunityKind[] = ['photo', 'diary'];
-export const KIND_LABEL: Record<CommunityKind, string> = { photo: '사진', diary: '일기' };
+export { BODY_MAX, PHOTO_BYTES_MAX, PHOTOS_MAX, TITLE_MAX } from './limits';
+export * from './tags';
+export * from './draft';
 
-export const TITLE_MAX = 60;
-export const BODY_MAX = 4000;
-export const PHOTOS_MAX = 4;
-/** 한 장 상한(바이트). 앱은 줄여서 올리고 서버는 이 값을 넘으면 거절한다 */
-export const PHOTO_BYTES_MAX = 1_500_000;
+/** 올릴 것이 없을 때 문장(올리기 버튼 아래에 이유로 보인다) */
+export const EMPTY_POST_TEXT = '사진을 고르거나 내용을 적어 주세요';
 
 /** base64 글자 수 → 원래 바이트 수 */
 export function base64Bytes(data: string): number {
@@ -27,7 +28,10 @@ export interface DraftCheck {
   problem?: string;
 }
 
-/** 올리기 전 검사. 서버와 같은 규칙이라 서버가 거절할 글을 미리 막는다 */
+/**
+ * 올리기 전 검사. 서버와 같은 규칙이라 서버가 거절할 글을 미리 막는다.
+ * 글은 한 가지다: 본문이 있거나 사진이 한 장 이상이면 된다. 제목은 선택, 태그는 0~5개.
+ */
 export function checkDraft(d: CommunityDraft): DraftCheck {
   const title = d.title.trim();
   const body = d.body.trim();
@@ -37,8 +41,9 @@ export function checkDraft(d: CommunityDraft): DraftCheck {
   for (const p of d.photos) {
     if (base64Bytes(p.data) > PHOTO_BYTES_MAX) return { ok: false, problem: '사진 한 장이 너무 큽니다. 다른 사진을 골라 주세요' };
   }
-  if (d.kind === 'photo' && d.photos.length === 0) return { ok: false, problem: '사진을 한 장 이상 골라 주세요' };
-  if (d.kind === 'diary' && body.length === 0) return { ok: false, problem: '일기 내용을 입력해 주세요' };
+  if (d.tags.length > TAGS_MAX) return { ok: false, problem: TAG_FULL_TEXT };
+  if (d.tags.some((t) => normalizeTag(t) !== t)) return { ok: false, problem: TAG_RULE_TEXT };
+  if (body.length === 0 && d.photos.length === 0) return { ok: false, problem: EMPTY_POST_TEXT };
   return { ok: true };
 }
 
@@ -78,6 +83,8 @@ export function failText(code: string, detail?: string): string {
   switch (code) {
     case 'loginRequired':
       return '로그인하면 글을 올릴 수 있어요';
+    case 'badPost':
+      return '글을 올리지 못했어요. 내용을 확인해 주세요';
     case 'tooMany':
       return '한 시간에 올릴 수 있는 글을 넘었어요. 잠시 뒤 다시 시도해 주세요';
     case 'tooLarge':

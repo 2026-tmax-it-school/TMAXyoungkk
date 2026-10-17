@@ -4,6 +4,7 @@ import { createLocalCommunity } from './local';
 
 export { createHttpCommunity } from './http';
 export { createLocalCommunity } from './local';
+export { createDraftStore, type DraftSaveResult, type DraftStore } from './drafts';
 
 /** 서버 주소(EXPO_PUBLIC_API_URL 또는 EXPO_PUBLIC_SYNC_URL)가 있으면 커뮤니티 서버, 없으면 이 기기 모의 */
 export function createCommunityProvider(opts: { serverUrl?: string; fetch?: FetchLike; clock: Clock; ids: IdGen }): CommunityProvider {

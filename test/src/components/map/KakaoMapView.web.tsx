@@ -736,7 +736,7 @@ export function KakaoMapView(props: MapViewProps & { onFail: (reason: MapFailRea
         memberIds={group}
         titleOf={titleOf}
         onClose={() => setGroup(undefined)}
-        onPick={(id) => latest.current.onMarkerPress?.(id)}
+        onPick={(id) => (latest.current.onClusterPick ?? latest.current.onMarkerPress)?.(id)}
       />
       <MapChildren>{props.children}</MapChildren>
     </View>

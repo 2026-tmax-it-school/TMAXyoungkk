@@ -3,7 +3,7 @@ import { Pressable, View } from 'react-native';
 
 import type { DayPlan, ItemNotice, Trip, Visit } from '../../../types';
 import { Card, Chip, Col, H, Icon, lineC, R, Row, SP, surfaceC, Txt } from '../../../ui';
-import { timelineRows, transportIcon, type TimelineRow } from '../timeline';
+import { spotSubLine, timelineRows, transportIcon, type TimelineRow } from '../timeline';
 import { legLabel, VISIT_LABEL } from '../view';
 
 /**
@@ -11,6 +11,8 @@ import { legLabel, VISIT_LABEL } from '../view';
  * 목업 09: 왼쪽 52px 고정 폭 시각 열, 가운데 18px 축(스팟은 채운 점, 기점은 속 빈 점), 이동 구간은 카드가 아닌 얇은 줄.
  * 목업 grid 52/18/1fr, column-gap 8. 축 선은 행 전체 높이의 1px, 점은 행 위에서 17px(시각 글자와 같은 높이)에 고정한다.
  * activeSpotId는 선택 테두리, visitStatus는 도착·지나침 칩으로 보여준다. onPressLeg를 주면 이동 줄을 눌러 12로 간다.
+ * 스팟 행: 시각 열은 두 줄(도착, 떠나는 시각), 이름 앞에 순서 번호 배지, 보조 줄은 '관광지 · 체류 90분'(spotSubLine).
+ * 이동 줄: onPressLeg가 있으면 줄 전체 폭이 누르는 자리(높이 44 이상)이고 오른쪽에 꺾쇠를 단다. 없으면 얇은 글자 줄 그대로다.
  */
 
 const AXIS_W = 18;
@@ -21,6 +23,8 @@ const DOT_TOP = 17;
 const COL_GAP = SP.m;
 /** 시각 글자 위 여백(점 가운데와 맞춘다) */
 const TIME_TOP = 14;
+/** 순서 번호 배지 지름 */
+const BADGE = 20;
 
 const NOTICE_TONE: Record<ItemNotice['kind'], 'warn' | 'line'> = {
   outsideHours: 'warn',
@@ -59,6 +63,32 @@ function Axis({ dot, top, bottom }: { dot?: 'fill' | 'hollow'; top?: boolean; bo
   );
 }
 
+/** 이름 앞 순서 번호(1부터). 09 타임라인과 10 일정 편집 카드가 같이 쓴다. 스크린리더는 카드 글자와 함께 '1, 불국사'로 읽는다 */
+export function OrderBadge({ n, dim }: { n: number; dim?: boolean }) {
+  return (
+    <View
+      style={{
+        minWidth: BADGE,
+        height: BADGE,
+        paddingHorizontal: SP.xs,
+        borderRadius: R.chip,
+        backgroundColor: dim ? surfaceC.off : surfaceC.soft,
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      <Txt v="chip" c={dim ? 'muted' : 'accentStrong'}>
+        {n}
+      </Txt>
+    </View>
+  );
+}
+
+/** 지나쳤거나 도착을 취소한 스팟은 흐리게 그린다 */
+function dim(status?: Visit['status']): boolean {
+  return status === 'skipped' || status === 'cancelled';
+}
+
 function statusChip(status?: Visit['status']) {
   if (!status) return null;
   return <Chip text={VISIT_LABEL[status]} tone={status === 'arrived' ? 'ok' : 'line'} />;
@@ -80,17 +110,17 @@ export function DayTimeline({
   /** 이동 줄을 누르면 부른다(legIndex 0은 기점에서 첫 스팟) */
   onPressLeg?: (legIndex: number) => void;
 }) {
-  void trip;
-  const rows = timelineRows(day, visitStatus);
+  const rows = timelineRows(day, visitStatus, trip.spots);
   const renderRow = (r: TimelineRow, i: number) => {
     const first = i === 0;
     const last = i === rows.length - 1;
     if (r.kind === 'leg') {
+      const text = legLabel(r.transport, r.minutes, r.estimated);
       const line = (
         <Row gap={SP.s}>
           <Icon name={transportIcon(r.transport)} size={14} color="muted" />
           <Txt v="chipLine" c="muted">
-            {legLabel(r.transport, r.minutes, r.estimated)}
+            {text}
           </Txt>
         </Row>
       );
@@ -98,20 +128,19 @@ export function DayTimeline({
         <View key={r.key} style={{ flexDirection: 'row' }}>
           <View style={{ width: H.timeCol, marginRight: COL_GAP }} />
           <Axis top bottom />
-          <View style={{ flex: 1, justifyContent: 'center', paddingVertical: 3 }}>
-            {onPressLeg ? (
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={`이동수단 바꾸기 ${legLabel(r.transport, r.minutes, r.estimated)}`}
-                onPress={() => onPressLeg(r.legIndex)}
-                hitSlop={6}
-              >
-                {line}
-              </Pressable>
-            ) : (
-              line
-            )}
-          </View>
+          {onPressLeg ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`이동수단 바꾸기, ${text}`}
+              onPress={() => onPressLeg(r.legIndex)}
+              style={{ flex: 1, minHeight: H.touch, flexDirection: 'row', alignItems: 'center', gap: SP.s }}
+            >
+              <View style={{ flex: 1, minWidth: 0 }}>{line}</View>
+              <Icon name="right" size={14} color="muted" />
+            </Pressable>
+          ) : (
+            <View style={{ flex: 1, justifyContent: 'center', paddingVertical: 3 }}>{line}</View>
+          )}
         </View>
       );
     }
@@ -119,21 +148,26 @@ export function DayTimeline({
     const content =
       r.kind === 'spot' ? (
         <Card
-          variant={r.spotId === activeSpotId ? 'selected' : r.status === 'skipped' || r.status === 'cancelled' ? 'flat' : 'default'}
+          variant={r.spotId === activeSpotId ? 'selected' : dim(r.status) ? 'flat' : 'default'}
           onPress={onPressItem ? () => onPressItem(r.spotId) : undefined}
           style={{ padding: SP.xl, borderRadius: R.card }}
         >
-          <Row top>
+          <Row top gap={SP.m}>
+            <View style={{ paddingTop: 1 }}>
+              <OrderBadge n={r.index + 1} dim={dim(r.status)} />
+            </View>
             <Col grow gap={SP.xs}>
-              <Txt v="nm" c={r.status === 'skipped' || r.status === 'cancelled' ? 'muted' : 'ink'}>
+              <Txt v="nm" c={dim(r.status) ? 'muted' : 'ink'}>
                 {r.title}
               </Txt>
-              <Txt v="mtTight">{`${r.time} – ${r.depart} · ${r.stayMin}분`}</Txt>
+              <Txt v="mtTight">{spotSubLine(r)}</Txt>
             </Col>
-            <Col gap={SP.xs}>
-              {r.pinned ? <Chip text="고정" icon="pinlock" /> : <Chip text={`제안자 ${r.proposerCount}`} />}
-              {statusChip(r.status)}
-            </Col>
+            {r.pinned || r.status ? (
+              <Col gap={SP.xs}>
+                {r.pinned ? <Chip text="고정" icon="pinlock" /> : null}
+                {statusChip(r.status)}
+              </Col>
+            ) : null}
           </Row>
           {r.notices.length || r.carryOver || r.manual ? (
             <Row gap={SP.s} wrap>
@@ -162,6 +196,7 @@ export function DayTimeline({
       <View key={r.key} style={{ flexDirection: 'row' }}>
         <View style={{ width: H.timeCol, marginRight: COL_GAP, paddingTop: TIME_TOP }}>
           <Txt v="time">{r.time}</Txt>
+          {r.kind === 'spot' ? <Txt v="mtTight">{r.depart}</Txt> : null}
         </View>
         <Axis dot={hollow ? 'hollow' : 'fill'} top={!first} bottom={!last} />
         <View style={{ flex: 1, paddingVertical: SP.m }}>{content}</View>

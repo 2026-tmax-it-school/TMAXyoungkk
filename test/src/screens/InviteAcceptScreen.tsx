@@ -7,6 +7,7 @@ import { activeMembers } from '../core/group';
 import { periodLabel, effectiveBase } from '../core/trip/create';
 import { normalizeInviteCode } from '../core/trip/invite';
 import { cleanNickname, JOIN_ERROR_TEXT } from '../core/trip/join';
+import { GUEST_LIMIT_HELP } from '../features/account/messages';
 import type { RootScreenProps } from '../navigation/routes';
 import { getServices } from '../services/registry';
 import { useSession } from '../store/session';
@@ -17,6 +18,7 @@ import {
   Body,
   Btn,
   Card,
+  Chip,
   Col,
   Field,
   Foot,
@@ -27,6 +29,7 @@ import {
   Row,
   Screen,
   SP,
+  TextLink,
   Txt,
 } from '../ui';
 
@@ -34,9 +37,12 @@ import {
  * 02 초대 수락 · 게스트 합류(FR-105·302, WP2 소유. 02의 시각 기준도 WP2다).
  * 세션 유무와 상관없이 열린다. 딥링크 youngtrip://j/코드, https://youngtrip.app/j/코드가 여기로 온다.
  * - 코드 없이 열면 코드 입력 칸을 보여준다(정적 웹 export의 /j/ 폴백 대신).
- * - 세션이 없으면 이 방에서 쓸 닉네임(12자)을 받아 게스트로 합류한다. 게스트 한계는 합류 버튼 앞에 보여준다.
+ * - 세션이 없으면 이 방에서 쓸 닉네임(12자)을 받아 게스트로 합류한다. 게스트 한계는 이름 칸 help로 합류 버튼 앞에 보여준다.
+ *   온보딩에서 적은 닉네임(route.params.nickname)으로 이름 칸을 미리 채우고, 그 값은 경로에서 바로 지운다(웹 주소에 남지 않게).
+ * - 코드 칸과 이름 칸은 Enter로 바로 확인·합류한다. 제목은 '{방장}님이 여행방에 초대했어요'로 고정한다(입력에 따라 줄이 바뀌지 않게).
  * - 이미 참여한 사람은 중복 멤버 없이 방으로 들어간다.
  * - 같은 기기 '다른 사람으로 합류(시연)': 새 userId로 합류하고 그 방에서 그 멤버로 행동한다(actingAs).
+ *   시연 전용이라 Foot(합류, 초대 거절)이 아니라 이름 칸 아래 글자 링크로 둔다. 켜면 line 칩으로 시연 중임을 보인다.
  * - 만료·무효·정원·없음·종료·오프라인은 앰버 안내(JOIN_ERROR_TEXT)와 다른 코드 입력으로 돌려보낸다.
  * - 게스트 세션은 합류 직전에 초대를 다시 확인한 뒤 만들고, 합류가 실패하면 되돌린다(방 없이 게스트만 남지 않게).
  */
@@ -53,7 +59,7 @@ export default function InviteAcceptScreen({ navigation, route }: RootScreenProp
   const [preview, setPreview] = useState<InvitePreview | undefined>(undefined);
   const [loading, setLoading] = useState(false);
   const [demoOther, setDemoOther] = useState(false);
-  const [nickname, setNickname] = useState(session?.nickname ?? profileName ?? '');
+  const [nickname, setNickname] = useState(session?.nickname ?? (route.params?.nickname || profileName || ''));
   const [joining, setJoining] = useState(false);
   const [joinError, setJoinError] = useState<string | undefined>(undefined);
 
@@ -67,6 +73,13 @@ export default function InviteAcceptScreen({ navigation, route }: RootScreenProp
     },
     [previewInvite],
   );
+
+  // 온보딩이 넘긴 닉네임은 이름 칸에 한 번 담고 경로에서 지운다. 웹에서는 경로 값이 주소(?nickname=)로 남아,
+  // 그 주소를 초대 링크로 퍼뜨리면 받은 사람 이름 칸이 내 닉네임으로 차고 방문 기록에도 남는다.
+  const passedNick = route.params?.nickname;
+  useEffect(() => {
+    if (passedNick) navigation.setParams({ nickname: undefined });
+  }, [navigation, passedNick]);
 
   useEffect(() => {
     if (code) void load(code);
@@ -87,7 +100,7 @@ export default function InviteAcceptScreen({ navigation, route }: RootScreenProp
   const submitCode = () => {
     const c = normalizeInviteCode(codeInput);
     if (!c) {
-      setCodeError('초대 코드는 8자(XXXX-XXXX)입니다. 링크를 그대로 붙여 넣어도 됩니다.');
+      setCodeError('초대 코드는 8자(XXXX-XXXX)예요. 링크를 그대로 붙여 넣어도 돼요.');
       return;
     }
     setCodeError(undefined);
@@ -136,7 +149,7 @@ export default function InviteAcceptScreen({ navigation, route }: RootScreenProp
       return;
     }
     if (demoOther) useUi.getState().setActingAs(r.tripId, r.memberId);
-    useUi.getState().showToast(r.already ? '이미 참여 중인 여행방입니다' : `${name}님으로 합류했습니다`);
+    useUi.getState().showToast(r.already ? '이미 참여 중인 여행방이에요' : `${name}님으로 합류했어요`);
     goTrip(r.tripId);
   };
 
@@ -164,16 +177,18 @@ export default function InviteAcceptScreen({ navigation, route }: RootScreenProp
   /* ---------- 코드 입력 ---------- */
   if (!code) {
     return (
-      <Screen>
+      <Screen keyboard>
         <Header back={leave} eyebrow="초대 코드로 합류" title="받은 초대 코드를 적어 주세요" />
         <Body scroll>
           <Field
             label="초대 코드"
+            kind="code"
             value={codeInput}
             onChangeText={setCodeInput}
             error={codeError}
+            onSubmitEditing={submitCode}
           />
-          {!online ? <Notice tone="warn" icon="alert" text="오프라인입니다. 이 기기에 없는 여행방은 연결된 뒤에 확인할 수 있습니다." /> : null}
+          {!online ? <Notice tone="warn" icon="alert" text="오프라인이에요. 이 기기에 없는 여행방은 연결된 뒤에 확인할 수 있어요." /> : null}
         </Body>
         <Foot>
           <Btn title="초대 확인" disabled={!codeInput.trim()} onPress={submitCode} />
@@ -225,19 +240,19 @@ export default function InviteAcceptScreen({ navigation, route }: RootScreenProp
   const already = preview.already && !demoOther;
   const guest = demoOther || !session || session.kind === 'guest';
   const who = cleanNickname(nickname);
+  const toggleDemo = () => {
+    if (!session) return;
+    setDemoOther(!demoOther);
+    setNickname(demoOther ? session.nickname : '');
+    setJoinError(undefined);
+  };
 
   return (
-    <Screen>
+    <Screen keyboard>
       <Header
         back={leave}
         eyebrow="초대 링크로 들어옴"
-        title={
-          already
-            ? '이미 참여 중인 여행방이에요'
-            : who
-              ? `${host?.nickname ?? '방장'}님이 ${who}님을\n여행방에 초대했어요`
-              : `${host?.nickname ?? '방장'}님이 여행방에 초대했어요`
-        }
+        title={already ? '이미 참여 중인 여행방이에요' : `${host?.nickname ?? '방장'}님이 여행방에 초대했어요`}
       />
       <Body scroll>
         <TripSummary trip={trip} />
@@ -246,13 +261,25 @@ export default function InviteAcceptScreen({ navigation, route }: RootScreenProp
         ) : (
           <Field
             label="이 여행방에서 쓸 이름"
+            kind="nickname"
             value={nickname}
             onChangeText={setNickname}
             maxLength={NICKNAME_MAX}
+            help={!session ? GUEST_LIMIT_HELP : undefined}
             error={joinError}
+            onSubmitEditing={() => {
+              if (!joining && who) void join();
+            }}
           />
         )}
-        {!online ? <Notice tone="warn" icon="alert" text="오프라인입니다. 합류는 이 기기에 먼저 반영되고 연결되면 전송됩니다." /> : null}
+        {session ? (
+          // 시연 전용(같은 기기 다른 멤버). 합류·거절과 같은 무게로 두지 않고 이름 칸 아래 글자 링크로 둔다.
+          <Row gap={SP.m} wrap>
+            <TextLink title={demoOther ? '나로 합류하기' : '다른 사람으로 합류(시연)'} onPress={toggleDemo} />
+            {demoOther ? <Chip text="시연 · 새 멤버로 합류" tone="line" /> : null}
+          </Row>
+        ) : null}
+        {!online ? <Notice tone="warn" icon="alert" text="오프라인이에요. 합류는 이 기기에 먼저 반영되고 연결되면 보내요." /> : null}
       </Body>
       <Foot>
         {already ? (
@@ -261,19 +288,6 @@ export default function InviteAcceptScreen({ navigation, route }: RootScreenProp
           <Btn title={joining ? '합류하는 중' : guest ? '게스트로 합류하기' : '합류하기'} disabled={joining || !who} onPress={join} />
         )}
         <Btn title="초대 거절" variant="quiet" size="sm" onPress={leave} />
-        {session ? (
-          // 시연 전용이라 초대 거절 아래에 낮은 단계(quiet sm, 전체 폭)로 둔다(목업 02 하단은 합류와 거절 두 개).
-          <Btn
-            title={demoOther ? '나로 합류하기' : '다른 사람으로 합류(시연)'}
-            variant="quiet"
-            size="sm"
-            onPress={() => {
-              setDemoOther(!demoOther);
-              setNickname(demoOther ? session.nickname : '');
-              setJoinError(undefined);
-            }}
-          />
-        ) : null}
       </Foot>
     </Screen>
   );

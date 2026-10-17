@@ -15,8 +15,12 @@ export interface MapMarkerInput {
   kind: 'spot' | 'excluded' | 'base';
   label?: string;
   title: string;
-  /** 순번 핀 면 색. 여러 날짜를 겹쳐 그릴 때(11 '전체') 그날 선 색을 쓴다. 없으면 로즈 */
+  /** 순번 핀 면 색. 여러 날짜를 겹쳐 그릴 때(11 '전체') 그날 선 색을 쓴다. 없으면 잉크 */
   color?: 'ink' | 'slate' | 'ok' | 'warn';
+  /** 핀 크기 배율(채팅방 지도의 표 수, 1~1.4). 없으면 1 */
+  scale?: number;
+  /** 흐리게(채팅방 지도에서 고른 지역·멤버 밖의 핀). 없으면 보통 */
+  dim?: boolean;
 }
 
 export interface MapPolylineInput {
@@ -98,6 +102,16 @@ const MIN_SPAN_DEG = 0.01;
 export const FOCUS_MIN_SPAN_DEG = 0.002;
 export function focusOptions(compact: boolean): { clusterPx: number; minSpanDeg: number } {
   return { clusterPx: compact ? 10 : 12, minSpanDeg: FOCUS_MIN_SPAN_DEG };
+}
+
+/** 맞춤 높이의 바닥값. 시트를 거의 끝까지 올려도 투영이 한 점으로 무너지지 않게 한다 */
+export const MIN_FIT_H = 120;
+/**
+ * 아래 시트가 덮는 높이(overlayBottom)를 뺀 맞춤 높이(SVG 기본 지도). 카카오·구글이 지도 영역을 그만큼 줄이는 것과 같게,
+ * 맞출 핀이 시트 밑이 아니라 보이는 위쪽에 놓인다. 지도 높이보다 크지 않고 MIN_FIT_H보다 작지 않다.
+ */
+export function fitAreaHeight(height: number, overlayBottom = 0): number {
+  return Math.min(height, Math.max(MIN_FIT_H, height - Math.max(0, overlayBottom)));
 }
 
 export function makeProjection(

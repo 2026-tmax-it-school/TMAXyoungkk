@@ -12,10 +12,20 @@ import { proposerIds } from '../src/core/spotUtil';
 import { PLACES } from '../src/data/places';
 import { regionById } from '../src/data/regions';
 import { SCENARIO_PLACES } from '../src/data/scenario';
-import { candidateView, daypart, headline } from '../src/features/candidates/rows';
+import {
+  candidateSections,
+  candidateView,
+  CONFIRMED_FOLD,
+  daypart,
+  foldConfirmed,
+  headline,
+  unfoldLabel,
+  type CandidateView,
+} from '../src/features/candidates/rows';
 import { bubbleSegments, extractionCard, senderName } from '../src/features/chat/view';
 import { createPlaceProvider } from '../src/services/places';
 import { fakeFetch } from './helpers/fakes';
+import { read, stripComments } from './setup/scan';
 
 /**
  * FR-402 후보 목록·FR-202 수동 등록(WP3). 리듀서는 WP3 파일만 쓴다.
@@ -336,6 +346,97 @@ test('06 행 계산: 확정·제외·배치 전, 사유 100%, 시간대와 고�
   assert.equal(none.pending.length, 3);
   assert.equal(none.excluded.length, 1, '사용자가 뺀 후보는 계획 전에도 제외 구역에 사유와 함께 보인다');
   assert.deepEqual([daypart('11:59'), daypart('12:00'), daypart('18:00')], ['오전', '오후', '저녁']);
+});
+
+test('06 목록 구역: 확정 구역만 앞 5곳으로 접고, 배치 계산 전은 있을 때만, 제외 구역은 절대 접지 않는다', () => {
+  const nums = Array.from({ length: 11 }, (_, i) => i);
+  assert.equal(CONFIRMED_FOLD, 5);
+  assert.deepEqual(foldConfirmed(nums), { shown: [0, 1, 2, 3, 4], hidden: 6 });
+  assert.deepEqual(foldConfirmed(nums.slice(0, 5)), { shown: [0, 1, 2, 3, 4], hidden: 0 }, '5곳 이하면 펴기 버튼이 없다');
+  assert.deepEqual(foldConfirmed([]), { shown: [], hidden: 0 });
+  assert.equal(unfoldLabel(6), '나머지 6곳 보기');
+
+  const row = (k: string, i: number) => ({ spotId: `${k}${i}`, name: `${k}${i}` });
+  const many = (k: string, count: number) => Array.from({ length: count }, (_, i) => row(k, i));
+  const v = {
+    ...candidateView(trip(), undefined),
+    total: 25,
+    confirmed: many('c', 11),
+    pending: [],
+    excluded: many('x', 14),
+  } as unknown as CandidateView;
+  const s = candidateSections(v);
+  assert.equal(s.confirmed?.title, '확정 스팟 11');
+  assert.equal(s.confirmed?.a11y, '확정 스팟 11곳', '숫자가 순번으로 읽히지 않게 곳을 붙인다');
+  assert.deepEqual(s.confirmed?.rows.map((r) => r.spotId), ['c0', 'c1', 'c2', 'c3', 'c4']);
+  assert.equal(s.confirmed?.hidden, 6);
+  assert.equal(s.pending, undefined, '배치 계산 전은 있을 때만 구역을 만든다');
+  // 제외는 5곳을 넘어도 접지 않는다(조용한 제외 없음)
+  assert.equal(s.excluded?.title, '제외 스팟 14 · 되돌릴 수 있음');
+  assert.equal(s.excluded?.rows.length, 14);
+  assert.equal(s.excluded?.hidden, 0);
+  // 펴면 확정도 모두 보인다
+  const open = candidateSections(v, true);
+  assert.equal(open.confirmed?.rows.length, 11);
+  assert.equal(open.confirmed?.hidden, 0);
+  // 배치 계산 전이 있으면 구역이 생기고 접지 않는다. 비어 있는 구역은 만들지 않는다
+  const p = candidateSections({ ...v, confirmed: [], excluded: [], pending: many('p', 7) } as unknown as CandidateView);
+  assert.equal(p.confirmed, undefined);
+  assert.equal(p.excluded, undefined);
+  assert.equal(p.pending?.title, '배치 계산 전 7');
+  assert.equal(p.pending?.rows.length, 7);
+  assert.equal(p.pending?.hidden, 0);
+});
+
+test('06 화면: 지금 보는 여행방 줄, 시간표|후보 나누기와 요약 한 줄, 검색 입구, Seg 없는 구역 목록, 제외 카드 되돌리기', () => {
+  const src = stripComments(read('src/screens/CandidatesScreen.tsx'));
+  assert.match(src, /useActiveTrip\(\)/);
+  assert.doesNotMatch(src, /useCurrentTrip/);
+  assert.match(src, /<TripBar \/>\s*<PlanSwitch value="Candidates" candidates=\{view\.total\} \/>/);
+  assert.match(src, /const line = summaryLine\(view\)/);
+  assert.match(src, /<Txt v="mtTight" numberOfLines=\{1\}>\s*\{line \?\?/, '요약은 높이가 고정된 한 줄이다');
+  assert.doesNotMatch(src, /<Seg\b/, '확정/제외 Seg 없이 목록 하나를 구역 머리로 나눈다');
+  assert.doesNotMatch(src, /<Notice\b/, '오프라인 안내는 앱 공통 OfflineBar가 맡는다');
+  assert.doesNotMatch(src, /sample|예시 데이터/);
+  // 여행방 만들기는 방이 0개일 때만
+  assert.match(src, /trips\.length === 0[\s\S]*?'여행방 만들기'/);
+  assert.equal(src.match(/여행방 만들기/g)?.length, 1);
+  assert.match(src, /여행방을 골라 주세요/);
+  // 담기 입구: 검색창 모양 버튼(44 이상)을 누르면 그 자리에서 ManualAdd를 펼친다. 그 아래 추천 줄
+  assert.match(src, /장소 검색해서 담기/);
+  // 보이는 글과 접근성 이름이 늘 같다(펼치면 둘 다 '장소 검색 닫기')
+  assert.match(src, /const entryLabel = adding \? '장소 검색 닫기' : '장소 검색해서 담기'/);
+  assert.match(src, /accessibilityLabel=\{entryLabel\}/);
+  assert.match(src, /<Txt v="field" c="muted" numberOfLines=\{1\}>\s*\{entryLabel\}\s*<\/Txt>/);
+  assert.match(src, /minHeight: H\.touch/);
+  assert.match(src, /adding \? <ManualAdd trip=\{trip\} focus \/> : null/);
+  assert.match(src, /<ListRow[^>]*icon="compass"[^>]*label="성향 태그로 추천 받기"/);
+  // 계산 중이면 칩과 '단계 보기'
+  assert.match(src, /<Chip text="다시 계산하는 중"[\s\S]*?title="단계 보기" size="sm" variant="quiet"/);
+  // 구역: 확정은 접고 펴기, 제외 카드 아래 '고정해서 다시 넣기' 뒤 토스트
+  assert.match(src, /candidateSections\(view, expanded\)/);
+  assert.match(src, /unfoldLabel\(sections\.confirmed\.hidden\)/);
+  assert.match(src, /title="고정해서 다시 넣기"\s+size="sm"\s+variant="ghost"\s+icon="undo"/);
+  // 제외 구역은 접히지 않아 같은 버튼이 여러 개다. 스크린리더는 스팟 이름까지 붙여 읽는다.
+  assert.match(src, /icon="undo"\s+a11yLabel=\{`\$\{r\.name\} 고정해서 다시 넣기`\}/);
+  assert.match(src, /type: 'spot\/restore'[\s\S]*?toast\(/);
+});
+
+test('23 화면: 카드 세 줄, 좁으면 버튼을 아래 줄로, 대체됨 칩 없음, 고르는 중 안내와 잠금, useBack·NotFound, 금지 용어 없음', () => {
+  const src = stripComments(read('src/screens/RecommendScreen.tsx'));
+  assert.doesNotMatch(src, /대체됨/);
+  assert.match(src, /narrow \? null : action/);
+  assert.match(src, /narrow \? <View style=\{styles\.start\}>\{action\}<\/View> : null/);
+  assert.match(src, /busy \? \(?\s*<Notice icon="clock"/);
+  // 상태 안내는 한 자리에 하나만: 고르는 중 > 실패 > 인기 장소로 채움(목록 위에 Notice를 쌓지 않음)
+  assert.equal(src.match(/<Notice\b/g)?.length, 3);
+  assert.match(src, /busy \? \(\s*<Notice icon="clock"[^]*?\) : failed \? \(\s*<Notice\s+tone="warn"[^]*?\) : result\?\.r\.fallback \? \(\s*<Notice\s+title="인기 장소로 채웠어요"/);
+  assert.match(src, /title="후보에 담기"[^>]*disabled=\{busy\}/);
+  assert.match(src, /후보에 담김/);
+  assert.match(src, /useBack\('Candidates'\)/);
+  assert.match(src, /<NotFound /);
+  assert.doesNotMatch(src, /canGoBack|title="오프라인"/);
+  for (const w of ['확정 장소', '제외 장소', '투표', '출발지']) assert.ok(!src.includes(w), w);
 });
 
 test('05 말풍선 조각과 보낸 사람 이름', () => {

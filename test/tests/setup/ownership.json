@@ -89,6 +89,7 @@
     "src/features/chat/**",
     "src/features/candidates/**",
     "src/core/extract/**",
+    "src/core/chatmap/**",
     "src/core/recommend.ts",
     "src/core/ops/chat.ts",
     "src/core/ops/spots.ts",

@@ -1,7 +1,7 @@
 import type { ChatExtraction, ChatMessage, Op, OpOf, Proposal, Spot, Trip } from '../../types';
 import { addProposals } from '../extract/spot';
 import { activeMembers } from '../group';
-import { patchSpot } from './lww';
+import { patchSpot, patchVote } from './lww';
 
 /**
  * spot/* 리듀서(WP3 소유). 전 멤버가 쓸 수 있다.
@@ -14,6 +14,10 @@ import { patchSpot } from './lww';
  *   어느 쪽이든 남은 제안이 0건이면 지운다(제안자 0명 후보는 두지 않는다).
  * - spot/pin·remove·restore는 공유 patchSpot(필드별 op.at LWW)만 쓴다. restore는 고정으로 되돌린다.
  * - spot/delete는 오인식 후보를 지운다. 말풍선 강조와 추출 카드에서도 뺀다.
+ * - spot/vote(채팅방 지도의 한 표, FR-405)는 공유 patchVote(멤버별 op.at LWW)만 쓴다. 대상은 spotId이고, 없으면
+ *   같은 placeId의 후보다(다른 기기에서 같은 장소가 먼저 생겨 이 기기의 후보가 그쪽에 합쳐진 경우).
+ *   새 후보를 만들 때는 페이로드의 votes를 버리고, 기존 후보에 합칠 때는 votes를 그대로 둔다.
+ *   후보를 지우는 spot/delete·undoExtraction은 votes도 함께 사라진다. restore·pin은 votes를 건드리지 않는다.
  */
 
 /** 채팅 제안은 그 메시지를 보낸 사람의 것이다. 동명 장소를 다른 멤버가 골라 줘도 제안자는 말한 사람이다. */
@@ -47,7 +51,7 @@ function upsertSpot(spots: Spot[], spot: Spot, proposals: Proposal[]): { spots: 
     return { spots: next, id: spots[i].id, created: false };
   }
   if (spots.some((s) => s.id === spot.id)) return { spots, id: spot.id, created: false };
-  return { spots: [...spots, { ...spot, proposals: addProposals([], proposals) }], id: spot.id, created: true };
+  return { spots: [...spots, { ...spot, votes: undefined, proposals: addProposals([], proposals) }], id: spot.id, created: true };
 }
 
 function reduceExtracted(doc: Trip, op: OpOf<'spot/extracted'>): Trip {
@@ -192,8 +196,9 @@ function reduceDelete(doc: Trip, spotId: string): Trip {
   return scrubExtractions({ ...doc, spots: doc.spots.filter((s) => s.id !== spotId) }, spot);
 }
 
-function patchById(doc: Trip, spotId: string, fn: (s: Spot) => Spot): Trip {
-  const i = doc.spots.findIndex((s) => s.id === spotId);
+function patchById(doc: Trip, spotId: string, fn: (s: Spot) => Spot, placeId?: string): Trip {
+  let i = doc.spots.findIndex((s) => s.id === spotId);
+  if (i < 0 && placeId) i = doc.spots.findIndex((s) => s.placeId === placeId);
   if (i < 0) return doc;
   const spots = [...doc.spots];
   spots[i] = fn(spots[i]);
@@ -226,6 +231,8 @@ export function reduce(doc: Trip, op: Op): Trip {
       );
     case 'spot/delete':
       return reduceDelete(doc, op.spotId);
+    case 'spot/vote':
+      return patchById(doc, op.spotId, (s) => patchVote(s, op.actorId, op.on, op.at), op.placeId);
     default:
       return doc;
   }
@@ -257,6 +264,14 @@ export function validate(doc: Trip, op: Op): string | null {
     case 'spot/restore':
     case 'spot/delete':
       return doc.spots.some((s) => s.id === op.spotId) ? null : NO_SPOT;
+    case 'spot/vote': {
+      const spot = doc.spots.find((s) => s.id === op.spotId) ?? (op.placeId ? doc.spots.find((s) => s.placeId === op.placeId) : undefined);
+      if (!spot) return NO_SPOT;
+      if (typeof op.on !== 'boolean') return '잘못된 요청이에요';
+      // 제외 여부는 여기서 보지 않는다. validate는 접을 때도 돌아서, 제외와 겹친 표가 도착 순서(seq)에 따라
+      // 버려지거나 남게 된다(복원 뒤 결과가 op.at이 아니라 순서를 따른다). 제외된 후보에는 화면이 표를 내지 않는다.
+      return null;
+    }
     default:
       return null;
   }

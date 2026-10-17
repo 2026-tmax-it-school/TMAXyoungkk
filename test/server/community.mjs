@@ -1,18 +1,22 @@
 /**
- * 커뮤니티(사진·일기 글) 서비스(WP2 소유, 2026-10-10). 앱 사용자 전체가 같은 피드를 본다(서버 저장).
+ * 커뮤니티(여행 글) 서비스(WP2 소유, 2026-10-10). 앱 사용자 전체가 같은 피드를 본다(서버 저장).
  * sync-server.mjs가 /community/… 요청을 여기로 넘긴다. 저장소는 둘이다(결과 모양이 같다).
  * - 메모리(createMemoryCommunityStore): DATABASE_URL이 없을 때. 서버를 끄면 사라진다
- * - PostgreSQL(server/db/community-store.mjs): community_posts·community_photos 표
+ * - PostgreSQL(server/db/community-store.mjs): community_posts·community_photos 표(태그는 006_community_tags.sql)
  *
- *   GET  /community/posts?before=<커서>&limit=N&kind=photo|diary   → {posts, next}   누구나(Bearer면 mine 표시)
- *   POST /community/posts            Bearer {kind,title,body,photos:[{mime,data}]}    → {post}
+ *   GET  /community/posts?before=<커서>&limit=N&tag=<태그>          → {posts, next}   누구나(Bearer면 mine 표시)
+ *   POST /community/posts            Bearer {title,body,tags,photos:[{mime,data}]}     → {post}
  *   POST /community/posts/:id/delete Bearer(본인 글만)                                → {ok:true}
  *   GET  /community/media/:photoId   → 사진 원본(image/jpeg·png·webp, 오래 캐시)
  *
  * 규칙
  * - 글쓰기·지우기는 로그인한 계정만(게스트는 서버 계정이 없다). 읽기와 사진은 로그인 없이 열린다.
  * - 사진은 종류별 파일 머리글(JPEG·PNG·WebP)을 직접 본다. 앱이 보낸 mime 값은 믿지 않는다. 글당 4장, 장당 1.5MB.
- * - 글 종류 photo는 사진이 한 장 이상, diary는 본문이 있어야 한다. 제목 60자, 본문 4000자.
+ * - 글은 한 가지다(2026-10-11, 사진 글·일기 글을 합침): 본문이 있거나 사진이 한 장 이상이면 된다. 제목(선택) 60자, 본문 4000자.
+ *   저장하는 kind는 서버가 정한다(사진이 있으면 photo, 없으면 diary). 앱이 보낸 kind는 보지 않는다(예전 앱 호환).
+ *   응답과 ?kind= 거르기는 예전 앱을 위해 남겨 둔다. 지금 앱은 쓰지 않는다.
+ * - 태그는 글당 5개, 한 개 12자. 앞의 '#'과 띄어쓰기를 떼고 영문은 소문자로 바꾼 뒤 한글·영문·숫자·_만 받는다(normalizeTag,
+ *   앱 src/core/community/tags.ts와 같은 규칙). 같은 태그는 하나로 합치고 순서는 둔다. ?tag=는 같은 규칙으로 맞춘 뒤 거르고, 틀리면 400.
  * - 한 계정은 한 시간에 20개까지 올린다(RATE_LIMIT). 넘으면 429.
  * - 계정이 탈퇴하면 그 계정의 글과 사진을 지운다(removeByAccount, auth의 onAccountRemoved가 부른다).
  * - 닉네임은 글을 쓸 때의 값을 글에 둔다(나중에 바꿔도 예전 글은 그대로다).
@@ -30,6 +34,37 @@ export const RATE_LIMIT = 20;
 export const RATE_WINDOW_MS = 60 * 60 * 1000;
 /** 글 하나를 올리는 요청 본문 상한(base64 사진 4장 + 글) */
 export const POST_BODY_MAX = 10 * 1024 * 1024;
+/** 글당 태그 수와 태그 한 개 글자 수(앱 src/core/community/tags.ts와 같은 값) */
+export const TAGS_MAX = 5;
+export const TAG_LEN_MAX = 12;
+
+const TAG_CHARS = /^[\p{L}\p{Nd}_]+$/u;
+
+/**
+ * 태그 하나를 맞춘다. 앞뒤 공백·앞의 '#'(여러 개)·가운데 띄어쓰기를 떼고, NFC로 맞추고, 영문은 소문자로 바꾼다.
+ * 한글·영문(글자)·숫자·_만, 1~12자면 맞춘 값을, 아니면 null. 앱 normalizeTag와 같은 규칙이다.
+ */
+export function normalizeTag(raw) {
+  if (typeof raw !== 'string') return null;
+  const t = raw.normalize('NFC').trim().replace(/^#+/, '').replace(/\s+/g, '').toLowerCase();
+  if (t.length === 0 || [...t].length > TAG_LEN_MAX || !TAG_CHARS.test(t)) return null;
+  return t;
+}
+
+/** 요청의 tags → 맞춘 태그 목록(겹치면 하나, 순서 유지). 없으면 []. 틀린 값이 있으면 {error, detail} */
+export function parseTags(raw) {
+  if (raw == null) return { tags: [] };
+  if (!Array.isArray(raw)) return { error: 'badPost', detail: '태그 값이 올바르지 않습니다' };
+  if (raw.length > TAGS_MAX * 4) return { error: 'badPost', detail: `태그는 ${TAGS_MAX}개까지입니다` };
+  const tags = [];
+  for (const r of raw) {
+    const t = normalizeTag(r);
+    if (!t) return { error: 'badPost', detail: `태그는 한글·영문·숫자·_로 ${TAG_LEN_MAX}자까지입니다` };
+    if (!tags.includes(t)) tags.push(t);
+  }
+  if (tags.length > TAGS_MAX) return { error: 'badPost', detail: `태그는 ${TAGS_MAX}개까지입니다` };
+  return { tags };
+}
 
 const newId = (prefix) => `${prefix}-${randomBytes(12).toString('base64url')}`;
 
@@ -43,11 +78,12 @@ export function sniffImage(bytes) {
   return null;
 }
 
-/** 요청 본문 → 검사한 글. 문제가 있으면 {error, detail} */
+/**
+ * 요청 본문 → 검사한 글. 문제가 있으면 {error, detail}.
+ * kind는 받지 않고 사진 유무로 정한다(사진이 있으면 photo, 없으면 diary. 표의 CHECK와 예전 앱 응답 모양을 지킨다).
+ */
 export function parsePostInput(body) {
   if (!body || typeof body !== 'object') return { error: 'badPost', detail: '글을 읽지 못했습니다' };
-  const kind = body.kind;
-  if (!KINDS.includes(kind)) return { error: 'badPost', detail: '글 종류는 사진 또는 일기입니다' };
   const title = typeof body.title === 'string' ? body.title.trim() : '';
   const text = typeof body.body === 'string' ? body.body.trim() : '';
   if (title.length > TITLE_MAX) return { error: 'badPost', detail: `제목은 ${TITLE_MAX}자까지입니다` };
@@ -67,9 +103,10 @@ export function parsePostInput(body) {
     if (!mime) return { error: 'badPost', detail: 'JPEG·PNG·WebP 사진만 올릴 수 있습니다' };
     photos.push({ id: newId('cph'), mime, bytes });
   }
-  if (kind === 'photo' && photos.length === 0) return { error: 'badPost', detail: '사진을 한 장 이상 골라 주세요' };
-  if (kind === 'diary' && text.length === 0) return { error: 'badPost', detail: '일기 내용을 입력해 주세요' };
-  return { kind, title, body: text, photos };
+  const tagged = parseTags(body.tags);
+  if ('error' in tagged) return tagged;
+  if (text.length === 0 && photos.length === 0) return { error: 'badPost', detail: '사진을 고르거나 내용을 적어 주세요' };
+  return { kind: photos.length > 0 ? 'photo' : 'diary', title, body: text, tags: tagged.tags, photos };
 }
 
 /** 저장소 글 → 응답 글. 사진 원본은 싣지 않고 주소만 */
@@ -79,6 +116,7 @@ export function publicPost(rec, viewerAccountId) {
     kind: rec.kind,
     title: rec.title,
     body: rec.body,
+    tags: [...(rec.tags ?? [])],
     authorId: rec.userId,
     authorNickname: rec.nickname,
     createdAt: rec.createdAt,
@@ -104,14 +142,15 @@ export function createMemoryCommunityStore() {
   return {
     kind: 'memory',
     async insertPost(rec) {
-      posts.set(rec.id, { ...rec, photos: rec.photos.map((p) => ({ id: p.id, mime: p.mime })) });
+      posts.set(rec.id, { ...rec, tags: [...(rec.tags ?? [])], photos: rec.photos.map((p) => ({ id: p.id, mime: p.mime })) });
       for (const p of rec.photos) photos.set(p.id, { mime: p.mime, bytes: p.bytes });
     },
-    async list({ before, limit, kind }) {
+    async list({ before, limit, kind, tag }) {
       let all = [...posts.values()].sort(order);
       if (kind) all = all.filter((p) => p.kind === kind);
+      if (tag) all = all.filter((p) => p.tags.includes(tag));
       if (before) all = all.filter((p) => p.createdAt < before.createdAt || (p.createdAt === before.createdAt && p.id < before.id));
-      return all.slice(0, limit).map((p) => ({ ...p, photos: p.photos.map((x) => ({ ...x })) }));
+      return all.slice(0, limit).map((p) => ({ ...p, tags: [...p.tags], photos: p.photos.map((x) => ({ ...x })) }));
     },
     async removePost(id, accountId) {
       const p = posts.get(id);
@@ -166,11 +205,14 @@ export function createCommunityService({ store = createMemoryCommunityStore(), a
     async 'GET posts'({ url, headers }) {
       const kind = url.searchParams.get('kind');
       if (kind && !KINDS.includes(kind)) return fail(400, 'badRequest', '글 종류가 올바르지 않습니다');
+      const rawTag = url.searchParams.get('tag');
+      const tag = rawTag ? normalizeTag(rawTag) : null;
+      if (rawTag && !tag) return fail(400, 'badRequest', '태그가 올바르지 않습니다');
       const limit = Math.min(PAGE_MAX, Math.max(1, Number(url.searchParams.get('limit') ?? PAGE_DEFAULT) || PAGE_DEFAULT));
       const before = url.searchParams.get('before') ? parseCursor(url.searchParams.get('before')) : null;
       if (url.searchParams.get('before') && !before) return fail(400, 'badRequest', '다음 쪽 표시가 올바르지 않습니다');
       const acc = await viewer(headers);
-      const rows = await store.list({ before, limit: limit + 1, kind: kind || null });
+      const rows = await store.list({ before, limit: limit + 1, kind: kind || null, tag });
       const page = rows.slice(0, limit);
       return {
         status: 200,
@@ -195,6 +237,7 @@ export function createCommunityService({ store = createMemoryCommunityStore(), a
         kind: input.kind,
         title: input.title,
         body: input.body,
+        tags: input.tags,
         createdAt: at,
         photos: input.photos,
       };

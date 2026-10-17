@@ -10,6 +10,7 @@ import { buildPlan } from '../core/planner';
 import { inviteStatus, normalizeInviteCode, wasIssued } from '../core/trip/invite';
 import { joinFailure, joinStatus, planJoin, type JoinFail } from '../core/trip/join';
 import { lookupInviteInLogs, lookupTripId } from '../core/trip/lookup';
+import { pickCurrentTrip } from '../core/trip/current';
 import { activeMemberOfUser, expiredTripIds } from '../core/trip/members';
 import {
   ack,
@@ -25,7 +26,8 @@ import {
   reconnectPlan,
   type OutboxState,
 } from '../core/trip/outbox';
-import { appClock, systemClock } from '../services/clock';
+import { kstDate } from '../core/util';
+import { appClock, systemClock, useNow } from '../services/clock';
 import { persistStorage, waitForHydration } from '../services/kv';
 import { getServices } from '../services/registry';
 import { getUserId, useSession } from './session';
@@ -653,17 +655,16 @@ export function useTripDoc(id?: string): Trip | undefined {
 }
 
 /**
- * 지금 고른 여행방. 삭제됐거나 이 기기의 사람이 활성 멤버가 아니면 undefined다(로그아웃·계정 전환·내보내짐 뒤
- * 선택이 남아 있어도 이전 사람의 방이 보이지 않게). actingAs 시연 전환도 멤버로 본다(myMemberId).
+ * 지금 보는 여행방. 규칙은 core/trip/current의 pickCurrentTrip 하나다(지정한 방 → 진행 중 → 예정 → 최근 완료).
+ * 내 여행방(useMyTrips, 내가 활성 멤버이고 삭제되지 않은 방)만 보므로 로그아웃·계정 전환·내보내짐 뒤 선택이 남아 있어도
+ * 이전 사람의 방이 보이지 않는다. 화면은 features/trip/useActiveTrip을 쓴다(고른 방을 저장값에 맞추고 방 목록도 준다).
+ * 이 훅은 export와 시그니처를 지키려고 남겨 두었고, useActiveTrip과 같은 방을 고른다.
  */
 export function useCurrentTrip(): Trip | undefined {
   const id = useUi((s) => s.currentTripId);
-  const doc = useTripDoc(id);
-  const userId = useSession((s) => s.session?.userId);
-  const acting = useUi((s) => (id ? s.actingAs[id] : undefined));
-  if (!doc || doc.deletedAt != null) return undefined;
-  const member = (m: Trip['members'][number]) => m.leftAt == null && (m.userId === userId || m.id === acting);
-  return doc.members.some(member) ? doc : undefined;
+  const trips = useMyTrips();
+  const today = kstDate(useNow());
+  return useMemo(() => pickCurrentTrip(trips, id, today), [trips, id, today]);
 }
 
 export function usePlan(id?: string): Plan | undefined {

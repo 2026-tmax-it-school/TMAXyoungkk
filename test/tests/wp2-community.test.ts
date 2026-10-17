@@ -10,9 +10,13 @@ import {
   RATE_LIMIT,
   RATE_WINDOW_MS,
   TITLE_MAX,
+  TAGS_MAX,
+  TAG_LEN_MAX,
   createMemoryCommunityStore,
+  normalizeTag,
   parseCursor,
   parsePostInput,
+  parseTags,
   sniffImage,
 } from '../server/community.mjs';
 import { migrate } from '../server/db/migrate.mjs';
@@ -66,24 +70,45 @@ test('파일 머리글: JPEG·PNG·WebP만 알아보고 나머지는 거절', ()
   assert.equal(sniffImage(Buffer.alloc(0)), null);
 });
 
-test('글 검사: 종류별 필수 값, 제목·본문·사진 한도, 앱이 보낸 mime은 믿지 않는다', () => {
-  const ok = parsePostInput({ kind: 'photo', title: '  불국사  ', body: '', photos: [{ mime: 'text/html', data: JPEG.toString('base64') }] });
+test('글 검사: 본문이나 사진 하나면 된다, 제목·본문·사진 한도, kind는 사진 유무로, 앱이 보낸 mime은 믿지 않는다', () => {
+  const ok = parsePostInput({ kind: 'diary', title: '  불국사  ', body: '', photos: [{ mime: 'text/html', data: JPEG.toString('base64') }] });
   assert.ok(!('error' in ok));
   if (!('error' in ok)) {
     assert.equal(ok.title, '불국사');
     assert.equal(ok.photos[0].mime, 'image/jpeg');
+    assert.equal(ok.kind, 'photo', '앱이 보낸 kind가 아니라 사진 유무로 정한다');
+    assert.deepEqual(ok.tags, []);
   }
+  const text = parsePostInput({ body: '글만' });
+  assert.ok(!('error' in text) && text.kind === 'diary');
   const bad = (b: unknown) => ('error' in parsePostInput(b) ? (parsePostInput(b) as { detail: string }).detail : null);
   assert.ok(bad(null));
-  assert.ok(bad({ kind: 'video' }));
-  assert.match(bad({ kind: 'photo', photos: [] })!, /한 장 이상/);
-  assert.match(bad({ kind: 'diary', body: '   ' })!, /일기 내용/);
+  assert.match(bad({ kind: 'video' })!, /사진을 고르거나 내용을/);
+  assert.match(bad({ photos: [] })!, /사진을 고르거나 내용을/);
+  assert.match(bad({ body: '   ' })!, /사진을 고르거나 내용을/);
   assert.match(bad({ kind: 'diary', body: 'x'.repeat(BODY_MAX + 1) })!, /본문/);
   assert.match(bad({ kind: 'diary', title: 'x'.repeat(TITLE_MAX + 1), body: '내용' })!, /제목/);
   assert.match(bad({ kind: 'photo', photos: Array.from({ length: PHOTOS_MAX + 1 }, () => photo()) })!, /사진은/);
   assert.match(bad({ kind: 'photo', photos: [{ data: 'not base64!!' }] })!, /사진 값/);
   assert.match(bad({ kind: 'photo', photos: [photo(Buffer.from('<script>alert(1)</script>'))] })!, /JPEG/);
   assert.match(bad({ kind: 'photo', photos: [photo(Buffer.concat([JPEG, Buffer.alloc(PHOTO_BYTES_MAX)]))] })!, /MB/);
+  assert.match(bad({ body: '글', tags: '맛집' })!, /태그 값/);
+  assert.match(bad({ body: '글', tags: ['맛 집!'] })!, /태그는/);
+});
+
+test('태그 규칙: #·띄어쓰기를 떼고 소문자, 한글·영문·숫자·_ 12자, 글당 5개, 겹치면 하나', () => {
+  assert.equal(normalizeTag('  #제주 맛집 '), '제주맛집');
+  assert.equal(normalizeTag('##Cafe_2'), 'cafe_2');
+  assert.equal(normalizeTag('가'.repeat(TAG_LEN_MAX)), '가'.repeat(TAG_LEN_MAX));
+  assert.equal(normalizeTag('가'.repeat(TAG_LEN_MAX + 1)), null);
+  assert.equal(normalizeTag('a-b'), null);
+  assert.equal(normalizeTag('#'), null);
+  assert.equal(normalizeTag(3 as unknown as string), null);
+  assert.deepEqual(parseTags(['#맛집', '맛집', 'CAFE', 'cafe']), { tags: ['맛집', 'cafe'] });
+  assert.deepEqual(parseTags(undefined), { tags: [] });
+  const many = Array.from({ length: TAGS_MAX + 1 }, (_, i) => `t${i}`);
+  assert.ok('error' in parseTags(many));
+  assert.deepEqual(parseTags([...many.slice(0, TAGS_MAX), 't0']), { tags: many.slice(0, TAGS_MAX) });
 });
 
 test('커서 값 읽기', () => {
@@ -96,7 +121,7 @@ test('커서 값 읽기', () => {
 test('메모리 저장소: 같은 시각이면 id 순으로 쪽 나누기가 겹치지 않는다', async () => {
   const s = createMemoryCommunityStore();
   for (const id of ['cmt-a', 'cmt-b', 'cmt-c']) {
-    await s.insertPost({ id, accountId: 'x', userId: 'u', nickname: 'n', kind: 'diary', title: '', body: id, createdAt: 1000, photos: [] });
+    await s.insertPost({ id, accountId: 'x', userId: 'u', nickname: 'n', kind: 'diary', title: '', body: id, tags: [], createdAt: 1000, photos: [] });
   }
   const first = await s.list({ before: null, limit: 2, kind: null });
   assert.deepEqual(first.map((p) => p.id), ['cmt-c', 'cmt-b']);
@@ -195,6 +220,27 @@ for (const backend of BACKENDS) {
       assert.equal(bs, 400);
     });
 
+    test('태그: 올릴 때 맞춰 저장하고 ?tag=로 거른다(같은 규칙으로 맞춘 뒤), 틀린 태그는 400', async () => {
+      const m = await member('tagger');
+      now += MIN;
+      const [s1, a] = await call('/community/posts', { body: '바다', tags: ['#제주 바다', 'Sea', 'sea'] }, m.token);
+      assert.equal(s1, 200, JSON.stringify(a));
+      assert.deepEqual(a.post.tags, ['제주바다', 'sea']);
+      now += MIN;
+      const [, b] = await call('/community/posts', { body: '카페', tags: ['카페'] }, m.token);
+      assert.deepEqual(b.post.tags, ['카페']);
+      const [, bySea] = await call(`/community/posts?limit=50&tag=${encodeURIComponent('#SEA')}`);
+      const ids = (bySea.posts as Json[]).map((x) => x.id);
+      assert.ok(ids.includes(a.post.id) && !ids.includes(b.post.id));
+      assert.ok((bySea.posts as Json[]).every((x) => (x.tags as string[]).includes('sea')));
+      const [, none] = await call(`/community/posts?tag=${encodeURIComponent('없는태그')}`);
+      assert.deepEqual(none.posts, []);
+      const [bad] = await call(`/community/posts?tag=${encodeURIComponent('a-b')}`);
+      assert.equal(bad, 400);
+      const [tooMany] = await call('/community/posts', { body: '많다', tags: ['a', 'b', 'c', 'd', 'e', 'f'] }, m.token);
+      assert.equal(tooMany, 400);
+    });
+
     test('피드는 limit만큼 쪽을 나누고 next로 이어 받으면 겹치거나 빠지지 않는다', async () => {
       const m = await member('pager');
       const made: string[] = [];
@@ -233,7 +279,7 @@ for (const backend of BACKENDS) {
 
     test('잘못된 글은 400, 너무 큰 본문은 413', async () => {
       const m = await member('bad');
-      const [s1, r1] = await call('/community/posts', { kind: 'photo', photos: [] }, m.token);
+      const [s1, r1] = await call('/community/posts', { photos: [], body: '  ' }, m.token);
       assert.equal(s1, 400);
       assert.equal(r1.error, 'badPost');
       const [s2] = await call('/community/posts', { kind: 'photo', photos: [{ data: 'A'.repeat(11 * 1024 * 1024) }] }, m.token);

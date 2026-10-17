@@ -13,6 +13,8 @@ export const PAGE_MAX: number;
 export const RATE_LIMIT: number;
 export const RATE_WINDOW_MS: number;
 export const POST_BODY_MAX: number;
+export const TAGS_MAX: number;
+export const TAG_LEN_MAX: number;
 
 export interface StoredPhoto {
   id: string;
@@ -28,6 +30,8 @@ export interface StoredPost {
   kind: 'photo' | 'diary';
   title: string;
   body: string;
+  /** 맞춘 태그(normalizeTag). 없으면 [] */
+  tags: string[];
   createdAt: number;
   photos: { id: string; mime: string; bytes?: Buffer }[];
 }
@@ -36,7 +40,7 @@ export interface StoredPost {
 export interface CommunityStore {
   readonly kind: 'memory' | 'postgres';
   insertPost(rec: Omit<StoredPost, 'photos'> & { photos: StoredPhoto[] }): Awaitable<void>;
-  list(q: { before: { createdAt: number; id: string } | null; limit: number; kind: string | null }): Awaitable<StoredPost[]>;
+  list(q: { before: { createdAt: number; id: string } | null; limit: number; kind: string | null; tag?: string | null }): Awaitable<StoredPost[]>;
   removePost(id: string, accountId: string): Awaitable<boolean>;
   removeByAccount(accountId: string): Awaitable<number>;
   photo(id: string): Awaitable<{ mime: string; bytes: Buffer } | null>;
@@ -45,7 +49,11 @@ export interface CommunityStore {
 }
 
 export function sniffImage(bytes: Buffer): 'image/jpeg' | 'image/png' | 'image/webp' | null;
-export function parsePostInput(body: unknown): { error: string; detail: string } | { kind: 'photo' | 'diary'; title: string; body: string; photos: StoredPhoto[] };
+export function normalizeTag(raw: unknown): string | null;
+export function parseTags(raw: unknown): { error: string; detail: string } | { tags: string[] };
+export function parsePostInput(
+  body: unknown,
+): { error: string; detail: string } | { kind: 'photo' | 'diary'; title: string; body: string; tags: string[]; photos: StoredPhoto[] };
 export function parseCursor(raw: unknown): { createdAt: number; id: string } | null;
 export function createMemoryCommunityStore(): CommunityStore;
 

@@ -3,10 +3,10 @@ import { Platform, View, type GestureResponderEvent, type LayoutChangeEvent } fr
 import Svg, { Circle, G, Line, Polyline, Rect } from 'react-native-svg';
 
 import type { LatLng } from '../../types';
-import { focusOptions, layoutMap, unproject, type MapCluster } from '../../core/map/layout';
+import { fitAreaHeight, focusOptions, layoutMap, unproject, type MapCluster } from '../../core/map/layout';
 import { pinName } from '../../core/map/engine';
 import { useUi } from '../../store/ui';
-import { lineC, mapC, R, SvgLabel } from '../../ui';
+import { lineC, mapC, OPACITY, pinScale, R, SvgLabel } from '../../ui';
 import { MAP_ENGINE } from './engine';
 import { GOOGLE_VIEW_READY, GoogleMapView } from './GoogleMapView';
 import { KAKAO_VIEW_READY, KakaoMapView } from './KakaoMapView';
@@ -139,6 +139,8 @@ function SvgMapCanvas(props: MapViewProps) {
   const height = mapHeight(props);
   const compact = !!props.compact;
   const onLayout = (e: LayoutChangeEvent) => setWidth(Math.round(e.nativeEvent.layout.width));
+  // 아래 시트가 덮는 만큼 맞춤 영역을 줄인다(카카오·구글과 같게). 그림(Svg·격자)은 지도 높이 그대로다
+  const fitH = fitAreaHeight(height, props.overlayBottom);
 
   const layout = useMemo(
     () =>
@@ -148,14 +150,14 @@ function SvgMapCanvas(props: MapViewProps) {
             polylines: props.polylines,
             dots: props.dots,
             user: props.user,
-            size: { width, height },
+            size: { width, height: fitH },
             fitTo: focus ?? props.fitTo,
             clusterPx: compact ? 18 : undefined,
             pad: compact ? 20 : undefined,
             ...(focus ? focusOptions(compact) : null),
           })
         : undefined,
-    [width, height, props.markers, props.polylines, props.dots, props.user, props.fitTo, focus, compact],
+    [width, fitH, props.markers, props.polylines, props.dots, props.user, props.fitTo, focus, compact],
   );
 
   const pressMap = props.onPressMap
@@ -190,7 +192,7 @@ function SvgMapCanvas(props: MapViewProps) {
   const userR = compact ? 8 : 11;
   const titleOf = new Map(props.markers.map((m) => [m.id, m.title]));
   const pressCluster = (c: MapCluster) => {
-    // 확대한 뒤에도 묶여 있으면 무리 목록에서 고른다(마커를 누르면 스팟 상세라는 규칙을 지킨다).
+    // 확대한 뒤에도 묶여 있으면 무리 목록에서 고른다(마커를 누른 것과 같게 한다. 누름 동작은 화면이 정한다).
     if (focus && props.onMarkerPress) setGroup(c);
     else {
       setFocus(c.coords);
@@ -246,9 +248,12 @@ function SvgMapCanvas(props: MapViewProps) {
                 </G>
               );
             }
+            // 채팅방 지도: 표 수에 따른 크기(scale)와 고른 지역·멤버 밖 흐림(dim). 다른 화면은 둘 다 없어 전과 같다
+            const k = pinScale(m.scale);
+            const fade = m.dim ? OPACITY.dim : undefined;
             if (m.kind === 'excluded') {
               return (
-                <G key={m.id} {...tap(press)} accessible={SVG_ACCESSIBLE} accessibilityLabel={`제외 스팟 ${m.title}`}>
+                <G key={m.id} {...tap(press)} opacity={fade} accessible={SVG_ACCESSIBLE} accessibilityLabel={`제외 스팟 ${m.title}`}>
                   <Circle cx={m.x} cy={m.y} r={compact ? 11 : 14} fill={mapC.excludedPin} stroke={mapC.faint} strokeWidth={2} />
                   <SvgLabel x={m.x} y={m.y + 3.5} text={m.label ?? '제외'} v="pinSm" c="muted" />
                 </G>
@@ -256,15 +261,16 @@ function SvgMapCanvas(props: MapViewProps) {
             }
             if (!m.label) {
               return (
-                <G key={m.id} {...tap(press)} accessible={SVG_ACCESSIBLE} accessibilityLabel={m.title}>
-                  <Circle cx={m.x} cy={m.y} r={compact ? 6 : 7.5} fill={mapC[m.color ?? 'ink']} stroke={mapC.white} strokeWidth={2} />
+                <G key={m.id} {...tap(press)} opacity={fade} accessible={SVG_ACCESSIBLE} accessibilityLabel={m.title}>
+                  <Circle cx={m.x} cy={m.y} r={(compact ? 6 : 7.5) * k} fill={mapC[m.color ?? 'ink']} stroke={mapC.white} strokeWidth={2} />
                 </G>
               );
             }
             return (
-              <G key={m.id} {...tap(press)} accessible={SVG_ACCESSIBLE} accessibilityLabel={pinName(m)}>
-                <Circle cx={m.x} cy={m.y} r={pinR} fill={mapC[m.color ?? 'ink']} stroke={mapC.white} strokeWidth={2} />
-                <SvgLabel x={m.x} y={m.y + labelDy} text={m.label} v={label} c="onAccent" />
+              <G key={m.id} {...tap(press)} opacity={fade} accessible={SVG_ACCESSIBLE} accessibilityLabel={pinName(m)}>
+                <Circle cx={m.x} cy={m.y} r={pinR * k} fill={mapC[m.color ?? 'ink']} stroke={mapC.white} strokeWidth={2} />
+                {/* 3글자 이상('12표')은 원 안에 들어가게 작은 글자로 그린다(ui/mapPinSvg의 pinLabelSize와 같은 뜻) */}
+                <SvgLabel x={m.x} y={m.y + labelDy} text={m.label} v={[...m.label].length >= 3 ? 'pinSm' : label} c="onAccent" />
               </G>
             );
           })}
@@ -302,7 +308,7 @@ function SvgMapCanvas(props: MapViewProps) {
         memberIds={group?.memberIds}
         titleOf={titleOf}
         onClose={() => setGroup(undefined)}
-        onPick={(id) => props.onMarkerPress?.(id)}
+        onPick={(id) => (props.onClusterPick ?? props.onMarkerPress)?.(id)}
       />
       <MapChildren>{props.children}</MapChildren>
     </View>

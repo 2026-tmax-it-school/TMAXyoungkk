@@ -1,31 +1,43 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import type { MapMarkerInput } from '../core/map/layout';
 import { previewOps } from '../core/planner/preview';
-import { dateRange, dayLabel, josa } from '../core/util';
+import { dateRange, josa } from '../core/util';
 import { MapCanvas } from '../components/map/MapCanvas';
-import { baseTransport, deleteNotice, spotDetail, stayPreviewText } from '../features/candidates/detail';
+import {
+  baseTransport,
+  deleteNotice,
+  detailRows,
+  footActions,
+  spotDetail,
+  stayPreviewText,
+  type DetailRowKey,
+  type FootAction,
+} from '../features/candidates/detail';
 import { memberIndex } from '../features/chat/view';
+import { daySegLabel } from '../features/schedule/view';
 import type { RootScreenProps } from '../navigation/routes';
+import { useBack } from '../navigation/useBack';
 import { appClock } from '../services/clock';
 import { getServices } from '../services/registry';
 import { myMemberId, usePlan, useTripDoc, useTrips } from '../store/trips';
+import { useUi } from '../store/ui';
 import {
   Avatar,
   Body,
-  H,
   Btn,
   Card,
   Chip,
   Col,
   ConfirmSheet,
-  Empty,
   Foot,
+  H,
   Header,
-  Icon,
-  IconBtn,
   lineC,
+  ListRow,
+  NotFound,
+  Notice,
   Row,
   Screen,
   Sheet,
@@ -35,13 +47,16 @@ import {
 
 /**
  * 07 스팟 상세(FR-803, WP3 소유).
- * - 이름, 종류·주소, MapCanvas compact 미리보기, 정보 칸 3개(체류, 기점에서, 배치 시각), 제안자 아바타, 채팅 원문.
- * - 정보가 없는 항목은 생략한다(주소 없음, 계획 전 배치 시각 없음 등).
- * - previewOps로 '체류를 N분으로 늘리면 X가 제외 스팟이 됩니다'를 미리 알린다(문서를 바꾸지 않는다).
- * - 조작: 고정, 체류 바꾸기(schedule/setStay), 날짜 지정(schedule/setDate), 직접 빼기(quiet + 확인 1회),
- *   제외 스팟 되돌리기(→고정), 잘못 잡은 후보 지우기(spot/delete, 확인 1회). 지우기는 채팅·수동·추천 후보 모두에 있다.
+ * - 이름, 종류·주소, MapCanvas compact 미리보기, 정보 목록(ListRow 키-값), 제안자 아바타, 채팅 원문.
+ * - 정보 목록(detail.ts detailRows, 순수): 체류와 날짜는 누르면 시트가 열린다. 기점에서 오는 이동과 배치 시각은 읽기 전용이고
+ *   정보가 없으면 줄을 만들지 않는다. '여기까지 길찾기'는 정보 아래 작은 버튼이다.
+ * - previewOps로 '체류를 N분으로 늘리면 X가 제외 스팟이 돼요'를 체류 시트 안 안내로 미리 알린다(문서를 바꾸지 않는다).
+ * - 아래 버튼(detail.ts footActions, 순수): 확정·배치 전이면 '시간표에서 보기'(배치됐을 때만)와 '고정하기' 또는 '고정 풀기',
+ *   제외 스팟이면 '고정해서 다시 넣기' 하나. 머리말에는 버튼을 두지 않는다.
+ * - 맨 아래 '관리' 구역: '직접 빼기'(되돌릴 수 있어 바로 하고 토스트로 알린다), '후보에서 지우기'(되돌릴 수 없어 확인 1회,
+ *   지운 뒤 토스트를 띄우고 뒤로 간다). 지우기는 채팅·수동·추천 후보 모두에 있다.
+ * - 뒤로는 useBack('Schedule'), 없는 후보는 NotFound('홈으로').
  * - 제안자 아바타 색은 05와 같은 멤버 등록 순(memberIndex)이다. 목록 안 순서로 정하지 않는다.
- * 계산은 features/candidates/detail.ts(순수)에 있다.
  */
 
 const STAY_OPTIONS = [30, 45, 60, 90, 120, 150, 180];
@@ -52,16 +67,17 @@ export default function SpotDetailScreen({ navigation, route }: RootScreenProps<
   const trip = useTripDoc(tripId);
   const plan = usePlan(tripId);
   const spot = trip?.spots.find((s) => s.id === spotId);
+  const toast = useUi((s) => s.showToast);
+  const back = useBack('Schedule');
   const [baseMin, setBaseMin] = useState<number | undefined>();
   const [preview, setPreview] = useState<string | undefined>();
-  const [sheet, setSheet] = useState<'stay' | 'date' | 'remove' | 'delete' | undefined>();
-  const back = navigation.canGoBack() ? navigation.goBack : undefined;
+  const [sheet, setSheet] = useState<'stay' | 'date' | 'delete' | undefined>();
 
   const detail = useMemo(() => (trip && spot ? spotDetail(trip, plan, spot, baseMin) : undefined), [trip, plan, spot, baseMin]);
   const day = plan?.days.find((d) => d.date === detail?.date);
 
-  // 기점에서 오는 시간: 그날 첫 스팟이 아니면 경로 제공자로 한 번 구한다. 실패하면 칸을 생략한다.
-  // 수단은 그날 수단(baseTransport) 하나로 정하고, detail.ts의 칸 라벨도 같은 값을 쓴다.
+  // 기점에서 오는 시간: 그날 첫 스팟이 아니면 경로 제공자로 한 번 구한다. 실패하면 줄을 생략한다.
+  // 수단은 그날 수단(baseTransport) 하나로 정하고, detail.ts의 줄 값도 같은 값을 쓴다.
   const base = day?.base;
   const transport = trip ? baseTransport(trip, day?.date) : 'car';
   useEffect(() => {
@@ -79,7 +95,7 @@ export default function SpotDetailScreen({ navigation, route }: RootScreenProps<
     };
   }, [base?.coord.latitude, base?.coord.longitude, spot?.coord.latitude, spot?.coord.longitude, transport, day?.date]);
 
-  // 체류를 30분 늘리면 무엇이 빠지는지 미리 계산한다.
+  // 체류를 30분 늘리면 무엇이 빠지는지 미리 계산한다(체류 시트 안에 보인다).
   useEffect(() => {
     let alive = true;
     setPreview(undefined);
@@ -105,7 +121,7 @@ export default function SpotDetailScreen({ navigation, route }: RootScreenProps<
       <Screen>
         <Header back={back} title="스팟 상세" />
         <Body>
-          <Empty title="후보를 찾을 수 없습니다" />
+          <NotFound title="후보를 찾을 수 없어요" onHome={() => navigation.navigate('Main', { screen: 'Home' })} />
         </Body>
       </Screen>
     );
@@ -123,53 +139,42 @@ export default function SpotDetailScreen({ navigation, route }: RootScreenProps<
   ];
   if (base) markers.push({ id: 'base', coord: base.coord, kind: 'base', title: base.name });
   const del = deleteNotice(spot, myMemberId(trip));
-  const sample = getServices().places.id === 'local';
+  const rows = detailRows(detail);
+  const actions = footActions(detail, !!detail.item);
+  const editSheet: Partial<Record<DetailRowKey, 'stay' | 'date'>> = { stay: 'stay', date: 'date' };
+
+  const act = (a: FootAction) => {
+    if (a.key === 'timetable') {
+      // 시간표는 지금 보는 여행방을 그린다. 이 방으로 맞추고 배치된 날로 간다.
+      useUi.getState().setCurrentTrip(tripId);
+      navigation.navigate('Main', { screen: 'Schedule', params: { date: detail.date } });
+      return;
+    }
+    if (a.key === 'restore') {
+      const r = dispatch(tripId, { type: 'spot/restore', spotId });
+      if (r.ok) toast(`${josa(spot.name, '을/를')} 고정해서 확정 스팟으로 옮겼어요`);
+      return;
+    }
+    dispatch(tripId, { type: 'spot/pin', spotId, pinned: a.key === 'pin' });
+  };
+
+  const removeNow = () => {
+    const r = dispatch(tripId, { type: 'spot/remove', spotId, reason: 'user' });
+    if (r.ok) toast(`${josa(spot.name, '을/를')} 제외 스팟으로 옮겼어요`);
+  };
 
   return (
     <Screen>
-      <Header
-        back={back}
-        eyebrow={detail.eyebrow}
-        title={spot.name}
-        sub={detail.sub || undefined}
-        right={
-          detail.status !== 'excluded' ? (
-            <IconBtn
-              icon="pinlock"
-              label={spot.pinned ? '고정 풀기' : '고정하기'}
-              color={spot.pinned ? 'accent' : 'muted'}
-              onPress={() => dispatch(tripId, { type: 'spot/pin', spotId, pinned: !spot.pinned })}
-            />
-          ) : undefined
-        }
-      />
+      <Header back={back} eyebrow={detail.eyebrow} title={spot.name} sub={detail.sub || undefined} />
       <Body scroll>
         <MapCanvas compact height={126} markers={markers} polylines={[]} fitTo={base ? [base.coord, spot.coord] : [spot.coord]} />
-        {/* 27 자유 길찾기. 출발은 기점(없으면 직접 고른다), 도착은 이 스팟 */}
-        <Btn
-          title="여기까지 길찾기"
-          size="sm"
-          variant="quiet"
-          icon="nav"
-          onPress={() => navigation.navigate('Directions', { tripId, toSpotId: spotId })}
-        />
 
-        <Row gap={SP.m}>
-          {detail.cells.map((c) => (
-            <Card key={c.label} style={{ flex: 1, paddingVertical: SP.l, paddingHorizontal: SP.xl }}>
-              <Col gap={SP.xs}>
-                <Txt v="mtTight">{c.label}</Txt>
-                <Txt v="nm">{c.value}</Txt>
-              </Col>
-            </Card>
-          ))}
-        </Row>
-
-        <Row wrap gap={SP.s}>
-          {spot.pinned ? <Chip text="고정" icon="pinlock" /> : null}
-          {spot.fixedDate ? <Chip text={`${dayLabel(spot.fixedDate)} 지정`} icon="cal" /> : null}
-          {spot.outsideRegion ? <Chip text="목적지 밖" tone="warn" /> : null}
-        </Row>
+        {spot.pinned || spot.outsideRegion ? (
+          <Row wrap gap={SP.s}>
+            {spot.pinned ? <Chip text="고정" icon="pinlock" /> : null}
+            {spot.outsideRegion ? <Chip text="목적지 밖" tone="warn" /> : null}
+          </Row>
+        ) : null}
 
         {detail.status === 'excluded' ? (
           <Card variant="excluded">
@@ -177,21 +182,39 @@ export default function SpotDetailScreen({ navigation, route }: RootScreenProps<
               제외 스팟
             </Txt>
             <Txt v="mt">{detail.excluded?.reason ?? '사용자가 직접 뺌'}</Txt>
-            <Btn
-              title="되돌리기"
-              size="sm"
-              variant="ghost"
-              icon="undo"
-              onPress={() => dispatch(tripId, { type: 'spot/restore', spotId })}
-            />
           </Card>
         ) : null}
+
+        <Col>
+          {rows.map((r, i) => {
+            const opens = r.editable ? editSheet[r.key] : undefined;
+            return (
+              <ListRow
+                key={r.key}
+                first={i === 0}
+                label={r.label}
+                value={r.value}
+                onPress={opens ? () => setSheet(opens) : undefined}
+              />
+            );
+          })}
+        </Col>
+        {/* 27 자유 길찾기. 출발은 기점(없으면 직접 고른다), 도착은 이 스팟 */}
+        <View style={styles.start}>
+          <Btn
+            title="여기까지 길찾기"
+            size="sm"
+            variant="quiet"
+            icon="nav"
+            onPress={() => navigation.navigate('Directions', { tripId, toSpotId: spotId })}
+          />
+        </View>
 
         {detail.proposers.length > 0 ? (
           <Card>
             <Txt v="eyebrow">{`제안자 ${detail.proposers.length}명`}</Txt>
             <Row gap={SP.m}>
-              <View style={{ flexDirection: 'row' }}>
+              <View style={styles.avatars}>
                 {detail.proposers.map((p, i) => (
                   <Avatar
                     key={p.id}
@@ -201,13 +224,13 @@ export default function SpotDetailScreen({ navigation, route }: RootScreenProps<
                   />
                 ))}
               </View>
-              <Txt v="mt" style={{ flex: 1 }}>
+              <Txt v="mt" style={styles.grow}>
                 {detail.proposerNames.join(' · ')}
               </Txt>
             </Row>
             {detail.quotes.length > 0 ? (
               <>
-                <View style={{ height: 1, backgroundColor: lineC.line, marginVertical: SP.xs }} />
+                <View style={styles.rule} />
                 <Col gap={SP.s}>
                   <Txt v="mtTight">채팅에서 가져온 말</Txt>
                   {detail.quotes.map((q) => (
@@ -222,41 +245,25 @@ export default function SpotDetailScreen({ navigation, route }: RootScreenProps<
           </Card>
         ) : null}
 
-        {preview ? (
-          <Card variant="tinted">
-            <Row gap={SP.m}>
-              <Icon name="clock" size={16} color="accentStrong" stroke={1.8} />
-              <Txt v="mtTight" c="accentStrong" style={{ flex: 1 }}>
-                {preview}
-              </Txt>
-            </Row>
-          </Card>
-        ) : null}
-
-        <Row gap={SP.m}>
-          <View style={{ flex: 1 }}>
-            <Btn title={spot.fixedDate ? '날짜 바꾸기' : '날짜 지정'} size="sm" variant="quiet" icon="cal" onPress={() => setSheet('date')} />
-          </View>
-          {detail.status !== 'excluded' ? (
-            <View style={{ flex: 1 }}>
-              <Btn title="직접 빼기" size="sm" variant="quiet" onPress={() => setSheet('remove')} />
-            </View>
-          ) : null}
-        </Row>
-        <Btn title={del.label} size="sm" variant="quiet" icon="trash" onPress={() => setSheet('delete')} />
+        {/* 관리: 드물거나 되돌릴 수 없는 일은 맨 아래로 내린다 */}
+        <Col>
+          <Txt v="eyebrow">관리</Txt>
+          {detail.status !== 'excluded' ? <ListRow first icon="minus" label="직접 빼기" onPress={removeNow} /> : null}
+          <ListRow
+            first={detail.status === 'excluded'}
+            icon="trash"
+            label={del.label}
+            onPress={() => setSheet('delete')}
+          />
+        </Col>
       </Body>
       <Foot>
         <Row gap={SP.m}>
-          <View style={{ flex: 1 }}>
-            <Btn
-              title={spot.pinned ? '고정 풀기' : '고정하기'}
-              variant="quiet"
-              onPress={() => dispatch(tripId, { type: 'spot/pin', spotId, pinned: !spot.pinned })}
-            />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Btn title="체류 시간 바꾸기" onPress={() => setSheet('stay')} />
-          </View>
+          {actions.map((a) => (
+            <View key={a.key} style={styles.grow}>
+              <Btn title={a.title} variant={a.variant} onPress={() => act(a)} />
+            </View>
+          ))}
         </Row>
       </Foot>
 
@@ -276,14 +283,15 @@ export default function SpotDetailScreen({ navigation, route }: RootScreenProps<
             />
           ))}
         </Row>
+        {preview ? <Notice icon="clock" text={preview} /> : null}
       </Sheet>
 
-      <Sheet visible={sheet === 'date'} onClose={() => setSheet(undefined)} title="날짜 지정">
+      <Sheet visible={sheet === 'date'} onClose={() => setSheet(undefined)} title="날짜 지정" scroll>
         <Col gap={SP.s}>
           {dateRange(trip.startDate, trip.endDate).map((d) => (
             <Btn
               key={d}
-              title={dayLabel(d)}
+              title={daySegLabel(d)}
               size="sm"
               variant={spot.fixedDate === d ? 'primary' : 'quiet'}
               onPress={() => {
@@ -307,28 +315,26 @@ export default function SpotDetailScreen({ navigation, route }: RootScreenProps<
       </Sheet>
 
       <ConfirmSheet
-        visible={sheet === 'remove'}
-        title="이 후보를 뺄까요?"
-        text={`${josa(spot.name, '은/는')} 제외 스팟 구역으로 옮겨지고 '사용자가 직접 뺌'으로 표시됩니다. 언제든 되돌릴 수 있습니다.`}
-        confirmLabel="빼기"
-        onConfirm={() => {
-          dispatch(tripId, { type: 'spot/remove', spotId, reason: 'user' });
-          setSheet(undefined);
-        }}
-        onCancel={() => setSheet(undefined)}
-      />
-      <ConfirmSheet
         visible={sheet === 'delete'}
         title="후보에서 지울까요?"
         text={del.text}
         confirmLabel="지우기"
         onConfirm={() => {
           setSheet(undefined);
-          dispatch(tripId, { type: 'spot/delete', spotId });
-          if (navigation.canGoBack()) navigation.goBack();
+          const r = dispatch(tripId, { type: 'spot/delete', spotId });
+          if (!r.ok) return;
+          toast(`${josa(spot.name, '을/를')} 후보에서 지웠어요`);
+          back();
         }}
         onCancel={() => setSheet(undefined)}
       />
     </Screen>
   );
 }
+
+const styles = StyleSheet.create({
+  start: { alignSelf: 'flex-start' },
+  grow: { flex: 1 },
+  avatars: { flexDirection: 'row' },
+  rule: { height: 1, backgroundColor: lineC.line, marginVertical: SP.xs },
+});

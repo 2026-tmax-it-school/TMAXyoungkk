@@ -169,7 +169,7 @@ describe('아이디(닉네임) 로그인 · 모의 인증', () => {
     assert.equal(wrong.code, 'badCredentials');
     assert.equal(none.code, 'badCredentials');
     assert.equal(wrong.detail?.replace(/\(연속.*\)$/, ''), none.detail);
-    assert.equal(none.detail, '아이디(이메일·닉네임)나 비밀번호가 맞지 않습니다');
+    assert.equal(none.detail, '아이디(이메일·닉네임)나 비밀번호가 맞지 않아요');
   });
 
   test('닉네임과 이메일로 번갈아 틀려도 같은 계정 잠금(5회)', async () => {
