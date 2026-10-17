@@ -1,8 +1,9 @@
 import React from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, View, type StyleProp, type ViewStyle } from 'react-native';
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, View, type StyleProp, type ViewStyle } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { IconBtn } from './Btn';
+import { Icon } from './Icon';
 import { Txt } from './Txt';
 import { H, SP, surfaceC } from './tokens';
 
@@ -56,6 +57,8 @@ export function Header({
   sub,
   step,
   right,
+  onTitlePress,
+  titlePressLabel,
 }: {
   back?: () => void;
   close?: () => void;
@@ -65,28 +68,53 @@ export function Header({
   sub?: string;
   step?: string;
   right?: React.ReactNode;
+  /** row: 제목 줄을 누르면 하는 일(예: 채팅방 바꾸기). 있으면 제목 옆에 아래 꺾쇠를 그린다 */
+  onTitlePress?: () => void;
+  /** onTitlePress의 스크린리더 이름 */
+  titlePressLabel?: string;
 }) {
   if (size === 'row') {
+    const titleBlock = (
+      <>
+        {eyebrow ? (
+          <Txt v="eyebrow" numberOfLines={1}>
+            {eyebrow}
+          </Txt>
+        ) : null}
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: SP.xs }}>
+          <View style={{ flexShrink: 1, minWidth: 0 }}>
+            <Txt v="nm" numberOfLines={1}>
+              {title}
+            </Txt>
+          </View>
+          {onTitlePress ? <Icon name="down" size={16} color="muted" stroke={2} /> : null}
+        </View>
+        {sub ? (
+          <Txt v="mtTight" numberOfLines={1}>
+            {sub}
+          </Txt>
+        ) : null}
+      </>
+    );
     return (
       <View style={{ paddingTop: SP.s, paddingLeft: back ? SP.xl : SP.gutter, paddingRight: SP.xl, paddingBottom: SP.m }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: SP.m, minHeight: H.iconBtn }}>
           {back ? <IconBtn icon="back" label="뒤로" onPress={back} /> : null}
           {step ? <Txt v="mt">{step}</Txt> : null}
-          <View accessibilityRole="header" style={{ flex: 1, minWidth: 0 }}>
-            {eyebrow ? (
-              <Txt v="eyebrow" numberOfLines={1}>
-                {eyebrow}
-              </Txt>
-            ) : null}
-            <Txt v="nm" numberOfLines={1}>
-              {title}
-            </Txt>
-            {sub ? (
-              <Txt v="mtTight" numberOfLines={1}>
-                {sub}
-              </Txt>
-            ) : null}
-          </View>
+          {onTitlePress ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={titlePressLabel ?? title}
+              onPress={onTitlePress}
+              style={{ flex: 1, minWidth: 0 }}
+            >
+              {titleBlock}
+            </Pressable>
+          ) : (
+            <View accessibilityRole="header" style={{ flex: 1, minWidth: 0 }}>
+              {titleBlock}
+            </View>
+          )}
           <HeaderRight>{right}</HeaderRight>
           {close ? <IconBtn icon="x" label="닫기" onPress={close} /> : null}
         </View>

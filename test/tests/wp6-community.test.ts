@@ -468,8 +468,8 @@ describe('앱 HTTP 제공자 ↔ 실제 서버', () => {
 });
 
 test('탭·화면 연결: 커뮤니티는 지도와 프로필 사이 탭, 글쓰기는 스택 화면', () => {
-  // 하단 탭 다섯 칸. 후보는 칸 없이 탭 라우트로 남는다(일정 탭의 '시간표 | 후보'로 오간다)
-  assert.deepEqual(TAB_ITEMS.map((t) => t.key), ['Home', 'Schedule', 'Map', 'Community', 'More']);
+  // 하단 탭 다섯 칸. 셋째 칸은 그룹 채팅, 일정·후보는 칸 없이 탭 라우트로 남는다
+  assert.deepEqual(TAB_ITEMS.map((t) => t.key), ['Home', 'Map', 'ChatList', 'Community', 'More']);
   assert.equal(TAB_ITEMS.find((t) => t.key === 'Community')?.label, '커뮤니티');
   assert.equal(SCREEN_META.Community.wp, 'WP6');
   assert.equal(SCREEN_META.CommunityCompose.wp, 'WP6');

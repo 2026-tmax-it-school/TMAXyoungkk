@@ -19,10 +19,13 @@ export interface UiState {
   currentTripId?: string;
   /** tripId → memberId. 같은 기기에서 다른 멤버로 말하기·합류하기(시연) */
   actingAs: Record<string, string>;
+  /** 채팅방 목록에서 고정한 여행방 id(이 기기에만, 고정한 순서) */
+  pinnedChats: string[];
   toast?: ToastState;
 
   setCurrentTrip: (id?: string) => void;
   setActingAs: (tripId: string, memberId: string) => void;
+  togglePinChat: (tripId: string) => void;
   showToast: (text: string, tone?: 'soft' | 'warn') => void;
   clearToast: (id?: number) => void;
   reset: () => void;
@@ -36,10 +39,15 @@ export const useUi = create<UiState>()(
     (set, get) => ({
       currentTripId: undefined,
       actingAs: {},
+      pinnedChats: [],
       toast: undefined,
 
       setCurrentTrip: (id) => set({ currentTripId: id }),
       setActingAs: (tripId, memberId) => set({ actingAs: { ...get().actingAs, [tripId]: memberId } }),
+      togglePinChat: (tripId) => {
+        const cur = get().pinnedChats ?? [];
+        set({ pinnedChats: cur.includes(tripId) ? cur.filter((id) => id !== tripId) : [...cur, tripId] });
+      },
       showToast: (text, tone = 'soft') => {
         toastSeq += 1;
         set({ toast: { id: toastSeq, text, tone } });
@@ -49,14 +57,14 @@ export const useUi = create<UiState>()(
         if (!cur) return;
         if (id == null || cur.id === id) set({ toast: undefined });
       },
-      reset: () => set({ currentTripId: undefined, actingAs: {}, toast: undefined }),
+      reset: () => set({ currentTripId: undefined, actingAs: {}, pinnedChats: [], toast: undefined }),
       waitHydrated: (): Promise<void> => waitForHydration(useUi),
     }),
     {
       name: STORAGE_KEYS.ui,
       version: STORAGE_VERSION,
       storage: persistStorage,
-      partialize: (s) => ({ currentTripId: s.currentTripId, actingAs: s.actingAs }),
+      partialize: (s) => ({ currentTripId: s.currentTripId, actingAs: s.actingAs, pinnedChats: s.pinnedChats }),
     },
   ),
 );

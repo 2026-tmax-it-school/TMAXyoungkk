@@ -93,6 +93,7 @@
   ],
   "WP3": [
     "src/screens/ChatScreen.tsx",
+    "src/screens/ChatListScreen.tsx",
     "src/screens/CandidatesScreen.tsx",
     "src/screens/SpotDetailScreen.tsx",
     "src/screens/RecommendScreen.tsx",

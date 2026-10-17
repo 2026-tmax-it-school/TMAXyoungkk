@@ -22,6 +22,7 @@ import { SCENARIO_CHAT, SCENARIO_LATE_JOIN, SCENARIO_MEMBERS } from '../data/sce
 import { PlacePickSheet } from '../features/candidates/components/PlacePickSheet';
 import { Bubble } from '../features/chat/components/Bubble';
 import { CandidateBar } from '../features/chat/components/CandidateBar';
+import { ChatRoomList } from '../features/chat/components/ChatRoomList';
 import { ExtractionCardView } from '../features/chat/components/ExtractionCardView';
 import { SendButton } from '../features/chat/components/SendButton';
 import { AreaChips } from '../features/chat/map/AreaChips';
@@ -118,6 +119,8 @@ export default function ChatScreen({ navigation, route }: RootScreenProps<'Chat'
   const wide = width >= WIDE_MIN;
   const [text, setText] = useState('');
   const [menu, setMenu] = useState(false);
+  // 머리의 방 이름을 누르면 채팅방 목록 시트로 다른 방을 고른다(2026-10-17)
+  const [rooms, setRooms] = useState(false);
   /** 멤버 시트(방장은 여기서 내보낸다) */
   const [membersOpen, setMembersOpen] = useState(false);
   const [removing, setRemoving] = useState<{ id: string; nickname: string } | undefined>();
@@ -384,6 +387,8 @@ export default function ChatScreen({ navigation, route }: RootScreenProps<'Chat'
         back={back}
         title={trip.title}
         sub={group ? `멤버 ${active.length}명 · 보내는 사람 ${meMember?.nickname ?? '없음'}` : '혼자 여행 · 채팅 메모'}
+        onTitlePress={() => setRooms(true)}
+        titlePressLabel={`${trip.title} 채팅방, 다른 채팅방 고르기`}
         right={
           <>
             {group && !wide ? (
@@ -403,6 +408,23 @@ export default function ChatScreen({ navigation, route }: RootScreenProps<'Chat'
       />
       {body}
 
+      <Sheet visible={rooms} onClose={() => setRooms(false)} title="채팅방" scroll>
+        <ChatRoomList
+          inset={false}
+          current={trip.id}
+          onOpen={(id) => {
+            setRooms(false);
+            if (id === trip.id) return;
+            useUi.getState().setCurrentTrip(id);
+            navigation.replace('Chat', { tripId: id });
+          }}
+          onDeleted={(id) => {
+            if (id !== trip.id) return;
+            setRooms(false);
+            navigation.navigate('Main', { screen: 'ChatList' });
+          }}
+        />
+      </Sheet>
       <Sheet visible={menu} onClose={() => setMenu(false)} title="채팅 메뉴">
         {/* 여행방 설정(이름·지역·날짜·이동수단·날짜별 기점)은 여기서 연다. 방장만 바꿀 수 있고 그룹원에게는 값만 보인다 */}
         <View>

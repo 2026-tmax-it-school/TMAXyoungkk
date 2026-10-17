@@ -4,6 +4,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import React from 'react';
 
 import CandidatesScreen from '../screens/CandidatesScreen';
+import ChatListScreen from '../screens/ChatListScreen';
 import ChatScreen from '../screens/ChatScreen';
 import CommunityComposeScreen from '../screens/CommunityComposeScreen';
 import CommunityScreen from '../screens/CommunityScreen';
@@ -34,6 +35,8 @@ import SocialConsentScreen from '../screens/SocialConsentScreen';
 import SpotDetailScreen from '../screens/SpotDetailScreen';
 import TripSettingsScreen from '../screens/TripSettingsScreen';
 import { lineC, surfaceC, TabBar, textC } from '../ui';
+import { useActiveTrip } from '../features/trip/useActiveTrip';
+import { useUi } from '../store/ui';
 import { activeTabKey, TAB_ITEMS, type MainTabParamList, type RootStackParamList, type TabRouteName } from './routes';
 
 /**
@@ -60,11 +63,19 @@ export const navTheme: Theme = {
 
 function AppTabBar({ state, navigation }: BottomTabBarProps) {
   const route = state.routes[state.index].name as TabRouteName;
+  const { trips } = useActiveTrip();
+  const showToast = useUi((s) => s.showToast);
   return (
     <TabBar
       items={TAB_ITEMS}
       active={activeTabKey(route)}
       onPress={(key) => {
+        // 채팅 칸: 채팅방 목록 탭. 여행방이 없으면 홈에서 만들게 한다
+        if (key === 'ChatList' && trips.length === 0) {
+          showToast('여행방을 만들면 채팅방이 생겨요');
+          if (route !== 'Home') navigation.navigate('Home');
+          return;
+        }
         if (key !== route) navigation.navigate(key);
       }}
     />
@@ -78,6 +89,7 @@ function MainTabs() {
       <Tabs.Screen name="Candidates" component={CandidatesScreen} />
       <Tabs.Screen name="Schedule" component={ScheduleScreen} />
       <Tabs.Screen name="Map" component={MapScreen} />
+      <Tabs.Screen name="ChatList" component={ChatListScreen} />
       <Tabs.Screen name="Community" component={CommunityScreen} />
       <Tabs.Screen name="More" component={MoreScreen} />
     </Tabs.Navigator>

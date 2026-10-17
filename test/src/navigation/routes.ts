@@ -19,6 +19,8 @@ export type MainTabParamList = {
   Candidates: { add?: boolean } | undefined;
   Schedule: { date?: string } | undefined;
   Map: { date?: string } | undefined;
+  /** 채팅방 목록(내 여행방마다 하나). 하단 탭 '채팅' 칸이다. 방을 누르면 스택 화면 Chat */
+  ChatList: undefined;
   /** 사진·일기 글을 앱 사용자 모두와 나누는 곳(서버 저장) */
   Community: undefined;
   More: undefined;
@@ -97,6 +99,7 @@ export const linking: LinkingOptions<RootStackParamList> = {
           Candidates: 'candidates',
           Schedule: 'schedule',
           Map: 'map',
+          ChatList: 'chats',
           Community: 'community',
           More: 'more',
         },
@@ -105,22 +108,26 @@ export const linking: LinkingOptions<RootStackParamList> = {
   },
 };
 
+/** 하단 탭 칸 키(탭 라우트). 채팅 칸은 채팅방 목록(ChatList) 탭이다 */
+export type TabItemKey = TabRouteName;
+
 /**
- * 하단 탭 다섯 칸(홈/일정/지도/커뮤니티/프로필 고정). 채팅은 탭이 아니라 스택 화면이다.
- * 후보(Candidates)는 탭 라우트로 남지만 칸이 없다. 일정 탭 위의 '시간표 | 후보' 나누기(PlanSwitch)로 오가고,
- * 후보를 보는 동안에는 '일정' 칸이 켜진다(TAB_HIGHLIGHT). 딥링크 'candidates'도 그대로 연다.
+ * 하단 탭 다섯 칸(홈/지도/그룹 채팅/커뮤니티/프로필 고정, 아이콘만). '일정' 칸 대신 그룹 채팅을 두고 지도 다음(셋째)에 놓는다(2026-10-17 사용자 요청).
+ * 채팅 칸은 채팅방 목록(ChatList) 탭이다. 목록에서도 하단 탭이 보이고 채팅 칸이 켜진다. 방을 누르면 스택 화면 Chat으로 간다.
+ * 일정(Schedule)·후보(Candidates)는 탭 라우트로 남지만 칸이 없다. 홈 카드·빠른 메뉴, 지도의 시간표 링크 등으로 열고,
+ * '시간표 | 후보' 나누기(PlanSwitch)로 오간다. 딥링크 'schedule'·'candidates'도 그대로 연다.
  * 마지막 탭(More)은 숙박 앱처럼 '프로필'로 보이고, 안에 계정·설정·시연 도구를 모은다.
  */
-export const TAB_ITEMS: { key: TabRouteName; label: string; icon: 'home' | 'cal' | 'map' | 'users' | 'user' }[] = [
+export const TAB_ITEMS: { key: TabItemKey; label: string; icon: 'home' | 'chat' | 'map' | 'users' | 'user' }[] = [
   { key: 'Home', label: '홈', icon: 'home' },
-  { key: 'Schedule', label: '일정', icon: 'cal' },
   { key: 'Map', label: '지도', icon: 'map' },
+  { key: 'ChatList', label: '그룹 채팅', icon: 'chat' },
   { key: 'Community', label: '커뮤니티', icon: 'users' },
   { key: 'More', label: '프로필', icon: 'user' },
 ];
 
 /** 칸이 없는 탭 라우트를 볼 때 켜 둘 칸 */
-export const TAB_HIGHLIGHT: Partial<Record<TabRouteName, TabRouteName>> = { Candidates: 'Schedule' };
+export const TAB_HIGHLIGHT: Partial<Record<TabRouteName, TabRouteName>> = {};
 
 /** 지금 탭 라우트에서 켜 둘 하단 탭 칸(순수) */
 export function activeTabKey(route: TabRouteName): TabRouteName {
@@ -155,6 +162,7 @@ export const SCREEN_META: Record<Exclude<RootRouteName, 'Main'> | TabRouteName |
   ItineraryDetail: { no: '32', title: '공유된 일정 상세 · 가져오기', fr: 'FR-201·801', wp: 'WP2' },
   ShareItinerary: { no: '33', title: '내 일정 공유하기', fr: 'FR-801', wp: 'WP2' },
   CreateTrip: { no: '04', title: '여행방 만들기', fr: 'FR-201·205·504', wp: 'WP2' },
+  ChatList: { no: '05-0', title: '채팅방 목록', fr: 'FR-304', wp: 'WP3' },
   Chat: { no: '05', title: '그룹 채팅 · 장소 자동 추출', fr: 'FR-304·401', wp: 'WP3' },
   Candidates: { no: '06', title: '후보 · 자동 선별', fr: 'FR-402·403·202', wp: 'WP3' },
   SpotDetail: { no: '07', title: '스팟 상세', fr: 'FR-803', wp: 'WP3' },

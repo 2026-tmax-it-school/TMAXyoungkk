@@ -53,18 +53,20 @@ describe('토스트', () => {
 });
 
 describe('내비게이션', () => {
-  test('하단 탭은 다섯 칸이고 후보를 보는 동안 일정 칸이 켜진다', () => {
+  test('하단 탭은 다섯 칸이고 셋째 칸은 일정 대신 채팅(채팅방 목록 ChatList 탭, 목록에서도 탭 줄이 보인다)이다', () => {
     assert.deepEqual(
       TAB_ITEMS.map((t) => [t.key, t.label]),
       [
         ['Home', '홈'],
-        ['Schedule', '일정'],
         ['Map', '지도'],
+        ['ChatList', '그룹 채팅'],
         ['Community', '커뮤니티'],
         ['More', '프로필'],
       ],
     );
-    assert.equal(activeTabKey('Candidates'), 'Schedule');
+    assert.equal(activeTabKey('Candidates'), 'Candidates');
+    assert.equal(TAB_ITEMS[2].icon, 'chat');
+    assert.match(read('src/navigation/RootNavigator.tsx'), /<Tabs\.Screen name="ChatList" component=\{ChatListScreen\} \/>/);
     assert.equal(activeTabKey('Map'), 'Map');
     assert.match(read('src/navigation/RootNavigator.tsx'), /active=\{activeTabKey\(route\)\}/);
     assert.equal(SCREEN_META.Navigate.title, '구간 안내');
