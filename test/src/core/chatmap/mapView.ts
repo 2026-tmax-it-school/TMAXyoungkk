@@ -7,6 +7,8 @@ import { H, SP } from '../../ui/tokens';
  * 채팅방 지도의 지도 입력(FR-405, 명세 밖 추가, 순수). MapCanvas(components/map)에 그대로 넘긴다.
  * - 핀은 스팟 하나에 하나(kind 'spot', id = spotId, title = 장소 이름)다.
  * - 라벨은 표가 있을 때만 '{n}표'다. 숫자만 쓰면 pinName이 순번('3번')으로 읽으므로 쓰지 않는다('3표 불국사'로 읽힌다).
+ * - 표가 있는 핀은 '{n}표' 글자 대신 표를 준 사람의 프로필(avatars[spotId]: 머리글자·멤버 순서 색)로 그린다(2026-10-17 사용자 요청).
+ *   라벨은 남겨 스크린리더 이름에 쓴다. 프로필이 없으면(옛 호출) 전처럼 '{n}표' 글자다.
  * - 고른 지역 밖이거나 고른 멤버가 말하지 않은 핀은 slate 색에 dim(흐림)이다. 그 밖은 ink다.
  * - 크기는 표 수를 따른다: 가장 많은 표면 1.3, 그 절반(올림) 이상이면 1.15, 나머지 1.
  * - 맞출 좌표(fitTo)는 포커스한 스팟 > 고른 멤버의 스팟(지역을 골랐으면 그 안) > 고른 지역의 스팟 > 전체 순이다.
@@ -39,6 +41,7 @@ export function chatMapInput(
   areaBySpot: Readonly<Record<string, string>>,
   counts: Readonly<Record<string, number>>,
   sel: ChatMapSelection,
+  avatars: Readonly<Record<string, { text: string; index: number }>> = {},
 ): { markers: MapMarkerInput[]; fitTo: LatLng[] } {
   const live = spots.filter((s) => !s.removedByUser);
   const maxCount = live.reduce((m, s) => Math.max(m, counts[s.id] ?? 0), 0);
@@ -61,6 +64,8 @@ export function chatMapInput(
     };
     const label = voteLabel(n);
     if (label) m.label = label;
+    const avatar = label ? avatars[s.id] : undefined;
+    if (avatar) m.avatar = avatar;
     if (dim) m.dim = true;
     return m;
   });

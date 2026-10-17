@@ -54,7 +54,8 @@ import {
   whoTitle,
 } from '../src/features/chat/map/text';
 import type { LatLng, Member, Op, OpBody, Spot, Trip } from '../src/types';
-import { H, SP } from '../src/ui/tokens';
+import { mapPinSvg } from '../src/ui/mapPinSvg';
+import { H, SP, surfaceC } from '../src/ui/tokens';
 import { listFiles, read, stripComments } from './setup/scan';
 
 /**
@@ -657,6 +658,28 @@ describe('지도 입력과 화면 상태', () => {
     assert.equal(pinScaleFor(2, 4), 1.15);
     assert.equal(pinScaleFor(1, 4), 1);
     assert.equal(pinScaleFor(0, 0), 1);
+  });
+
+  test('표가 있는 핀은 표를 준 사람의 프로필(머리글자·멤버 순서 색)로 그리고, 라벨은 스크린리더 이름에 남는다', () => {
+    const avatars = { s1: { text: '민', index: 0 }, s2: { text: '준', index: 1 }, s3: { text: '수', index: 2 } };
+    const { markers } = chatMapInput(list, area, counts, {}, avatars);
+    assert.deepEqual(
+      markers.map((m) => [m.id, m.label, m.avatar]),
+      [
+        ['s1', '3표', { text: '민', index: 0 }],
+        ['s2', '1표', { text: '준', index: 1 }],
+        ['s3', undefined, undefined],
+      ],
+      '표가 없는 핀(s3)은 프로필 없이 작은 점',
+    );
+    assert.equal(pinName(markers[0]), '3표 불국사');
+    // 구글·카카오 핀 그림도 아바타 면 색과 머리글자다('3표' 글자는 그리지 않는다)
+    const svg = mapPinSvg({ kind: 'spot', label: '3표', avatar: { text: '민지', index: 1 } }).xml;
+    assert.ok(svg.includes(surfaceC.amber) && svg.includes('>민<') && !svg.includes('3표'));
+    for (const f of ['src/components/map/overlayItems.ts', 'src/components/map/GoogleMapView.tsx', 'src/components/map/GoogleMapView.web.tsx']) {
+      assert.match(read(f), /\.\.\.\(m\.avatar \? \{ avatar: m\.avatar \} : \{\}\)/, f);
+    }
+    assert.match(stripComments(read('src/components/map/MapCanvas.tsx')), /if \(m\.avatar\) \{/);
   });
 
   test('흐림은 slate + dim(지역 밖, 고른 멤버가 말하지 않은 곳), 맞춤은 포커스 > 멤버 > 지역 > 전체', () => {

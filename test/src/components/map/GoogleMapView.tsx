@@ -301,7 +301,7 @@ export function GoogleMapView(props: MapViewProps & { onFail: (reason: MapFailRe
             spec={
               m.kind === 'excluded'
                 ? { kind: 'excluded', label: m.label, compact, ...pinLook(m) }
-                : { kind: 'spot', label: m.label, color: m.color, compact, ...pinLook(m) }
+                : { kind: 'spot', label: m.label, color: m.color, compact, ...pinLook(m), ...(m.avatar ? { avatar: m.avatar } : {}) }
             }
             name={pinName(m)}
             onPress={props.onMarkerPress ? () => props.onMarkerPress?.(m.id) : undefined}

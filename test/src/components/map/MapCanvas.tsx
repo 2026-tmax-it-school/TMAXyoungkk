@@ -6,7 +6,7 @@ import type { LatLng } from '../../types';
 import { fitAreaHeight, focusOptions, layoutMap, unproject, type MapCluster } from '../../core/map/layout';
 import { pinName } from '../../core/map/engine';
 import { useUi } from '../../store/ui';
-import { lineC, mapC, OPACITY, pinScale, R, SvgLabel } from '../../ui';
+import { avatarLook, lineC, mapC, OPACITY, pinScale, R, SvgLabel } from '../../ui';
 import { MAP_ENGINE } from './engine';
 import { GOOGLE_VIEW_READY, GoogleMapView } from './GoogleMapView';
 import { KAKAO_VIEW_READY, KakaoMapView } from './KakaoMapView';
@@ -256,6 +256,16 @@ function SvgMapCanvas(props: MapViewProps) {
                 <G key={m.id} {...tap(press)} opacity={fade} accessible={SVG_ACCESSIBLE} accessibilityLabel={`제외 스팟 ${m.title}`}>
                   <Circle cx={m.x} cy={m.y} r={compact ? 11 : 14} fill={mapC.excludedPin} stroke={mapC.faint} strokeWidth={2} />
                   <SvgLabel x={m.x} y={m.y + 3.5} text={m.label ?? '제외'} v="pinSm" c="muted" />
+                </G>
+              );
+            }
+            if (m.avatar) {
+              // 프로필 핀(채팅방 지도): 그 멤버 아바타 면·머리글자. ui/mapPinSvg의 프로필 핀과 같다
+              const a = avatarLook(m.avatar.index);
+              return (
+                <G key={m.id} {...tap(press)} opacity={fade} accessible={SVG_ACCESSIBLE} accessibilityLabel={pinName(m)}>
+                  <Circle cx={m.x} cy={m.y} r={pinR * k} fill={a.bg} stroke={a.border} strokeWidth={2} />
+                  <SvgLabel x={m.x} y={m.y + labelDy} text={[...m.avatar.text][0] ?? ''} v={label} c={a.text} />
                 </G>
               );
             }

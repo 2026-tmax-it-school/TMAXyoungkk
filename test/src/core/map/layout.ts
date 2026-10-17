@@ -21,6 +21,11 @@ export interface MapMarkerInput {
   scale?: number;
   /** 흐리게(채팅방 지도에서 고른 지역·멤버 밖의 핀). 없으면 보통 */
   dim?: boolean;
+  /**
+   * 프로필 핀(채팅방 지도: 표를 준 사람). 있으면 순번·라벨 대신 그 멤버 아바타(머리글자, 멤버 순서 색)로 그린다.
+   * label은 그대로 두어 스크린리더 이름('1표 불국사')에 쓴다
+   */
+  avatar?: { text: string; index: number };
 }
 
 export interface MapPolylineInput {

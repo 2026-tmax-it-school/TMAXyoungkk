@@ -144,7 +144,7 @@ export function markersKey(markers: MapMarkerInput[]): string {
   return markers
     .map(
       (m) =>
-        `${m.id}~${m.kind}~${m.label ?? ''}~${m.color ?? ''}~${m.title}~${m.scale ?? ''}~${m.dim ? 1 : 0}~${r5(m.coord.latitude)},${r5(m.coord.longitude)}`,
+        `${m.id}~${m.kind}~${m.label ?? ''}~${m.color ?? ''}~${m.title}~${m.scale ?? ''}~${m.dim ? 1 : 0}~${m.avatar ? `${m.avatar.index}${m.avatar.text}` : ''}~${r5(m.coord.latitude)},${r5(m.coord.longitude)}`,
     )
     .join('|');
 }

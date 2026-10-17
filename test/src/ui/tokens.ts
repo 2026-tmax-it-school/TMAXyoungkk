@@ -94,6 +94,21 @@ export const lineC = {
 } as const;
 export type LineColorKey = keyof typeof lineC;
 
+/**
+ * 멤버 순서별 아바타 면(ui/Avatar, 채팅방 지도 핀의 프로필). 첫 번째는 주색(연두), 그다음 앰버·초록,
+ * 넷째부터 흰 바탕에 muted 글자. 지도 핀(ui/mapPinSvg·MapCanvas)도 같은 값을 써서 왼쪽 열 프로필과 같아 보인다.
+ */
+export const AVATAR_LOOK: readonly { bg: string; border: string; text: 'onAccent' | 'muted' }[] = [
+  { bg: surfaceC.accent, border: surfaceC.bg, text: 'onAccent' },
+  { bg: surfaceC.amber, border: surfaceC.bg, text: 'onAccent' },
+  { bg: surfaceC.moss, border: surfaceC.bg, text: 'onAccent' },
+  { bg: surfaceC.card, border: lineC.line, text: 'muted' },
+];
+
+export function avatarLook(index: number): (typeof AVATAR_LOOK)[number] {
+  return AVATAR_LOOK[Math.min(Math.max(0, index), AVATAR_LOOK.length - 1)];
+}
+
 /** 아이콘 색. 글자색에 faint를 더한다(꺼진 탭 아이콘, 드래그 손잡이). */
 export const iconC = { ...textC, faint: '#A1A1AA' } as const;
 

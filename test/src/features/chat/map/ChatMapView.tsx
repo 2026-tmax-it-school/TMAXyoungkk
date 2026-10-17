@@ -4,7 +4,8 @@ import { BackHandler, Platform, StyleSheet, View, type LayoutChangeEvent } from 
 import { MapCanvas } from '../../../components/map/MapCanvas';
 import type { ChatArea } from '../../../core/chatmap/areas';
 import { chatMapInput, chatMapLayout, type ChatMapEvent, type ChatMapState } from '../../../core/chatmap/mapView';
-import { mentionsOf, rankSpots, railOrder, VOTE_BUDGET, voteBlocked, voteCounts, votesLeft } from '../../../core/chatmap/votes';
+import { mentionsOf, rankSpots, railOrder, VOTE_BUDGET, voteBlocked, voteCounts, voterIds, votesLeft } from '../../../core/chatmap/votes';
+import { proposerIds } from '../../../core/spotUtil';
 import { activeMembers } from '../../../core/group';
 import { isEditLocked } from '../../../core/ops';
 import type { MapPolylineInput } from '../../../core/map/layout';
@@ -70,6 +71,17 @@ export const ChatMapView = memo(function ChatMapView({
   const canVote = canVoteNow(trip, now);
   const live = useMemo(() => trip.spots.filter((s) => !s.removedByUser), [trip]);
   const counts = useMemo(() => voteCounts(trip.spots, active), [trip, active]);
+  // 표가 있는 핀의 프로필: 말한 사람이 표를 줬으면 그 사람, 아니면 표를 준 첫 멤버(왼쪽 열 아바타와 같은 색)
+  const avatars = useMemo(() => {
+    const out: Record<string, { text: string; index: number }> = {};
+    for (const s of trip.spots) {
+      const voters = voterIds(s, active);
+      const id = proposerIds(s).find((p) => voters.includes(p)) ?? voters[0];
+      const m = id ? active.find((x) => x.id === id) : undefined;
+      if (m) out[s.id] = { text: m.nickname.slice(0, 1) || '?', index: memberIndex(trip.members, m.id) };
+    }
+    return out;
+  }, [trip, active]);
   const rank = useMemo(() => rankSpots(trip.spots, areaBySpot, active, me), [trip, areaBySpot, active, me]);
   // 고른 지역 키는 지금 지역 목록에서 찾은 것만 쓴다(데이터가 바뀌어 사라진 키로 모든 핀을 흐리지 않게)
   const area = selArea ? areas.find((a) => a.key === selArea) : undefined;
@@ -80,8 +92,8 @@ export const ChatMapView = memo(function ChatMapView({
     [trip, member, areaBySpot, areaKey, me],
   );
   const input = useMemo(
-    () => chatMapInput(trip.spots, areaBySpot, counts, { area: areaKey, member: member?.id, focusSpotId }),
-    [trip, areaBySpot, counts, areaKey, member, focusSpotId],
+    () => chatMapInput(trip.spots, areaBySpot, counts, { area: areaKey, member: member?.id, focusSpotId }, avatars),
+    [trip, areaBySpot, counts, areaKey, member, focusSpotId, avatars],
   );
 
   const rail: RailMember[] = useMemo(

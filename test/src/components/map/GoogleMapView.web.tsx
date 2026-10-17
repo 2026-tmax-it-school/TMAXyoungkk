@@ -241,7 +241,7 @@ function createPinLayer(libs: Libs, on: LayerHandlers) {
         const spec: PinSpec =
           m.kind === 'excluded'
             ? { kind: 'excluded', label: m.label, compact: d.compact, ...pinLook(m) }
-            : { kind: 'spot', label: m.label, color: m.color, compact: d.compact, ...pinLook(m) };
+            : { kind: 'spot', label: m.label, color: m.color, compact: d.compact, ...pinLook(m), ...(m.avatar ? { avatar: m.avatar } : {}) };
         out.push({
           key: `m:${m.id}`,
           kind: 'pin',

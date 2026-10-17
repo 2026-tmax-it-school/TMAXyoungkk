@@ -2,15 +2,7 @@ import React from 'react';
 import { View, type ViewStyle } from 'react-native';
 
 import { Txt } from './Txt';
-import { H, lineC, SP, surfaceC, type TextColorKey } from './tokens';
-
-/** 순서별 아바타 면. 첫 번째는 주색(연두), 그다음 앰버·초록, 넷째부터 흰 바탕에 muted 글자 */
-const LOOK: { bg: string; border: string; text: TextColorKey }[] = [
-  { bg: surfaceC.accent, border: surfaceC.bg, text: 'onAccent' },
-  { bg: surfaceC.amber, border: surfaceC.bg, text: 'onAccent' },
-  { bg: surfaceC.moss, border: surfaceC.bg, text: 'onAccent' },
-  { bg: surfaceC.card, border: lineC.line, text: 'muted' },
-];
+import { avatarLook, H, SP } from './tokens';
 
 /** size 'md'(기본 27)는 목록·겹친 줄, 'lg'(44)는 채팅방 지도 왼쪽 열 프로필이다 */
 export function Avatar({
@@ -24,7 +16,8 @@ export function Avatar({
   style?: ViewStyle;
   size?: 'md' | 'lg';
 }) {
-  const look = LOOK[Math.min(index, LOOK.length - 1)];
+  // 순서별 면(tokens AVATAR_LOOK). 채팅방 지도 핀의 프로필도 같은 값이다
+  const look = avatarLook(index);
   const d = size === 'lg' ? H.avatarLg : H.avatar;
   return (
     <View

@@ -1,4 +1,4 @@
-import { F, mapC, OPACITY, textC } from './tokens';
+import { avatarLook, F, mapC, OPACITY, textC } from './tokens';
 
 /**
  * 구글 지도 위 핀 그림(SVG 문자열). 웹은 오버레이 div의 innerHTML로, 앱은 react-native-svg SvgXml로 그린다.
@@ -26,7 +26,7 @@ export interface PinLook {
 
 export type PinSpec = PinLook &
   (
-    | { kind: 'spot'; label?: string; color?: PinColor; compact?: boolean }
+    | { kind: 'spot'; label?: string; color?: PinColor; compact?: boolean; avatar?: { text: string; index: number } }
     | { kind: 'excluded'; label?: string; compact?: boolean }
     | { kind: 'base'; compact?: boolean }
     | { kind: 'cluster'; count: number; compact?: boolean }
@@ -96,6 +96,17 @@ export function mapPinSvg(p: PinSpec): PinSvg {
   switch (p.kind) {
     case 'spot': {
       const color = mapC[p.color ?? 'ink'];
+      // 프로필 핀: 순번 핀과 같은 크기 원에 그 멤버 아바타 면·머리글자(ui/Avatar와 같은 색)
+      if (p.avatar) {
+        const r = p.compact ? 11 : 15;
+        const { size, c } = box(r, 2);
+        const a = avatarLook(p.avatar.index);
+        return wrap(
+          size,
+          circle(c, r, a.bg, a.border, 2) + label(c, p.compact ? 3.5 : 4.5, [...p.avatar.text][0] ?? '', p.compact ? 9.5 : 13, textC[a.text]),
+          look,
+        );
+      }
       if (!p.label) {
         const r = p.compact ? 6 : 7.5;
         const { size, c } = box(r, 2);
