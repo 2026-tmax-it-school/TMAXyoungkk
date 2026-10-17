@@ -94,7 +94,6 @@ export function withTransitModel(
   } = {},
 ): RouteProvider {
   const table = opts.table ?? SCENARIO_ROUTE_TABLE;
-  const carShape: (a: LatLng, b: LatLng) => Promise<RouteLegOut | null> = opts.carShape ?? ((a, b) => inner.route(a, b, 'car'));
   const params = opts.params ?? SCENARIO_TRANSIT;
   const index: PlaceIndex = createPlaceIndex(opts.places ?? SCENARIO_PLACES);
 

@@ -168,14 +168,6 @@ export default function SpotDetailScreen({ navigation, route }: RootScreenProps<
       <Header back={back} eyebrow={detail.eyebrow} title={spot.name} sub={detail.sub || undefined} />
       <Body scroll>
         <MapCanvas compact height={126} markers={markers} polylines={[]} fitTo={base ? [base.coord, spot.coord] : [spot.coord]} />
-        {/* 27 자유 길찾기. 출발은 기점(없으면 직접 고른다), 도착은 이 스팟 */}
-        <Btn
-          title="여기까지 길찾기"
-          size="sm"
-          variant="quiet"
-          icon="nav"
-          onPress={() => navigation.navigate('Directions', { tripId, toSpotId: spotId })}
-        />
 
         {spot.pinned || spot.outsideRegion ? (
           <Row wrap gap={SP.s}>
