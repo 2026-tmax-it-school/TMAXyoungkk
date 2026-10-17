@@ -112,7 +112,7 @@ export function QuickAction({
  * 여행 카드(DS TripCard). 사진 자리가 주인공이고 카드 테두리·그림자는 없다. 사진 모서리만 radius-lg.
  * 사진이 없으면 연회색(surface-soft) 자리에 핀과 장소 이름만 둔다. 색 면이나 무늬로 사진을 흉내 내지 않는다.
  * 사진 위에는 왼쪽 위 badge 하나. 선택된 카드는 사진 자리에 잉크 2px 테두리이고 스크린리더에는 selected로 알린다.
- * size 'lg'는 홈 가로 줄의 내 여행(20:19), 'sm'은 추천 여행지(정사각).
+ * size 'lg'는 홈 가로 줄의 내 여행(272×300, footer까지 상자 안 흰 판에 담는다), 'sm'은 추천 여행지(정사각).
  * a11yLabel: 스크린리더 이름(기본 '{title} 열기'). 실제 동작과 같게 쓴다('경주 여행 보기, 여행 중 · 2일째').
  */
 export function CoverTile({
@@ -149,8 +149,9 @@ export function CoverTile({
 }) {
   const lg = size === 'lg';
   const width = lg ? 272 : 148;
-  const height = lg ? Math.round((width * 19) / 20) : width;
-  // lg(내 여행)는 제목·날짜·개수를 상자 안 아래 흰 판에 담는다. sm(추천)은 상자 아래에 둔다
+  // lg는 흰 판에 제목·날짜·개수와 footer(멤버·다음 할 일)까지 담아 정사각보다 조금 길다(272×300)
+  const height = lg ? width + 28 : width;
+  // lg(내 여행)는 제목·날짜·개수와 footer를 상자 안 아래 흰 판에 담는다. sm(추천)은 상자 아래에 둔다
   const inside = lg;
   const info = (
     <View style={{ gap: 2 }}>
@@ -195,23 +196,6 @@ export function CoverTile({
             </>
           )}
         </View>
-        {inside ? (
-          <View
-            pointerEvents="none"
-            style={{
-              marginHorizontal: SP.m,
-              marginBottom: SP.m,
-              paddingHorizontal: SP.l,
-              paddingVertical: SP.m,
-              borderRadius: R.card,
-              borderWidth: 1,
-              borderColor: lineC.line,
-              backgroundColor: surfaceC.card,
-            }}
-          >
-            {info}
-          </View>
-        ) : null}
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={a11yLabel ?? pressLabel ?? `${title} 열기`}
@@ -219,6 +203,26 @@ export function CoverTile({
           onPress={onPress}
           style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
         />
+        {inside ? (
+          // 상자 버튼(위 Pressable) 뒤 형제라 footer의 버튼이 눌린다. 판 빈 곳은 box-none이라 상자 버튼으로 통과한다
+          <View
+            pointerEvents="box-none"
+            style={{
+              marginHorizontal: SP.m,
+              marginBottom: SP.m,
+              paddingHorizontal: SP.l,
+              paddingVertical: SP.m,
+              gap: SP.l,
+              borderRadius: R.card,
+              borderWidth: 1,
+              borderColor: lineC.line,
+              backgroundColor: surfaceC.card,
+            }}
+          >
+            <View pointerEvents="none">{info}</View>
+            {footer}
+          </View>
+        ) : null}
         {badge ? (
           <View
             pointerEvents="none"
@@ -260,7 +264,7 @@ export function CoverTile({
         ) : null}
       </View>
       {inside ? null : info}
-      {footer}
+      {inside ? null : footer}
     </View>
   );
 }
