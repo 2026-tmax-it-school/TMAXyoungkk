@@ -171,7 +171,7 @@ test('화면: 11 지도 탭, 13 구간 안내, 27 길찾기에 버튼을 켜고,
   for (const f of ['src/screens/MapScreen.tsx', 'src/screens/NavigateScreen.tsx', 'src/screens/DirectionsScreen.tsx']) {
     assert.match(stripComments(read(f)), /<MapCanvas[\s\S]*?\n\s+locate\n/, f);
   }
-  for (const f of ['src/screens/SpotDetailScreen.tsx', 'src/features/candidates/components/ManualAdd.tsx', 'src/screens/RecordMapScreen.tsx']) {
+  for (const f of ['src/screens/SpotDetailScreen.tsx', 'src/features/candidates/components/ManualAdd.tsx']) {
     assert.doesNotMatch(stripComments(read(f)), /^\s+locate(=\{[^}]*\})?\s*$/m, f);
   }
   // 길찾기: 지도 버튼은 출발·도착을 바꾸지 않는다(끝점은 pickMe만 바꾼다)

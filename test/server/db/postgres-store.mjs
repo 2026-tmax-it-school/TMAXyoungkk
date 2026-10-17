@@ -21,6 +21,7 @@ import { NICKNAME_OP_TYPES, REDACT_TRIGGER_TYPES, redactLog } from '../redact.mj
 import { ORPHAN_RETENTION_MS, ROUTE_CACHE_TTL_MS, retentionUntil } from '../retention.mjs';
 import { createPgAuthStore } from './auth-store.mjs';
 import { createPgCommunityStore } from './community-store.mjs';
+import { createPgItineraryStore } from './itinerary-store.mjs';
 import { migrate } from './migrate.mjs';
 import { emptyView, legKey, projectOps } from './projection.mjs';
 
@@ -396,6 +397,8 @@ export function createPostgresStore(db, { close = async () => {}, warn = (m) => 
     authStore: createPgAuthStore(db),
     /** 커뮤니티 글·사진 표(community_*). 같은 DB를 쓴다(server/community.mjs) */
     communityStore: createPgCommunityStore(db),
+    /** 공유한 여행 일정 표(shared_itinerar*). 같은 DB를 쓴다(server/itineraries.mjs) */
+    itineraryStore: createPgItineraryStore(db),
 
     async push(tripId, ops, now = Date.now()) {
       if (!storableId(tripId)) return [];
@@ -492,6 +495,7 @@ export function createPostgresStore(db, { close = async () => {}, warn = (m) => 
     async reset() {
       await db.query('TRUNCATE trips, trip_ops, invite_codes, trip_spots, trip_days, trip_legs RESTART IDENTITY');
       await db.query('TRUNCATE community_photos, community_posts');
+      await db.query('TRUNCATE shared_itinerary_views, shared_itinerary_likes, shared_itineraries');
     },
 
     /**

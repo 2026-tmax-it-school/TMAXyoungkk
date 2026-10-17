@@ -144,13 +144,16 @@ describe('진입 화면 소스 규칙', () => {
     assert.match(src, /close=\{close\}/);
   });
 
-  test("온보딩: 돌아온 사용자는 '다시 로그인하기'가 주 버튼이고, 평소에는 로그인 글자 링크와 닉네임을 넘기는 초대 합류", () => {
+  test("온보딩: 로그인(카카오·구글·이메일)을 같이 띄우고, 돌아온 사용자는 '다시 로그인하기'가 주 버튼, 닉네임을 넘기는 초대 합류", () => {
     const src = code(ONBOARDING);
     assert.match(src, /expiredKind === 'account'/);
     assert.match(src, /text="로그인이 끝났어요\. 다시 로그인하면 여행방을 이어 써요"/);
     assert.match(src, /\{returning \? <Btn title="다시 로그인하기" onPress=\{login\} \/> : null\}/);
     assert.match(src, /title="게스트로 시작하기" variant=\{returning \? 'ghost' : 'primary'\}/);
-    assert.match(src, /<TextLink title="이미 계정이 있어요 · 로그인"/);
+    assert.match(src, /onPress=\{\(\) => void social\.start\('kakao'\)\}/, '카카오 로그인을 이 화면에서 바로 연다');
+    assert.match(src, /onPress=\{\(\) => void social\.start\('google'\)\}/);
+    assert.match(src, /title="이메일로 로그인 · 회원가입" variant="outline" onPress=\{login\}/);
+    assert.match(src, /useSocialSignIn\(navigation\)/);
     assert.match(src, /navigate\('InviteAccept', name \? \{ nickname: name \} : undefined\)/);
   });
 

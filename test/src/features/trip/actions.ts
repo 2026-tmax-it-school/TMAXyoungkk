@@ -46,6 +46,15 @@ export function issueAndShare(tripId: string): Promise<IssueShareResult> {
   });
 }
 
+/** 초대 코드만 복사(링크를 못 받는 사람에게 코드로 알려 줄 때, 초대 코드로 합류 화면에 붙여 넣는다) */
+export async function copyInviteCode(trip: Trip): Promise<void> {
+  const code = trip.invite?.code;
+  if (!code) return;
+  const toast = useUi.getState().showToast;
+  const r = await copyText(code);
+  toast(r === 'copied' ? '초대 코드를 복사했어요' : '복사하지 못했어요. 코드를 직접 알려 주세요', r === 'copied' ? 'soft' : 'warn');
+}
+
 /** 링크 복사(expo-clipboard) */
 export async function copyInvite(trip: Trip): Promise<void> {
   const code = trip.invite?.code;

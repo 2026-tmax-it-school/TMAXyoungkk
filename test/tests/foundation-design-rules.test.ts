@@ -100,7 +100,6 @@ const FLOAT_ALLOWED = [
   'src/screens/MapScreen.tsx',
   'src/screens/NavigateScreen.tsx',
   'src/screens/LiveTripScreen.tsx',
-  'src/screens/RecordMapScreen.tsx',
 ];
 
 test('그림자(E.float)는 지도 위에 뜬 요소에만 쓴다', () => {

@@ -29,7 +29,7 @@ const PICK_TITLE = '여행방을 골라 주세요';
  * 방이 0개면 아무것도 그리지 않는다(화면이 Empty와 '여행방 만들기'를 보인다).
  * 방은 있는데 고른 방이 없으면 '여행방을 골라 주세요'를 보인다.
  */
-export function TripBar({ variant = 'bar' }: { variant?: 'bar' | 'chip' }) {
+export function TripBar({ variant = 'bar', back }: { variant?: 'bar' | 'chip'; back?: () => void }) {
   const navigation = useNavigation();
   const { trip, trips } = useActiveTrip();
   const setCurrentTrip = useUi((s) => s.setCurrentTrip);
@@ -58,7 +58,8 @@ export function TripBar({ variant = 'bar' }: { variant?: 'bar' | 'chip' }) {
   }
 
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: SP.xs, paddingTop: SP.s, paddingLeft: SP.gutter, paddingRight: SP.xl }}>
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: SP.xs, paddingTop: SP.s, paddingLeft: back ? SP.xl : SP.gutter, paddingRight: SP.xl }}>
+      {back ? <IconBtn icon="back" label="뒤로" onPress={back} /> : null}
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={a11y}
@@ -75,8 +76,8 @@ export function TripBar({ variant = 'bar' }: { variant?: 'bar' | 'chip' }) {
         </View>
         {badge ? <Chip text={badge} tone="soft" /> : null}
       </Pressable>
-      {trip && tripMode(trip) === 'group' ? (
-        <IconBtn icon="chat" label="채팅" onPress={() => navigation.navigate('Chat', { tripId: trip.id })} />
+      {trip ? (
+        <IconBtn icon="chat" label={tripMode(trip) === 'group' ? '채팅' : '채팅 메모'} onPress={() => navigation.navigate('Chat', { tripId: trip.id })} />
       ) : null}
       {trip ? (
         <IconBtn icon="users" label="멤버·초대" onPress={() => navigation.navigate('Members', { tripId: trip.id })} />

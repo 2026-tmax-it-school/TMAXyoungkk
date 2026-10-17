@@ -64,6 +64,7 @@ export const OP_OWNER: Record<OpType, ReducerKey> = {
   'journal/diaryGenerated': 'journal',
   'journal/diaryEdited': 'journal',
   'journal/diaryShared': 'journal',
+  'journal/diaryNote': 'journal',
 };
 
 /**
@@ -76,6 +77,7 @@ export const LOCK_EXEMPT: ReadonlySet<OpType> = new Set<OpType>([
   'journal/diaryGenerated',
   'journal/diaryEdited',
   'journal/diaryShared',
+  'journal/diaryNote',
   'member/leave',
   'member/anonymize',
   'trip/delete',

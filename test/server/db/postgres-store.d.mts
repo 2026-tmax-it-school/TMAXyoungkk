@@ -3,6 +3,7 @@
  */
 import type { AuthStore } from '../auth.mjs';
 import type { CommunityStore } from '../community.mjs';
+import type { ItineraryStore } from '../itineraries.mjs';
 import type { Ack, InviteLookupResult, StoredOp, SyncStore } from '../sync-server.mjs';
 import type { DayView, LegView, SpotView, TripView } from './projection.mjs';
 
@@ -32,6 +33,7 @@ export interface PostgresSyncStore extends SyncStore {
   readonly kind: 'postgres';
   readonly authStore: AuthStore;
   readonly communityStore: CommunityStore;
+  readonly itineraryStore: ItineraryStore;
   push(tripId: string, ops: readonly unknown[], now?: number): Promise<Ack[]>;
   pull(tripId: string, after: number): Promise<StoredOp[]>;
   lookup(code: string, now: number): Promise<InviteLookupResult>;

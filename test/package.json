@@ -53,6 +53,7 @@
     "typecheck": "tsc --noEmit",
     "export:web": "expo export --platform web --output-dir /tmp/yt-export",
     "server": "node --env-file-if-exists=server/.env server/sync-server.mjs",
+    "ai-proxy": "node --env-file-if-exists=server/.env server/ai-proxy.mjs",
     "db:up": "docker compose -f server/docker-compose.yml up -d --wait",
     "db:down": "docker compose -f server/docker-compose.yml down"
   },

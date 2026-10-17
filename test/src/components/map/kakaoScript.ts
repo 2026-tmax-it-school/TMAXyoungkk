@@ -1,13 +1,14 @@
 /**
  * 카카오맵 JavaScript SDK 주소(순수). 카카오 지도 SDK 주소는 카카오 어댑터 파일 안에서만 쓴다(qa-decisions 국내 전용 규칙).
  * autoload=false로 받고 kakao.maps.load(콜백)로 실제 지도 코드를 불러온다. 스크립트를 나중에 붙여도(document.write 없이) 뜬다.
- * 장소 검색은 서버·REST 제공자가 맡으므로 services 등 추가 라이브러리는 받지 않는다.
+ * services 라이브러리(장소·주소 검색)를 함께 받는다. 웹에서 서버 주소가 없으면 장소·지역 검색이 이 JavaScript 키로 돈다
+ * (services/kakaoSdk. 카카오 앱의 REST 키가 막혀도 지도 키가 되는 도메인에서는 검색이 된다, 2026-10-15).
  * 키가 비면 appkey를 넣지 않는다(그 경우 어댑터를 고르지 않는다).
  */
 export const KAKAO_SDK_ORIGIN = 'https://dapi.kakao.com';
 
 export function kakaoScriptUrl(appKey: string): string {
-  const q = new URLSearchParams({ autoload: 'false' });
+  const q = new URLSearchParams({ autoload: 'false', libraries: 'services' });
   if (appKey.trim()) q.set('appkey', appKey.trim());
   return `${KAKAO_SDK_ORIGIN}/v2/maps/sdk.js?${q.toString()}`;
 }

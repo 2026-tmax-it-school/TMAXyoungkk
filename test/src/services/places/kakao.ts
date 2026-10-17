@@ -1,6 +1,6 @@
 import type { Category, LatLng, Place } from '../../types';
 import type { FetchLike, PlaceProvider, ProviderId, Region } from '../../core/ports';
-import { createKakaoClient } from '../kakaoHttp';
+import { createKakaoClient, type KakaoClient } from '../kakaoHttp';
 
 /**
  * 카카오 로컬 장소 검색 어댑터(WP3 소유, 순수). 프로토타입 가정 · 국내 SDK 선정 미결정.
@@ -108,8 +108,10 @@ export function createKakaoPlaces(opts: {
   fallback?: PlaceProvider;
   /** 요청 하나의 시간 제한(기본 kakaoHttp의 KAKAO_TIMEOUT_MS) */
   timeoutMs?: number;
+  /** 이미 만든 클라이언트(웹의 지도 SDK 검색, services/kakaoSdk). 주면 key·apiUrl로 만들지 않는다 */
+  client?: KakaoClient;
 }): PlaceProvider {
-  const client = createKakaoClient(opts);
+  const client = opts.client ?? createKakaoClient(opts);
 
   async function byCategory(coord: LatLng, radiusM: number, code: string, size: number): Promise<(Place & { d: number })[]> {
     const res = await client.get(KAKAO_CATEGORY_URL, {

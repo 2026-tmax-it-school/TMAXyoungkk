@@ -1,10 +1,11 @@
 import type { Clock, CommunityPost, CommunityPhoto, CommunityProvider, IdGen } from '../../core/ports';
-import { checkDraft, cleanTags, normalizeTag } from '../../core/community';
+import { checkDraft, cleanTags, matchesSearch, normalizeTag } from '../../core/community';
 
 /**
  * 이 기기 모의 커뮤니티(WP6 소유, 2026-10-10). 서버 주소가 없을 때 쓴다. 메모리에만 두므로 앱을 새로 열면 사라진다
  * (프로토타입). 사진은 data: 주소로 그대로 보인다. 같은 기기의 계정만 쓰고 다른 사람은 볼 수 없다.
  * 규칙(본문이나 사진 하나, 한도, 태그)은 서버와 같은 core/community/checkDraft를 쓴다. 태그 거르기도 서버처럼 맞춘 값으로 본다.
+ * 고치기(2026-10-17)도 서버와 같다: 본인 글만, 남길 사진은 그 글의 사진만, 남긴 사진 → 새 사진 순서, editedAt을 둔다.
  */
 export function createLocalCommunity(opts: { clock: Clock; ids: IdGen }): CommunityProvider {
   const posts: CommunityPost[] = [];
@@ -20,6 +21,7 @@ export function createLocalCommunity(opts: { clock: Clock; ids: IdGen }): Commun
         const tag = normalizeTag(q.tag);
         all = tag ? all.filter((p) => p.tags.includes(tag)) : [];
       }
+      if (q.q) all = all.filter((p) => matchesSearch(p, q.q as string));
       if (q.before) {
         const [ms, id] = q.before.split(':');
         all = all.filter((p) => p.createdAt < Number(ms) || (p.createdAt === Number(ms) && p.id < id));
@@ -48,6 +50,32 @@ export function createLocalCommunity(opts: { clock: Clock; ids: IdGen }): Commun
       };
       posts.push(post);
       authorOf.set(id, ctx.userId);
+      return { ok: true, value: post };
+    },
+
+    async update(postId, draft, ctx) {
+      if (!ctx.userId) return { ok: false, code: 'loginRequired' };
+      const i = posts.findIndex((p) => p.id === postId);
+      if (i < 0 || authorOf.get(postId) !== ctx.userId) return { ok: false, code: 'notFound' };
+      const cur = posts[i];
+      const keep = draft.keepPhotoIds;
+      if (new Set(keep).size !== keep.length || keep.some((id) => !cur.photos.some((p) => p.id === id))) {
+        return { ok: false, code: 'badPost', detail: '사진 값이 올바르지 않습니다' };
+      }
+      const check = checkDraft(draft, keep.length);
+      if (!check.ok) return { ok: false, code: 'badPost', detail: check.problem };
+      const kept = keep.map((id) => cur.photos.find((p) => p.id === id)!);
+      const fresh: CommunityPhoto[] = draft.photos.map((p) => ({ id: opts.ids.next('cph'), url: `data:${p.mime};base64,${p.data}` }));
+      const post: CommunityPost = {
+        ...cur,
+        title: draft.title.trim(),
+        body: draft.body.trim(),
+        tags: cleanTags(draft.tags),
+        editedAt: opts.clock.now(),
+        photos: [...kept, ...fresh],
+        mine: true,
+      };
+      posts[i] = post;
       return { ok: true, value: post };
     },
 

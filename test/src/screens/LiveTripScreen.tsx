@@ -5,6 +5,7 @@ import type { Place, TrackPoint } from '../types';
 import type { MapDotInput } from '../core/map/layout';
 import { liveDayFromTrip } from '../core/live/context';
 import { etaView, jumpTargets, pickLiveDate, type LiveLogLine } from '../core/live/session';
+import { isHost } from '../core/group';
 import { isEnded, tripStatus } from '../core/tripStatus';
 import { kstDate, kstHHMM } from '../core/util';
 import { MapCanvas } from '../components/map/MapCanvas';
@@ -18,13 +19,14 @@ import { ProposalSheet } from '../features/live/components/ProposalSheet';
 import { SIM_BANNER_TEXT } from '../features/live/components/SimBanner';
 import { SimControls } from '../features/live/components/SimControls';
 import '../features/live/photoBridge';
+import { TripEditSheet } from '../features/trip/components/TripEditSheet';
 import { useDayMap } from '../features/live/useDayMap';
 import type { RootScreenProps } from '../navigation/routes';
 import { useBack } from '../navigation/useBack';
 import { appClock, useNow } from '../services/clock';
 import { backgroundRecordBlock, useLive, useSimBanner, useVisitStatuses, type LiveState } from '../store/live';
 import { useSession } from '../store/session';
-import { usePlan, useTripDoc, useTrips } from '../store/trips';
+import { myMemberId, usePlan, useTripDoc, useTrips } from '../store/trips';
 import { useUi } from '../store/ui';
 import {
   Body,
@@ -133,6 +135,7 @@ export default function LiveTripScreen({ navigation, route }: RootScreenProps<'L
   const [hiddenProposal, setHiddenProposal] = useState<string | undefined>(undefined);
   const [askDevice, setAskDevice] = useState(false);
   const [askStop, setAskStop] = useState(false);
+  const [editing, setEditing] = useState(false);
   const [statusOpen, setStatusOpen] = useState(false);
   // 렌더마다 읽는다. 이전 설정으로 만든 빌드라는 것을 켜거나 진행을 시작하다 알면 그 뒤로 '켤 수 없음'이 된다.
   const bgBlock = backgroundRecordBlock();
@@ -225,7 +228,9 @@ export default function LiveTripScreen({ navigation, route }: RootScreenProps<'L
     const r = useTrips.getState().dispatch(tripId, { type: 'spot/restore', spotId });
     if (r.ok) useUi.getState().showToast(`${name}을(를) 고정으로 되돌렸어요`);
   };
-  const openRecord = () => navigation.navigate('RecordMap', { tripId, date });
+  const openRecord = () => navigation.navigate('Journal', { tripId, date });
+  const me = myMemberId(trip);
+  const host = !!me && isHost(trip, me);
   const openBigMap = () => {
     useUi.getState().setCurrentTrip(tripId);
     navigation.navigate('Main', { screen: 'Map', params: { date } });
@@ -415,11 +420,13 @@ export default function LiveTripScreen({ navigation, route }: RootScreenProps<'L
         {running ? bgCard : null}
         {running && live.log.length > 0 ? <LogCard lines={live.log} /> : null}
 
-        {showRecordRow ? <ListRow first icon="map" label="기록 보기" onPress={openRecord} /> : null}
+        {showRecordRow ? <ListRow first icon="book" label="여행일지 보기" onPress={openRecord} /> : null}
         {running ? (
-          <View style={styles.endZone}>
+          <Row gap={SP.m} style={styles.endZone}>
+            {/* 방장만 표지·이름·날짜를 고친다(TripEditSheet). 홈 카드에서 옮겨 왔다 */}
+            {host ? <Btn title="수정" icon="pen" variant="quiet" size="sm" onPress={() => setEditing(true)} /> : null}
             <Btn title="여행 진행 끝내기" variant="quiet" size="sm" onPress={() => setAskStop(true)} />
-          </View>
+          </Row>
         ) : null}
       </Body>
 
@@ -448,7 +455,7 @@ export default function LiveTripScreen({ navigation, route }: RootScreenProps<'L
         </Foot>
       ) : running && timing === null ? (
         <Foot>
-          <Btn title="기록 보기" icon="map" onPress={openRecord} />
+          <Btn title="여행일지 보기" icon="book" onPress={openRecord} />
         </Foot>
       ) : null}
 
@@ -482,6 +489,14 @@ export default function LiveTripScreen({ navigation, route }: RootScreenProps<'L
         confirmLabel="기기 위치 켜고 시작"
         onConfirm={beginDevice}
         onCancel={() => setAskDevice(false)}
+      />
+      <TripEditSheet
+        tripId={editing ? tripId : undefined}
+        onClose={() => setEditing(false)}
+        onMore={(id) => {
+          setEditing(false);
+          navigation.navigate('TripSettings', { tripId: id });
+        }}
       />
       <ConfirmSheet
         visible={askStop && running}
@@ -531,5 +546,5 @@ const styles = StyleSheet.create({
     paddingHorizontal: SP.gutter,
     paddingBottom: SP.s,
   },
-  endZone: { paddingTop: SP.xxl, alignItems: 'flex-start' },
+  endZone: { paddingTop: SP.xxl },
 });

@@ -290,3 +290,44 @@ test('템플릿: 장소가 아닌 묶음(이동 중, 날짜만 정한 사진)에
   assert.equal(templateLine({ ...b, photoCount: 0, memberNames: [] }), '10:00 이동했다.');
   assert.equal(templateLine({ ...b, placeName: '날짜만 정한 사진', memberNames: ['민지', '준호'] }), '10:00 민지, 준호가 함께 사진 2장을 남겼다.');
 });
+
+describe('직접 쓴 일기(2026-10-17)', () => {
+  const note = (id = `${D}:note-a`, text = '황리단길을 걸었다') => ({
+    id,
+    time: '21:30',
+    placeName: '내가 쓴 일기',
+    photoIds: [],
+    text,
+    editedAt: atKst(D, '21:30'),
+    editedBy: memberId('minji'),
+  });
+
+  test('일기가 없는 날에도 문단이 생기고 generatedAt 0이라 그날 기록은 새 기록으로 남는다', () => {
+    const t0 = tripWithRecords();
+    assert.equal(validateOp(t0, op({ type: 'journal/diaryNote', date: D, block: note() })).ok, true);
+    const t1 = applyOp(t0, op({ type: 'journal/diaryNote', date: D, block: note() })) as Trip;
+    assert.equal(t1.diaries[D].blocks.length, 1);
+    assert.equal(t1.diaries[D].status, 'auto');
+    assert.equal(t1.diaries[D].generatedAt, 0);
+    assert.ok(diaryStaleness(t1, t1.diaries[D]).newRecords > 0);
+  });
+
+  test('같은 id는 한 번, 빈 글·기간 밖·긴 글은 거부', () => {
+    const t0 = tripWithRecords();
+    const t1 = applyOp(t0, op({ type: 'journal/diaryNote', date: D, block: note() })) as Trip;
+    assert.equal(applyOp(t1, op({ type: 'journal/diaryNote', date: D, block: note() })), t1);
+    assert.equal(validateOp(t1, op({ type: 'journal/diaryNote', date: D, block: note() })).ok, false);
+    assert.equal(validateOp(t0, op({ type: 'journal/diaryNote', date: D, block: note('x', '  ') })).ok, false);
+    assert.equal(validateOp(t0, op({ type: 'journal/diaryNote', date: '2030-01-01', block: note() })).ok, false);
+    assert.equal(validateOp(t0, op({ type: 'journal/diaryNote', date: D, block: note('y', 'x'.repeat(1001)) })).ok, false);
+  });
+
+  test('다시 만들어도 직접 쓴 문단은 남는다', async () => {
+    let t = tripWithRecords();
+    t = applyOp(t, op({ type: 'journal/diaryNote', date: D, block: note() })) as Trip;
+    const again = await composeDiary(t, D, createTemplateDiary(), atKst(D, '22:00'));
+    t = applyOp(t, op({ type: 'journal/diaryGenerated', entry: again })) as Trip;
+    assert.ok(t.diaries[D].blocks.some((b) => b.id === `${D}:note-a` && b.text === '황리단길을 걸었다'));
+    assert.ok(t.diaries[D].blocks.length > 1);
+  });
+});

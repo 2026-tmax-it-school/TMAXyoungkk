@@ -66,9 +66,11 @@ export function regionsFromAddress(json: unknown, limit = 8): Region[] {
   return out;
 }
 
-export function createRegionSearch(opts: { apiUrl?: string; kakaoKey?: string; fetch: FetchLike }): RegionSearch {
+/** client를 주면(웹의 지도 SDK 검색, services/kakaoSdk) apiUrl·kakaoKey로 만들지 않는다 */
+export function createRegionSearch(opts: { apiUrl?: string; kakaoKey?: string; fetch: FetchLike; client?: KakaoClient }): RegionSearch {
   const client: KakaoClient | undefined =
-    opts.apiUrl || opts.kakaoKey ? createKakaoClient({ apiUrl: opts.apiUrl, key: opts.apiUrl ? undefined : opts.kakaoKey, fetch: opts.fetch }) : undefined;
+    opts.client ??
+    (opts.apiUrl || opts.kakaoKey ? createKakaoClient({ apiUrl: opts.apiUrl, key: opts.apiUrl ? undefined : opts.kakaoKey, fetch: opts.fetch }) : undefined);
 
   async function kakaoSearch(query: string, limit: number): Promise<Region[]> {
     if (!client) throw new Error('카카오 없음');

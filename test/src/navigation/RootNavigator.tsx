@@ -9,9 +9,9 @@ import CommunityComposeScreen from '../screens/CommunityComposeScreen';
 import CommunityScreen from '../screens/CommunityScreen';
 import CreateTripScreen from '../screens/CreateTripScreen';
 import DirectionsScreen from '../screens/DirectionsScreen';
-import DiaryScreen from '../screens/DiaryScreen';
 import HomeScreen from '../screens/HomeScreen';
 import InviteAcceptScreen from '../screens/InviteAcceptScreen';
+import JournalScreen from '../screens/JournalScreen';
 import LegTransportScreen from '../screens/LegTransportScreen';
 import LiveTripScreen from '../screens/LiveTripScreen';
 import LoginScreen from '../screens/LoginScreen';
@@ -20,11 +20,13 @@ import MembersScreen from '../screens/MembersScreen';
 import MoreScreen from '../screens/MoreScreen';
 import NavigateScreen from '../screens/NavigateScreen';
 import OnboardingScreen from '../screens/OnboardingScreen';
-import PhotosScreen from '../screens/PhotosScreen';
 import PlanningScreen from '../screens/PlanningScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import RecommendScreen from '../screens/RecommendScreen';
-import RecordMapScreen from '../screens/RecordMapScreen';
+import SampleTripScreen from '../screens/SampleTripScreen';
+import ItinerariesScreen from '../screens/ItinerariesScreen';
+import ItineraryDetailScreen from '../screens/ItineraryDetailScreen';
+import ShareItineraryScreen from '../screens/ShareItineraryScreen';
 import ScheduleEditScreen from '../screens/ScheduleEditScreen';
 import ScheduleScreen from '../screens/ScheduleScreen';
 import SignupScreen from '../screens/SignupScreen';
@@ -89,6 +91,10 @@ export function RootNavigator({ hasSession }: { hasSession: boolean }) {
         <>
           <Stack.Screen name="Main" component={MainTabs} />
           <Stack.Screen name="CreateTrip" component={CreateTripScreen} />
+          <Stack.Screen name="SampleTrip" component={SampleTripScreen} />
+          <Stack.Screen name="Itineraries" component={ItinerariesScreen} />
+          <Stack.Screen name="ItineraryDetail" component={ItineraryDetailScreen} />
+          <Stack.Screen name="ShareItinerary" component={ShareItineraryScreen} />
           <Stack.Screen name="TripSettings" component={TripSettingsScreen} />
           <Stack.Screen name="Members" component={MembersScreen} />
           <Stack.Screen name="Chat" component={ChatScreen} />
@@ -100,9 +106,7 @@ export function RootNavigator({ hasSession }: { hasSession: boolean }) {
           <Stack.Screen name="Navigate" component={NavigateScreen} />
           <Stack.Screen name="Directions" component={DirectionsScreen} />
           <Stack.Screen name="LiveTrip" component={LiveTripScreen} />
-          <Stack.Screen name="Photos" component={PhotosScreen} />
-          <Stack.Screen name="Diary" component={DiaryScreen} />
-          <Stack.Screen name="RecordMap" component={RecordMapScreen} />
+          <Stack.Screen name="Journal" component={JournalScreen} />
           <Stack.Screen name="Profile" component={ProfileScreen} />
           <Stack.Screen name="CommunityCompose" component={CommunityComposeScreen} />
         </>

@@ -21,6 +21,19 @@ export interface Voter {
   label: string;
 }
 
+/**
+ * 시트의 남은 표 줄(예산은 core/chatmap/votes.VOTE_BUDGET). 말한 장소의 처음 표는 예산 밖이다.
+ * 예: '남은 표 2/3', 다 쓰면 '표를 다 썼어요 · 하나를 빼면 다시 줄 수 있어요'
+ */
+export function budgetLine(left: number, budget: number): string {
+  return left > 0 ? `남은 표 ${left}/${budget}` : '표를 다 썼어요 · 하나를 빼면 다시 줄 수 있어요';
+}
+
+/** 순위 목록 아래 설명 */
+export function budgetNote(budget: number): string {
+  return `한 사람이 ${budget}표까지 줄 수 있고, 장소마다 한 표예요. 내가 말한 장소에는 처음부터 한 표가 들어가 있고 이 표는 ${budget}표에 들지 않아요.`;
+}
+
 /** 제외된 후보에 표를 내려 할 때의 안내 */
 export const VOTE_REMOVED_REASON = '제외된 후보는 투표할 수 없어요';
 

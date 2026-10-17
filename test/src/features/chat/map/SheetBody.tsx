@@ -6,7 +6,7 @@ import type { MentionRow, RankRow } from '../../../core/chatmap/votes';
 import { Avatar, Icon, IconBtn, Notice, Seg, SP, Txt, type SheetSnap } from '../../../ui';
 import { MentionList } from './MentionList';
 import { RankList } from './RankList';
-import { topLine, whoCount, whoName, whoTitle, type SheetWho, type Voter } from './text';
+import { budgetLine, topLine, whoCount, whoName, whoTitle, type SheetWho, type Voter } from './text';
 
 export type SheetTab = ChatSheetTab;
 export type { SheetWho };
@@ -96,7 +96,8 @@ export function SheetHead({
 }
 
 /**
- * peek·full의 본문. 멤버를 골랐으면 [말한 장소 | 전체 투표] 탭, 오프라인·잠김 안내, 목록 순이다.
+ * peek·full의 본문. 멤버를 골랐으면 [말한 장소 | 전체 투표] 탭, 오프라인·잠김 안내, 남은 표 줄, 목록 순이다.
+ * 남은 표 줄은 투표할 수 있을 때만 보인다('남은 표 2/3', 다 쓰면 하나를 빼라는 안내).
  */
 export function SheetContent({
   who,
@@ -109,6 +110,9 @@ export function SheetContent({
   online,
   locked,
   canVote,
+  left,
+  budget,
+  isFull,
   focusSpotId,
   onToggle,
   onFocus,
@@ -123,6 +127,10 @@ export function SheetContent({
   online: boolean;
   locked: boolean;
   canVote: boolean;
+  /** 남은 표(0..budget) */
+  left: number;
+  budget: number;
+  isFull: (spotId: string) => boolean;
   focusSpotId: string | null;
   onToggle: (spotId: string) => void;
   onFocus: (spotId: string) => void;
@@ -151,15 +159,23 @@ export function SheetContent({
           <Notice icon="alert" text="오프라인이에요. 투표는 연결되면 보내요" />
         </View>
       ) : null}
+      {canVote ? (
+        <View style={styles.budget} accessibilityLiveRegion="polite">
+          <Txt v="mtTight" c={left > 0 ? 'muted' : 'accentStrong'} numberOfLines={2}>
+            {budgetLine(left, budget)}
+          </Txt>
+        </View>
+      ) : null}
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollBody} keyboardShouldPersistTaps="handled">
         {shown === 'mentions' ? (
-          <MentionList rows={mentions} canVote={canVote} focusSpotId={focusSpotId} onToggle={onToggle} onFocus={onFocus} />
+          <MentionList rows={mentions} canVote={canVote} isFull={isFull} focusSpotId={focusSpotId} onToggle={onToggle} onFocus={onFocus} />
         ) : (
           <RankList
             rows={rank}
             total={total}
             voterOf={voterOf}
             canVote={canVote}
+            isFull={isFull}
             focusSpotId={focusSpotId}
             onToggle={onToggle}
             onFocus={onFocus}
@@ -207,6 +223,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: SP.gutter,
   },
   notice: {
+    paddingHorizontal: SP.gutter,
+    paddingTop: SP.m,
+  },
+  budget: {
     paddingHorizontal: SP.gutter,
     paddingTop: SP.m,
   },

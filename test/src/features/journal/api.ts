@@ -1,9 +1,10 @@
 import { useSyncExternalStore } from 'react';
 
-import type { DiaryEntry, Photo } from '../../types';
+import type { DiaryBlock, DiaryEntry, Photo } from '../../types';
 import type { PhotoProvider, PickedPhoto } from '../../core/ports';
 import { composeDiary, diaryShareText } from '../../core/journal/diary';
 import { buildPhoto } from '../../core/journal/photo';
+import { kstHHMM } from '../../core/util';
 import { appClock } from '../../services/clock';
 import { getServices } from '../../services/registry';
 import { shareText, type ShareOutcome } from '../../services/share';
@@ -171,6 +172,23 @@ export async function generateDiary(tripId: string, date: string, opts?: { quiet
   const r = useTrips.getState().dispatch(tripId, { type: 'journal/diaryGenerated', entry }, { quiet: opts?.quiet });
   if (!r.ok) return { ok: false, entry, reason: r.reason };
   return { ok: true, entry: useTrips.getState().docs[tripId]?.diaries[date] ?? entry };
+}
+
+/** 직접 쓴 일기 문단을 그날 일기에 더한다(고친 문장으로 표시되어 다시 만들어도 남는다) */
+export function addDiaryNote(tripId: string, date: string, text: string): DispatchResult {
+  const trip = useTrips.getState().docs[tripId];
+  const me = trip ? myMemberId(trip) : undefined;
+  const at = appClock().now();
+  const block: DiaryBlock = {
+    id: `${date}:note-${at.toString(36)}`,
+    time: kstHHMM(at),
+    placeName: '내가 쓴 일기',
+    photoIds: [],
+    text: text.trim(),
+    editedAt: at,
+    ...(me ? { editedBy: me } : {}),
+  };
+  return useTrips.getState().dispatch(tripId, { type: 'journal/diaryNote', date, block });
 }
 
 export function editDiaryBlock(tripId: string, date: string, blockId: string, text: string): DispatchResult {

@@ -26,7 +26,7 @@ function block(src: string, open: string, close: string): string {
 }
 
 test('09 위쪽: TripBar, PlanSwitch(시간표), 날짜 Seg 순이고 바깥 가로 ScrollView를 두지 않는다', () => {
-  const bar = schedule.indexOf('<TripBar />');
+  const bar = schedule.indexOf('<TripBar back={homeBack} />');
   const sw = schedule.indexOf('<PlanSwitch value="Schedule"');
   const seg = schedule.indexOf('<Seg', sw);
   assert.ok(bar >= 0 && sw > bar && seg > sw, 'TripBar → PlanSwitch → Seg');

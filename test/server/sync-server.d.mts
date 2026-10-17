@@ -2,8 +2,10 @@
  * sync-server.mjs의 타입 선언(WP2 소유). 테스트가 '../server/sync-server.mjs'를 확장자까지 적어 import할 때 쓴다.
  * 서버 자체는 앱 번들에 들어가지 않는다.
  */
+import type { AiRecommenderOptions } from './ai.mjs';
 import type { AuthServiceOptions, AuthStore } from './auth.mjs';
 import type { CommunityStore } from './community.mjs';
+import type { ItineraryStore } from './itineraries.mjs';
 import type { ApiProxyOptions } from './proxy.mjs';
 
 export type InviteJudgement = 'ok' | 'notFound' | 'expired' | 'revoked' | 'full';
@@ -33,6 +35,7 @@ export interface SyncStore {
   /** 계정·로그인 저장소(PostgreSQL 저장소가 준다). 없으면 서버가 메모리 계정 저장소를 쓴다 */
   readonly authStore?: AuthStore;
   readonly communityStore?: CommunityStore;
+  readonly itineraryStore?: ItineraryStore;
   push(tripId: string, ops: readonly unknown[], now?: number): Awaitable<Ack[]>;
   pull(tripId: string, after: number): Awaitable<StoredOp[]>;
   lookup(code: string, now: number): Awaitable<InviteLookupResult>;
@@ -96,4 +99,6 @@ export function startSyncServer(opts?: {
   proxy?: ApiProxyOptions | false;
   /** 계정·로그인 설정(server/auth.mjs). store 기본은 저장소의 authStore 또는 메모리, devOutbox·mockSocial 기본은 꺼짐(메모리 저장소여도). false면 /auth도 404 */
   auth?: AuthServiceOptions | false;
+  /** AI 추천 설정(server/ai.mjs). 카카오 키·fetch 기본은 proxy의 값, Gemini 키 기본은 없음(503). false면 /ai도 404 */
+  ai?: AiRecommenderOptions | false;
 }): Promise<{ url: string; close: () => Promise<void> }>;

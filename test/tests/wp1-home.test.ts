@@ -131,10 +131,10 @@ describe('여행 표지 카드의 다음 할 일', () => {
   const today = '2026-10-18';
   const plan = { days: [{ date: '2026-11-01', items: [] }], excluded: [] } as unknown as Plan;
 
-  test('완료면 기록 보기(기록 지도)', () => {
+  test('완료면 여행일지 보기', () => {
     const s = tripNextStep(trip('past', '2026-09-01', '2026-09-03'), plan, today);
-    assert.equal(s.label, '기록 보기');
-    assert.equal(s.route, 'RecordMap');
+    assert.equal(s.label, '여행일지 보기');
+    assert.equal(s.route, 'Journal');
   });
 
   test('진행 중이면 오늘 여행 진행(오늘 날짜로)', () => {
@@ -170,17 +170,17 @@ describe('선택한 여행방의 빠른 메뉴 4칸', () => {
     assert.deepEqual(keys(trip('a', '2026-11-01', '2026-11-02')), ['chat', 'members', 'recommend', 'settings']);
   });
 
-  test('진행 중: 구간 안내, 그룹 채팅, 사진 올리기(오늘), 여행방 설정', () => {
+  test('진행 중: 구간 안내, 그룹 채팅, 일기 쓰기(오늘), 여행방 설정', () => {
     const cells = homeActions(trip('a', '2026-10-17', '2026-10-19'), undefined, today);
     assert.deepEqual(
       cells.map((c) => c.key),
-      ['navigate', 'chat', 'photos', 'settings'],
+      ['navigate', 'chat', 'diary', 'settings'],
     );
-    assert.equal(cells.find((c) => c.key === 'photos')?.date, today);
+    assert.equal(cells.find((c) => c.key === 'diary')?.date, today);
   });
 
-  test('완료: 사진, 일기, 그룹 채팅, 여행방 설정', () => {
-    assert.deepEqual(keys(trip('a', '2026-09-01', '2026-09-03')), ['photos', 'diary', 'chat', 'settings']);
+  test('완료: 여행일지, 일정 공유하기, 그룹 채팅, 여행방 설정', () => {
+    assert.deepEqual(keys(trip('a', '2026-09-01', '2026-09-03')), ['diary', 'share', 'chat', 'settings']);
   });
 
   test("구간 안내 칸 이름은 '구간 안내'이고 늘 켜져 있다(시간표가 없으면 구간 안내 화면이 '루트 계산'을 안내)", () => {
@@ -216,7 +216,7 @@ describe('선택한 여행방의 빠른 메뉴 4칸', () => {
     assert.match(home, /<Row gap=\{SP\.xs\} top>\s*\{actions\.map\(\(c\) => \(\s*<QuickAction/);
   });
 
-  test('개인 모드(활성 멤버 1명)면 채팅 칸이 꺼지고 이유에 초대를 적는다', () => {
+  test('개인 모드(활성 멤버 1명)도 채팅 칸이 열리고 이름이 채팅 메모다', () => {
     for (const [s, e] of [
       ['2026-11-01', '2026-11-02'],
       ['2026-10-17', '2026-10-19'],
@@ -224,8 +224,8 @@ describe('선택한 여행방의 빠른 메뉴 4칸', () => {
     ]) {
       const chat = homeActions(personal(trip('a', s, e)), undefined, today).find((c) => c.key === 'chat');
       assert.ok(chat);
-      assert.equal(chat.disabled, true);
-      assert.match(chat.reason ?? '', /초대/);
+      assert.equal(chat.disabled, false);
+      assert.equal(chat.label, '채팅 메모');
     }
   });
 
@@ -234,10 +234,12 @@ describe('선택한 여행방의 빠른 메뉴 4칸', () => {
     assert.equal(chat?.disabled, false);
   });
 
-  test('방장 외 전원이 나가면 다시 개인 모드라 채팅이 닫힌다', () => {
+  test('방장 외 전원이 나가면 다시 개인 모드지만 채팅 메모로 열려 있다', () => {
     const t = trip('a', '2026-10-17', '2026-10-19');
     const alone = { ...t, members: t.members.map((m) => (m.role === 'host' ? m : { ...m, leftAt: NOW })) };
-    assert.equal(homeActions(alone, undefined, today).find((c) => c.key === 'chat')?.disabled, true);
+    const chat = homeActions(alone, undefined, today).find((c) => c.key === 'chat');
+    assert.equal(chat?.disabled, false);
+    assert.equal(chat?.label, '채팅 메모');
   });
 
   test('여행방 설정 칸은 개인 모드에서도 늘 열려 있다', () => {

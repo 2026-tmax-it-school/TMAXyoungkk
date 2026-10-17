@@ -35,6 +35,7 @@
     "src/services/kv.ts",
     "src/services/share.ts",
     "src/services/kakaoHttp.ts",
+    "src/services/kakaoSdk.ts",
     "src/data/regions.ts",
     "src/data/scenario.ts",
     "tests/setup/**",
@@ -79,7 +80,16 @@
     "src/services/regions.ts",
     "src/services/tripCover.ts",
     "server/**",
-    "tests/wp2-*.test.ts"
+    "tests/wp2-*.test.ts",
+    "src/screens/SampleTripScreen.tsx",
+    "src/data/sampleTrips.ts",
+    "src/features/trip/sample.ts",
+    "src/screens/ItinerariesScreen.tsx",
+    "src/screens/ItineraryDetailScreen.tsx",
+    "src/screens/ShareItineraryScreen.tsx",
+    "src/core/itinerary/**",
+    "src/services/itineraries/**",
+    "src/store/itineraries.ts"
   ],
   "WP3": [
     "src/screens/ChatScreen.tsx",
@@ -126,9 +136,7 @@
     "tests/wp5-*.test.ts"
   ],
   "WP6": [
-    "src/screens/PhotosScreen.tsx",
-    "src/screens/DiaryScreen.tsx",
-    "src/screens/RecordMapScreen.tsx",
+    "src/screens/JournalScreen.tsx",
     "src/features/journal/**",
     "src/core/journal/**",
     "src/core/ops/journal.ts",

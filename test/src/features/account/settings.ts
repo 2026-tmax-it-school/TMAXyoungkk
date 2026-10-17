@@ -94,7 +94,7 @@ export function heroLine(session: Session | undefined, now: number): string {
   return detail ? `${kind} · ${detail}` : kind;
 }
 
-/** 프로필 탭 '내 여행 기록' 타일 숫자. 일기는 내용이 있는 날만 센다 */
+/** 홈 '여행일지' 줄 숫자. 일기는 내용이 있는 날만 센다 */
 export function recordCounts(trip: Pick<Trip, 'photos' | 'diaries'>): { photos: number; diaryDays: number } {
   return {
     photos: trip.photos.length,
@@ -103,12 +103,11 @@ export function recordCounts(trip: Pick<Trip, 'photos' | 'diaries'>): { photos: 
 }
 
 /**
- * 프로필 탭 '내 여행 기록' 타일 라벨. 이름과 숫자(또는 두 낱말)를 줄바꿈으로 나눠 늘 두 줄로 쓴다.
- * 360px에서 타일 안쪽 너비가 63px뿐이라 '사진 12장', '기록 지도'가 한 줄에 안 들어가고, 웹은 한글을 낱말 가운데서
- * 끊는다('기록 지/도'). 미리 나누면 어디서도 낱말이 잘리지 않고 세 칸 높이가 같다. 스크린리더는 줄바꿈을 쉼으로 읽는다.
+ * 홈 '여행일지' 줄의 보조 글: '일기 3일 · 사진 12장'. 일기와 사진을 한 화면(여행일지)에서 보므로 한 줄에 같이 쓴다
+ * (2026-10-17: 일기·사진·기록 지도 세 타일을 하나로 합쳤고 기록 지도는 없앴다).
  */
-export function recordTileLabels(c: { photos: number; diaryDays: number }): { photos: string; diary: string; map: string } {
-  return { photos: `사진\n${c.photos}장`, diary: `일기\n${c.diaryDays}일`, map: '기록\n지도' };
+export function journalSub(c: { photos: number; diaryDays: number }): string {
+  return `일기 ${c.diaryDays}일 · 사진 ${c.photos}장`;
 }
 
 /** 제공자 상태 한 줄(services/registry ServiceStatus와 같은 꼴. 순수하게 두려고 필요한 칸만 받는다) */

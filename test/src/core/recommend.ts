@@ -1,5 +1,5 @@
-import type { LatLng, Place } from '../types';
-import { haversineKm } from './util';
+import type { DayPlan, LatLng, Place } from '../types';
+import { haversineKm, toHHMM, toMin } from './util';
 
 /**
  * 여행지 추천 점수와 대체 규칙(FR-404, WP3 소유, 순수).
@@ -15,6 +15,8 @@ import { haversineKm } from './util';
 
 export const RECOMMEND_MIN = 3;
 export const RECOMMEND_MAX = 5;
+/** 23 화면에서 태그를 바꾼 뒤 추천을 부르기까지 기다리는 시간(ms). 빠른 연속 탭이 요청 여러 개가 되지 않게 */
+export const RECOMMEND_TAG_DEBOUNCE_MS = 450;
 /** 근접도가 0이 되는 거리(km) */
 const PROXIMITY_KM = 15;
 
@@ -138,4 +140,43 @@ export function pickRecommendations(input: RecommendInput): { items: { place: Pl
     items: chosen.map((place) => ({ place, reason: recommendReason(place, input.tags, anchor) })),
     fallback,
   };
+}
+
+/* ---------- AI 추천 맥락(2026-10-17) ---------- */
+
+/** 빈 시간으로 보는 최소 길이(분) */
+export const FREE_SLOT_MIN = 60;
+/** 추천 요청에 싣는 빈 시간 수 상한(서버 server/ai.mjs AI_LIMITS.freeSlots와 같다) */
+export const FREE_SLOTS_MAX = 10;
+/** 추천 요청에 싣는 기존 장소 이름 수 상한(서버 AI_LIMITS.candidates와 같다) */
+export const CONTEXT_NAMES_MAX = 30;
+
+/**
+ * 계산된 일정의 빈 시간 → 'M/D HH:MM-HH:MM'(예: '10/17 18:00-21:00'). AI 추천 맥락으로만 쓴다.
+ * 스팟이 없는 날은 활동 시작~끝 전체, 스팟 사이는 앞 스팟 출발~다음 스팟으로 떠나야 하는 시각(도착 - 이동),
+ * 마지막 스팟 뒤는 출발~(활동 끝 - 복귀 이동)이다. minMin분보다 짧은 틈은 뺀다. 앞에서부터 max개.
+ */
+export function freeSlotsOfPlan(
+  days: readonly Pick<DayPlan, 'date' | 'startMin' | 'endLimitMin' | 'items' | 'returnMin'>[],
+  minMin = FREE_SLOT_MIN,
+  max = FREE_SLOTS_MAX,
+): string[] {
+  const out: string[] = [];
+  for (const d of days) {
+    const [, mm, dd] = d.date.split('-');
+    const label = `${Number(mm)}/${Number(dd)}`;
+    const push = (a: number, b: number) => {
+      if (b - a >= minMin && out.length < max) out.push(`${label} ${toHHMM(a)}-${toHHMM(b)}`);
+    };
+    if (d.items.length === 0) {
+      push(d.startMin, d.endLimitMin);
+      continue;
+    }
+    for (let i = 0; i + 1 < d.items.length; i += 1) {
+      const next = d.items[i + 1];
+      push(toMin(d.items[i].depart), toMin(next.arrive) - next.travelMin);
+    }
+    push(toMin(d.items[d.items.length - 1].depart), d.endLimitMin - d.returnMin);
+  }
+  return out;
 }

@@ -7,7 +7,8 @@ import { Avatar, Card, Col, Icon, R, Row, SP, surfaceC, Txt } from '../../../ui'
 import { PhotoViewer } from './PhotoViewer';
 
 /**
- * 커뮤니티 글 카드(WP6 소유). 닉네임·시각, 사진, 제목, 본문(길면 접기), 태그, 내 글이면 삭제.
+ * 커뮤니티 글 카드(WP6 소유). 닉네임·시각, 사진, 제목, 본문(길면 접기), 태그, 내 글이면 수정·삭제.
+ * 2026-10-17: 내 글이면 '삭제' 옆에 '수정'(onEdit, 글쓰기 화면을 고치기로 연다). 고친 글은 시각 뒤에 '수정됨'을 붙인다.
  * 2026-10-11: 사진·일기 종류 칩을 없앴다(글은 한 가지). 사진이 먼저 보이게 위로 올리고, 누르면 크게 본다(PhotoViewer).
  * 태그를 누르면 그 태그로 피드를 거른다(onTagPress). 지금 거르는 태그는 진하게 보인다.
  * 사진은 한 장이면 가로 가득 4:3, 여러 장이면 두 칸 격자다. 사진 주소는 부르는 쪽이 만든다(photoUri).
@@ -80,6 +81,7 @@ export function PostCard({
   photoUri,
   activeTag,
   onTagPress,
+  onEdit,
   onDelete,
 }: {
   post: CommunityPost;
@@ -88,6 +90,7 @@ export function PostCard({
   /** 지금 피드를 거르는 태그(없으면 null) */
   activeTag?: string | null;
   onTagPress?: (tag: string) => void;
+  onEdit: (post: CommunityPost) => void;
   onDelete: (post: CommunityPost) => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -102,15 +105,23 @@ export function PostCard({
             <Txt v="nm" numberOfLines={1}>
               {post.authorNickname}
             </Txt>
-            <Txt v="mtTight">{timeAgo(post.createdAt, now)}</Txt>
+            <Txt v="mtTight">{post.editedAt != null ? `${timeAgo(post.createdAt, now)} · 수정됨` : timeAgo(post.createdAt, now)}</Txt>
           </Col>
           {post.mine ? (
-            <Pressable accessibilityRole="button" accessibilityLabel="내 글 삭제" onPress={() => onDelete(post)} hitSlop={8}>
-              <Row gap={SP.xs}>
-                <Icon name="trash" size={14} color="muted" />
-                <Txt v="mtTight">삭제</Txt>
-              </Row>
-            </Pressable>
+            <Row gap={SP.l}>
+              <Pressable accessibilityRole="button" accessibilityLabel="내 글 수정" onPress={() => onEdit(post)} hitSlop={8}>
+                <Row gap={SP.xs}>
+                  <Icon name="pen" size={14} color="muted" />
+                  <Txt v="mtTight">수정</Txt>
+                </Row>
+              </Pressable>
+              <Pressable accessibilityRole="button" accessibilityLabel="내 글 삭제" onPress={() => onDelete(post)} hitSlop={8}>
+                <Row gap={SP.xs}>
+                  <Icon name="trash" size={14} color="muted" />
+                  <Txt v="mtTight">삭제</Txt>
+                </Row>
+              </Pressable>
+            </Row>
           ) : null}
         </Row>
         <PhotoGrid photos={post.photos} uri={photoUri} name={post.authorNickname} onOpen={setViewing} />
