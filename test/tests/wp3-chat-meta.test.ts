@@ -152,7 +152,7 @@ test('ChatScreen: 키보드 대응, Enter로 보내기, 후보 줄, 채팅 설�
   // 혼자 여행(개인 모드)도 입력이 열린다: 채팅 메모
   assert.match(chatSrc, /\{me \? \(\s*<Row gap=\{SP\.m\} style=\{styles\.inputRow\}>/);
   assert.match(chatSrc, /'혼자 여행 · 채팅 메모'/);
-  assert.match(chatSrc, /paddingBottom: SP\.l \+ insets\.bottom/);
+  assert.match(chatSrc, /paddingBottom: SP\.l \+ bottom/);
   assert.match(chatSrc, /<CandidateBar trip=\{trip\} plan=\{plan\} onPress=\{openCandidates\} \/>/);
   assert.match(chatSrc, /setCurrentTrip\(trip\.id\);\s*navigation\.navigate\('Main', \{ screen: 'Candidates' \}\)/);
   // 여행방 설정 값(지역·날짜·이동수단·활동시간)을 시트에 바로 보이고 누르면 여행방 설정으로 간다. 시연(보내는 사람·시나리오)은 없앴다

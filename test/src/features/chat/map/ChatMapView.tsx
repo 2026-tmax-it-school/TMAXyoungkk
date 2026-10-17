@@ -1,5 +1,6 @@
 import React, { memo, useEffect, useMemo, useState } from 'react';
 import { BackHandler, Platform, Pressable, StyleSheet, View, type LayoutChangeEvent } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { MapCanvas } from '../../../components/map/MapCanvas';
 import type { ChatArea } from '../../../core/chatmap/areas';
@@ -63,6 +64,8 @@ export const ChatMapView = memo(function ChatMapView({
   solo?: boolean;
 }) {
   const [size, setSize] = useState({ w: 0, h: 0 });
+  // 채팅방은 탭 바가 없어 시트가 화면 맨 아래에 닿는다. 아래 안전 영역만큼 시트를 띄운다
+  const safeBottom = useSafeAreaInsets().bottom;
   const [sheetH, setSheetH] = useState(SHEET_MINI_H);
   const now = useNow();
   // memo라 화면이 다시 그려져도 여기는 그대로다. '나'(시연의 보내는 사람 바꾸기)가 바뀌면 직접 다시 그린다
@@ -221,7 +224,8 @@ export const ChatMapView = memo(function ChatMapView({
           snap={snap}
           onSnap={(s) => send({ t: 'snap', snap: s })}
           snaps={SNAPS}
-          areaHeight={size.h}
+          areaHeight={Math.max(0, size.h - safeBottom)}
+          bottomInset={safeBottom}
           gripLabel="후보 목록"
           onSettle={setSheetH}
           style={wide ? { left: lay.sheetLeft } : undefined}
@@ -257,7 +261,8 @@ export const ChatMapView = memo(function ChatMapView({
         snap={snap}
         onSnap={(s) => send({ t: 'snap', snap: s })}
         snaps={SNAPS}
-        areaHeight={size.h}
+        areaHeight={Math.max(0, size.h - safeBottom)}
+        bottomInset={safeBottom}
         gripLabel="투표 목록"
         onSettle={setSheetH}
         style={wide ? { left: lay.sheetLeft } : undefined}

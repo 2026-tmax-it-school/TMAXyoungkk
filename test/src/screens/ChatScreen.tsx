@@ -9,7 +9,6 @@ import {
   type NativeScrollEvent,
   type NativeSyntheticEvent,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { orderedMessages } from '../core/chatOrder';
 import { areaIndex, groupAreas } from '../core/chatmap/areas';
@@ -66,6 +65,7 @@ import {
   Sheet,
   SP,
   Txt,
+  useBottomInset,
 } from '../ui';
 
 /**
@@ -119,7 +119,7 @@ export default function ChatScreen({ navigation, route }: RootScreenProps<'Chat'
   const setCurrentTrip = useUi((s) => s.setCurrentTrip);
   const back = useBack('Home');
   const toast = useUi((s) => s.showToast);
-  const insets = useSafeAreaInsets();
+  const bottom = useBottomInset();
   const { width } = useWindowDimensions();
   const wide = width >= WIDE_MIN;
   const [text, setText] = useState('');
@@ -321,7 +321,7 @@ export default function ChatScreen({ navigation, route }: RootScreenProps<'Chat'
         })}
       </ScrollView>
 
-      <View style={[styles.composer, { paddingBottom: SP.l + insets.bottom }]}>
+      <View style={[styles.composer, { paddingBottom: SP.l + bottom }]}>
         <CandidateBar trip={trip} plan={plan} onPress={openCandidates} />
         {me ? (
           <Row gap={SP.s} wrap>
