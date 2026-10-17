@@ -47,8 +47,8 @@ test("19 진행 중: '도착 처리'와 '구간 안내'는 Foot 안에 있고, �
   // 도착 처리가 붙는 스팟(timing.spotId)의 이름을 Foot 맨 위 한 줄로 늘 보인다(도착해 머무는 중이면 지금 카드 제목은 머무는 스팟이다)
   assert.match(foot, /^<Foot>\s*<Txt v="mtTight" numberOfLines=\{1\}>\{`다음 · \$\{timing\.name\}`\}<\/Txt>\s*<Row/);
   assert.match(foot, /onPress=\{\(\) => L\.markArrived\(timing\.spotId\)\}/);
-  // 오늘 일정을 다 마치면 Foot은 '기록 보기' 하나다
-  assert.match(live, /running && timing === null \? \(\s*<Foot>\s*<Btn title="기록 보기"/);
+  // 오늘 일정을 다 마치면 Foot은 '여행일지 보기' 하나다
+  assert.match(live, /running && timing === null \? \(\s*<Foot>\s*<Btn title="여행일지 보기"/);
 });
 
 test("19 진행 중: '길찾기' 버튼 라벨이 없고 13 이름 '구간 안내'를 쓴다", () => {
@@ -136,7 +136,7 @@ test("19 진행 중 본문 순서: 지금 카드, 지도(200)와 '지도 크게 
     '<SimControls\n            preset=',
     '{running ? bgCard : null}',
     '<LogCard lines',
-    'label="기록 보기"',
+    'label="여행일지 보기"',
     'title="여행 진행 끝내기"',
   ];
   const at = order.map((s) => live.indexOf(s));
@@ -144,7 +144,7 @@ test("19 진행 중 본문 순서: 지금 카드, 지도(200)와 '지도 크게 
   for (let k = 1; k < at.length; k++) assert.ok(at[k - 1] < at[k], `${order[k - 1]} 다음에 ${order[k]}`);
   assert.match(live, /const MAP_H = 200;/);
   assert.match(live, /navigation\.navigate\('Main', \{ screen: 'Map', params: \{ date \} \}\)/);
-  // '기록 지도'와 '사진' 버튼은 '기록 보기' 하나로 합쳤다
+  // '기록 지도'와 '사진' 버튼은 '여행일지 보기' 하나로 합쳤다(기록 지도 화면은 없앴다)
   assert.doesNotMatch(live, /title="기록 지도"|title="사진"/);
 });
 

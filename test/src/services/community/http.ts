@@ -7,6 +7,7 @@ import { resolvePhotoUrl } from '../../core/community';
  * (ctx.token). 읽기는 로그인 없이 되고, 토큰이 있으면 서버가 내 글에 mine을 켠다. 서버에 닿지 못하면 unreachable이다.
  * 2026-10-11: 글 종류(kind)는 보내지 않는다(서버가 사진 유무로 정한다). 태그를 보내고 ?tag=로 거른다.
  * 응답 글은 모양을 확인하고 필요한 값만 옮긴다(예전 서버라 tags가 없으면 []).
+ * 2026-10-17: 글 고치기(POST /community/posts/:id/update). 남길 사진은 {id}, 새 사진은 {mime,data}로 보이는 순서대로 보낸다.
  */
 
 const FAILS: readonly CommunityFail[] = ['loginRequired', 'badPost', 'tooMany', 'tooLarge', 'unreachable', 'notFound'];
@@ -33,6 +34,7 @@ function toPost(v: unknown): CommunityPost | null {
     authorId: typeof p.authorId === 'string' ? p.authorId : '',
     authorNickname: p.authorNickname,
     createdAt: p.createdAt,
+    ...(typeof p.editedAt === 'number' ? { editedAt: p.editedAt } : {}),
     photos: (p.photos as unknown[]).filter(
       (x): x is CommunityPhoto => !!x && typeof (x as CommunityPhoto).id === 'string' && typeof (x as CommunityPhoto).url === 'string',
     ),
@@ -88,6 +90,7 @@ export function createHttpCommunity(opts: { url: string; fetch: FetchLike; timeo
       const params = new URLSearchParams();
       if (q.before) params.set('before', q.before);
       if (q.tag) params.set('tag', q.tag);
+      if (q.q) params.set('q', q.q);
       const r = await call(`/community/posts${params.size ? `?${params.toString()}` : ''}`, { token: ctx.token });
       if (!r || r.status !== 200 || !Array.isArray(r.body.posts)) return failOf(r);
       return {
@@ -103,6 +106,22 @@ export function createHttpCommunity(opts: { url: string; fetch: FetchLike; timeo
       if (!ctx.token) return { ok: false, code: 'loginRequired' };
       const r = await call('/community/posts', {
         body: { title: draft.title, body: draft.body, tags: draft.tags, photos: draft.photos },
+        token: ctx.token,
+      });
+      const post = r && r.status === 200 ? toPost(r.body.post) : null;
+      if (!post) return failOf(r);
+      return { ok: true, value: post };
+    },
+
+    async update(postId, draft, ctx) {
+      if (!ctx.token) return { ok: false, code: 'loginRequired' };
+      const r = await call(`/community/posts/${encodeURIComponent(postId)}/update`, {
+        body: {
+          title: draft.title,
+          body: draft.body,
+          tags: draft.tags,
+          photos: [...draft.keepPhotoIds.map((id) => ({ id })), ...draft.photos],
+        },
         token: ctx.token,
       });
       const post = r && r.status === 200 ? toPost(r.body.post) : null;

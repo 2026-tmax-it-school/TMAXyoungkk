@@ -19,7 +19,21 @@ import {
   WIDE_SHEET_W,
   type ChatMapState,
 } from '../src/core/chatmap/mapView';
-import { barRatio, hasVote, mentionsOf, railOrder, rankSpots, voteCounts, voterIds } from '../src/core/chatmap/votes';
+import {
+  barRatio,
+  costsVote,
+  hasVote,
+  mentionsOf,
+  railOrder,
+  rankSpots,
+  usedVotes,
+  VOTE_BUDGET,
+  VOTE_BUDGET_REASON,
+  voteBlocked,
+  voteCounts,
+  voterIds,
+  votesLeft,
+} from '../src/core/chatmap/votes';
 import { activeMembers } from '../src/core/group';
 import { pinName } from '../src/core/map/engine';
 import { fitAreaHeight, layoutMap, MIN_FIT_H } from '../src/core/map/layout';
@@ -28,6 +42,8 @@ import { patchVote } from '../src/core/ops/lww';
 import * as spots from '../src/core/ops/spots';
 import { markDirty, needsRecompute } from '../src/core/trip/outbox';
 import {
+  budgetLine,
+  budgetNote,
   rankA11y,
   rankMeta,
   rankTone,
@@ -392,6 +408,159 @@ describe('spot/vote op(멤버별 LWW, 툼스톤, placeId 별칭)', () => {
       op('m-a', { type: 'spot/restore', spotId: 's1' }, 42, 7),
     ]) as Trip;
     assert.deepEqual(s1Of(d).votes, { 'm-b': { on: true, at: 30 } });
+  });
+});
+
+describe('표 예산(한 사람 3표, 제안자 표 제외)', () => {
+  /** baseLog + m-a가 직접 추가한 s2~s6(모두 m-a가 말함). m-b·m-c는 아무 데도 말하지 않았다 */
+  function budgetLog(): Op[] {
+    const log = baseLog();
+    ['s2', 's3', 's4', 's5', 's6'].forEach((id, i) => {
+      const sp = spot(id, `장소${id}`, { placeId: `p-${id}`, said: [['m-a', 'manual', undefined, 30 + i]], createdAt: 30 + i });
+      log.push(op('m-a', { type: 'spot/add', spot: sp }, 30 + i, 4 + i));
+    });
+    return log; // 마지막 seq 8
+  }
+  const v = (actor: string, id: string, on: boolean, at: number, seq?: number) =>
+    vote(actor, on, at, seq, id, id === 's1' ? 'gj-bulguksa' : `p-${id}`);
+  const onOf = (d: Trip | undefined, id: string, m: string) => {
+    const sp = d?.spots.find((x) => x.id === id) as Spot;
+    return hasVote(sp, m);
+  };
+
+  test('상수·문구: 3표, core 이유에는 투표를 쓰지 않는다', () => {
+    assert.equal(VOTE_BUDGET, 3);
+    assert.equal(VOTE_BUDGET_REASON, '표는 한 사람당 3표까지예요. 다른 표를 빼고 다시 눌러 주세요');
+    assert.ok(!VOTE_BUDGET_REASON.includes('투표'));
+    assert.equal(votesLeft(foldOps(budgetLog()) as Trip, 'm-b'), 3);
+  });
+
+  test('seq 순으로 앞선 3표가 이기고 4번째 켜기는 버려진다. 끄기는 언제나 되고, 뺀 뒤에는 다시 켤 수 있다', () => {
+    const log = [...budgetLog(), v('m-b', 's1', true, 100, 9), v('m-b', 's2', true, 101, 10), v('m-b', 's3', true, 102, 11)];
+    const d3 = foldOps(log) as Trip;
+    assert.equal(votesLeft(d3, 'm-b'), 0);
+    assert.equal(spots.validate(d3, v('m-b', 's4', true, 103)), VOTE_BUDGET_REASON);
+    assert.deepEqual(validateOp(d3, v('m-b', 's4', true, 103)), { ok: false, reason: VOTE_BUDGET_REASON });
+    assert.equal(spots.validate(d3, v('m-b', 's1', true, 103)), null, '이미 켠 곳을 다시 켜는 것은 표를 더 쓰지 않는다');
+    assert.equal(spots.validate(d3, v('m-b', 's1', false, 103)), null, '끄기는 언제나 된다');
+    const over = foldOps([...log, v('m-b', 's4', true, 103, 12)]) as Trip;
+    assert.equal(onOf(over, 's4', 'm-b'), false, '접을 때도 4번째 표는 버려진다');
+    assert.equal(over.spots.find((x) => x.id === 's4')?.votes, undefined);
+    assert.equal(voteBlocked(over.spots, over.spots.find((x) => x.id === 's4') as Spot, 'm-b'), true);
+    assert.equal(voteBlocked(over.spots, s1Of(over), 'm-b'), false, '켜진 곳은 막히지 않는다(끌 수 있다)');
+    // 끄고 → 다른 곳 켜기
+    const swapped = foldOps([...log, v('m-b', 's1', false, 104, 12), v('m-b', 's4', true, 105, 13)]) as Trip;
+    assert.equal(onOf(swapped, 's1', 'm-b'), false);
+    assert.equal(onOf(swapped, 's4', 'm-b'), true);
+    assert.equal(votesLeft(swapped, 'm-b'), 0);
+    const freed = foldOps([...log, v('m-b', 's1', false, 104, 12)]) as Trip;
+    assert.equal(votesLeft(freed, 'm-b'), 1);
+    // 끄고 다시 같은 곳 켜기
+    const back = foldOps([...log, v('m-b', 's1', false, 104, 12), v('m-b', 's1', true, 105, 13)]) as Trip;
+    assert.equal(onOf(back, 's1', 'm-b'), true);
+    assert.equal(votesLeft(back, 'm-b'), 0);
+  });
+
+  test('두 기기에서 오프라인으로 낸 표: 확정 순서(seq)로 앞선 3표가 이기고, 대기 op는 at 순이며 입력 순서와 무관하다', () => {
+    const phone = [v('m-b', 's1', true, 200), v('m-b', 's2', true, 201)];
+    const tablet = [v('m-b', 's3', true, 150), v('m-b', 's4', true, 151)];
+    // 서버가 tablet을 먼저 받음
+    const conf = (ops: Op[], from: number) => ops.map((o, i) => ({ ...o, seq: from + i }) as Op);
+    const a = foldOps([...budgetLog(), ...conf(tablet, 9), ...conf(phone, 11)]) as Trip;
+    assert.deepEqual(['s1', 's2', 's3', 's4'].map((id) => onOf(a, id, 'm-b')), [true, false, true, true], '늦게 확정된 s2가 버려진다');
+    const b = foldOps([...budgetLog(), ...conf(phone, 9), ...conf(tablet, 11)]) as Trip;
+    assert.deepEqual(['s1', 's2', 's3', 's4'].map((id) => onOf(b, id, 'm-b')), [true, true, true, false]);
+    // 아직 확정 전(대기)이면 at 순: tablet(150,151) → phone(200 통과, 201 버림)
+    const p1 = foldOps([...budgetLog(), ...phone, ...tablet]) as Trip;
+    const p2 = foldOps([...budgetLog(), ...tablet.reverse(), ...phone.reverse()]) as Trip;
+    assert.deepEqual(['s1', 's2', 's3', 's4'].map((id) => onOf(p1, id, 'm-b')), [true, false, true, true]);
+    assert.deepEqual(p2.spots, p1.spots, '대기 op 입력 순서가 달라도 같은 문서');
+    for (const d of [a, b, p1]) assert.equal(usedVotes(d.spots, 'm-b'), 3, '어느 경우에도 3표를 넘지 않는다');
+  });
+
+  test('제안자 표는 예산 밖이다(처음 표, 껐다 다시 켠 표 모두). 말하지 않은 곳만 예산을 쓴다', () => {
+    const d = foldOps(budgetLog()) as Trip;
+    assert.equal(costsVote(s1Of(d), 'm-a'), false);
+    assert.equal(costsVote(s1Of(d), 'm-b'), true);
+    assert.equal(votesLeft(d, 'm-a'), 3, 'm-a는 6곳에 처음 표가 있어도 3표가 남는다');
+    const re = foldOps([...budgetLog(), v('m-a', 's1', false, 100, 9), v('m-a', 's1', true, 101, 10)]) as Trip;
+    assert.equal(onOf(re, 's1', 'm-a'), true);
+    assert.equal(votesLeft(re, 'm-a'), 3, '다시 켠 제안자 표도 예산 밖');
+    // m-a가 말하지 않은 곳(m-c가 말한 s7)에는 예산을 쓴다
+    const s7 = spot('s7', '첨성대', { placeId: 'p-s7', said: [['m-c', 'manual', undefined, 40]], createdAt: 40 });
+    const withS7 = foldOps([...budgetLog(), op('m-c', { type: 'spot/add', spot: s7 }, 40, 9), v('m-a', 's7', true, 100, 10)]) as Trip;
+    assert.equal(votesLeft(withS7, 'm-a'), 2);
+    assert.equal(votesLeft(withS7, 'm-c'), 3);
+  });
+
+  test('제외된 스팟의 표는 세지 않고(한 표가 풀린다), 복원으로 넘치면 복원된 스팟의 표가 꺼진다', () => {
+    const three = [...budgetLog(), v('m-b', 's1', true, 100, 9), v('m-b', 's2', true, 101, 10), v('m-b', 's3', true, 102, 11)];
+    const removed = foldOps([...three, op('m-a', { type: 'spot/remove', spotId: 's1' }, 110, 12)]) as Trip;
+    assert.equal(votesLeft(removed, 'm-b'), 1, '제외된 s1의 표가 풀린다');
+    const used = [...three, op('m-a', { type: 'spot/remove', spotId: 's1' }, 110, 12), v('m-b', 's4', true, 111, 13)];
+    const d = foldOps(used) as Trip;
+    assert.equal(onOf(d, 's4', 'm-b'), true);
+    const restored = foldOps([...used, op('m-a', { type: 'spot/restore', spotId: 's1' }, 120, 14)]) as Trip;
+    assert.equal(s1Of(restored).removedByUser, undefined);
+    assert.deepEqual(s1Of(restored).votes?.['m-b'], { on: false, at: 120 }, '제외된 동안 다른 곳에 쓴 표가 이긴다');
+    assert.equal(onOf(restored, 's4', 'm-b'), true);
+    assert.equal(usedVotes(restored.spots, 'm-b'), 3);
+    // 늦게 도착한 옛 켜기(at 115)는 꺼진 기록(at 120)을 덮지 못한다
+    const late = foldOps([...used, op('m-a', { type: 'spot/restore', spotId: 's1' }, 120, 14), v('m-b', 's4', false, 121, 15), v('m-b', 's1', true, 115, 16)]) as Trip;
+    assert.equal(onOf(late, 's1', 'm-b'), false);
+    // 자리가 있으면 복원해도 표가 그대로다
+    const room = foldOps([...three, op('m-a', { type: 'spot/remove', spotId: 's1' }, 110, 12), op('m-a', { type: 'spot/restore', spotId: 's1' }, 120, 13)]) as Trip;
+    assert.deepEqual(s1Of(room).votes?.['m-b'], { on: true, at: 100 });
+    assert.equal(votesLeft(room, 'm-b'), 0);
+    // 지운 스팟은 표와 함께 사라져 한 표가 풀린다
+    const deleted = foldOps([...three, op('m-a', { type: 'spot/delete', spotId: 's2' }, 110, 12)]) as Trip;
+    assert.equal(votesLeft(deleted, 'm-b'), 1);
+  });
+
+  test('나간 멤버는 남은 표 0이고 켜기를 못 하며, 그 표가 남은 사람의 예산에 영향을 주지 않는다', () => {
+    const log = [
+      ...budgetLog(),
+      v('m-c', 's1', true, 100, 9),
+      v('m-c', 's2', true, 101, 10),
+      v('m-c', 's3', true, 102, 11),
+      op('m-c', { type: 'member/leave', memberId: 'm-c' }, 103, 12),
+    ];
+    const d = foldOps(log) as Trip;
+    assert.equal(votesLeft(d, 'm-c'), 0);
+    assert.equal(votesLeft(d, 'm-x'), 0, '모르는 멤버도 0');
+    assert.equal(votesLeft(d, 'm-b'), 3);
+    assert.notEqual(spots.validate(d, v('m-c', 's4', true, 104)), null);
+    assert.equal(voteCounts(d.spots, activeMembers(d)).s2, 1, '나간 m-c의 표는 세지 않는다(m-a 제안자 표만)');
+  });
+
+  test('옛 문서: votes가 없으면 모두 3표, 이미 3표를 넘게 켠 문서는 0으로 보이고 새 켜기만 막힌다', () => {
+    const old = { ...baseTrip(), spots: [spot('s1', '불국사'), spot('s2', '첨성대'), spot('s3', '교촌'), spot('s4', '대릉원'), spot('s5', '보문')] } as Trip;
+    for (const m of ['m-a', 'm-b', 'm-c']) assert.equal(votesLeft(old, m), 3);
+    const on = { on: true, at: 5 };
+    const over = { ...old, spots: old.spots.map((s, i) => (i < 4 ? { ...s, votes: { 'm-b': on } } : s)) } as Trip;
+    assert.equal(usedVotes(over.spots, 'm-b'), 4);
+    assert.equal(votesLeft(over, 'm-b'), 0, '음수가 되지 않는다');
+    assert.equal(spots.validate(over, v('m-b', 's5', true, 10)), VOTE_BUDGET_REASON);
+    assert.equal(spots.validate(over, v('m-b', 's1', false, 10)), null, '끄기는 된다');
+    assert.equal(spots.validate(over, v('m-b', 's1', true, 10)), null, '이미 켠 곳은 그대로 둘 수 있다');
+  });
+
+  test('화면: 남은 표 줄, 다 쓴 토글은 옅지만 눌리고 누르면 이유 토스트', () => {
+    assert.equal(budgetLine(2, 3), '남은 표 2/3');
+    assert.equal(budgetLine(0, 3), '표를 다 썼어요 · 하나를 빼면 다시 줄 수 있어요');
+    assert.match(budgetNote(3), /3표까지/);
+    const actions = stripComments(read('src/features/chat/map/actions.ts'));
+    assert.match(actions, /if \(voteBlocked\(trip\.spots, cur, me\)\) \{\s*useUi\.getState\(\)\.showToast\(VOTE_BUDGET_REASON, 'warn'\);/);
+    const toggle = stripComments(read('src/features/chat/map/VoteToggle.tsx'));
+    assert.match(toggle, /const dim = !!disabled \|\| \(!!full && !on\);/);
+    assert.match(toggle, /disabled=\{disabled\}/, 'full은 누르는 것을 막지 않는다');
+    const sheet = stripComments(read('src/features/chat/map/SheetBody.tsx'));
+    assert.match(sheet, /\{budgetLine\(left, budget\)\}/);
+    for (const f of ['RankList', 'MentionList']) {
+      assert.match(stripComments(read(`src/features/chat/map/${f}.tsx`)), /full=\{isFull\(r\.spotId\)\}/, f);
+    }
+    const view = stripComments(read('src/features/chat/map/ChatMapView.tsx'));
+    assert.match(view, /const left = me \? votesLeft\(trip, me\) : 0;/);
   });
 });
 

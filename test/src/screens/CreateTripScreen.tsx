@@ -11,8 +11,12 @@ import {
   TITLE_MAX,
   type DateRangeSel,
 } from '../core/trip/create';
-import { kstDate } from '../core/util';
+import { defaultSampleStart, sampleDates, sampleDayBase, sampleFitNote, sampleSpotCount } from '../core/trip/sample';
+import { addDays, kstDate } from '../core/util';
 import { regionById } from '../data/regions';
+import { sampleTripFor } from '../data/sampleTrips';
+import { applySampleTrip } from '../features/trip/sample';
+import { useItineraries } from '../store/itineraries';
 import { BaseSearchSheet } from '../features/trip/components/BaseSearchSheet';
 import { CalendarRange } from '../features/trip/components/CalendarRange';
 import { CoverPicker } from '../features/trip/components/CoverPicker';
@@ -52,6 +56,8 @@ const SHEET_SWAP_MS = 350;
  * - 15일 이상이면 확인 창을 한 번 띄우고 확인하면 만든다.
  * - 기점은 선택 입력이다. 검색 0건이면 '결과 없음'을 알리고 기점 없이(base null) 만들 수 있다. 그날 첫 스팟이 기점이 된다.
  * - 대중교통은 2차 기능이다. 칸이 좁아(110px) 아이콘을 뺀다.
+ * 예시 일정으로 열리면(route.params.sample) 지역은 그 예시의 지역이고, 기간은 다음 금~일, 기점은 예시의 역·공항으로 채운다(모두 바꿀 수 있다).
+ *   지역을 바꾸면 예시는 적용하지 않는다. 만든 직후 예시 장소가 후보로 담기고 일차마다 날짜가 정해진다(features/trip/sample).
  * 주 버튼 '만들고 멤버 초대하기'는 14 멤버 초대로 간다(replace). 단계 표시는 '1 / 2 단계'다(여행방 만들기 → 멤버 초대).
  * 무엇이든 입력한 뒤 만들기 전에 나가면(뒤로, 하드웨어 뒤로, 다른 화면) beforeRemove에서 확인 시트를 한 번 띄운다.
  * 만든 뒤의 replace('Members')는 made.current로 통과시킨다. 판정은 core/trip/create(wp2-trip 테스트).
@@ -71,9 +77,21 @@ export default function CreateTripScreen({ navigation, route }: RootScreenProps<
     const id = route.params?.regionId ?? '';
     return regionById(id) ? id : '';
   });
+  /** 공유된 일정으로 열렸으면(shared) 스토어에 담아 둔 그 일정, 아니면 추천 여행지 예시 */
+  const picked = useItineraries((s) => s.picked);
+  const shared = route.params?.shared ? picked?.sample : undefined;
+  const sample = shared ?? (route.params?.sample ? sampleTripFor(startRegion) : undefined);
   const [regionId, setRegionId] = useState(startRegion);
-  const [range, setRange] = useState<DateRangeSel>({});
-  const [base, setBase] = useState<DayBase | null | undefined>(undefined);
+  const [initialRange] = useState<DateRangeSel>(() => {
+    if (!sample) return {};
+    const start = defaultSampleStart(today);
+    return { start, end: addDays(start, Math.max(sample.days.length, 1) - 1) };
+  });
+  const [range, setRange] = useState<DateRangeSel>(initialRange);
+  const [initialBase] = useState<DayBase | undefined>(() => (sample ? sampleDayBase(sample.base) : undefined));
+  const [base, setBase] = useState<DayBase | null | undefined>(initialBase);
+  /** 예시를 적용할지. 지역을 바꾸면 적용하지 않는다 */
+  const useSample = sample && regionId === startRegion ? sample : undefined;
   const [transport, setTransport] = useState<Transport>('car');
   const [hours, setHours] = useState({ start: '09:00', end: '21:00' });
   const [sheet, setSheet] = useState<'region' | 'dates' | 'base' | 'long' | 'leave' | undefined>(undefined);
@@ -103,7 +121,7 @@ export default function CreateTripScreen({ navigation, route }: RootScreenProps<
   );
   const err = submitted ? check.errors : {};
   const touched =
-    titleTouched || regionId !== startRegion || !!range.start || base !== undefined || transport !== 'car' || hours.start !== '09:00' || hours.end !== '21:00';
+    titleTouched || regionId !== startRegion || range.start !== initialRange.start || range.end !== initialRange.end || base !== initialBase || transport !== 'car' || hours.start !== '09:00' || hours.end !== '21:00';
 
   // 만들기 전에 나가면 확인 1회. 확인하면 막았던 이동(e.data.action)을 그대로 보낸다.
   useEffect(
@@ -137,6 +155,10 @@ export default function CreateTripScreen({ navigation, route }: RootScreenProps<
       hostNickname: session?.nickname || profileName || '나',
       cover,
     });
+    if (useSample) {
+      applySampleTrip(tripId, regionId, range.start, range.end, shared);
+      if (shared) void useItineraries.getState().markImported();
+    }
     navigation.replace('Members', { tripId, fromCreate: true });
   };
 
@@ -156,6 +178,18 @@ export default function CreateTripScreen({ navigation, route }: RootScreenProps<
     <Screen keyboard>
       <Header back={back} step="1 / 2 단계" title="여행방 만들기" />
       <Body scroll>
+        {useSample ? (
+          <Notice
+            icon="cal"
+            title={shared ? '공유된 일정으로 만들어요' : '예시 일정으로 만들어요'}
+            text={[
+              `${useSample.title} ${shared ? '' : '예시 '}${sampleSpotCount(useSample)}곳이 후보로 담기고 날짜마다 시간표가 짜여요. 날짜와 이름은 바꿔도 돼요.`,
+              sampleFitNote(sampleDates(range.start, range.end).length, useSample.days.length),
+            ]
+              .filter(Boolean)
+              .join(' ')}
+          />
+        ) : null}
         <CoverPicker value={cover} onChange={(c) => setCover(c ?? undefined)} />
         <PickerBox
           label="지역"

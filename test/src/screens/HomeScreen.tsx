@@ -18,6 +18,7 @@ import {
   visibleSegments,
   type HomeMenuCell,
 } from '../features/account/home';
+import { journalSub, recordCounts } from '../features/account/settings';
 import { useSessionKeepAlive } from '../features/account/useSessionKeepAlive';
 import { useActiveTrip } from '../features/trip/useActiveTrip';
 import type { TabScreenProps } from '../navigation/routes';
@@ -32,6 +33,7 @@ import {
   Col,
   CoverTile,
   Empty,
+  ListRow,
   QuickAction,
   Row,
   Screen,
@@ -54,7 +56,7 @@ import {
  *   구역 끝에 '초대 코드로 합류'.
  * - 지금 보는 방은 useActiveTrip(pickCurrentTrip) 하나로 정한다. 홈이 따로 대체 규칙을 두지 않는다.
  * - 여행방이 없으면 만들기 Empty와 '초대 코드로 합류'.
- * - 추천 여행지 타일은 그 지역을 고른 채로 여행방 만들기로 간다.
+ * - 추천 여행지 타일은 그 지역의 예시 2박 3일(30 예시 일정)로 간다. 거기서 '이 일정으로 여행방 만들기'나 '직접 만들기'로 이어진다.
  * - 쓰는 동안 세션을 유지한다(useSessionKeepAlive: 연장, 만료 폐기, 만료 3일 전 알림 한 번).
  * - 표지·이름·날짜 '수정'은 19 여행 진행의 '여행 진행 끝내기' 왼쪽으로 옮겼다(2026-10-17). 홈 카드에는 두지 않는다.
  * 판정은 features/account/home.ts(순수, wp1-home 테스트)에 있다.
@@ -89,8 +91,8 @@ export default function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
     setCurrentTrip(t.id);
     const step = tripNextStep(t, plans[t.id], today);
     switch (step.route) {
-      case 'RecordMap':
-        return navigation.navigate('RecordMap', { tripId: t.id });
+      case 'Journal':
+        return navigation.navigate('Journal', { tripId: t.id });
       case 'LiveTrip':
         return navigation.navigate('LiveTrip', { tripId: t.id, date: step.date });
       case 'Candidates':
@@ -117,10 +119,10 @@ export default function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
         return navigation.navigate('TripSettings', { tripId });
       case 'navigate':
         return navigation.navigate('Navigate', { tripId, date: cell.date ?? today, legIndex: 0 });
-      case 'photos':
-        return navigation.navigate('Photos', cell.date ? { tripId, date: cell.date } : { tripId });
+      case 'share':
+        return navigation.navigate('ShareItinerary', { tripId });
       case 'diary':
-        return navigation.navigate('Diary', { tripId });
+        return navigation.navigate('Journal', cell.date ? { tripId, date: cell.date } : { tripId });
       default:
         return undefined;
     }
@@ -128,6 +130,12 @@ export default function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
 
   const actions = homeActions(current, current ? plans[current.id] : undefined, today);
   const blocked = actions.find((c) => c.key === 'chat' && c.disabled && c.reason);
+  const journalLine = current ? journalSub(recordCounts(current)) : undefined;
+  const openJournal = () => {
+    if (!current) return;
+    setCurrentTrip(current.id);
+    navigation.navigate('Journal', { tripId: current.id });
+  };
   const who = session ? `${session.kind === 'guest' ? '게스트' : '계정'} · ${session.nickname}` : '';
 
   return (
@@ -215,10 +223,18 @@ export default function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
           </View>
         ) : null}
 
-        {/* 추천 여행지 */}
+        {/* 여행일지: 고른 여행방의 일기와 사진을 한 화면으로(2026-10-17 사용자 요청, 기록 지도는 없앴다. 여행 단계와 상관없이 늘 연다) */}
+        {current ? (
+          <View style={styles.section}>
+            <SectionTitle title="여행일지" />
+            <ListRow first icon="book" label="여행일지 열기" sub={journalLine} onPress={openJournal} />
+          </View>
+        ) : null}
+
+        {/* 추천 여행 일정(지역별 예시 2박 3일) */}
         <View style={styles.picks}>
           <View style={styles.gutter}>
-            <SectionTitle title="추천 여행지" />
+            <SectionTitle title="추천 여행 일정" />
           </View>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.pickRow}>
             {HOME_PICKS.map((p) => (
@@ -227,11 +243,17 @@ export default function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
                 place={p.name}
                 title={p.name}
                 lines={[p.blurb]}
-                a11yLabel={`${p.name} 여행방 만들기`}
-                onPress={() => navigation.navigate('CreateTrip', { regionId: p.id })}
+                a11yLabel={`${p.name} 예시 일정 보기`}
+                onPress={() => navigation.navigate('SampleTrip', { regionId: p.id })}
               />
             ))}
           </ScrollView>
+        </View>
+
+        {/* 다른 사람이 공유한 일정(인기순·검색·가져오기)은 추천 여행 일정과 따로 둔다 */}
+        <View style={styles.gutter}>
+          <SectionTitle title="공유된 여행 일정" />
+          <ListRow first icon="share" label="다른 사람의 여행 일정 보기" sub="인기순으로 둘러보고 내 여행방으로 가져와요" onPress={() => navigation.navigate('Itineraries')} />
         </View>
       </ScrollView>
     </Screen>
@@ -283,6 +305,7 @@ const styles = StyleSheet.create({
   cards: { marginTop: SP.section, gap: SP.xl },
   cardRow: { paddingHorizontal: SP.gutter, paddingVertical: SP.s, gap: SP.xxl },
   section: { marginTop: SP.section, paddingHorizontal: SP.gutter, gap: SP.xxl },
+  stretch: { alignItems: 'stretch' },
   start: { alignSelf: 'flex-start' },
   picks: { marginTop: SP.section + SP.m, gap: SP.xl },
   pickRow: { paddingHorizontal: SP.gutter, paddingVertical: SP.s, gap: SP.xl },

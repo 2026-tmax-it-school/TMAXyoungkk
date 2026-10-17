@@ -138,6 +138,10 @@ export interface RecommendRequest {
   limit: number;
   /** 추천 기준점. 확정 스팟 좌표(통합 때 추가). 없으면 지역 안 기존 후보, 그것도 없으면 지역 중심 */
   anchor?: LatLng[];
+  /** AI 추천 맥락: 일정의 빈 시간('M/D HH:MM-HH:MM', core/recommend freeSlotsOfPlan). 로컬 추천은 쓰지 않는다 */
+  freeSlots?: string[];
+  /** 새 요청이 이 요청을 대신하면 끊는다(23 화면). AI 제공자만 본다 */
+  signal?: AbortSignal;
 }
 
 export interface RecommendResult {
@@ -146,6 +150,8 @@ export interface RecommendResult {
   fallback: boolean;
   /** 결과를 만든 쪽. AI 프록시가 실패해 로컬 점수로 대체했으면 'local'(23 '예시 데이터' 칩) */
   source?: 'ai' | 'local';
+  /** AI 추천을 받지 못해(실패·시간 초과·확인된 곳 없음) 로컬로 대체했는지. 23이 이전 AI 결과를 지키거나 '다시 시도'를 보인다 */
+  aiUnavailable?: boolean;
 }
 
 export interface RecommendProvider {
@@ -387,8 +393,10 @@ export interface CommunityPost {
   authorNickname: string;
   /** 올린 시각(ms) */
   createdAt: number;
+  /** 고친 시각(ms). 고친 적이 없으면 없다 */
+  editedAt?: number;
   photos: CommunityPhoto[];
-  /** 내가 쓴 글(지울 수 있다) */
+  /** 내가 쓴 글(고치고 지울 수 있다) */
   mine: boolean;
 }
 
@@ -406,6 +414,11 @@ export interface CommunityDraft {
   photos: CommunityPhotoInput[];
 }
 
+/** 고친 글. photos는 새로 고른 사진, keepPhotoIds는 남길 예전 사진(보이는 순서, 새 사진보다 앞). 검사는 checkDraft(d, keep 수) */
+export interface CommunityEditDraft extends CommunityDraft {
+  keepPhotoIds: string[];
+}
+
 export type CommunityFail = 'loginRequired' | 'badPost' | 'tooMany' | 'tooLarge' | 'unreachable' | 'notFound';
 
 export type CommunityResult<T> = { ok: true; value: T } | { ok: false; code: CommunityFail; detail?: string };
@@ -421,9 +434,86 @@ export interface CommunityProvider {
   /** local: 이 기기 모의(서버가 없을 때, 새로 고치면 사라진다), server: 계정 서버(server/community.mjs) */
   readonly id: 'local' | 'server';
   /** tag는 맞춘 태그 하나로 거른다(없으면 전체) */
-  list(q: { before?: string | null; tag?: string | null }, ctx: CommunityCtx): Promise<CommunityResult<{ posts: CommunityPost[]; next: string | null }>>;
+  list(q: { before?: string | null; tag?: string | null; q?: string | null }, ctx: CommunityCtx): Promise<CommunityResult<{ posts: CommunityPost[]; next: string | null }>>;
   create(draft: CommunityDraft, ctx: CommunityCtx): Promise<CommunityResult<CommunityPost>>;
+  /** 내 글 고치기. 남의 글·없는 글은 notFound */
+  update(postId: string, draft: CommunityEditDraft, ctx: CommunityCtx): Promise<CommunityResult<CommunityPost>>;
   remove(postId: string, ctx: CommunityCtx): Promise<CommunityResult<true>>;
   /** 글 사진의 화면용 주소(서버면 서버 주소를 붙인다) */
   photoUri(photo: CommunityPhoto): string;
+}
+
+/*
+ * 2026-10-17: 일정 공유. 내 여행 일정(날짜별 장소)을 올리면 다른 사람이 둘러보고(조회수·좋아요·가져오기 수로 인기순)
+ * 마음에 들면 자기 여행방으로 가져온다. 서버 server/itineraries.mjs(/itineraries/…)와 짝이다.
+ */
+
+export interface SharedPlace {
+  name: string;
+  category: Category;
+  kind: string;
+  address: string;
+  coord: LatLng;
+  note: string;
+}
+
+export interface SharedDay {
+  title: string;
+  places: SharedPlace[];
+}
+
+export interface SharedBase {
+  name: string;
+  address: string;
+  coord: LatLng;
+}
+
+/** 목록과 상세가 같이 쓰는 일정. days·base는 상세에만 있다 */
+export interface SharedItinerary {
+  id: string;
+  title: string;
+  regionId: string;
+  regionLabel: string;
+  note: string;
+  tags: string[];
+  dayCount: number;
+  placeCount: number;
+  authorNickname: string;
+  createdAt: number;
+  views: number;
+  likes: number;
+  imports: number;
+  /** 인기 점수(가져오기×5 + 좋아요×3 + 조회) */
+  score: number;
+  mine: boolean;
+  liked: boolean;
+  days?: SharedDay[];
+  base?: SharedBase | null;
+}
+
+export interface ItineraryDraft {
+  title: string;
+  regionId: string;
+  regionLabel: string;
+  note: string;
+  tags: string[];
+  days: SharedDay[];
+  base?: SharedBase | null;
+}
+
+export type ItinerarySort = 'popular' | 'new' | 'views';
+export type ItineraryFail = 'loginRequired' | 'badItinerary' | 'tooMany' | 'tooLarge' | 'unreachable' | 'notFound' | 'badRequest';
+export type ItineraryResult<T> = { ok: true; value: T } | { ok: false; code: ItineraryFail; detail?: string };
+
+export interface ItineraryProvider {
+  /** local: 이 기기 모의(서버가 없을 때), server: 계정 서버(server/itineraries.mjs) */
+  readonly id: 'local' | 'server';
+  list(q: { sort: ItinerarySort; q?: string | null; region?: string | null; offset?: number }, ctx: CommunityCtx): Promise<ItineraryResult<{ items: SharedItinerary[]; next: number | null }>>;
+  /** 상세를 열면 조회수가 올라간다(같은 사람은 하루 한 번) */
+  get(id: string, ctx: CommunityCtx): Promise<ItineraryResult<SharedItinerary>>;
+  share(draft: ItineraryDraft, ctx: CommunityCtx): Promise<ItineraryResult<SharedItinerary>>;
+  like(id: string, on: boolean, ctx: CommunityCtx): Promise<ItineraryResult<SharedItinerary>>;
+  /** 가져오기 수를 올린다(여행방을 만들 때 부른다). 실패해도 가져오기는 막지 않는다 */
+  countImport(id: string, ctx: CommunityCtx): Promise<ItineraryResult<true>>;
+  remove(id: string, ctx: CommunityCtx): Promise<ItineraryResult<true>>;
 }

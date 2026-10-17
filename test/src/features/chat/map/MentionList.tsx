@@ -13,12 +13,15 @@ import { VoteToggle } from './VoteToggle';
 export function MentionList({
   rows,
   canVote,
+  isFull,
   focusSpotId,
   onToggle,
   onFocus,
 }: {
   rows: MentionRow[];
   canVote: boolean;
+  /** 표를 다 써서 이 장소에 켤 수 없는지 */
+  isFull: (spotId: string) => boolean;
   focusSpotId: string | null;
   onToggle: (spotId: string) => void;
   onFocus: (spotId: string) => void;
@@ -55,7 +58,7 @@ export function MentionList({
                 <Txt v="mt">직접 추가했어요</Txt>
               )}
             </Pressable>
-            <VoteToggle name={r.name} on={r.mine} disabled={!canVote} onPress={() => onToggle(r.spotId)} />
+            <VoteToggle name={r.name} on={r.mine} disabled={!canVote} full={isFull(r.spotId)} onPress={() => onToggle(r.spotId)} />
           </View>
         );
       })}

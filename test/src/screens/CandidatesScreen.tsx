@@ -1,8 +1,9 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { tripMode } from '../core/group';
 import { humanMin, josa } from '../core/util';
+import { useHomeBack } from '../navigation/useBack';
 import { ManualAdd } from '../features/candidates/components/ManualAdd';
 import {
   candidateSections,
@@ -53,20 +54,25 @@ import {
  * - 제외 카드: 사유·제안자, 아래 '고정해서 다시 넣기'(spot/restore → 고정). 누르면 어디로 갔는지 토스트로 알린다.
  * - 고정만으로 수용량을 넘기면 WarnCard에 날짜와 초과분(사용자가 직접 뺀다).
  */
-export default function CandidatesScreen({ navigation }: TabScreenProps<'Candidates'>) {
+export default function CandidatesScreen({ navigation, route }: TabScreenProps<'Candidates'>) {
   const { trip, trips } = useActiveTrip();
   const plan = usePlan(trip?.id);
   const planning = usePlanning(trip?.id);
   const dirty = useTrips((s) => (trip ? !!s.dirty[trip.id] : false));
   const toast = useUi((s) => s.showToast);
-  const [adding, setAdding] = useState(false);
+  const homeBack = useHomeBack();
+  const [adding, setAdding] = useState(route.params?.add === true);
+  // 채팅방에서 '장소 검색해서 담기'로 다시 열었을 때도 펼친다
+  useEffect(() => {
+    if (route.params?.add) setAdding(true);
+  }, [route.params?.add, route.params]);
   const [expanded, setExpanded] = useState(false);
   const view = useMemo(() => (trip ? candidateView(trip, plan) : undefined), [trip, plan]);
 
   if (trips.length === 0) {
     return (
       <Screen>
-        <Header title="후보" size="sm" />
+        <Header back={homeBack} title="후보" size="sm" />
         <Body>
           <Empty
             icon="compass"
@@ -82,7 +88,7 @@ export default function CandidatesScreen({ navigation }: TabScreenProps<'Candida
   if (!trip || !view) {
     return (
       <Screen>
-        <TripBar />
+        <TripBar back={homeBack} />
         <Body>
           <Empty title="여행방을 골라 주세요" text="위의 여행방 이름을 누르면 볼 방을 고를 수 있어요." />
         </Body>
@@ -104,7 +110,7 @@ export default function CandidatesScreen({ navigation }: TabScreenProps<'Candida
 
   return (
     <Screen>
-      <TripBar />
+      <TripBar back={homeBack} />
       <PlanSwitch value="Candidates" candidates={view.total} />
       <View style={styles.summary}>
         <Txt v="mtTight" numberOfLines={1}>

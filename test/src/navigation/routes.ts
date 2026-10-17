@@ -15,7 +15,8 @@ import { APP_SCHEME, INVITE_HOST } from '../core/constants';
 
 export type MainTabParamList = {
   Home: undefined;
-  Candidates: undefined;
+  /** add: 채팅방 '장소 검색해서 담기'에서 열면 검색 칸을 펼친 채로 연다 */
+  Candidates: { add?: boolean } | undefined;
   Schedule: { date?: string } | undefined;
   Map: { date?: string } | undefined;
   /** 사진·일기 글을 앱 사용자 모두와 나누는 곳(서버 저장) */
@@ -32,7 +33,8 @@ export type RootStackParamList = {
   SocialConsent: { provider: 'kakao' | 'google'; intent: 'login' | 'link' };
   Main: NavigatorScreenParams<MainTabParamList> | undefined;
   /** regionId: 추천 여행지 등에서 고른 지역을 처음 값으로 채운다 */
-  CreateTrip: { regionId?: string } | undefined;
+  /** regionId: 처음 채울 지역. sample: 예시 일정으로 만든다(그 지역의 예시 2박 3일이 후보로 담긴다) */
+  CreateTrip: { regionId?: string; sample?: boolean; shared?: boolean } | undefined;
   TripSettings: { tripId: string };
   /** fromCreate: 여행방 만들기에서 넘어왔을 때만 '2 / 2 단계'를 보인다 */
   Members: { tripId: string; fromCreate?: boolean };
@@ -48,12 +50,19 @@ export type RootStackParamList = {
   Directions: { tripId?: string; fromSpotId?: string; toSpotId?: string } | undefined;
   LiveTrip: { tripId: string; date?: string };
   /** date가 없으면 '전체'(날짜별 묶음)로 연다 */
-  Photos: { tripId: string; date?: string };
-  Diary: { tripId: string; date?: string };
-  RecordMap: { tripId: string; date?: string };
+  /** 여행일지: 일기와 사진을 한 화면에서. date가 없으면 기록이 있는 날, 'all'이면 사진 모아 보기 */
+  Journal: { tripId: string; date?: string };
   Profile: undefined;
-  /** 커뮤니티 글쓰기. tripId·date를 주면 그 날짜 일기로 본문을 채운다 */
-  CommunityCompose: { tripId?: string; date?: string } | undefined;
+  /** 추천 여행지 예시 2박 3일 일정(홈 추천 여행지에서). 누르면 이 일정으로 여행방 만들기로 간다 */
+  SampleTrip: { regionId: string };
+  /** 일정 공유: 올라온 여행 일정 둘러보기(인기·최신·조회순, 검색). region을 주면 그 지역만 */
+  Itineraries: { region?: string } | undefined;
+  /** 올라온 일정 하나. 보면 조회수가 오르고, 좋아요·이 일정으로 여행방 만들기를 할 수 있다 */
+  ItineraryDetail: { itineraryId: string };
+  /** 내 여행방의 일정을 올린다 */
+  ShareItinerary: { tripId: string };
+  /** 커뮤니티 글쓰기. tripId·date를 주면 그 날짜 일기로 본문을 채운다. editPostId를 주면 그 내 글을 고친다(임시 저장은 쓰지 않는다) */
+  CommunityCompose: { tripId?: string; date?: string; editPostId?: string } | undefined;
 };
 
 export type RootRouteName = keyof RootStackParamList;
@@ -141,6 +150,10 @@ export const SCREEN_META: Record<Exclude<RootRouteName, 'Main'> | TabRouteName |
   Onboarding: { no: '02', title: '게스트로 시작', fr: 'FR-105', wp: 'WP1' },
   InviteAccept: { no: '02', title: '초대 수락 · 게스트 합류', fr: 'FR-105·302', wp: 'WP2' },
   Home: { no: '03', title: '홈 · 메인 메뉴', fr: 'FR-203', wp: 'WP1' },
+  SampleTrip: { no: '30', title: '추천 여행 일정 · 예시 2박 3일', fr: 'FR-201', wp: 'WP2' },
+  Itineraries: { no: '31', title: '공유된 여행 일정 · 인기순', fr: 'FR-201·801', wp: 'WP2' },
+  ItineraryDetail: { no: '32', title: '공유된 일정 상세 · 가져오기', fr: 'FR-201·801', wp: 'WP2' },
+  ShareItinerary: { no: '33', title: '내 일정 공유하기', fr: 'FR-801', wp: 'WP2' },
   CreateTrip: { no: '04', title: '여행방 만들기', fr: 'FR-201·205·504', wp: 'WP2' },
   Chat: { no: '05', title: '그룹 채팅 · 장소 자동 추출', fr: 'FR-304·401', wp: 'WP3' },
   Candidates: { no: '06', title: '후보 · 자동 선별', fr: 'FR-402·403·202', wp: 'WP3' },
@@ -157,10 +170,8 @@ export const SCREEN_META: Record<Exclude<RootRouteName, 'Main'> | TabRouteName |
   Profile: { no: '17', title: '프로필 · 성향 태그 · 게스트 승격', fr: 'FR-104', wp: 'WP1' },
   More: { no: '18', title: '더보기 · 설정 · 시연 도구', fr: 'FR-204 · 알림 · 세션', wp: 'WP1' },
   LiveTrip: { no: '19', title: '여행 진행 · 시뮬레이터', fr: 'FR-601~604', wp: 'WP5' },
-  Photos: { no: '20', title: '사진', fr: 'FR-701', wp: 'WP6' },
-  Diary: { no: '21', title: '일기 · 편집 · 공유', fr: 'FR-702·703', wp: 'WP6' },
-  RecordMap: { no: '22', title: '기록 지도 · 실제 경로', fr: 'FR-704·804', wp: 'WP6' },
-  Recommend: { no: '23', title: '여행지 추천', fr: 'FR-404', wp: 'WP3' },
+  Journal: { no: '21', title: '여행일지 · 일기와 사진', fr: 'FR-701~703', wp: 'WP6' },
+  Recommend: { no: '23', title: 'AI 여행지 추천', fr: 'FR-404', wp: 'WP3' },
   TripSettings: { no: '25', title: '여행방 설정 · 날짜별 기점', fr: 'FR-201·205·204', wp: 'WP2' },
   SocialConsent: { no: '26', title: '소셜 로그인 동의', fr: 'FR-103', wp: 'WP1' },
   Directions: { no: '27', title: '길찾기', fr: 'FR-601~603', wp: 'WP5' },

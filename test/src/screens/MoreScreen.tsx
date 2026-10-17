@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 
 import { isSeeding, resetDemo, seedScenario, type SeedProgress } from '../demo/tools';
 import type { ScenarioStage } from '../demo/scenarioSteps';
+import { useHomeBack } from '../navigation/useBack';
 import { signOutFlow } from '../features/account/flows';
 import {
   heroLine,
@@ -10,14 +11,12 @@ import {
   NOTIFY_ROWS,
   PERMISSION_LABEL,
   providerNotice,
-  recordCounts,
-  recordTileLabels,
   retentionShort,
   retentionText,
   sessionSummary,
 } from '../features/account/settings';
 import { useActiveTrip } from '../features/trip/useActiveTrip';
-import { SCREEN_META, type RootStackParamList, type TabScreenProps } from '../navigation/routes';
+import type { TabScreenProps } from '../navigation/routes';
 import { useNow } from '../services/clock';
 import { describeServices } from '../services/registry';
 import { useLive } from '../store/live';
@@ -31,9 +30,9 @@ import {
   Choice,
   Col,
   ConfirmSheet,
-  FeatureTile,
   H,
   Icon,
+  IconBtn,
   ListRow,
   ProfileHero,
   ProgressBar,
@@ -43,38 +42,6 @@ import {
   SP,
   Txt,
 } from '../ui';
-
-type TripRoute =
-  | 'Chat'
-  | 'SpotDetail'
-  | 'Recommend'
-  | 'Planning'
-  | 'ScheduleEdit'
-  | 'LegTransport'
-  | 'Navigate'
-  | 'LiveTrip'
-  | 'Photos'
-  | 'Diary'
-  | 'RecordMap'
-  | 'Members'
-  | 'TripSettings';
-
-/** 시연 도구의 화면 목록(번호순). 탭과 홈에서 닿지 않는 화면까지 전부 연다. */
-const ALL_TRIP_ROUTES: TripRoute[] = [
-  'Chat',
-  'SpotDetail',
-  'Planning',
-  'ScheduleEdit',
-  'LegTransport',
-  'Navigate',
-  'Members',
-  'LiveTrip',
-  'Photos',
-  'Diary',
-  'RecordMap',
-  'Recommend',
-  'TripSettings',
-];
 
 /** 시나리오 채우기 단계. 한 줄 네 칸이면 글자가 줄바꿈되어 두 줄 두 칸으로 둔다 */
 const SEED_ROWS: { key: ScenarioStage; label: string }[][] = [
@@ -95,15 +62,16 @@ type OpenSheet = 'notify' | 'retention' | null;
  * 위에서부터
  * 1. 큰 제목 '프로필'
  * 2. 프로필 머리 한 줄(ProfileHero row) → 내 프로필(17)
- * 3. 지금 보는 여행방이 있으면 '내 여행 기록' 타일 3칸(사진 N장 · 일기 N일 · 기록 지도). 방은 useActiveTrip이 정한다.
+ * 3. '내 여행 기록' 타일은 2026-10-17에 홈 '여행일지'(일기·사진·기록 지도)로 옮겼다. 방은 useActiveTrip이 정한다. 시연 도구의 '화면 목록'은 2026-10-17에 없앴다(화면은 앱 흐름으로만 연다).
  * 4. '설정': 알림(유형별 끄기는 시트 안 스위치 4줄), 기기 위치 사용(스위치, sub는 권한 상태), 데이터 보존(안내 시트)
  * 5. '계정': 게스트는 계정 만들기와 다른 계정으로 로그인, 계정은 로그아웃(확인 1회)
- * 6. 맨 아래 접힌 '시연 도구': 시나리오 채우기, 오프라인 흉내(시연) 스위치, 시연 리셋(확인 1회), 제공자 상태, 화면 목록.
+ * 6. 맨 아래 접힌 '시연 도구': 시나리오 채우기, 오프라인 흉내(시연) 스위치, 시연 리셋(확인 1회), 제공자 상태.
  *    채우는 동안에는 리셋을 막는다. 다시 채우면 이전 시나리오 방은 지우고 새로 만든다.
  * 켜고 끄는 줄은 ListRow switch(줄 전체가 스위치, 접근성 이름 = 항목 이름)로 그린다.
  * 여행방 바로가기 목록은 두지 않는다(여행방 일은 홈의 선택한 여행방 구역과 일정·지도 탭 맨 위 TripBar에서 한다).
  */
 export default function MoreScreen({ navigation }: TabScreenProps<'More'>) {
+  const homeBack = useHomeBack();
   const { trip } = useActiveTrip();
   const online = useTrips((s) => s.online);
   const setOnline = useTrips((s) => s.setOnline);
@@ -124,33 +92,9 @@ export default function MoreScreen({ navigation }: TabScreenProps<'More'>) {
   const [sheet, setSheet] = useState<OpenSheet>(null);
   // 시연 도구는 처음에 접혀 있다(실제 기능과 같은 무게로 두지 않는다)
   const [demoOpen, setDemoOpen] = useState(false);
-  const [showScreens, setShowScreens] = useState(false);
 
   const summary = sessionSummary(session, now);
   const isAccount = session?.kind === 'account';
-  const records = trip ? recordTileLabels(recordCounts(trip)) : undefined;
-
-  const open = (route: TripRoute) => {
-    if (!trip) return;
-    const date = trip.startDate;
-    const spotId = trip.spots[0]?.id;
-    const params: { [K in TripRoute]: RootStackParamList[K] } = {
-      Members: { tripId: trip.id },
-      TripSettings: { tripId: trip.id },
-      Chat: { tripId: trip.id },
-      SpotDetail: { tripId: trip.id, spotId: spotId ?? '' },
-      Recommend: { tripId: trip.id },
-      Planning: { tripId: trip.id, date },
-      ScheduleEdit: { tripId: trip.id, date },
-      LegTransport: { tripId: trip.id, date, legIndex: 0 },
-      Navigate: { tripId: trip.id, date, legIndex: 0 },
-      LiveTrip: { tripId: trip.id },
-      Photos: { tripId: trip.id },
-      Diary: { tripId: trip.id },
-      RecordMap: { tripId: trip.id },
-    };
-    (navigation.navigate as (name: TripRoute, p: RootStackParamList[TripRoute]) => void)(route, params[route]);
-  };
 
   const seed = async () => {
     setSeeding({ done: 0, total: 1, label: '시작하는 중' });
@@ -169,6 +113,9 @@ export default function MoreScreen({ navigation }: TabScreenProps<'More'>) {
   return (
     <Screen>
       <Body scroll>
+        <View style={{ paddingTop: SP.s }}>
+          <IconBtn icon="back" label="뒤로" onPress={homeBack} />
+        </View>
         <View accessibilityRole="header" style={styles.hero}>
           <Txt v="hero">프로필</Txt>
         </View>
@@ -181,23 +128,6 @@ export default function MoreScreen({ navigation }: TabScreenProps<'More'>) {
           onPress={() => navigation.navigate('Profile')}
         />
 
-        {trip && records ? (
-          <Col gap={SP.xl}>
-            <Col gap={SP.xs}>
-              <Txt v="section">내 여행 기록</Txt>
-              <Txt v="mt">{trip.title}</Txt>
-            </Col>
-            <Row gap={SP.l} style={styles.stretch}>
-              <FeatureTile
-                icon="camera"
-                label={records.photos}
-                onPress={() => navigation.navigate('Photos', { tripId: trip.id })}
-              />
-              <FeatureTile icon="book" label={records.diary} onPress={() => navigation.navigate('Diary', { tripId: trip.id })} />
-              <FeatureTile icon="map" label={records.map} onPress={() => navigation.navigate('RecordMap', { tripId: trip.id })} />
-            </Row>
-          </Col>
-        ) : null}
 
         {/* 설정 */}
         <Col>
@@ -285,33 +215,6 @@ export default function MoreScreen({ navigation }: TabScreenProps<'More'>) {
 
               <ProviderStatus />
 
-              <Col>
-                <ListRow
-                  first
-                  icon="list"
-                  label={showScreens ? '화면 목록 닫기' : '화면 목록 열기'}
-                  onPress={() => setShowScreens((v) => !v)}
-                />
-                {showScreens ? (
-                  <>
-                    {ALL_TRIP_ROUTES.map((r) => (
-                      <ListRow
-                        key={r}
-                        label={`${SCREEN_META[r].no} ${SCREEN_META[r].title}`}
-                        disabled={!trip || (r === 'SpotDetail' && trip.spots.length === 0)}
-                        onPress={() => open(r)}
-                      />
-                    ))}
-                    {(['Profile', 'Login', 'Signup', 'InviteAccept'] as const).map((r) => (
-                      <ListRow key={r} label={`${SCREEN_META[r].no} ${SCREEN_META[r].title}`} onPress={() => navigation.navigate(r)} />
-                    ))}
-                    <ListRow
-                      label={`${SCREEN_META.SocialConsent.no} ${SCREEN_META.SocialConsent.title}`}
-                      onPress={() => navigation.navigate('SocialConsent', { provider: 'kakao', intent: 'login' })}
-                    />
-                  </>
-                ) : null}
-              </Col>
             </Col>
           ) : null}
         </Col>
@@ -412,7 +315,6 @@ const styles = StyleSheet.create({
   sectionTop: { marginTop: SP.l },
   grow: { flex: 1, minWidth: 0 },
   /** 기록 타일 세 칸을 같은 높이로 */
-  stretch: { alignItems: 'stretch' },
   disclosure: {
     flexDirection: 'row',
     alignItems: 'center',

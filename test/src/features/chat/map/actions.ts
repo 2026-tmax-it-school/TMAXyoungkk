@@ -1,4 +1,4 @@
-import { hasVote } from '../../../core/chatmap/votes';
+import { hasVote, voteBlocked, VOTE_BUDGET_REASON } from '../../../core/chatmap/votes';
 import { isEditLocked } from '../../../core/ops';
 import { appClock } from '../../../services/clock';
 import { myMemberId, useTrips, type DispatchResult } from '../../../store/trips';
@@ -11,6 +11,8 @@ import { VOTE_REMOVED_REASON } from './text';
  * - 내 표를 뒤집는 spot/vote op 하나를 보낸다. placeId는 다른 기기에서 같은 장소가 합쳐졌을 때의 별칭이다.
  * - 접힌 문서에서 바로 수·순위·핀 라벨·투표자 아바타가 바뀐다(오프라인이면 대기 op로 바로 바뀌고, 연결되면 보낸다).
  * - 거절(멤버가 아님, 끝난 여행)은 스토어의 기존 토스트가 알린다.
+ * - 표를 다 쓴 채로 새 장소에 켜려 하면 여기서 막고 core의 이유(VOTE_BUDGET_REASON)를 토스트로 알린다
+ *   (core validate도 같은 이유로 버리므로 조용히 실패하지 않는다).
  * - 제외된 후보는 보낼 때 여기서 막는다. core validate는 접을 때도 돌아서 제외 여부를 보지 않는다
  *   (제외·복원과 겹친 표가 도착 순서에 따라 버려지지 않게).
  */
@@ -30,6 +32,10 @@ export function toggleVote(tripId: string, spot: Spot): DispatchResult | undefin
   if (cur.removedByUser) {
     useUi.getState().showToast(VOTE_REMOVED_REASON, 'warn');
     return { ok: false, reason: VOTE_REMOVED_REASON };
+  }
+  if (voteBlocked(trip.spots, cur, me)) {
+    useUi.getState().showToast(VOTE_BUDGET_REASON, 'warn');
+    return { ok: false, reason: VOTE_BUDGET_REASON };
   }
   return useTrips
     .getState()

@@ -14,6 +14,7 @@ import { lww } from './lww';
  *   다시 만들어도 사용자가 고친 문장은 남는다
  * - diaryEdited: 블록 문장 필드 LWW(op.at, FR-503과 같은 정책). 문장이 모두 비면 status 'empty'
  * - diaryShared: 공유 시각
+ * - diaryNote: 직접 쓴 일기 문단(같은 id는 한 번). 그날 일기가 없으면 generatedAt 0인 일기를 만든다(그날 기록은 '새 기록'으로 남아 다시 만들기를 권한다)
  */
 
 const DIARY_TEXT_MAX = 1000;
@@ -76,6 +77,13 @@ export function reduce(doc: Trip, op: Op): Trip {
       const status = blocks.some((b) => b.text.trim().length > 0) ? 'auto' : 'empty';
       return { ...doc, diaries: { ...doc.diaries, [op.date]: { ...e, blocks, status } } };
     }
+    case 'journal/diaryNote': {
+      const prev = doc.diaries[op.date];
+      if (prev?.blocks.some((b) => b.id === op.block.id)) return doc;
+      const base: DiaryEntry = prev ?? { date: op.date, status: 'auto', blocks: [], generatedAt: 0 };
+      const blocks = [...base.blocks, op.block].sort((a, b) => (a.time < b.time ? -1 : a.time > b.time ? 1 : 0));
+      return { ...doc, diaries: { ...doc.diaries, [op.date]: { ...base, status: 'auto', blocks } } };
+    }
     case 'journal/diaryShared': {
       const e = doc.diaries[op.date];
       if (!e) return doc;
@@ -121,6 +129,15 @@ export function validate(doc: Trip, op: Op): string | null {
       const e = doc.diaries[op.date];
       if (!e || !e.blocks.some((b) => b.id === op.blockId)) return '일기 문단을 찾을 수 없습니다';
       if (op.text.length > DIARY_TEXT_MAX) return `문장은 ${DIARY_TEXT_MAX}자까지 쓸 수 있습니다`;
+      return null;
+    }
+    case 'journal/diaryNote': {
+      if (!active) return '나간 멤버는 일기를 쓸 수 없습니다';
+      if (op.date < doc.startDate || op.date > doc.endDate) return '여행 기간 밖 날짜입니다';
+      const text = op.block.text.trim();
+      if (text.length === 0) return '일기 내용을 적어 주세요';
+      if (text.length > DIARY_TEXT_MAX) return `문장은 ${DIARY_TEXT_MAX}자까지 쓸 수 있습니다`;
+      if (doc.diaries[op.date]?.blocks.some((b) => b.id === op.block.id)) return '이미 있는 문단입니다';
       return null;
     }
     case 'journal/diaryShared': {

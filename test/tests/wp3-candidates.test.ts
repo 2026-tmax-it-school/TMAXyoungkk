@@ -275,10 +275,10 @@ test('FR-202 수동 등록: 결과 없음 · 동명 여러 곳 · 목적지 밖 
   assert.equal(hotel.kind === 'one' && hotel.option.base, true);
 });
 
-test('chat/send: 개인 모드면 거부하고, status는 seq 유무를 따른다', () => {
+test('chat/send: 개인 모드도 채팅 메모로 보낼 수 있고, status는 seq 유무를 따른다', () => {
   const solo = trip(1);
   const op = { type: 'chat/send', message: { id: 'x', text: '안녕' }, id: 'o', tripId: 't', actorId: 'm-a', at: 1 } as Op;
-  assert.equal(chat.validate(solo, op), chat.PERSONAL_MODE_REASON);
+  assert.equal(chat.validate(solo, op), null);
   const g = trip(2);
   assert.equal(chat.validate(g, op), null);
   assert.equal(chat.reduce(g, op).messages[0].status, 'pending');
@@ -392,7 +392,7 @@ test('06 화면: 지금 보는 여행방 줄, 시간표|후보 나누기와 요�
   const src = stripComments(read('src/screens/CandidatesScreen.tsx'));
   assert.match(src, /useActiveTrip\(\)/);
   assert.doesNotMatch(src, /useCurrentTrip/);
-  assert.match(src, /<TripBar \/>\s*<PlanSwitch value="Candidates" candidates=\{view\.total\} \/>/);
+  assert.match(src, /<TripBar back=\{homeBack\} \/>\s*<PlanSwitch value="Candidates" candidates=\{view\.total\} \/>/);
   assert.match(src, /const line = summaryLine\(view\)/);
   assert.match(src, /<Txt v="mtTight" numberOfLines=\{1\}>\s*\{line \?\?/, '요약은 높이가 고정된 한 줄이다');
   assert.doesNotMatch(src, /<Seg\b/, '확정/제외 Seg 없이 목록 하나를 구역 머리로 나눈다');

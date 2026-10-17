@@ -527,7 +527,9 @@ export type OpBody =
   | { type: 'journal/visit'; visit: Visit }
   | { type: 'journal/diaryGenerated'; entry: DiaryEntry }
   | { type: 'journal/diaryEdited'; date: string; blockId: string; text: string }
-  | { type: 'journal/diaryShared'; date: string };
+  | { type: 'journal/diaryShared'; date: string }
+  /** 사용자가 직접 쓴 일기 한 문단(2026-10-17). 그날 일기가 없으면 빈 일기를 만들고 문단을 더한다 */
+  | { type: 'journal/diaryNote'; date: string; block: DiaryBlock };
 
 export interface OpMeta {
   id: string;

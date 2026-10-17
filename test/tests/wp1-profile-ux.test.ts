@@ -11,8 +11,8 @@ import {
   heroLine,
   NOTIFY_ROWS,
   notifySummary,
+  journalSub,
   recordCounts,
-  recordTileLabels,
   retentionShort,
   retentionText,
 } from '../src/features/account/settings';
@@ -81,16 +81,9 @@ describe('18 프로필 탭 문구(순수)', () => {
     assert.equal(c.diaryDays, 1);
   });
 
-  test('기록 타일 라벨은 늘 두 줄(이름과 숫자). 360px에서 낱말 가운데가 끊기지 않고 세 칸 높이가 같다', () => {
-    const l = recordTileLabels({ photos: 12, diaryDays: 3 });
-    assert.deepEqual(l, { photos: '사진\n12장', diary: '일기\n3일', map: '기록\n지도' });
-    for (const v of Object.values(l)) {
-      const lines = v.split('\n');
-      assert.equal(lines.length, 2, v);
-      // 줄마다 낱말 하나(공백 없음): 좁은 타일에서도 한 줄에 들어간다
-      assert.ok(lines.every((x) => x.length > 0 && !x.includes(' ')), v);
-    }
-    assert.equal(recordTileLabels({ photos: 0, diaryDays: 0 }).photos, '사진\n0장');
+  test("홈 '여행일지' 줄의 보조 글은 일기 날짜 수와 사진 수 한 줄", () => {
+    assert.equal(journalSub({ photos: 12, diaryDays: 3 }), '일기 3일 · 사진 12장');
+    assert.equal(journalSub({ photos: 0, diaryDays: 0 }), '일기 0일 · 사진 0장');
   });
 });
 
@@ -126,15 +119,14 @@ describe('18 프로필 탭 화면 규칙(MoreScreen)', () => {
     assert.ok(!/TRIP_ENTRIES/.test(src));
   });
 
-  test("'내 여행 기록' 사진 타일은 날짜를 넘기지 않는다", () => {
-    assert.match(body, /navigation\.navigate\('Photos', \{ tripId: trip\.id \}\)/);
-  });
-
-  test("'내 여행 기록' 타일은 두 줄 라벨(recordTileLabels)을 쓰고 같은 높이로 늘인다(위쪽 맞춤 아님)", () => {
-    assert.match(body, /recordTileLabels\(recordCounts\(trip\)\)/);
-    assert.ok(!/label=\{`사진 \$\{/.test(body));
-    assert.match(body, /<Row gap=\{SP\.l\} style=\{styles\.stretch\}>\s*<FeatureTile/);
-    assert.match(body, /stretch: \{ alignItems: 'stretch' \}/);
+  test("'내 여행 기록' 타일은 프로필 탭에 없고 홈 '여행일지' 한 줄에 있다(일기와 사진을 한 화면으로, 기록 지도는 없앴다)", () => {
+    assert.ok(!body.includes('내 여행 기록'), '프로필 탭에서 뺐다');
+    assert.ok(!/<FeatureTile/.test(body));
+    const home = code('src/screens/HomeScreen.tsx');
+    assert.match(home, /<SectionTitle title="여행일지" \/>/);
+    assert.match(home, /journalSub\(recordCounts\(current\)\)/);
+    assert.match(home, /<ListRow first icon="book" label="여행일지 열기" sub=\{journalLine\} onPress=\{openJournal\} \/>/);
+    assert.match(home, /navigation\.navigate\('Journal', \{ tripId: current\.id \}\)/);
   });
 });
 

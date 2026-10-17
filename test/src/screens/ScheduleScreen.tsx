@@ -3,6 +3,7 @@ import { Pressable, View } from 'react-native';
 
 import { overflowAdjustments } from '../core/planner/adjust';
 import { dateRange, humanMin } from '../core/util';
+import { useHomeBack } from '../navigation/useBack';
 import { DayTimeline } from '../features/schedule/components/DayTimeline';
 import { PlanSwitch } from '../features/schedule/components/PlanSwitch';
 import { initialScheduleDate } from '../features/schedule/edit';
@@ -40,6 +41,7 @@ import {
  * 첫 '루트 계산'만 08로 보낸다. 오프라인 안내는 공통 OfflineBar가 맡는다.
  */
 export default function ScheduleScreen({ navigation, route }: TabScreenProps<'Schedule'>) {
+  const homeBack = useHomeBack();
   const { trip, trips } = useActiveTrip();
   const plan = usePlan(trip?.id);
   const planning = usePlanning(trip?.id);
@@ -62,7 +64,7 @@ export default function ScheduleScreen({ navigation, route }: TabScreenProps<'Sc
   if (!trip || !current) {
     return (
       <Screen>
-        {trips.length === 0 ? <Header title="시간표" /> : <TripBar />}
+        {trips.length === 0 ? <Header back={homeBack} title="시간표" /> : <TripBar back={homeBack} />}
         <Body>
           {trips.length === 0 ? (
             <Empty
@@ -90,11 +92,8 @@ export default function ScheduleScreen({ navigation, route }: TabScreenProps<'Sc
 
   return (
     <Screen>
-      {/* 위쪽이 빽빽해 보이지 않게 TripBar 위, 줄 사이, 날짜 Seg와 본문 사이를 넉넉히 띄운다 */}
-      <View style={{ paddingTop: SP.m }}>
-        <TripBar />
-      </View>
-      <View style={{ paddingTop: SP.xxl, paddingBottom: SP.xxl, gap: SP.xxl }}>
+      <TripBar back={homeBack} />
+      <View style={{ paddingTop: SP.m, gap: SP.m }}>
         <PlanSwitch value="Schedule" candidates={trip.spots.length} />
         <View style={{ paddingHorizontal: SP.gutter }}>
           <Seg

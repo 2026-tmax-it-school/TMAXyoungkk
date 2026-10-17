@@ -148,7 +148,10 @@ test('ChatScreen: 키보드 대응, Enter로 보내기, 후보 줄, 메뉴의 �
   assert.match(chatSrc, /returnKeyType="send"/);
   assert.match(chatSrc, /keepFocusOnSubmit/);
   assert.match(chatSrc, /onSubmitEditing=\{send\}/);
-  assert.match(chatSrc, /placeholder="가고 싶은 곳을 말해 보세요"/);
+  assert.match(chatSrc, /placeholder=\{group \? '가고 싶은 곳을 말해 보세요' : '메모처럼 가고 싶은 곳을 적어 보세요'\}/);
+  // 혼자 여행(개인 모드)도 입력이 열린다: 채팅 메모
+  assert.match(chatSrc, /\{me \? \(\s*<Row gap=\{SP\.m\} style=\{styles\.inputRow\}>/);
+  assert.match(chatSrc, /'혼자 여행 · 채팅 메모'/);
   assert.match(chatSrc, /paddingBottom: SP\.l \+ insets\.bottom/);
   assert.match(chatSrc, /<CandidateBar trip=\{trip\} plan=\{plan\} onPress=\{openCandidates\} \/>/);
   assert.match(chatSrc, /setCurrentTrip\(trip\.id\);\s*navigation\.navigate\('Main', \{ screen: 'Candidates' \}\)/);
