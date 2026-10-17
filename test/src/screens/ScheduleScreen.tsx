@@ -92,8 +92,11 @@ export default function ScheduleScreen({ navigation, route }: TabScreenProps<'Sc
 
   return (
     <Screen>
-      <TripBar back={homeBack} />
-      <View style={{ paddingTop: SP.m, gap: SP.m }}>
+      {/* 위쪽이 빽빽해 보이지 않게 TripBar 위, 줄 사이, 날짜 Seg와 본문 사이를 넉넉히 띄운다 */}
+      <View style={{ paddingTop: SP.m }}>
+        <TripBar back={homeBack} />
+      </View>
+      <View style={{ paddingTop: SP.xxl, paddingBottom: SP.xxl, gap: SP.xxl }}>
         <PlanSwitch value="Schedule" candidates={trip.spots.length} />
         <View style={{ paddingHorizontal: SP.gutter }}>
           <Seg
