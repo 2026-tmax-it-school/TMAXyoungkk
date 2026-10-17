@@ -21,6 +21,7 @@ import {
   NEW_TRIP_H,
   NEW_TRIP_PEEK,
   cardRowAtEnd,
+  cardRowAtStart,
   cardRowContentWidth,
   PULL_TRIGGER,
   pullOffset,
@@ -70,7 +71,7 @@ import {
  * - 카드를 누르면 그 방을 고르고 다음 할 일(tripNextStep: 기록 보기, 오늘 여행 진행, 후보 모으기,
  *   루트 계산하기, 시간표 보기)로 바로 간다. 카드 안에 따로 버튼을 두지 않는다(2026-10-17).
  * - 여행방 빠른 메뉴(멤버 초대·AI 추천·설정 등)는 카드를 누르면 가는 후보·시간표 화면 위(features/trip TripActions)로 옮겼다.
- *   홈에는 '초대 코드로 합류'만 남는다.
+ *   '초대 코드로 합류'는 카드 줄 왼쪽 끝 잘린 카드(누르거나 오른쪽으로 당기기)다.
  * - 지금 보는 방은 useActiveTrip(pickCurrentTrip) 하나로 정한다. 홈이 따로 대체 규칙을 두지 않는다.
  * - 여행방이 없으면 만들기 Empty와 '초대 코드로 합류'.
  * - 추천 여행지 타일은 그 지역의 예시 2박 3일(30 예시 일정)로 간다. 거기서 '이 일정으로 여행방 만들기'나 '직접 만들기'로 이어진다.
@@ -131,12 +132,17 @@ export default function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
     }
   };
 
-  // 카드 줄 끝 '+ 새 여행' 당기기. 줄 끝에 닿은 뒤 왼쪽으로 더 끌면 PanResponder가 잡아 고무줄 저항(pullOffset)으로
-  // 칸을 끌어내고(카드도 같이 밀린다), PULL_TRIGGER 넘게 끌어 놓으면 여행방 만들기로 간다. 덜 끌면 튕겨 돌아간다.
-  // 끝의 '+' 손잡이를 눌러도 된다. 일반 스크롤은 그대로라 줄 중간에서는 당기기가 시작되지 않는다
+  // 카드 줄 양 끝 당기기(2026-10-17). 오른쪽 끝 '+'는 새 여행, 왼쪽 끝 링크는 초대 코드로 합류다.
+  // 줄 끝(처음)에 닿은 뒤 바깥쪽으로 더 끌면 PanResponder가 잡아 고무줄 저항(pullOffset)으로 칸을 끌어내고(카드도 같이 밀린다),
+  // PULL_TRIGGER 넘게 끌어 놓으면 그 화면으로 간다. 덜 끌면 튕겨 돌아간다. 잘린 카드를 눌러도 된다.
+  // 일반 스크롤은 그대로라 줄 중간에서는 당기기가 시작되지 않는다
   const rowRef = useRef<ScrollView>(null);
   const pullX = useRef(new Animated.Value(0)).current;
   const [pullReady, setPullReady] = useState(false);
+  const pullL = useRef(new Animated.Value(0)).current;
+  const [pullLReady, setPullLReady] = useState(false);
+  const rowAtStart = useRef(false);
+  const pullSide = useRef<'left' | 'right'>('right');
   // 처음에는 끝이 아니다(크기를 알기 전에 옆으로 밀기를 가로채지 않게). 크기와 위치를 알면 cardRowAtEnd로 정한다
   const rowAtEnd = useRef(false);
   // 줄 끝 판단: 지금 스크롤 위치 + 화면 폭이 내용 폭에 닿았는지. 크기가 나중에 재져도 위치를 함께 본다
@@ -144,6 +150,7 @@ export default function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
   const updateAtEnd = () => {
     const { x, viewW, contentW } = rowSize.current;
     rowAtEnd.current = cardRowAtEnd(x, viewW, contentW);
+    rowAtStart.current = cardRowAtStart(x, viewW);
   };
   const openCreate = () => {
     setPullReady(false);
@@ -152,6 +159,12 @@ export default function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
   };
   const openCreateRef = useRef(openCreate);
   openCreateRef.current = openCreate;
+  const openInvite = () => {
+    setPullLReady(false);
+    navigation.navigate('InviteAccept');
+  };
+  const openInviteRef = useRef(openInvite);
+  openInviteRef.current = openInvite;
   const onRowScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
     const { contentOffset, layoutMeasurement, contentSize } = e.nativeEvent;
     rowSize.current = { x: contentOffset.x, viewW: layoutMeasurement.width, contentW: contentSize.width };
@@ -164,27 +177,41 @@ export default function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
   // 카드가 늘거나 줄면 내용 폭을 다시 계산한다
   useEffect(() => {
     rowSize.current = { ...rowSize.current, contentW: cardRowContentWidth(list.length) };
-    rowAtEnd.current = cardRowAtEnd(rowSize.current.x, rowSize.current.viewW, rowSize.current.contentW);
+    updateAtEnd();
   }, [list.length]);
   const pan = useRef(
     PanResponder.create({
-      onMoveShouldSetPanResponderCapture: (_, g) => rowAtEnd.current && g.dx < -6 && Math.abs(g.dx) > Math.abs(g.dy) * 1.5,
+      onMoveShouldSetPanResponderCapture: (_, g) => {
+        if (Math.abs(g.dx) <= Math.abs(g.dy) * 1.5) return false;
+        if (rowAtEnd.current && g.dx < -6) {
+          pullSide.current = 'right';
+          return true;
+        }
+        if (rowAtStart.current && g.dx > 6) {
+          pullSide.current = 'left';
+          return true;
+        }
+        return false;
+      },
       onPanResponderTerminationRequest: () => false,
       onPanResponderMove: (_, g) => {
-        const off = pullOffset(-g.dx);
-        pullX.setValue(off);
+        const right = pullSide.current === 'right';
+        const off = pullOffset(right ? -g.dx : g.dx);
+        (right ? pullX : pullL).setValue(off);
         const ready = off >= PULL_TRIGGER;
-        setPullReady((was) => (was === ready ? was : ready));
+        (right ? setPullReady : setPullLReady)((was) => (was === ready ? was : ready));
       },
       onPanResponderRelease: (_, g) => {
-        const go = pullOffset(-g.dx) >= PULL_TRIGGER;
-        Animated.spring(pullX, { toValue: 0, useNativeDriver: false, tension: 140, friction: 10 }).start();
-        setPullReady(false);
-        if (go) openCreateRef.current();
+        const right = pullSide.current === 'right';
+        const go = pullOffset(right ? -g.dx : g.dx) >= PULL_TRIGGER;
+        Animated.spring(right ? pullX : pullL, { toValue: 0, useNativeDriver: false, tension: 140, friction: 10 }).start();
+        (right ? setPullReady : setPullLReady)(false);
+        if (go) (right ? openCreateRef : openInviteRef).current();
       },
       onPanResponderTerminate: () => {
-        Animated.spring(pullX, { toValue: 0, useNativeDriver: false, tension: 140, friction: 10 }).start();
+        for (const v of [pullX, pullL]) Animated.spring(v, { toValue: 0, useNativeDriver: false, tension: 140, friction: 10 }).start();
         setPullReady(false);
+        setPullLReady(false);
       },
     }),
   ).current;
@@ -237,12 +264,13 @@ export default function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
               horizontal
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={[styles.cardRow, styles.cardRowEnd]}
-              style={{ transform: [{ translateX: Animated.multiply(pullX, -1) }] }}
+              style={{ transform: [{ translateX: Animated.subtract(pullL, pullX) }] }}
               onScroll={onRowScroll}
               scrollEventThrottle={32}
               onLayout={(e) => measureRow({ viewW: e.nativeEvent.layout.width, contentW: cardRowContentWidth(list.length) })}
               onContentSizeChange={(contentW) => measureRow({ contentW })}
             >
+              <EdgePeek side="left" icon="link" label="초대 코드로 합류" onPress={openInvite} />
               {list.map((t) => (
                 <TripCard
                   key={t.id}
@@ -253,9 +281,10 @@ export default function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
                   onPress={() => goNext(t)}
                 />
               ))}
-              <NewTripPeek onPress={openCreate} />
+              <EdgePeek side="right" icon="plus" label="새 여행방 만들기" onPress={openCreate} />
             </Animated.ScrollView>
-            <NewTripPull pull={pullX} ready={pullReady} />
+            <EdgePull side="left" icon="link" pull={pullL} ready={pullLReady} title="초대 코드" idle="더 당기면 합류해요" done="놓으면 합류해요" />
+            <EdgePull side="right" icon="plus" pull={pullX} ready={pullReady} title="새 여행" idle="더 당기면 만들어요" done="놓으면 만들어요" />
             </View>
           )}
         </View>
@@ -275,21 +304,7 @@ export default function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
           </View>
         ) : null}
 
-        {/* 초대 코드로 합류. 여행방 빠른 메뉴는 후보·시간표 화면 위로 옮겼다(features/trip TripActions, 2026-10-17) */}
-        {current && !searching ? (
-          <View style={styles.section}>
-            <View style={styles.start}>
-              <Btn
-                title="초대 코드로 합류"
-                size="sm"
-                variant="quiet"
-                icon="link"
-                onPress={() => navigation.navigate('InviteAccept')}
-              />
-            </View>
-          </View>
-        ) : null}
-
+        {/* 초대 코드로 합류는 카드 줄 왼쪽 끝 잘린 카드로 옮겼다(2026-10-17) */}
         {searching ? null : (
           <>
         {/* 추천 여행 일정(지역별 예시 2박 3일) */}
@@ -357,44 +372,60 @@ function TripCard({
 }
 
 /**
- * 카드 줄 끝에 늘 보이는 '+' 손잡이(좁은 칸). 누르면 여행방 만들기, 줄 끝에서 왼쪽으로 끌면 NewTripPull이 펼쳐진다.
- * 모양은 화면 오른쪽 끝에서 잘린 카드다(2026-10-17): 연한 대표색(brand-soft, surfaceC.accentTint) 바탕에 진한 대표색 +만, 왼쪽만 둥글고 오른쪽 여백 없이
- * 화면 끝에 붙어 다음 카드가 이어지는 것처럼 보인다(줄 끝에 닿았을 때)
+ * 카드 줄 양 끝에 늘 보이는 잘린 카드(좁은 칸, 2026-10-17). 오른쪽은 '+'(새 여행), 왼쪽은 링크(초대 코드로 합류).
+ * 연한 대표색(brand-soft) 바탕에 진한 대표색 아이콘만, 바깥쪽 여백·모서리 없이 화면 끝에 붙어 카드가 이어지다 잘린 것처럼 보인다.
+ * 누르면 그 화면, 줄 끝(처음)에서 바깥쪽으로 끌면 EdgePull이 펼쳐진다
  */
-function NewTripPeek({ onPress }: { onPress: () => void }) {
+function EdgePeek({ side, icon, label, onPress }: { side: 'left' | 'right'; icon: IconName; label: string; onPress: () => void }) {
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel="새 여행방 만들기" onPress={onPress} style={styles.peek}>
-      <Icon name="plus" size={22} color="accentDeep" stroke={2.2} />
+    <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} style={[styles.peek, side === 'left' ? styles.peekLeft : styles.peekRight]}>
+      <Icon name={icon} size={22} color="accentDeep" stroke={2.2} />
     </Pressable>
   );
 }
 
 /**
- * 당기는 동안 손잡이 자리에서 펼쳐지는 칸(손잡이와 같은 연한 대표색 잘린 카드 모양, + 만 진한 대표색). pull은 실제로 따라온 거리(px, 고무줄 저항이 걸린 값)다.
+ * 당기는 동안 잘린 카드 자리에서 펼쳐지는 칸(같은 모양). pull은 실제로 따라온 거리(px, 고무줄 저항이 걸린 값)다.
  * - 폭이 손잡이 + pull로 늘고, 연한 대표색 바탕이 조금씩 진해진다(대표색을 얇게 덮는다)
- * - + 는 끝까지(PULL_TRIGGER) 당기는 동안 반 바퀴 돌며 커지고, 넘으면 살짝 더 커져 '걸렸다'는 느낌을 준다
- * - '새 여행' 글자는 칸이 충분히 넓어지면 나타나고, 다 당기면 '놓으면 만들어요'
+ * - 아이콘은 끝까지(PULL_TRIGGER) 당기는 동안 반 바퀴 돌며 커지고, 넘으면 살짝 더 커져 '걸렸다'는 느낌을 준다
+ * - 제목은 칸이 충분히 넓어지면 나타나고, 다 당기면 done 문구
  * 당기지 않을 때(pull 0)는 보이지 않는다(줄 중간을 스크롤할 때 카드를 가리지 않게)
  */
-function NewTripPull({ pull, ready }: { pull: Animated.Value; ready: boolean }) {
+function EdgePull({
+  side,
+  icon,
+  pull,
+  ready,
+  title,
+  idle,
+  done,
+}: {
+  side: 'left' | 'right';
+  icon: IconName;
+  pull: Animated.Value;
+  ready: boolean;
+  title: string;
+  idle: string;
+  done: string;
+}) {
   const width = Animated.add(pull, NEW_TRIP_PEEK);
   const shown = pull.interpolate({ inputRange: [0, 1], outputRange: [0, 1], extrapolate: 'clamp' });
   const tint = pull.interpolate({ inputRange: [0, PULL_TRIGGER], outputRange: [0, 0.16], extrapolate: 'clamp' });
-  const spin = pull.interpolate({ inputRange: [0, PULL_TRIGGER], outputRange: ['0deg', '180deg'], extrapolate: 'clamp' });
+  const spin = pull.interpolate({ inputRange: [0, PULL_TRIGGER], outputRange: ['0deg', side === 'left' ? '-180deg' : '180deg'], extrapolate: 'clamp' });
   const grow = pull.interpolate({ inputRange: [0, PULL_TRIGGER, PULL_TRIGGER + 30], outputRange: [1, 1.3, 1.45], extrapolate: 'clamp' });
   const label = pull.interpolate({ inputRange: [50, 90], outputRange: [0, 1], extrapolate: 'clamp' });
   return (
-    <Animated.View pointerEvents="none" style={[styles.pull, { width, opacity: shown }]}>
+    <Animated.View pointerEvents="none" style={[styles.pull, side === 'left' ? styles.pullLeft : styles.pullRight, { width, opacity: shown }]}>
       <Animated.View style={[StyleSheet.absoluteFill, styles.pullTint, { opacity: tint }]} />
       <Animated.View style={{ transform: [{ rotate: spin }, { scale: grow }] }}>
-        <Icon name="plus" size={26} color="accentDeep" stroke={2.2} />
+        <Icon name={icon} size={26} color="accentDeep" stroke={2.2} />
       </Animated.View>
       <Animated.View style={[styles.pullText, { opacity: label }]}>
         <Txt v="btnSm" numberOfLines={1}>
-          새 여행
+          {title}
         </Txt>
         <Txt v="mtTight" numberOfLines={1}>
-          {ready ? '놓으면 만들어요' : '더 당기면 만들어요'}
+          {ready ? done : idle}
         </Txt>
       </Animated.View>
     </Animated.View>
@@ -416,31 +447,31 @@ const styles = StyleSheet.create({
   pickRow: { paddingHorizontal: SP.gutter, paddingVertical: SP.s, gap: SP.xl },
   rowWrap: { overflow: 'hidden' },
   // '+' 손잡이와 당기기 칸: 연한 대표색 바탕의 잘린 카드(+ 만 진한 대표색)
-  // 줄 끝: 오른쪽 여백을 없애 '+' 칸이 화면 끝에서 잘린 카드처럼 붙는다
-  cardRowEnd: { paddingRight: 0 },
+  // 줄 양 끝: 좌우 여백을 없애 양쪽 잘린 카드가 화면 끝에 붙는다
+  cardRowEnd: { paddingLeft: 0, paddingRight: 0 },
   peek: {
     width: NEW_TRIP_PEEK,
     height: NEW_TRIP_H,
-    borderTopLeftRadius: R.photo,
-    borderBottomLeftRadius: R.photo,
     backgroundColor: surfaceC.accentTint,
     alignItems: 'center',
     justifyContent: 'center',
   },
+  // 오른쪽 끝(+): 왼쪽만 둥글다. 왼쪽 끝(링크): 오른쪽만 둥글다
+  peekRight: { borderTopLeftRadius: R.photo, borderBottomLeftRadius: R.photo },
+  peekLeft: { borderTopRightRadius: R.photo, borderBottomRightRadius: R.photo },
   // 손잡이와 같은 자리(화면 오른쪽 끝, 세로 여백 SP.s)에서 왼쪽으로 펼쳐진다. 오른쪽은 잘린 카드처럼 모서리 없이
   pull: {
     position: 'absolute',
-    right: 0,
     top: SP.s,
     height: NEW_TRIP_H,
-    borderTopLeftRadius: R.photo,
-    borderBottomLeftRadius: R.photo,
     backgroundColor: surfaceC.accentTint,
     overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'center',
     gap: SP.m,
   },
+  pullRight: { right: 0, borderTopLeftRadius: R.photo, borderBottomLeftRadius: R.photo },
+  pullLeft: { left: 0, borderTopRightRadius: R.photo, borderBottomRightRadius: R.photo },
   pullTint: { backgroundColor: surfaceC.accent },
   pullText: { alignItems: 'center', gap: 2 },
 });

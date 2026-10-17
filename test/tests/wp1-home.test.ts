@@ -10,6 +10,7 @@ import {
   homeActions,
   homeSegments,
   cardRowAtEnd,
+  cardRowAtStart,
   cardRowContentWidth,
   pullOffset,
   pullProgress,
@@ -245,15 +246,22 @@ describe('여행방 빠른 메뉴(후보·시간표 화면 위)', () => {
     assert.ok(pullOffset(300) >= PULL_TRIGGER);
     assert.equal(pullProgress(PULL_TRIGGER / 2), 0.5);
     assert.equal(pullProgress(500), 1);
-    // 줄 끝 판단: 크기를 모르면 끝이 아니다(옆으로 밀기를 가로채지 않는다). 카드 2장 내용 폭 = 왼쪽 24 + 2×288 + 잘린 카드 52 = 652
-    assert.equal(cardRowContentWidth(2), 652);
+    // 줄 끝 판단: 크기를 모르면 끝이 아니다(옆으로 밀기를 가로채지 않는다). 카드 2장 내용 폭 = 양쪽 잘린 카드 52×2 + 2×288 + 간격 16 = 696
+    assert.equal(cardRowContentWidth(2), 696);
     assert.equal(cardRowAtEnd(0, 0, 0), false);
-    assert.equal(cardRowAtEnd(0, 420, 652), false, '처음 위치에서는 끝이 아니라 옆으로 밀린다');
-    assert.equal(cardRowAtEnd(232, 420, 652), true);
-    assert.equal(cardRowAtEnd(0, 800, 652), true, '화면이 넓어 다 보이면 처음부터 끝');
+    assert.equal(cardRowAtEnd(0, 420, 696), false, '처음 위치에서는 끝이 아니라 옆으로 밀린다');
+    assert.equal(cardRowAtEnd(276, 420, 696), true);
+    assert.equal(cardRowAtEnd(0, 800, 696), true, '화면이 넓어 다 보이면 처음부터 끝');
+    // 왼쪽 끝(초대 코드로 합류)은 처음 위치에서만 당긴다
+    assert.equal(cardRowAtStart(0, 420), true);
+    assert.equal(cardRowAtStart(30, 420), false);
+    assert.equal(cardRowAtStart(0, 0), false, '크기를 모르면 처음이 아니다');
     const home = readFileSync('src/screens/HomeScreen.tsx', 'utf8');
-    assert.match(home, /<NewTripPeek onPress=\{openCreate\} \/>\s*<\/Animated\.ScrollView>\s*<NewTripPull pull=\{pullX\} ready=\{pullReady\} \/>/);
-    assert.match(home, /onMoveShouldSetPanResponderCapture: \(_, g\) => rowAtEnd\.current && g\.dx < -6/);
+    assert.match(home, /<EdgePeek side="right" icon="plus" label="새 여행방 만들기" onPress=\{openCreate\} \/>\s*<\/Animated\.ScrollView>/);
+    assert.match(home, /<EdgePeek side="left" icon="link" label="초대 코드로 합류" onPress=\{openInvite\} \/>/);
+    assert.match(home, /navigation\.navigate\('InviteAccept'\)/);
+    assert.match(home, /if \(rowAtEnd\.current && g\.dx < -6\) \{/, '오른쪽 끝에서 왼쪽으로 끌 때만 새 여행 당기기');
+    assert.match(home, /if \(rowAtStart\.current && g\.dx > 6\) \{/, '왼쪽 끝에서 오른쪽으로 끌 때만 초대 코드 당기기');
     assert.match(home, /navigation\.navigate\('CreateTrip'\)/);
   });
 

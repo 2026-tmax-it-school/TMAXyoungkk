@@ -238,17 +238,21 @@ export const NEW_TRIP_H = 300;
  * 끝으로 갈수록 뻑뻑하다(손가락 100 → 64, 200 → 95, 400 → 124).
  */
 export const PULL_STIFFNESS = 180;
-/** 내 여행 카드 폭(CoverTile lg)과 카드 사이 간격(홈 cardRow gap = SP.xxl), 줄 좌우 여백(SP.gutter) */
+/** 내 여행 카드 폭(CoverTile lg)과 카드 사이 간격(홈 cardRow gap = SP.xxl) */
 const CARD_W = 272;
 const CARD_GAP = 16;
-const ROW_GUTTER = 24;
 
 /**
- * 카드 줄 내용 폭: 왼쪽 여백 + 카드 n장 + 간격 n개 + '+' 손잡이(오른쪽 여백 없이 화면 끝에 붙는 잘린 카드). 스크롤 전에도 줄 끝인지 알 수 있게 계산으로 구한다
+ * 카드 줄 내용 폭: 왼쪽 '초대' 잘린 카드 + 카드 n장 + 오른쪽 '+' 잘린 카드, 사이 간격 n+1개(좌우 여백 없이 양쪽 화면 끝에 붙는다). 스크롤 전에도 줄 끝인지 알 수 있게 계산으로 구한다
  * (웹에서 내용 크기 알림이 처음에 오지 않아 '끝'으로 잘못 보고 옆으로 밀기를 가로챈 적이 있다, 2026-10-17)
  */
 export function cardRowContentWidth(cards: number): number {
-  return ROW_GUTTER + cards * (CARD_W + CARD_GAP) + NEW_TRIP_PEEK;
+  return NEW_TRIP_PEEK * 2 + cards * (CARD_W + CARD_GAP) + CARD_GAP;
+}
+
+/** 지금 스크롤 위치가 카드 줄 처음인지(처음에서만 왼쪽 '초대 코드로 합류' 당기기를 받는다). 화면 폭을 모르면 처음이 아니다 */
+export function cardRowAtStart(x: number, viewW: number): boolean {
+  return viewW > 0 && x <= 2;
 }
 
 /** 지금 스크롤 위치가 카드 줄 끝인지(끝에서만 '+ 새 여행' 당기기를 받는다). 화면 폭을 모르면 끝이 아니다 */
