@@ -26,6 +26,17 @@
       "port": 8090
     },
     {
+      "name": "young-trip-server-supabase",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "--prefix",
+        "test",
+        "run",
+        "server"
+      ],
+      "port": 8787
+    },
+    {
       "name": "young-trip-server",
       "runtimeExecutable": "env",
       "runtimeArgs": [
