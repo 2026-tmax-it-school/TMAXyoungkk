@@ -18,7 +18,6 @@ import {
   PHOTOS_MAX,
   restoredText,
   splitTagInput,
-  tagSuggestions,
   TAGS_MAX,
   timeAgo,
   TITLE_MAX,
@@ -30,7 +29,6 @@ import {
   type SavedDraft,
 } from '../core/community';
 import { dayLabel } from '../core/util';
-import { regionById } from '../data/regions';
 import { communityDrafts } from '../features/community/drafts';
 import type { RootScreenProps } from '../navigation/routes';
 import { appClock } from '../services/clock';
@@ -45,10 +43,10 @@ import { Body, Btn, Card, Col, ConfirmSheet, Empty, Field, Foot, Header, Icon, I
 /**
  * 29 커뮤니티 글쓰기(WP6 소유, 2026-10-10, 2026-10-11 v2). 글은 서버에 올라가 앱 사용자 모두가 본다.
  * - 글은 한 가지다(사진·일기 고르기 없음). 사진 0~4장·본문·태그 0~5개·제목(선택). 본문이나 사진 하나면 올린다(core/community checkDraft).
- * - 배치: 사진 줄을 맨 위에 크게, 그 아래 본문(글자 수는 Field가 보인다), 태그 줄(입력 + 추천), 제목은 가볍게 맨 아래. '올리기'는 아래에 늘 있고
+ * - 배치(2026-10-17): 사진 줄을 맨 위에 크게, 그 아래 제목(선택), 본문(글자 수는 Field가 보인다), 태그 줄(직접 입력만, 추천 없음). '올리기'는 아래에 늘 있고
  *   못 올리면 그 이유를 버튼 위에 적는다. iOS는 키보드가 버튼을 가리지 않게 밀어 올린다.
  * - 태그: 띄어쓰기·쉼표·Enter로 하나씩 넣는다(한글 조합 중에는 끊지 않는다: 조합 글자에는 구분 기호가 없다).
- *   추천은 여행 지역 → 최근에 쓴 태그 → 기본 태그(core/community tagSuggestions).
+ *   추천 태그 줄은 두지 않는다(사용자가 직접 적는다). 사진 안내 문구도 뺐다.
  * - 임시 저장(features/community/drafts, 사람마다 하나, 앱을 껐다 켜도 남는다): 앱이 뒤로 가면 저장한다. 다시 열면 이어 쓰고
  *   '새로 쓰기'로 지울 수 있다(확인 1회). 일기에서 열었는데 다른 곳에서 쓰던 글이 있으면 둘 중 고른다(core/community openPlan).
  *   사진 저장이 실패해도 글은 남고 '사진은 임시 저장하지 못했어요'를 한 번 알린다.
@@ -84,7 +82,8 @@ export default function CommunityComposeScreen({ navigation, route }: RootScreen
   const [photos, setPhotos] = useState<CommunityPhotoInput[]>([]);
   const [kept, setKept] = useState<CommunityPhoto[]>([]);
   const [origin, setOrigin] = useState<DraftOrigin | null>(null);
-  const [recent, setRecent] = useState<string[]>([]);
+  // 최근 태그는 불러 두기만 한다(추천 태그 줄은 2026-10-17에 뺐다. 태그는 사용자가 직접 적는다)
+  const [, setRecent] = useState<string[]>([]);
   const [ready, setReady] = useState(false);
   const [restoredAt, setRestoredAt] = useState<number | null>(null);
   const [choice, setChoice] = useState<SavedDraft | null>(null);
@@ -397,8 +396,6 @@ export default function CommunityComposeScreen({ navigation, route }: RootScreen
   };
 
   const diaries = trip ? Object.values(trip.diaries).filter((d) => diaryAsText(d).length > 0).sort((a, b) => (a.date < b.date ? -1 : 1)) : [];
-  const region = trip ? regionById(trip.region)?.name : undefined;
-  const suggestions = tags.length >= TAGS_MAX ? [] : tagSuggestions({ current: tags, region, recent, limit: 6 });
   const now = appClock().now();
 
   return (
@@ -477,6 +474,8 @@ export default function CommunityComposeScreen({ navigation, route }: RootScreen
             {pickErr ? <Notice tone="warn" icon="alert" text={pickErr} /> : null}
           </Col>
 
+          <Field label="제목 · 선택" value={title} onChangeText={setTitle} maxLength={TITLE_MAX} />
+
           <Col gap={SP.xs}>
             <Field
               label="내용"
@@ -524,26 +523,8 @@ export default function CommunityComposeScreen({ navigation, route }: RootScreen
               />
             ) : null}
             {tagProblem ? <Txt v="mtTight" c="accent">{tagProblem}</Txt> : null}
-            {suggestions.length > 0 ? (
-              <Row gap={SP.m} wrap>
-                {suggestions.map((t) => (
-                  <Tag
-                    key={t}
-                    label={`#${t}`}
-                    on={false}
-                    onPress={() => {
-                      const r = addTag(tags, t);
-                      setTags(r.tags);
-                      setTagProblem(r.problem);
-                    }}
-                  />
-                ))}
-              </Row>
-            ) : null}
           </Col>
 
-          <Field label="제목 · 선택" value={title} onChangeText={setTitle} maxLength={TITLE_MAX} />
-          <Txt v="mtTight">사진은 줄여서 올리고, 위치와 촬영 정보는 함께 올리지 않아요. 올린 글은 앱 사용자 모두가 볼 수 있어요.</Txt>
         </Body>
         <Foot>
           {problem ? <Notice tone="warn" icon="alert" text={problem} /> : null}

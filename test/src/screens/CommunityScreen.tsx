@@ -1,6 +1,6 @@
 import { useFocusEffect } from '@react-navigation/native';
 import React, { useCallback, useEffect, useState } from 'react';
-import { FlatList, RefreshControl, ScrollView, View } from 'react-native';
+import { FlatList, RefreshControl, View } from 'react-native';
 
 import type { CommunityPost } from '../core/ports';
 import { SEARCH_MAX } from '../core/community';
@@ -12,7 +12,7 @@ import { getServices } from '../services/registry';
 import { useCommunity } from '../store/community';
 import { useSession } from '../store/session';
 import { useUi } from '../store/ui';
-import { Btn, Col, ConfirmSheet, Empty, Field, Header, IconBtn, Notice, Row, Screen, SP, Tag, Txt } from '../ui';
+import { Btn, Col, ConfirmSheet, Empty, Field, Header, IconBtn, Notice, Row, Screen, SP, Tag, TextLink } from '../ui';
 
 /** 글자를 멈추고 이만큼 지나면 검색한다(엔터·검색 버튼은 바로) */
 const SEARCH_DEBOUNCE_MS = 400;
@@ -22,13 +22,13 @@ const SEARCH_DEBOUNCE_MS = 400;
  * 2026-10-11 재배치:
  * - 사진·일기 나누기 대신 태그로 거른다. 위 태그 줄은 '전체' + 많이 쓴 태그, 글 카드의 태그를 눌러도 거른다.
  * - 목록은 FlatList. 당겨서 새로 고치고, 끝에 닿으면 이어 받는다(이어 받기 실패는 아래에 다시 시도 버튼).
- * - 글쓰기는 엄지가 닿는 오른쪽 아래 떠 있는 버튼. 게스트가 누르면 로그인 안내 시트를 보인다(보는 것은 로그인 없이 된다).
+ * - 글쓰기는 엄지가 닿는 오른쪽 아래 떠 있는 버튼(글이 하나도 없으면 빈 화면 가운데 '글쓰기'만 둔다). 게스트가 누르면 로그인 안내 시트를 보인다(보는 것은 로그인 없이 된다).
  * - 서버 주소가 없으면 이 기기 모의(앱을 새로 열면 사라짐)라고 안내한다. 내 글만 지울 수 있다(확인 1회).
  * - 2026-10-17: 제목·태그 검색창. 글자를 멈추고 0.4초 뒤(엔터는 바로) 서버가 제목이나 태그에 들어 있는 글만 돌려준다. 태그 줄과 같이 쓸 수 있다.
  * - 2026-10-17: 내 글은 고칠 수 있다. 카드의 '수정'이 글쓰기 화면을 고치기(editPostId)로 연다. 고친 글은 피드에서 제자리에 바뀐다.
  */
 export default function CommunityScreen({ navigation }: TabScreenProps<'Community'>) {
-  const { posts, next, tag, query, popular, status, loadingMore, error, moreError, setTag, setQuery, refresh, more, remove } = useCommunity();
+  const { posts, next, tag, query, status, loadingMore, error, moreError, setTag, setQuery, refresh, more, remove } = useCommunity();
   const homeBack = useHomeBack();
   const [text, setText] = useState(query);
   const session = useSession((s) => s.session);
@@ -61,9 +61,6 @@ export default function CommunityScreen({ navigation }: TabScreenProps<'Communit
     useUi.getState().showToast(r.ok ? '글을 지웠어요' : '글을 지우지 못했어요', r.ok ? 'soft' : 'warn');
   };
 
-  // 지금 거르는 태그가 많이 쓴 태그에 없어도 줄에 보이게 앞에 둔다
-  const tagBar = tag && !popular.includes(tag) ? [tag, ...popular] : popular;
-
   const head = (
     <Col gap={SP.xl}>
       {local ? (
@@ -83,13 +80,12 @@ export default function CommunityScreen({ navigation }: TabScreenProps<'Communit
         </View>
         {text ? <IconBtn icon="x" label="검색어 지우기" onPress={() => setText('')} /> : <IconBtn icon="search" label="검색" onPress={() => setQuery(text)} />}
       </Row>
-      {tagBar.length > 0 || tag ? (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: SP.m }}>
-          <Tag label="전체" on={tag == null} onPress={() => setTag(null)} />
-          {tagBar.map((t) => (
-            <Tag key={t} label={`#${t}`} on={tag === t} onPress={() => setTag(tag === t ? null : t)} />
-          ))}
-        </ScrollView>
+      {/* 위쪽 인기 태그 줄은 뺐다(2026-10-17). 글의 태그를 눌러 거르는 중일 때만 그 태그와 풀기를 한 줄로 보인다 */}
+      {tag ? (
+        <Row gap={SP.m}>
+          <Tag label={`#${tag}`} on onPress={() => setTag(null)} />
+          <TextLink title="전체 보기" onPress={() => setTag(null)} />
+        </Row>
       ) : null}
       {status === 'error' ? (
         <Col gap={SP.m}>
@@ -101,6 +97,8 @@ export default function CommunityScreen({ navigation }: TabScreenProps<'Communit
     </Col>
   );
 
+  // 글이 하나도 없으면 빈 화면 가운데 '글쓰기'가 있으므로 오른쪽 아래 떠 있는 '글쓰기'는 숨긴다(버튼이 두 개로 보이지 않게)
+  const emptyWrite = status === 'ready' && posts.length === 0 && !query && !tag;
   const empty =
     status === 'ready' ? (
       query ? (
@@ -126,17 +124,12 @@ export default function CommunityScreen({ navigation }: TabScreenProps<'Communit
           <Btn title="이어서 불러오기" size="sm" variant="quiet" onPress={() => void more()} />
         </Col>
       ) : null}
-      {!next && posts.length > 0 && status === 'ready' ? (
-        <Txt v="mtTight">
-          글을 모두 봤어요
-        </Txt>
-      ) : null}
     </View>
   );
 
   return (
     <Screen>
-      <Header back={homeBack} eyebrow="여행 이야기" title="커뮤니티" right={<IconBtn icon="refresh" label="새로 고침" onPress={() => void refresh()} />} />
+      <Header back={homeBack} title="커뮤니티" right={<IconBtn icon="refresh" label="새로 고침" onPress={() => void refresh()} />} />
       <FlatList
         data={posts}
         keyExtractor={(p) => p.id}
@@ -160,9 +153,11 @@ export default function CommunityScreen({ navigation }: TabScreenProps<'Communit
         onEndReached={() => void more()}
         onEndReachedThreshold={0.5}
       />
-      <Row style={{ position: 'absolute', right: SP.gutter, bottom: SP.xxl }}>
-        <Btn title="글쓰기" icon="pen" size="sm" onPress={write} />
-      </Row>
+      {emptyWrite ? null : (
+        <Row style={{ position: 'absolute', right: SP.gutter, bottom: SP.xxl }}>
+          <Btn title="글쓰기" icon="pen" size="sm" onPress={write} />
+        </Row>
+      )}
       <ConfirmSheet
         visible={loginAsk}
         title="로그인하면 글을 올릴 수 있어요"
