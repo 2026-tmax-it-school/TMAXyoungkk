@@ -119,14 +119,13 @@ describe('18 프로필 탭 화면 규칙(MoreScreen)', () => {
     assert.ok(!/TRIP_ENTRIES/.test(src));
   });
 
-  test("'내 여행 기록' 타일은 프로필 탭에 없고 홈 '여행일지' 한 줄에 있다(일기와 사진을 한 화면으로, 기록 지도는 없앴다)", () => {
+  test("'내 여행 기록' 타일은 프로필 탭에 없고, 여행일지는 여행방 빠른 메뉴의 채팅 오른쪽 칸이다(홈 구역은 2026-10-17에 뺐다)", () => {
     assert.ok(!body.includes('내 여행 기록'), '프로필 탭에서 뺐다');
     assert.ok(!/<FeatureTile/.test(body));
     const home = code('src/screens/HomeScreen.tsx');
-    assert.match(home, /<SectionTitle title="여행일지" \/>/);
-    assert.match(home, /journalSub\(recordCounts\(current\)\)/);
-    assert.match(home, /<ListRow first icon="book" label="여행일지 열기" sub=\{journalLine\} onPress=\{openJournal\} \/>/);
-    assert.match(home, /navigation\.navigate\('Journal', \{ tripId: current\.id \}\)/);
+    assert.doesNotMatch(home, /<SectionTitle title="여행일지" \/>/);
+    const actions = code('src/features/trip/components/TripActions.tsx');
+    assert.match(actions, /navigation\.navigate\('Journal', cell\.date \? \{ tripId, date: cell\.date \} : \{ tripId \}\)/);
   });
 });
 
@@ -159,4 +158,22 @@ describe('17 내 프로필 화면 규칙(ProfileScreen)', () => {
     assert.match(body, /<TextLink title="예시 사진으로 시연"/);
     assert.match(body, /계정 관리[\s\S]{0,200}<ListRow[^>]*label="계정 탈퇴"/);
   });
+});
+
+test('프로필 닉네임을 바꾸면 내 여행방 멤버 이름도 맞춘다: 내 userId의 활성 멤버 중 이름이 다른 방만, 나간 방·삭제된 방·다른 사람은 빼고', async () => {
+  const { planNicknameSync } = await import('../src/features/account/nicknameSync');
+  const { scenarioTrip } = await import('./helpers/fixtures');
+  const base = scenarioTrip();
+  const me = base.members[0];
+  const other = base.members[1];
+  const renamed = { ...base, id: 'a', members: base.members.map((m) => (m.id === me.id ? { ...m, nickname: '옛이름' } : m)) };
+  const same = { ...base, id: 'b', members: base.members.map((m) => (m.id === me.id ? { ...m, nickname: '새이름' } : m)) };
+  const left = { ...base, id: 'c', members: base.members.map((m) => (m.id === me.id ? { ...m, nickname: '옛이름', leftAt: 1 } : m)) };
+  const deleted = { ...renamed, id: 'd', deletedAt: 1 };
+  assert.deepEqual(planNicknameSync([renamed, same, left, deleted], me.userId, '새이름'), [{ tripId: 'a', memberId: me.id }]);
+  assert.ok(!planNicknameSync([renamed], me.userId, '새이름').some((p) => p.memberId === other.id), '다른 멤버는 건드리지 않는다');
+  assert.deepEqual(planNicknameSync([renamed], me.userId, '  '), [], '빈 이름이면 보내지 않는다');
+  const flows = readFileSync('src/features/account/flows.ts', 'utf8');
+  assert.match(flows, /syncNicknameToTrips\(\);/, '프로필 저장 뒤 맞춘다');
+  assert.match(readFileSync('src/screens/HomeScreen.tsx', 'utf8'), /if \(myName\) syncNicknameToTrips\(\);/, '홈을 열 때도 맞춘다');
 });

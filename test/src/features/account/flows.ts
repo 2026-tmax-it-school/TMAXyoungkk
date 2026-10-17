@@ -11,6 +11,7 @@ import { useTrips } from '../../store/trips';
 import { useUi } from '../../store/ui';
 import { promotionProfilePatch } from './profile';
 import { judgeSocial, type SocialIntent, type SocialJudgement } from './social';
+import { planNicknameSync } from './nicknameSync';
 
 /**
  * 계정 흐름(WP1 소유). 인증 제공자(registry.auth)와 세션·여행방 스토어를 잇는다.
@@ -187,8 +188,25 @@ export async function saveProfileFlow(patch: Partial<Profile>): Promise<{ ok: tr
   useSession.getState().setProfile(next);
   if (nickname != null && s.session) {
     useSession.setState({ session: { ...s.session, nickname } });
+    // 내 여행방들의 멤버 이름도 새 닉네임으로(예전 방에 옛 이름이 남지 않게)
+    syncNicknameToTrips();
   }
   return { ok: true };
+}
+
+/**
+ * 지금 닉네임과 다른 내 멤버 이름을 여행방마다 고친다(member/rename). 프로필 저장 뒤와 홈을 열 때 부른다.
+ * 이미 같으면 아무것도 보내지 않는다. 실패(오프라인 등)는 조용히 넘기고 다음에 다시 맞춘다
+ */
+export function syncNicknameToTrips(): number {
+  const s = useSession.getState().session;
+  if (!s) return 0;
+  let done = 0;
+  for (const p of planNicknameSync(allDocs(), s.userId, s.nickname)) {
+    const r = useTrips.getState().dispatch(p.tripId, { type: 'member/rename', memberId: p.memberId, nickname: s.nickname.trim() }, { actorId: p.memberId, quiet: true });
+    if (r.ok) done += 1;
+  }
+  return done;
 }
 
 /** 계정 탈퇴(비기능 데이터 보존). 초안 적용 → 계정 삭제 → 로그아웃 */

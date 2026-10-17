@@ -68,7 +68,7 @@ export const OP_OWNER: Record<OpType, ReducerKey> = {
 };
 
 /**
- * 종료 잠금 예외. 여행이 끝나도 사진 추가·일기 편집, 나가기, 계정 탈퇴 익명화, 방 삭제는 된다.
+ * 종료 잠금 예외. 여행이 끝나도 사진 추가·일기 편집, 나가기, 계정 탈퇴 익명화, 방 삭제, 내 이름 바꾸기(프로필 닉네임 맞추기)는 된다.
  */
 export const LOCK_EXEMPT: ReadonlySet<OpType> = new Set<OpType>([
   'journal/photoAdded',
@@ -80,6 +80,7 @@ export const LOCK_EXEMPT: ReadonlySet<OpType> = new Set<OpType>([
   'journal/diaryNote',
   'member/leave',
   'member/anonymize',
+  'member/rename',
   'trip/delete',
 ]);
 

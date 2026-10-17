@@ -134,11 +134,11 @@ describe('종료 잠금', () => {
     assert.equal(isEditLocked(doc, atKst('2026-10-20', '00:00')), true);
   });
 
-  test('LOCK_EXEMPT는 journal/*, member/leave, member/anonymize, trip/delete다', () => {
+  test('LOCK_EXEMPT는 journal/*, member/leave, member/anonymize, member/rename, trip/delete다', () => {
     const journal = (Object.keys(OP_OWNER) as OpType[]).filter((t) => t.startsWith('journal/'));
     assert.deepEqual(
       [...LOCK_EXEMPT].sort(),
-      [...journal, 'member/leave', 'member/anonymize', 'trip/delete'].sort(),
+      [...journal, 'member/leave', 'member/anonymize', 'member/rename', 'trip/delete'].sort(),
     );
   });
 
