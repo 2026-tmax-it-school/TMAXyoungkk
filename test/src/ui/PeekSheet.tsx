@@ -32,6 +32,8 @@ const DEFAULT_SNAPS: readonly SheetSnap[] = ['peek', 'full'];
  * - 끌지 않는 길: 손잡이를 누르면 nextOnTap, 스크린리더는 손잡이(adjustable)의 increment '펼치기' / decrement '접기'.
  * - mini 스냅에서 mini가 있으면 head와 children 대신 mini 한 줄을 그린다.
  * - 웹: 손잡이·head에 cursor grab과 touchAction none을 준다(브라우저 스크롤이 끌기를 가로채지 않게). RN Web은 마우스도 응답자로 받는다.
+ * - bottomInset: 탭 바 없이 화면 맨 아래에 닿는 시트(채팅방 지도)는 아래 안전 영역만큼 더 높게 그리고 그만큼 안쪽을 띄운다.
+ *   onSettle도 그 높이를 더해 알린다. 부모는 areaHeight에서 그만큼 빼서 넘긴다(펼친 시트가 위로 넘치지 않게).
  * - 표면은 카드색, 위쪽만 R.sheet 라운드, 지도 위에 뜨므로 E.float 그림자다.
  */
 export function PeekSheet({
@@ -47,6 +49,7 @@ export function PeekSheet({
   style,
   gripLabel,
   onSettle,
+  bottomInset = 0,
 }: {
   snap: SheetSnap;
   onSnap: (s: SheetSnap) => void;
@@ -60,6 +63,8 @@ export function PeekSheet({
   style?: StyleProp<ViewStyle>;
   gripLabel: string;
   onSettle?: (h: number) => void;
+  /** 시트가 화면 맨 아래에 닿을 때(탭 바가 없는 화면) 아래 안전 영역. 스냅 높이 위에 더해 내용이 홈 표시줄·내비게이션 바에 가리지 않는다 */
+  bottomInset?: number;
 }) {
   const hs: SheetHeights = { ...sheetHeights(areaHeight, maxRatio), ...heights };
   const target = hs[snap];
@@ -77,12 +82,12 @@ export function PeekSheet({
   }, [anim]);
 
   // 렌더마다 최신 값을 PanResponder(한 번 만든다)에 넘긴다
-  const latest = useRef({ hs, snaps, snap, onSnap, onSettle });
-  latest.current = { hs, snaps, snap, onSnap, onSettle };
+  const latest = useRef({ hs, snaps, snap, onSnap, onSettle, bottomInset });
+  latest.current = { hs, snaps, snap, onSnap, onSettle, bottomInset };
 
   const settle = (to: number) => {
     Animated.spring(anim, { toValue: to, useNativeDriver: false, bounciness: 0, speed: 18 }).start(({ finished }) => {
-      if (finished) latest.current.onSettle?.(to);
+      if (finished) latest.current.onSettle?.(to + latest.current.bottomInset);
     });
   };
   const settleRef = useRef(settle);
@@ -94,11 +99,13 @@ export function PeekSheet({
       // 처음 잰 높이에서는 움직이지 않고 바로 놓는다
       placed.current = true;
       anim.setValue(target);
-      latest.current.onSettle?.(target);
+      latest.current.onSettle?.(target + bottomInset);
       return;
     }
     settleRef.current(target);
   }, [ready, target, anim]);
+
+  const shown = useMemo(() => (bottomInset > 0 ? Animated.add(anim, bottomInset) : anim), [anim, bottomInset]);
 
   const pan = useMemo(
     () =>
@@ -144,7 +151,7 @@ export function PeekSheet({
   const showMini = snap === 'mini' && mini != null;
 
   return (
-    <Animated.View style={[styles.sheet, { height: anim }, style]}>
+    <Animated.View style={[styles.sheet, { height: shown, paddingBottom: bottomInset }, style]}>
       <View {...pan.panHandlers} style={styles.dragArea}>
         <Pressable
           accessibilityRole="adjustable"

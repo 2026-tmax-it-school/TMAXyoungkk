@@ -7,6 +7,7 @@ export { Icon, ICON_NAMES, type IconName } from './Icon';
 export { SvgLabel, type SvgLabelVariant } from './SvgLabel';
 export { Txt } from './Txt';
 export { Body, Col, Foot, Header, Row, Screen } from './layout';
+export { KeyboardAvoid, useBottomInset, useKeyboardShown } from './KeyboardAvoid';
 export { Card, type CardVariant } from './Card';
 export { Btn, IconBtn, type BtnVariant } from './Btn';
 export { AuthBtn, AuthTitle, Divider, TextLink, type AuthBtnVariant } from './Auth';

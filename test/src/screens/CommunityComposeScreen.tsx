@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { AppState, Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, View } from 'react-native';
+import { AppState, Image, Platform, Pressable, ScrollView, View } from 'react-native';
 
 import type { CommunityPhoto, CommunityPhotoInput } from '../core/ports';
 import {
@@ -40,7 +40,7 @@ import { useCommunity } from '../store/community';
 import { useSession } from '../store/session';
 import { useTripDoc } from '../store/trips';
 import { useUi } from '../store/ui';
-import { Body, Btn, Card, Col, ConfirmSheet, Empty, Field, Foot, Header, Icon, IconBtn, lineC, Notice, R, Row, Screen, Sheet, SP, surfaceC, Tag, TextLink, Txt } from '../ui';
+import { Body, Btn, Card, Col, ConfirmSheet, Empty, Field, Foot, Header, Icon, IconBtn, KeyboardAvoid, lineC, Notice, R, Row, Screen, Sheet, SP, surfaceC, Tag, TextLink, Txt } from '../ui';
 
 /**
  * 29 커뮤니티 글쓰기(WP6 소유, 2026-10-10, 2026-10-11 v2). 글은 서버에 올라가 앱 사용자 모두가 본다.
@@ -404,7 +404,7 @@ export default function CommunityComposeScreen({ navigation, route }: RootScreen
   return (
     <Screen>
       <Header back={back} eyebrow="여행 이야기" title={editing ? '글 수정' : '글쓰기'} />
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <KeyboardAvoid>
         <Body scroll>
           {restoredAt != null ? (
             <Row gap={SP.m}>
@@ -559,7 +559,7 @@ export default function CommunityComposeScreen({ navigation, route }: RootScreen
             <Btn title={busy ? '올리는 중' : '올리기'} disabled={busy || !ready || !check.ok} onPress={() => void submit()} />
           )}
         </Foot>
-      </KeyboardAvoidingView>
+      </KeyboardAvoid>
 
       <ConfirmSheet
         visible={leaving && !editing}
