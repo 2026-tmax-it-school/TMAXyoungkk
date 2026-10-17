@@ -8,6 +8,7 @@ import { DayTimeline } from '../features/schedule/components/DayTimeline';
 import { PlanSwitch } from '../features/schedule/components/PlanSwitch';
 import { initialScheduleDate } from '../features/schedule/edit';
 import { daySegLabel, dayTitle, scheduleOverflowText } from '../features/schedule/view';
+import { TripActions } from '../features/trip/components/TripActions';
 import { TripBar } from '../features/trip/components/TripBar';
 import { useActiveTrip } from '../features/trip/useActiveTrip';
 import type { TabScreenProps } from '../navigation/routes';
@@ -97,6 +98,8 @@ export default function ScheduleScreen({ navigation, route }: TabScreenProps<'Sc
         <TripBar back={homeBack} />
       </View>
       <View style={{ paddingTop: SP.xxl, paddingBottom: SP.xxl, gap: SP.xxl }}>
+        {/* 여행방 빠른 메뉴(멤버 초대·AI 추천·설정 등, 단계별). 홈에서 옮겨 왔다 */}
+        <TripActions trip={trip} />
         <PlanSwitch value="Schedule" candidates={trip.spots.length} />
         <View style={{ paddingHorizontal: SP.gutter }}>
           <Seg

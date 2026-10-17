@@ -9,6 +9,11 @@ import {
   defaultSegment,
   homeActions,
   homeSegments,
+  cardRowAtEnd,
+  cardRowContentWidth,
+  pullOffset,
+  pullProgress,
+  PULL_TRIGGER,
   showsSegmentBar,
   tripBadge,
   tripCardInfo,
@@ -162,25 +167,25 @@ describe('여행 표지 카드의 다음 할 일', () => {
   });
 });
 
-describe('선택한 여행방의 빠른 메뉴 4칸', () => {
+describe('여행방 빠른 메뉴(후보·시간표 화면 위)', () => {
   const today = '2026-10-18';
   const keys = (t: Trip | undefined, plan?: Plan) => homeActions(t, plan, today).map((c) => c.key);
 
-  test('예정: 그룹 채팅, 멤버 초대, 여행지 추천, 여행방 설정', () => {
-    assert.deepEqual(keys(trip('a', '2026-11-01', '2026-11-02')), ['chat', 'members', 'recommend', 'settings']);
+  test('예정: 멤버 초대, 채팅(멤버 초대 오른쪽), 여행일지(채팅 오른쪽), 여행지 추천, 여행방 설정', () => {
+    assert.deepEqual(keys(trip('a', '2026-11-01', '2026-11-02')), ['members', 'chat', 'diary', 'recommend', 'itineraries', 'settings']);
   });
 
-  test('진행 중: 구간 안내, 그룹 채팅, 일기 쓰기(오늘), 여행방 설정', () => {
+  test('진행 중: 구간 안내, 채팅, 일기 쓰기(오늘), 여행방 설정', () => {
     const cells = homeActions(trip('a', '2026-10-17', '2026-10-19'), undefined, today);
     assert.deepEqual(
       cells.map((c) => c.key),
-      ['navigate', 'chat', 'diary', 'settings'],
+      ['navigate', 'chat', 'diary', 'itineraries', 'settings'],
     );
     assert.equal(cells.find((c) => c.key === 'diary')?.date, today);
   });
 
-  test('완료: 여행일지, 일정 공유하기, 그룹 채팅, 여행방 설정', () => {
-    assert.deepEqual(keys(trip('a', '2026-09-01', '2026-09-03')), ['diary', 'share', 'chat', 'settings']);
+  test('완료: 채팅, 여행일지, 일정 공유하기, 여행방 설정', () => {
+    assert.deepEqual(keys(trip('a', '2026-09-01', '2026-09-03')), ['chat', 'diary', 'share', 'itineraries', 'settings']);
   });
 
   test("구간 안내 칸 이름은 '구간 안내'이고 늘 켜져 있다(시간표가 없으면 구간 안내 화면이 '루트 계산'을 안내)", () => {
@@ -196,7 +201,7 @@ describe('선택한 여행방의 빠른 메뉴 4칸', () => {
     assert.equal(homeActions(trip('a', '2026-10-17', '2026-10-19'), empty, today).find((c) => c.key === 'navigate')?.disabled, false);
   });
 
-  test('꺼지는 칸은 채팅 칸뿐이다(홈은 채팅 칸의 이유 줄만 그리므로, 이유 없이 회색인 칸이 생기지 않는다)', () => {
+  test('꺼지는 칸이 없다(이유 없이 회색인 칸이 생기지 않는다)', () => {
     for (const [s, e] of [
       ['2026-11-01', '2026-11-02'],
       ['2026-10-17', '2026-10-19'],
@@ -205,41 +210,51 @@ describe('선택한 여행방의 빠른 메뉴 4칸', () => {
       for (const p of [undefined, { days: [], excluded: [] } as unknown as Plan]) {
         for (const t of [trip('a', s, e), personal(trip('a', s, e))]) {
           const off = homeActions(t, p, today).filter((c) => c.disabled);
-          assert.ok(off.every((c) => c.key === 'chat' && (c.reason ?? '').length > 0), `${s}: ${off.map((c) => c.key).join(',')}`);
+          assert.deepEqual(off.map((c) => c.key), [], s);
         }
       }
     }
   });
 
-  test('빠른 메뉴 4칸 간격은 SP.xs: 360px에서 칸 너비 75px로 가장 긴 라벨(여행방 설정 72.3px)이 잘리지 않는다', () => {
-    const home = readFileSync('src/screens/HomeScreen.tsx', 'utf8');
-    assert.match(home, /<Row gap=\{SP\.xs\} top>\s*\{actions\.map\(\(c\) => \(\s*<QuickAction/);
+  test('빠른 메뉴는 홈이 아니라 후보·시간표 화면 위(TripActions)에 있고 5칸이면 오륜기처럼 두 줄이다', () => {
+    const actions = readFileSync('src/features/trip/components/TripActions.tsx', 'utf8');
+    // 5칸이면 오륜기처럼 위 3칸·아래 2칸(가운데), 칸 폭은 한 줄의 1/3
+    assert.match(actions, /const rows = cells\.length >= 5 \? \[cells\.slice\(0, 3\), cells\.slice\(3\)\] : \[cells\];/);
+    assert.match(actions, /width: '33\.33%'/);
+    assert.match(readFileSync('src/screens/CandidatesScreen.tsx', 'utf8'), /<TripActions trip=\{trip\} \/>/);
+    assert.match(readFileSync('src/screens/ScheduleScreen.tsx', 'utf8'), /<TripActions trip=\{trip\} \/>/);
+    assert.doesNotMatch(readFileSync('src/screens/HomeScreen.tsx', 'utf8'), /<QuickAction|homeActions/);
   });
 
-  test('개인 모드(활성 멤버 1명)도 채팅 칸이 열리고 이름이 채팅 메모다', () => {
-    for (const [s, e] of [
-      ['2026-11-01', '2026-11-02'],
-      ['2026-10-17', '2026-10-19'],
-      ['2026-09-01', '2026-09-03'],
-    ]) {
-      const chat = homeActions(personal(trip('a', s, e)), undefined, today).find((c) => c.key === 'chat');
-      assert.ok(chat);
-      assert.equal(chat.disabled, false);
-      assert.equal(chat.label, '채팅 메모');
+  test("새 여행은 홈 카드 줄 끝 '+' 손잡이(여행 카드와 같은 연회색 모양)다. 누르거나, 줄 끝에서 왼쪽으로 뻑뻑하게(고무줄 저항) 끌어 놓으면 여행방 만들기로 간다", () => {
+    for (const t of [trip('a', '2026-11-01', '2026-11-02'), trip('b', '2026-10-17', '2026-10-19'), personal(trip('c', '2026-09-01', '2026-09-03'))]) {
+      const cells = homeActions(t, undefined, today);
+      assert.ok(!cells.some((c) => c.key === 'create'));
+      const chat = cells.find((c) => c.key === 'chat');
+      assert.equal(chat?.label, t.members.filter((m) => m.leftAt == null).length > 1 ? '그룹 채팅' : '채팅 메모');
     }
-  });
-
-  test('그룹 모드면 채팅 칸이 열린다', () => {
-    const chat = homeActions(trip('a', '2026-10-17', '2026-10-19'), undefined, today).find((c) => c.key === 'chat');
-    assert.equal(chat?.disabled, false);
-  });
-
-  test('방장 외 전원이 나가면 다시 개인 모드지만 채팅 메모로 열려 있다', () => {
-    const t = trip('a', '2026-10-17', '2026-10-19');
-    const alone = { ...t, members: t.members.map((m) => (m.role === 'host' ? m : { ...m, leftAt: NOW })) };
-    const chat = homeActions(alone, undefined, today).find((c) => c.key === 'chat');
-    assert.equal(chat?.disabled, false);
-    assert.equal(chat?.label, '채팅 메모');
+    // 끌수록 덜 따라온다(손가락 100 → 64, 200 → 95, 400 → 124). 오른쪽으로 끌면 0
+    assert.equal(pullOffset(0), 0);
+    assert.equal(pullOffset(-50), 0);
+    assert.equal(Math.round(pullOffset(100)), 64);
+    assert.equal(Math.round(pullOffset(200)), 95);
+    assert.equal(Math.round(pullOffset(400)), 124);
+    assert.ok(pullOffset(10_000) < 180, '아무리 끌어도 저항 상한(180)을 넘지 않는다');
+    // 조금 끌어서는 만들지 않고, 손가락 약 285px 넘게 끌어야 PULL_TRIGGER에 닿는다
+    assert.ok(pullOffset(200) < PULL_TRIGGER);
+    assert.ok(pullOffset(300) >= PULL_TRIGGER);
+    assert.equal(pullProgress(PULL_TRIGGER / 2), 0.5);
+    assert.equal(pullProgress(500), 1);
+    // 줄 끝 판단: 크기를 모르면 끝이 아니다(옆으로 밀기를 가로채지 않는다). 카드 2장 내용 폭 = 왼쪽 24 + 2×288 + 잘린 카드 52 = 652
+    assert.equal(cardRowContentWidth(2), 652);
+    assert.equal(cardRowAtEnd(0, 0, 0), false);
+    assert.equal(cardRowAtEnd(0, 420, 652), false, '처음 위치에서는 끝이 아니라 옆으로 밀린다');
+    assert.equal(cardRowAtEnd(232, 420, 652), true);
+    assert.equal(cardRowAtEnd(0, 800, 652), true, '화면이 넓어 다 보이면 처음부터 끝');
+    const home = readFileSync('src/screens/HomeScreen.tsx', 'utf8');
+    assert.match(home, /<NewTripPeek onPress=\{openCreate\} \/>\s*<\/Animated\.ScrollView>\s*<NewTripPull pull=\{pullX\} ready=\{pullReady\} \/>/);
+    assert.match(home, /onMoveShouldSetPanResponderCapture: \(_, g\) => rowAtEnd\.current && g\.dx < -6/);
+    assert.match(home, /navigation\.navigate\('CreateTrip'\)/);
   });
 
   test('여행방 설정 칸은 개인 모드에서도 늘 열려 있다', () => {
@@ -273,5 +288,28 @@ describe('18 설정 문구', () => {
     const t = trip('now', '2026-10-17', '2026-10-19');
     assert.match(retentionText(t), /2027-10-19까지 보관/);
     assert.match(retentionText(undefined), /1년/);
+  });
+});
+
+describe('홈 검색(내 여행방·지역·AI 추천 여행지)', () => {
+  test("'서울'을 적으면 여행지가 서울인 방, 방 이름이 맞는 방이 남고 지역은 서울이 먼저다", async () => {
+    const { searchTrips, searchRegions, mergeRegionHits } = await import('../src/features/account/homeSearch');
+    const seoul = { ...trip('a', '2026-11-01', '2026-11-02'), title: '친구들과 주말', region: 'seoul' };
+    const busan = { ...trip('b', '2026-11-01', '2026-11-02'), title: '부산 당일', region: 'busan' };
+    const named = { ...trip('c', '2026-11-01', '2026-11-02'), title: '서울 맛집 투어', region: 'incheon' };
+    assert.deepEqual(searchTrips([seoul, busan, named], '서울').map((t) => t.id), ['a', 'c']);
+    assert.deepEqual(searchTrips([seoul, busan, named], '').map((t) => t.id), ['a', 'b', 'c'], '빈 검색어면 그대로');
+    assert.deepEqual(searchTrips([seoul, busan, named], '부 산').map((t) => t.id), ['b'], '공백 무시');
+    const regions = searchRegions('서울');
+    assert.equal(regions[0]?.region.id, 'seoul');
+    assert.deepEqual(searchRegions(''), []);
+    // 목록 밖 지역 검색 결과를 합친다(같은 이름은 한 번)
+    const merged = mergeRegionHits(regions, [regions[0].region, { id: 'x-iksan', name: '익산', label: '전북 익산시', center: { latitude: 35.9, longitude: 126.9 }, radiusKm: 15 }]);
+    assert.deepEqual(merged.map((h) => h.region.name), [...regions.map((h) => h.region.name), '익산'].slice(0, 3));
+    const home = readFileSync('src/screens/HomeScreen.tsx', 'utf8');
+    assert.match(home, /const list = searching \? searchTrips\(trips, query\) : allCards;/);
+    assert.match(home, /<HomeSearchResults/);
+    const results = readFileSync('src/features/account/HomeSearchResults.tsx', 'utf8');
+    assert.match(results, /recommend\.recommend\(\{ region: first/, 'AI 추천은 첫 지역으로 묻는다');
   });
 });

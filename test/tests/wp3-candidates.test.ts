@@ -392,7 +392,7 @@ test('06 화면: 지금 보는 여행방 줄, 시간표|후보 나누기와 요�
   const src = stripComments(read('src/screens/CandidatesScreen.tsx'));
   assert.match(src, /useActiveTrip\(\)/);
   assert.doesNotMatch(src, /useCurrentTrip/);
-  assert.match(src, /<TripBar back=\{homeBack\} \/>\s*<PlanSwitch value="Candidates" candidates=\{view\.total\} \/>/);
+  assert.match(src, /<TripBar back=\{homeBack\} \/>\s*\{\s*\}\s*<View style=\{styles\.actions\}>\s*<TripActions trip=\{trip\} \/>\s*<\/View>\s*<PlanSwitch value="Candidates" candidates=\{view\.total\} \/>/);
   assert.match(src, /const line = summaryLine\(view\)/);
   assert.match(src, /<Txt v="mtTight" numberOfLines=\{1\}>\s*\{line \?\?/, '요약은 높이가 고정된 한 줄이다');
   assert.doesNotMatch(src, /<Seg\b/, '확정/제외 Seg 없이 목록 하나를 구역 머리로 나눈다');

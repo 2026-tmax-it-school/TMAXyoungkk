@@ -113,8 +113,9 @@ test('화면과 진입점이 이어졌다', () => {
   const nav = read('src/navigation/RootNavigator.tsx');
   for (const n of ['Itineraries', 'ItineraryDetail', 'ShareItinerary']) assert.match(nav, new RegExp(`name="${n}"`));
   const home = read('src/screens/HomeScreen.tsx');
-  assert.match(home, /navigate\('Itineraries'\)/);
-  assert.match(home, /<SectionTitle title="공유된 여행 일정" \/>/);
+  // 공유된 여행 일정 입구는 홈 구역에서 여행방 빠른 메뉴 '공유된 일정' 칸으로 옮겼다(2026-10-17)
+  assert.doesNotMatch(home, /<SectionTitle title="공유된 여행 일정" \/>/);
+  assert.match(read('src/features/trip/components/TripActions.tsx'), /navigation\.navigate\('Itineraries'\)/);
   assert.doesNotMatch(home, /<SectionTitle title="추천 여행 일정" onMore/);
   assert.match(read('src/screens/TripSettingsScreen.tsx'), /navigate\('ShareItinerary'/);
   assert.match(read('src/screens/ItineraryDetailScreen.tsx'), /navigate\('CreateTrip', \{ regionId: item\.regionId, shared: true \}\)/);

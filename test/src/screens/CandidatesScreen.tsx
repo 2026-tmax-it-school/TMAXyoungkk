@@ -15,6 +15,7 @@ import {
 } from '../features/candidates/rows';
 import { summaryLine } from '../features/candidates/summary';
 import { PlanSwitch } from '../features/schedule/components/PlanSwitch';
+import { TripActions } from '../features/trip/components/TripActions';
 import { TripBar } from '../features/trip/components/TripBar';
 import { useActiveTrip } from '../features/trip/useActiveTrip';
 import type { TabScreenProps } from '../navigation/routes';
@@ -111,6 +112,10 @@ export default function CandidatesScreen({ navigation, route }: TabScreenProps<'
   return (
     <Screen>
       <TripBar back={homeBack} />
+      {/* 여행방 빠른 메뉴(멤버 초대·AI 추천·설정 등, 단계별). 홈에서 옮겨 왔다 */}
+      <View style={styles.actions}>
+        <TripActions trip={trip} />
+      </View>
       <PlanSwitch value="Candidates" candidates={view.total} />
       <View style={styles.summary}>
         <Txt v="mtTight" numberOfLines={1}>
@@ -279,6 +284,7 @@ function SectionHead<T>({ section }: { section: CandidateSection<T> }) {
 }
 
 const styles = StyleSheet.create({
+  actions: { paddingTop: SP.l, paddingBottom: SP.xl },
   summary: { paddingHorizontal: SP.gutter, paddingTop: SP.s, paddingBottom: SP.xs },
   searchEntry: {
     flexDirection: 'row',

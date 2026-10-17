@@ -1,8 +1,6 @@
-import { useNavigation } from '@react-navigation/native';
 import React, { useState } from 'react';
 import { Pressable, View } from 'react-native';
 
-import { tripMode } from '../../../core/group';
 import type { TripStatus } from '../../../core/tripStatus';
 import { useNow } from '../../../services/clock';
 import { useUi } from '../../../store/ui';
@@ -24,13 +22,12 @@ const PICK_TITLE = '여행방을 골라 주세요';
  * 지금 보는 여행방 줄(일정·후보·지도 탭 맨 위). 방은 useActiveTrip이 정하고 여기서 그 자리에서 바꾼다.
  * - variant 'bar': 첫 줄에 여행방 이름과 아래 꺾쇠, 둘째 줄에 상태 칩(tripBadge). 360px에서 오른쪽 아이콘이 셋이어도
  *   이름이 줄 너비를 다 쓰도록 칩을 이름 옆이 아니라 아래에 둔다. 누르면 '여행방 바꾸기' 시트(진행 중·예정·완료 순 ListRow).
- *   오른쪽에 채팅(그룹 모드만), 멤버·초대, 여행방 설정(개인 모드도 늘)을 둔다.
+ *   오른쪽 아이콘(채팅·멤버·설정)은 2026-10-17에 뺐다. 같은 일은 아래 여행방 빠른 메뉴(features/trip TripActions)가 한다.
  * - variant 'chip': 지도 위 왼쪽 위 알약(MapPill). 누르면 같은 시트가 열린다.
  * 방이 0개면 아무것도 그리지 않는다(화면이 Empty와 '여행방 만들기'를 보인다).
  * 방은 있는데 고른 방이 없으면 '여행방을 골라 주세요'를 보인다.
  */
 export function TripBar({ variant = 'bar', back }: { variant?: 'bar' | 'chip'; back?: () => void }) {
-  const navigation = useNavigation();
   const { trip, trips } = useActiveTrip();
   const setCurrentTrip = useUi((s) => s.setCurrentTrip);
   const now = useNow();
@@ -76,15 +73,6 @@ export function TripBar({ variant = 'bar', back }: { variant?: 'bar' | 'chip'; b
         </View>
         {badge ? <Chip text={badge} tone="soft" /> : null}
       </Pressable>
-      {trip ? (
-        <IconBtn icon="chat" label={tripMode(trip) === 'group' ? '채팅' : '채팅 메모'} onPress={() => navigation.navigate('Chat', { tripId: trip.id })} />
-      ) : null}
-      {trip ? (
-        <IconBtn icon="users" label="멤버·초대" onPress={() => navigation.navigate('Members', { tripId: trip.id })} />
-      ) : null}
-      {trip ? (
-        <IconBtn icon="gear" label="여행방 설정" onPress={() => navigation.navigate('TripSettings', { tripId: trip.id })} />
-      ) : null}
       {sheet}
     </View>
   );

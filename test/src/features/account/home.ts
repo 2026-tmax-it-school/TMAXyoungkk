@@ -159,6 +159,7 @@ export type HomeMenuKey =
   | 'recommend'
   | 'settings'
   | 'share'
+  | 'itineraries'
   | 'diary';
 export type HomeMenuIcon = 'plus' | 'chat' | 'list' | 'map' | 'link' | 'nav' | 'compass' | 'gear' | 'camera' | 'book' | 'users' | 'share';
 
@@ -173,17 +174,25 @@ export interface HomeMenuCell {
   date?: string;
 }
 
+
+/** 여행일지 칸(일기·사진 한 화면). 홈의 '여행일지' 구역에서 옮겨 채팅 칸 오른쪽에 둔다(2026-10-17) */
+const JOURNAL_CELL: HomeMenuCell = { key: 'diary', label: '여행일지', icon: 'book', disabled: false };
+
+/** 공유된 여행 일정(다른 사람의 일정 둘러보기·가져오기). 홈 '공유된 여행 일정' 줄과 같은 곳으로 간다(2026-10-17) */
+const SHARED_CELL: HomeMenuCell = { key: 'itineraries', label: '공유된 일정', icon: 'share', disabled: false };
+
+/** 채팅 칸(2026-10-17 여행 이름 줄 아이콘에서 옮김). 혼자 여행은 혼자 쓰는 '채팅 메모' */
 function chatCell(trip: Trip): HomeMenuCell {
-  // 혼자 여행(개인 모드)도 채팅을 쓴다: 혼자 쓰는 '채팅 메모'(2026-10-17)
   return { key: 'chat', label: tripMode(trip) === 'personal' ? '채팅 메모' : '그룹 채팅', icon: 'chat', disabled: false };
 }
 
 /**
- * 선택한 여행방 구역의 빠른 메뉴 4칸. 단계(예정·진행 중·완료)에 맞는 일을 돌려준다. 여행방 설정은 늘 끝 칸이다.
- * - 예정: 그룹 채팅, 멤버 초대, 여행지 추천, 여행방 설정
- * - 진행 중: 구간 안내(오늘 첫 구간), 그룹 채팅, 일기 쓰기(오늘), 여행방 설정
- * - 완료: 여행일지, 일정 공유하기, 그룹 채팅, 여행방 설정
- * 꺼지는 칸은 개인 모드의 채팅 칸 하나뿐이고 이유를 적는다(화면이 그 이유 줄을 칸 아래에 보인다). 여행방이 없으면 빈 목록이다(화면은 만들기 Empty).
+ * 여행방 빠른 메뉴 칸(features/trip/components/TripActions가 후보·시간표 화면 위에 그린다, 2026-10-17 홈에서 옮김).
+ * 단계(예정·진행 중·완료)에 맞는 일을 돌려준다. 여행방 설정은 늘 끝 칸이다.
+ * - 예정: 멤버 초대, 채팅, 여행일지, 여행지 추천, 공유된 일정, 여행방 설정
+ * - 진행 중: 구간 안내(오늘 첫 구간), 채팅, 일기 쓰기(오늘 여행일지), 공유된 일정, 여행방 설정
+ * - 완료: 채팅, 여행일지, 일정 공유하기, 공유된 일정, 여행방 설정
+ * 채팅 오른쪽은 늘 여행일지(진행 중이면 오늘 날짜로 여는 '일기 쓰기')다. 홈의 '여행일지' 구역은 뺐다. 여행 이름 줄의 채팅·멤버·설정 아이콘은 뺐다. 새 여행은 홈 카드 줄 오른쪽 '+' 칸에 있다. 꺼지는 칸은 없다. 여행방이 없으면 빈 목록이다.
  * plan은 호출 모양을 지키려고 받는다(구간 안내 칸은 시간표가 없어도 켜 둔다).
  */
 export function homeActions(trip: Trip | undefined, _plan: Plan | undefined, today: string): HomeMenuCell[] {
@@ -192,9 +201,11 @@ export function homeActions(trip: Trip | undefined, _plan: Plan | undefined, tod
   const s = statusOn(trip, today);
   if (s === 'upcoming') {
     return [
-      chatCell(trip),
       { key: 'members', label: '멤버 초대', icon: 'users', disabled: false },
+      chatCell(trip),
+      JOURNAL_CELL,
       { key: 'recommend', label: 'AI 여행지 추천', icon: 'compass', disabled: false },
+      SHARED_CELL,
       settings,
     ];
   }
@@ -204,15 +215,60 @@ export function homeActions(trip: Trip | undefined, _plan: Plan | undefined, tod
       { key: 'navigate', label: '구간 안내', icon: 'nav', disabled: false, date: today },
       chatCell(trip),
       { key: 'diary', label: '일기 쓰기', icon: 'book', disabled: false, date: today },
+      SHARED_CELL,
       settings,
     ];
   }
   return [
-    { key: 'diary', label: '여행일지', icon: 'book', disabled: false },
-    { key: 'share', label: '일정 공유하기', icon: 'share', disabled: false },
     chatCell(trip),
+    JOURNAL_CELL,
+    { key: 'share', label: '일정 공유하기', icon: 'share', disabled: false },
+    SHARED_CELL,
     settings,
   ];
+}
+
+/* ---------- 카드 줄 끝 '+ 새 여행' 당기기(2026-10-17) ---------- */
+
+/** 카드 줄 끝에 늘 보이는 '+' 손잡이 폭과 높이(내 여행 카드 CoverTile lg 높이와 같다) */
+export const NEW_TRIP_PEEK = 52;
+export const NEW_TRIP_H = 300;
+/**
+ * 당김 저항(고무줄). 손가락이 d만큼 끌면 칸은 d·K/(d+K)만큼만 따라온다. K에 가까워질수록 점점 덜 움직여서
+ * 끝으로 갈수록 뻑뻑하다(손가락 100 → 64, 200 → 95, 400 → 124).
+ */
+export const PULL_STIFFNESS = 180;
+/** 내 여행 카드 폭(CoverTile lg)과 카드 사이 간격(홈 cardRow gap = SP.xxl), 줄 좌우 여백(SP.gutter) */
+const CARD_W = 272;
+const CARD_GAP = 16;
+const ROW_GUTTER = 24;
+
+/**
+ * 카드 줄 내용 폭: 왼쪽 여백 + 카드 n장 + 간격 n개 + '+' 손잡이(오른쪽 여백 없이 화면 끝에 붙는 잘린 카드). 스크롤 전에도 줄 끝인지 알 수 있게 계산으로 구한다
+ * (웹에서 내용 크기 알림이 처음에 오지 않아 '끝'으로 잘못 보고 옆으로 밀기를 가로챈 적이 있다, 2026-10-17)
+ */
+export function cardRowContentWidth(cards: number): number {
+  return ROW_GUTTER + cards * (CARD_W + CARD_GAP) + NEW_TRIP_PEEK;
+}
+
+/** 지금 스크롤 위치가 카드 줄 끝인지(끝에서만 '+ 새 여행' 당기기를 받는다). 화면 폭을 모르면 끝이 아니다 */
+export function cardRowAtEnd(x: number, viewW: number, contentW: number): boolean {
+  if (!(viewW > 0) || !(contentW > 0)) return false;
+  return x + viewW >= contentW - 2;
+}
+
+/** 칸이 이만큼 따라오면(손가락 약 285px) 놓았을 때 여행방 만들기로 간다 */
+export const PULL_TRIGGER = 110;
+
+/** 손가락이 끈 거리(왼쪽으로 +) → 칸이 실제로 따라온 거리 */
+export function pullOffset(drag: number): number {
+  if (!(drag > 0)) return 0;
+  return (drag * PULL_STIFFNESS) / (drag + PULL_STIFFNESS);
+}
+
+/** 따라온 거리 → 당김 정도(0~1). 1이면 놓았을 때 만든다 */
+export function pullProgress(offset: number): number {
+  return Math.max(0, Math.min(1, offset / PULL_TRIGGER));
 }
 
 /* ---------- 추천 여행지 줄(2026-10-10 리디자인) ---------- */

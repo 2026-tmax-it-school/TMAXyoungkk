@@ -77,8 +77,8 @@ test('useActiveTrip은 pickCurrentTrip을 쓰고 고른 방을 저장값에 맞�
   const bar = read('src/features/trip/components/TripBar.tsx');
   assert.match(bar, /if \(trips\.length === 0\) return null;/);
   assert.match(bar, /여행방을 골라 주세요/);
-  assert.match(bar, /label="여행방 설정"/);
-  assert.match(bar, /tripMode\(trip\) === 'group'/);
+  // 오른쪽 채팅·멤버·설정 아이콘은 뺐다(같은 일은 아래 빠른 메뉴 TripActions가 한다)
+  assert.doesNotMatch(bar, /IconBtn icon="(chat|users|gear)"/);
   assert.match(bar, /<MapPill/);
   // 360px에서도 이름이 줄 너비를 쓰도록 상태 칩은 이름 줄 아래 줄에 둔다(이름 옆에 두면 아이콘 셋과 겹쳐 이름이 한두 글자로 잘림)
   assert.match(bar, /<Icon name="down"[^>]*\/>\s*<\/View>\s*\{badge \? <Chip text=\{badge\}/);

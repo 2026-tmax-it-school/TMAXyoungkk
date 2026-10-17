@@ -50,10 +50,11 @@ test('여행일지 화면: 날짜 탭(전체 포함) 아래 일기 블록과 사
   assert.match(j, /onPhoto=\{setSelected\}/);
 });
 
-test('홈과 여행 진행에서는 모두 여행일지로 간다', () => {
+test('빠른 메뉴와 여행 진행에서는 모두 여행일지로 간다', () => {
   const home = read('src/screens/HomeScreen.tsx');
   assert.doesNotMatch(home, /navigate\('(Photos|Diary|RecordMap)'/);
-  assert.match(home, /navigation\.navigate\('Journal', \{ tripId: current\.id \}\)/);
+  const actions = read('src/features/trip/components/TripActions.tsx');
+  assert.match(actions, /navigation\.navigate\('Journal', cell\.date \? \{ tripId, date: cell\.date \} : \{ tripId \}\)/);
   const live = read('src/screens/LiveTripScreen.tsx');
   assert.match(live, /navigation\.navigate\('Journal', \{ tripId, date \}\)/);
 });
