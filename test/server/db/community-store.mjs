@@ -10,7 +10,7 @@ const iso = (ms) => (ms == null ? null : new Date(ms).toISOString());
 const msOf = (v) => (v == null ? null : v instanceof Date ? v.getTime() : Date.parse(v));
 
 const INSERT_COLS = 'post_id, account_id, user_id, author_nickname, kind, title, body, created_at, tags';
-const POST_COLS = `${INSERT_COLS}, edited_at`;
+const POST_COLS = `${INSERT_COLS}, edited_at, views, likes`;
 
 function rowToPost(r, photos) {
   return {
@@ -24,6 +24,8 @@ function rowToPost(r, photos) {
     tags: Array.isArray(r.tags) ? [...r.tags] : [],
     createdAt: msOf(r.created_at),
     editedAt: r.edited_at == null ? null : Number(r.edited_at),
+    views: Number(r.views ?? 0),
+    likes: Number(r.likes ?? 0),
     photos,
   };
 }
@@ -135,14 +137,50 @@ export function createPgCommunityStore(db) {
       return rows.map((r) => rowToPost(r, byPost.get(r.post_id) ?? []));
     },
 
+    async likedSet(accountId, ids) {
+      if (ids.length === 0) return new Set();
+      const { rows } = await db.query('SELECT post_id FROM community_post_likes WHERE account_id = $1 AND post_id = ANY($2::text[])', [accountId, ids]);
+      return new Set(rows.map((r) => r.post_id));
+    },
+
+    async setLike(id, accountId, on) {
+      return db.tx(async (q) => {
+        if ((await q.query('SELECT 1 FROM community_posts WHERE post_id = $1', [id])).rows.length === 0) return null;
+        if (on) {
+          const ins = await q.query('INSERT INTO community_post_likes (post_id, account_id) VALUES ($1, $2) ON CONFLICT DO NOTHING RETURNING post_id', [id, accountId]);
+          if (ins.rows.length > 0) await q.query('UPDATE community_posts SET likes = likes + 1 WHERE post_id = $1', [id]);
+        } else {
+          const del = await q.query('DELETE FROM community_post_likes WHERE post_id = $1 AND account_id = $2 RETURNING post_id', [id, accountId]);
+          if (del.rows.length > 0) await q.query('UPDATE community_posts SET likes = likes - 1 WHERE post_id = $1', [id]);
+        }
+        const { rows } = await q.query(`SELECT ${POST_COLS} FROM community_posts WHERE post_id = $1`, [id]);
+        const photos = await q.query('SELECT photo_id, mime FROM community_photos WHERE post_id = $1 ORDER BY idx', [id]);
+        return rowToPost(rows[0], photos.rows.map((p) => ({ id: p.photo_id, mime: p.mime })));
+      });
+    },
+
+    async countView(id, viewerKey, day) {
+      return db.tx(async (q) => {
+        if ((await q.query('SELECT 1 FROM community_posts WHERE post_id = $1', [id])).rows.length === 0) return null;
+        const ins = await q.query('INSERT INTO community_post_views (post_id, viewer_key, day) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING RETURNING post_id', [id, viewerKey, day]);
+        if (ins.rows.length > 0) await q.query('UPDATE community_posts SET views = views + 1 WHERE post_id = $1', [id]);
+        return Number((await q.query('SELECT views FROM community_posts WHERE post_id = $1', [id])).rows[0].views);
+      });
+    },
+
     async removePost(id, accountId) {
       const { rows } = await db.query('DELETE FROM community_posts WHERE post_id = $1 AND account_id = $2 RETURNING post_id', [id, accountId]);
       return rows.length > 0;
     },
 
     async removeByAccount(accountId) {
-      const { rows } = await db.query('DELETE FROM community_posts WHERE account_id = $1 RETURNING post_id', [accountId]);
-      return rows.length;
+      return db.tx(async (q) => {
+        // 이 계정이 남의 글에 누른 좋아요를 돌려놓는다
+        await q.query('UPDATE community_posts p SET likes = likes - 1 FROM community_post_likes l WHERE l.post_id = p.post_id AND l.account_id = $1', [accountId]);
+        await q.query('DELETE FROM community_post_likes WHERE account_id = $1', [accountId]);
+        const { rows } = await q.query('DELETE FROM community_posts WHERE account_id = $1 RETURNING post_id', [accountId]);
+        return rows.length;
+      });
     },
 
     async photo(id) {
@@ -157,7 +195,7 @@ export function createPgCommunityStore(db) {
     },
 
     async reset() {
-      await db.query('TRUNCATE community_photos, community_posts');
+      await db.query('TRUNCATE community_post_views, community_post_likes, community_photos, community_posts');
     },
   };
 }

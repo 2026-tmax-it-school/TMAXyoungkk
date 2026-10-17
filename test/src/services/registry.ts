@@ -22,6 +22,7 @@ import type {
   AuthProvider,
   CommunityProvider,
   ItineraryProvider,
+  ChatSummaryProvider,
   Clock,
   DiaryWriter,
   ExtractionProvider,
@@ -40,6 +41,7 @@ import type {
 import { createAuthProvider } from './auth';
 import { createCommunityProvider } from './community';
 import { createItineraryProvider } from './itineraries';
+import { createSummaryProvider } from './summary';
 import { isClockOverridden, liveClock, systemClock } from './clock';
 import { createDiaryWriter } from './diary';
 import { createExtractionProvider } from './extraction';
@@ -91,6 +93,8 @@ export interface Services {
   routes: RouteProvider;
   extraction: ExtractionProvider;
   recommend: RecommendProvider;
+  /** AI 대화 요약(채팅방). AI 서버(/ai/summary)가 있으면 ai, 없으면 규칙 요약 */
+  summary: ChatSummaryProvider;
   diary: DiaryWriter;
   auth: AuthProvider;
   /** 커뮤니티(사진·일기 글). 서버 주소가 있으면 서버, 없으면 이 기기 모의 */
@@ -144,6 +148,7 @@ function build(): Services {
     routes,
     extraction: createExtractionProvider({ aiProxyUrl, fetch: appFetch }),
     recommend: createRecommendProvider({ aiProxyUrl: RECOMMEND_PROXY_URL || undefined, fetch: appFetch, places }),
+    summary: createSummaryProvider({ aiProxyUrl: RECOMMEND_PROXY_URL || undefined, fetch: appFetch }),
     diary: createDiaryWriter({ aiProxyUrl, fetch: appFetch }),
     auth: createAuthProvider({
       clock: liveClock,

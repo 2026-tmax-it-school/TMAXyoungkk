@@ -8,6 +8,8 @@
  *   POST /community/posts            Bearer {title,body,tags,photos:[{mime,data}]}     → {post}
  *   POST /community/posts/:id/update Bearer(본인 글만) {title,body,tags,photos:[{id}|{mime,data}]} → {post}
  *   POST /community/posts/:id/delete Bearer(본인 글만)                                → {ok:true}
+ *   POST /community/posts/:id/like   Bearer {on:boolean}  → {post}   좋아요(계정당 한 번)·취소
+ *   POST /community/posts/:id/view   누구나                → {views}   조회수(같은 사람은 하루 한 번, 본인 글은 안 센다)
  *   GET  /community/media/:photoId   → 사진 원본(image/jpeg·png·webp, 오래 캐시)
  *
  * 규칙
@@ -26,7 +28,7 @@
  * - 계정이 탈퇴하면 그 계정의 글과 사진을 지운다(removeByAccount, auth의 onAccountRemoved가 부른다).
  * - 닉네임은 글을 쓸 때의 값을 글에 둔다(나중에 바꿔도 예전 글은 그대로다).
  */
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 
 export const KINDS = Object.freeze(['photo', 'diary']);
 export const TITLE_MAX = 60;
@@ -148,7 +150,7 @@ export function parsePostUpdate(body, existing) {
 }
 
 /** 저장소 글 → 응답 글. 사진 원본은 싣지 않고 주소만 */
-export function publicPost(rec, viewerAccountId) {
+export function publicPost(rec, viewerAccountId, liked = false) {
   return {
     id: rec.id,
     kind: rec.kind,
@@ -161,6 +163,9 @@ export function publicPost(rec, viewerAccountId) {
     editedAt: rec.editedAt ?? null,
     photos: rec.photos.map((p) => ({ id: p.id, url: `/community/media/${p.id}` })),
     mine: viewerAccountId != null && rec.accountId === viewerAccountId,
+    views: rec.views ?? 0,
+    likes: rec.likes ?? 0,
+    liked: liked === true,
   };
 }
 
@@ -200,11 +205,14 @@ export function createMemoryCommunityStore() {
   const posts = new Map();
   /** @type {Map<string, {mime:string, bytes:Buffer}>} */
   const photos = new Map();
+  /** 좋아요 '글\0계정', 조회 '글\0보는사람\0날짜' */
+  const likeSet = new Set();
+  const viewSet = new Set();
   const order = (a, b) => b.createdAt - a.createdAt || (a.id < b.id ? 1 : a.id > b.id ? -1 : 0);
   return {
     kind: 'memory',
     async insertPost(rec) {
-      posts.set(rec.id, { ...rec, tags: [...(rec.tags ?? [])], photos: rec.photos.map((p) => ({ id: p.id, mime: p.mime })) });
+      posts.set(rec.id, { ...rec, views: 0, likes: 0, tags: [...(rec.tags ?? [])], photos: rec.photos.map((p) => ({ id: p.id, mime: p.mime })) });
       for (const p of rec.photos) photos.set(p.id, { mime: p.mime, bytes: p.bytes });
     },
     async getPost(id) {
@@ -237,15 +245,50 @@ export function createMemoryCommunityStore() {
       if (before) all = all.filter((p) => p.createdAt < before.createdAt || (p.createdAt === before.createdAt && p.id < before.id));
       return all.slice(0, limit).map((p) => ({ ...p, tags: [...p.tags], photos: p.photos.map((x) => ({ ...x })) }));
     },
+    async likedSet(accountId, ids) {
+      return new Set(ids.filter((id) => likeSet.has(`${id}\u0000${accountId}`)));
+    },
+    async setLike(id, accountId, on) {
+      const p = posts.get(id);
+      if (!p) return null;
+      const k = `${id}\u0000${accountId}`;
+      if (on && !likeSet.has(k)) {
+        likeSet.add(k);
+        p.likes += 1;
+      } else if (!on && likeSet.has(k)) {
+        likeSet.delete(k);
+        p.likes -= 1;
+      }
+      return { ...p, tags: [...p.tags], photos: p.photos.map((x) => ({ ...x })) };
+    },
+    async countView(id, viewerKey, day) {
+      const p = posts.get(id);
+      if (!p) return null;
+      const k = `${id}\u0000${viewerKey}\u0000${day}`;
+      if (!viewSet.has(k)) {
+        viewSet.add(k);
+        p.views += 1;
+      }
+      return p.views;
+    },
     async removePost(id, accountId) {
       const p = posts.get(id);
       if (!p || p.accountId !== accountId) return false;
       for (const x of p.photos) photos.delete(x.id);
       posts.delete(id);
+      for (const k of [...likeSet]) if (k.startsWith(`${id}\u0000`)) likeSet.delete(k);
       return true;
     },
     async removeByAccount(accountId) {
       let n = 0;
+      // 이 계정이 남의 글에 누른 좋아요를 돌려놓는다
+      for (const k of [...likeSet]) {
+        if (k.endsWith(`\u0000${accountId}`)) {
+          likeSet.delete(k);
+          const p = posts.get(k.split('\u0000')[0]);
+          if (p) p.likes -= 1;
+        }
+      }
       for (const p of [...posts.values()]) {
         if (p.accountId !== accountId) continue;
         for (const x of p.photos) photos.delete(x.id);
@@ -266,6 +309,8 @@ export function createMemoryCommunityStore() {
     async reset() {
       posts.clear();
       photos.clear();
+      likeSet.clear();
+      viewSet.clear();
     },
   };
 }
@@ -310,9 +355,10 @@ export function createCommunityService({ store = createMemoryCommunityStore(), a
       const acc = await viewer(headers);
       const rows = await store.list({ before, limit: limit + 1, kind: kind || null, tag, q });
       const page = rows.slice(0, limit);
+      const liked = acc ? await store.likedSet(acc.accountId, page.map((r) => r.id)) : new Set();
       return {
         status: 200,
-        body: { posts: page.map((r) => publicPost(r, acc?.accountId)), next: rows.length > limit ? cursorOf(page[page.length - 1]) : null },
+        body: { posts: page.map((r) => publicPost(r, acc?.accountId, liked.has(r.id))), next: rows.length > limit ? cursorOf(page[page.length - 1]) : null },
       };
     },
 
@@ -371,6 +417,26 @@ export function createCommunityService({ store = createMemoryCommunityStore(), a
       return (await store.removePost(id, acc.accountId)) ? { status: 200, body: { ok: true } } : fail(404, 'notFound', '내 글을 찾지 못했습니다');
     },
 
+    async 'POST posts/like'({ id, body, headers }) {
+      const acc = await viewer(headers);
+      if (!acc) return fail(401, 'loginRequired', '로그인하면 좋아요를 누를 수 있어요');
+      if (typeof body?.on !== 'boolean') return fail(400, 'badRequest', '요청이 올바르지 않습니다');
+      const rec = await store.setLike(id, acc.accountId, body.on);
+      if (!rec) return fail(404, 'notFound', '글을 찾지 못했습니다');
+      return { status: 200, body: { post: publicPost(rec, acc.accountId, body.on) } };
+    },
+
+    async 'POST posts/view'({ id, headers, ip }) {
+      const acc = await viewer(headers);
+      const rec = await store.getPost(id);
+      if (!rec) return fail(404, 'notFound', '글을 찾지 못했습니다');
+      // 본인 글 조회는 세지 않는다
+      if (acc && rec.accountId === acc.accountId) return { status: 200, body: { views: rec.views ?? 0 } };
+      const key = acc ? `a:${acc.accountId}` : `i:${createHash('sha256').update(String(ip ?? '')).digest('hex').slice(0, 16)}`;
+      const views = await store.countView(id, key, new Date(now()).toISOString().slice(0, 10));
+      return { status: 200, body: { views: views ?? rec.views ?? 0 } };
+    },
+
     async 'GET media'({ id }) {
       const p = await store.photo(id);
       return p ? { status: 200, raw: p } : fail(404, 'notFound');
@@ -379,7 +445,7 @@ export function createCommunityService({ store = createMemoryCommunityStore(), a
 
   return {
     /** path는 '/community/' 뒤(예: 'posts', 'posts/cmt-…/update', 'posts/cmt-…/delete', 'media/cph-…') */
-    async handle({ method, path, url, headers, body }) {
+    async handle({ method, path, url, headers, body, ip }) {
       const parts = String(path).split('/').filter(Boolean);
       try {
         if (parts[0] === 'posts' && parts.length === 1) {
@@ -391,6 +457,12 @@ export function createCommunityService({ store = createMemoryCommunityStore(), a
         }
         if (parts[0] === 'posts' && parts.length === 3 && parts[2] === 'update' && method === 'POST') {
           return await routes['POST posts/update']({ id: parts[1], body, headers });
+        }
+        if (parts[0] === 'posts' && parts.length === 3 && parts[2] === 'like' && method === 'POST') {
+          return await routes['POST posts/like']({ id: parts[1], body, headers });
+        }
+        if (parts[0] === 'posts' && parts.length === 3 && parts[2] === 'view' && method === 'POST') {
+          return await routes['POST posts/view']({ id: parts[1], headers, ip });
         }
         if (parts[0] === 'media' && parts.length === 2 && method === 'GET') return await routes['GET media']({ id: parts[1] });
         return fail(404, 'notFound');

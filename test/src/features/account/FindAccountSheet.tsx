@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 
 import { isEmailLike, normalizeEmail, passwordViolations } from '../../core/auth';
+import { CodeEntry } from './CodeEntry';
 import type { MockMail } from '../../core/ports';
 import { kstHHMM } from '../../core/util';
 import { getServices } from '../../services/registry';
@@ -141,14 +142,15 @@ export function FindAccountSheet({
             <Notice
               icon="mail"
               title="가입한 이메일이면 재설정 메일을 보냈어요"
-              text="30분 안에 메일의 링크로 새 비밀번호를 정해 주세요. 소셜 로그인으로 만든 계정은 카카오·구글로 로그인해 주세요."
+              text="30분 안에 메일에 적힌 코드를 아래 칸에 붙여 넣어 새 비밀번호를 정해 주세요. 소셜 로그인으로 만든 계정은 카카오·구글로 로그인해 주세요."
             />
           ) : null}
           {sentTo ? (
             <Col gap={SP.m}>
+              <CodeEntry label="메일로 받은 재설정 코드" button="코드로 재설정" busy={busy} onSubmit={(code) => setPicked({ id: 'code', kind: 'reset', to: sentTo, subject: '', token: code, sentAt: 0, invalidated: false })} />
               <Txt v="label">모의 메일함</Txt>
               {mails.length === 0 ? (
-                <Txt v="mt">받은 재설정 메일이 없어요. 잠시 뒤 다시 받아 주세요.</Txt>
+                <Txt v="mt">개발용 메일함이 닫혀 있거나 받은 재설정 메일이 없어요. 메일로 온 코드를 위 칸에 붙여 넣어 주세요.</Txt>
               ) : (
                 mails.map((m) => (
                   <Card key={m.id} variant={m.invalidated ? 'excluded' : 'default'}>

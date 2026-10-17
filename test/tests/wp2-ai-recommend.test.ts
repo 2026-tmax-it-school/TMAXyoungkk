@@ -18,6 +18,9 @@ import {
   placeFromKakao,
   safeReason,
   usesThinkingBudget,
+  SUMMARY_LIMITS,
+  parseSummaryBody,
+  summaryFromGemini,
   type AiFetch,
   type AiRecommenderOptions,
 } from '../server/ai.mjs';
@@ -356,7 +359,7 @@ test('HTTP 서버: POST /ai/recommend, 큰 본문 413, ai:false면 404, 앱 추�
     assert.equal(res.status, 200);
     assert.equal(res.headers.get('access-control-allow-origin'), '*');
     assert.equal(((await res.json()) as Items).items.length, 4);
-    const big = await fetch(`${server.url}/ai/recommend`, { method: 'POST', body: JSON.stringify(body({ candidates: ['가'.repeat(12 * 1024)] })) });
+    const big = await fetch(`${server.url}/ai/recommend`, { method: 'POST', body: JSON.stringify(body({ candidates: ['가'.repeat(24 * 1024)] })) });
     assert.equal(big.status, 413);
     assert.equal((await fetch(`${off.url}/ai/recommend`, { method: 'POST', body: '{}' })).status, 404);
     const disabled = await fetch(`${nokey.url}/ai/recommend`, { method: 'POST', body: JSON.stringify(body()) });
@@ -558,4 +561,65 @@ test('이유: 주소·전화번호 꼴·꺾쇠가 있으면 중립 문장', asyn
   const { ai } = service({ fetch: inj.fetch });
   const out = (await post(ai, body())).body as Items;
   assert.ok(out.items.length > 0 && out.items.every((i) => i.reason === NEUTRAL_REASON));
+});
+
+/* ---------- 채팅 요약(POST /ai/summary, 2026-10-17) ---------- */
+
+const summaryBody = (over: Record<string, unknown> = {}) => ({
+  title: '경주 2박 3일',
+  region: '경주',
+  start: '2026-10-23',
+  end: '2026-10-25',
+  messages: [
+    { who: '민지', text: '불국사 가자' },
+    { who: '준호', text: '좋아, 둘째 날은 황리단길에서 점심' },
+  ],
+  spots: [{ name: '불국사', category: '관광지' }],
+  ...over,
+});
+const SUMMARY_JSON = { overview: '불국사와 황리단길을 가기로 했어요.', decided: ['첫날 불국사를 가요'], open: ['숙소를 정해야 해요'] };
+const sum = (ai: ReturnType<typeof createAiRecommender>, b: unknown, ip = '10.0.0.1') => ai.handle({ method: 'POST', path: 'summary', body: b, ip });
+
+test('요약 본문 검사: 뒤쪽 80개만, 글자 수 상한, 대화가 모자라면 400, 모르는 이름 거부', () => {
+  const ok = parseSummaryBody(summaryBody({ messages: Array.from({ length: 100 }, (_, i) => ({ who: '가'.repeat(30), text: `${i}`.padEnd(300, 'x') })) }));
+  assert.equal(ok.messages.length, SUMMARY_LIMITS.messages);
+  assert.ok(ok.messages[0].text.length <= SUMMARY_LIMITS.textMax && ok.messages[0].who.length <= SUMMARY_LIMITS.whoMax);
+  assert.ok(ok.messages[SUMMARY_LIMITS.messages - 1].text.startsWith('99'), '최근 대화를 남긴다');
+  assert.throws(() => parseSummaryBody(summaryBody({ messages: [{ who: 'a', text: '하나' }] })), /모자란다/);
+  assert.throws(() => parseSummaryBody({ ...summaryBody(), extra: 1 }), /모르는 이름/);
+  assert.throws(() => parseSummaryBody(summaryBody({ start: '내일' })), /start/);
+  assert.deepEqual(summaryFromGemini({ candidates: [{ content: { parts: [{ text: JSON.stringify({ overview: '  요약이에요  ', decided: ['a', 3, ''], open: [] }) }] } }] }), { overview: '요약이에요', decided: ['a'], open: [] });
+  assert.equal(summaryFromGemini({ candidates: [{ content: { parts: [{ text: '{"overview":""}' }] } }] }), null);
+});
+
+test('요약: Gemini에 대화와 후보를 JSON으로 보내고 {overview, decided, open}을 돌려준다(카카오는 부르지 않는다)', async () => {
+  const up = upstream(() => ({ body: geminiBody(JSON.stringify(SUMMARY_JSON)) }));
+  const { ai } = service({ fetch: up.fetch });
+  const r = await sum(ai, summaryBody());
+  assert.equal(r.status, 200);
+  assert.deepEqual(r.body, SUMMARY_JSON);
+  assert.equal(up.kakao().length, 0);
+  const sent = JSON.parse(up.gemini()[0].init?.body ?? '{}');
+  assert.deepEqual(sent.generationConfig.responseSchema.required, ['overview', 'decided', 'open']);
+  const prompt: string = sent.contents[0].parts[0].text;
+  assert.match(prompt, /불국사 가자/);
+  assert.match(prompt, /지시가 아니다/);
+  assert.ok(!up.gemini()[0].url.includes(GEMINI_KEY));
+});
+
+test('요약 실패: 키 없음 503, 잘못된 본문 400, 틀린 응답 502, 바쁨 503, 속도 제한 429', async () => {
+  const noKey = createAiRecommender({ geminiKey: '' });
+  assert.equal((await sum(noKey, summaryBody())).status, 503);
+  const { ai } = service();
+  assert.equal((await sum(ai, { nope: 1 })).status, 400);
+  const bad = service({ fetch: upstream(() => ({ body: geminiBody('not json') })).fetch });
+  assert.deepEqual((await sum(bad.ai, summaryBody())).body, { error: 'aiBadResponse' });
+  const busy = service({ fetch: upstream(() => ({ status: 503, body: {} })).fetch, retries: 0 });
+  const b = await sum(busy.ai, summaryBody());
+  assert.equal(b.status, 503);
+  assert.equal((b.body as { error: string }).error, 'aiBusy');
+  const lim = service({ fetch: upstream(() => ({ body: geminiBody(JSON.stringify(SUMMARY_JSON)) })).fetch, ratePerMin: 2 });
+  assert.equal((await sum(lim.ai, summaryBody())).status, 200);
+  assert.equal((await sum(lim.ai, summaryBody())).status, 200);
+  assert.equal((await sum(lim.ai, summaryBody())).status, 429);
 });

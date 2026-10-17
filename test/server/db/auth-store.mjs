@@ -253,6 +253,15 @@ export function createPgAuthStore(db) {
       );
     },
 
+    async purgeUnverified(now, maxAgeMs) {
+      const r = await db.query(
+        `DELETE FROM auth_accounts
+          WHERE deleted_at IS NULL AND email_verified_at IS NULL AND password_hash IS NOT NULL AND created_at <= $1
+        RETURNING account_id`,
+        [iso(now - maxAgeMs)],
+      );
+      return r.rows.length;
+    },
     async purge(now) {
       const at = iso(now);
       await db.query('DELETE FROM auth_sessions WHERE expires_at <= $1', [at]);

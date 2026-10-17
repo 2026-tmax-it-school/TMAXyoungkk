@@ -5,6 +5,7 @@ import { NICKNAME_MAX, PASSWORD_MIN_LENGTH } from '../core/constants';
 import { isEmailLike, nicknameProblem, normalizeEmail, passwordViolations } from '../core/auth';
 import type { MockMail } from '../core/ports';
 import { kstHHMM } from '../core/util';
+import { CodeEntry } from '../features/account/CodeEntry';
 import { signUpFlow, verifyFlow } from '../features/account/flows';
 import { authFailText, signUpFailText } from '../features/account/messages';
 import { useAuthDone } from '../features/account/useAuthDone';
@@ -27,6 +28,8 @@ type Focusable = { focus: () => void };
  *   중복 이메일 거부, 비밀번호 규칙(8자 이상·영문·숫자) 위반 항목 표시. 주 동작은 '가입하고 인증 메일 받기'.
  *   전에 받은 인증 메일이 있으면(로그인에서 '인증 메일 다시 받기'로 온 경우 등) 입력 칸보다 위에 안내 한 줄과
  *   '메일 확인하기'를 두어 2단계 메일함을 연다(빈 가입 양식만 보고 같은 이메일로 다시 가입하다 막히지 않게).
+ * - 이미 가입만 하고 나간 사람: 로그인의 '인증 메일 다시 받기'가 그 이메일로 2단계(코드 입력)를 바로 열고(route verifyEmail),
+ *   1단계에서도 이메일을 적으면 '가입은 했고 메일로 받은 코드만 넣을게요'로 2단계에 갈 수 있다(빈 양식에서 코드 칸이 없어 막히지 않게).
  * - 2단계(메일 확인): 보낸 주소, '이메일 바꾸기'(1단계로), 메일 카드(보낸 시각만), '인증 메일 다시 받기'(이전 토큰 무효).
  *   세션 없이 보낸 가입은 인증 전에도 닉네임을 잡고 있어, 이메일만 고쳐 같은 닉네임으로 다시 내면 거부된다
  *   (인증 제공자는 같은 게스트의 인증 전 가입만 대체한다). 그때는 signUpFailText로 이유를 알리고 앞서 보낸 메일함으로 돌아가게 한다.
@@ -38,14 +41,15 @@ type Focusable = { focus: () => void };
  * - 닉네임은 로그인 아이디로도 쓴다(계정마다 하나, @ 불가).
  * - 뒤로는 쌓인 화면이 있으면 그 화면, 없으면 홈(세션이 없으면 온보딩)으로 간다.
  */
-export default function SignupScreen({ navigation }: RootScreenProps<'Signup'>) {
+export default function SignupScreen({ navigation, route }: RootScreenProps<'Signup'>) {
   const session = useSession((s) => s.session);
   const profileNick = useSession((s) => s.profile.nickname);
   const showToast = useUi((s) => s.showToast);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [nickname, setNickname] = useState(session?.kind === 'guest' ? profileNick || session.nickname : '');
-  const [sentTo, setSentTo] = useState<string | undefined>(undefined);
+  // 로그인에서 '인증 메일 다시 받기'로 온 경우 그 이메일의 코드 입력 단계로 바로 연다
+  const [sentTo, setSentTo] = useState<string | undefined>(route.params?.verifyEmail);
   const [fail, setFail] = useState<{ title: string; text: string; heldEmail?: string } | null>(null);
   /** 세션 없이 이 화면에서 앞서 보낸 가입(인증 전). 그 닉네임은 인증 전까지 잡혀 있다 */
   const [held, setHeld] = useState<{ email: string; nickname: string } | undefined>(undefined);
@@ -90,6 +94,8 @@ export default function SignupScreen({ navigation }: RootScreenProps<'Signup'>) 
     setPassword('');
     if (!promoting) setHeld({ email: r.account.email, nickname: r.account.nickname });
     setSentTo(r.account.email);
+    // 메일 서버가 보내지 못했으면 '보냈어요'로 믿고 기다리지 않게 바로 알린다(가입은 됐으니 아래 '인증 메일 다시 받기'로 다시 받는다)
+    if (r.mailFailed) showToast('인증 메일을 보내지 못했어요. 아래 \'인증 메일 다시 받기\'를 눌러 주세요', 'warn');
     await refresh();
   };
 
@@ -150,6 +156,7 @@ export default function SignupScreen({ navigation }: RootScreenProps<'Signup'>) 
           <AuthTitle title="메일을 확인해 주세요" />
           <Col gap={SP.xs}>
             <Txt v="sub">{`${sentTo}로 보냈어요`}</Txt>
+            <Txt v="mtTight">몇 분이 지나도 안 오면 스팸함을 확인하거나 아래에서 다시 받아 주세요. 같은 주소로는 하루 5통까지 받을 수 있어요.</Txt>
             <TextLink
               title="이메일 바꾸기"
               onPress={() => {
@@ -160,9 +167,10 @@ export default function SignupScreen({ navigation }: RootScreenProps<'Signup'>) 
           </Col>
           {fail ? <Notice tone="warn" icon="alert" title={fail.title} text={fail.text} /> : null}
 
+          <CodeEntry label="메일로 받은 인증 코드" button="코드로 인증하기" busy={busy} onSubmit={(code) => void verify({ id: 'code', kind: 'verify', to: sentTo, subject: '', token: code, sentAt: 0, invalidated: false })} />
           <Txt v="label">모의 메일함</Txt>
           {shown.length === 0 ? (
-            <Txt v="mt">아직 받은 메일이 없어요</Txt>
+            <Txt v="mt">개발용 메일함이 닫혀 있거나 아직 받은 메일이 없어요. 메일로 온 코드를 위 칸에 붙여 넣어 주세요</Txt>
           ) : (
             shown.map((m) => (
               <Card key={m.id} variant={m.invalidated ? 'excluded' : 'default'}>
@@ -281,6 +289,16 @@ export default function SignupScreen({ navigation }: RootScreenProps<'Signup'>) 
           />
         ) : null}
         <AuthBtn title={busy ? '보내는 중' : '가입하고 인증 메일 받기'} disabled={!canSubmit} onPress={() => void submit()} />
+        {/* 앞서 가입만 하고 나갔다면 위 이메일로 코드 입력 단계에 바로 간다(메일은 '인증 메일 다시 받기'로 새로 받을 수 있다) */}
+        {isEmailLike(email) ? (
+          <TextLink
+            title="가입은 했고 메일로 받은 코드만 넣을게요"
+            onPress={() => {
+              setFail(null);
+              setSentTo(normalizeEmail(email));
+            }}
+          />
+        ) : null}
       </Body>
     </Screen>
   );

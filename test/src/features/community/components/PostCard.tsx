@@ -83,6 +83,7 @@ export function PostCard({
   onTagPress,
   onEdit,
   onDelete,
+  onLike,
 }: {
   post: CommunityPost;
   now: number;
@@ -92,6 +93,8 @@ export function PostCard({
   onTagPress?: (tag: string) => void;
   onEdit: (post: CommunityPost) => void;
   onDelete: (post: CommunityPost) => void;
+  /** 좋아요를 누르거나 취소한다 */
+  onLike?: (post: CommunityPost) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [viewing, setViewing] = useState<number | null>(null);
@@ -147,6 +150,21 @@ export function PostCard({
             ))}
           </Row>
         ) : null}
+        <Row gap={SP.xl}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityState={{ selected: post.liked === true }}
+            accessibilityLabel={post.liked ? `좋아요 취소, 지금 ${post.likes ?? 0}명` : `좋아요, 지금 ${post.likes ?? 0}명`}
+            onPress={() => onLike?.(post)}
+            hitSlop={8}
+          >
+            <Row gap={SP.xs}>
+              <Icon name="heart" size={16} color={post.liked ? 'accent' : 'muted'} />
+              <Txt v="mtTight" c={post.liked ? 'accent' : 'muted'}>{`좋아요 ${post.likes ?? 0}`}</Txt>
+            </Row>
+          </Pressable>
+          <Txt v="mtTight">{`조회 ${post.views ?? 0}`}</Txt>
+        </Row>
       </Col>
       {post.photos.length > 0 ? (
         <PhotoViewer
