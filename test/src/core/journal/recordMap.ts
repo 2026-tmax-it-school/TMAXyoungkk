@@ -95,6 +95,14 @@ export function legendFlags(model: Pick<RecordMapModel, 'polylines' | 'dots' | '
   };
 }
 
+/** 기록 없는 구간 점선 색. 점선은 계획 선 위에 겹치기 쉬워(권한 거부면 도착 지점끼리라 계획 선과 같은 자리) 계획 선과 다른 색을 쓴다 */
+export function gapLineColor(planned: MapPolylineInput['color']): MapPolylineInput['color'] {
+  return planned === 'ink' ? 'slate' : 'ink';
+}
+
+/** 실제 이동 점 tone. 렌더러는 ink tone을 현재 위치와 같은 파랑(mapC.user)으로 그린다. 날짜 선 색에는 파랑이 없다 */
+export const ACTUAL_DOT_TONE: MapDotInput['tone'] = 'ink';
+
 export function recordMapModel(
   trip: Trip,
   plan: Plan | undefined,

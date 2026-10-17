@@ -100,6 +100,79 @@
 
 공개 OSRM이 이 컴퓨터에 429를 주는 상태라 정상 응답 때의 첫 계산 시간(3초 기준)은 아직 재지 못했다.
 
+## 2026-10-09 갱신 — 메인 책임 기능 6개
+
+한동관(dh) 담당 남은 기능을 구현하고(기능마다 구현 1 · 리뷰 3 · 수정 1, 기능 3·5는 이어하기 세션에서 직접 리뷰) 아래 줄들에 반영했다.
+이 절이 아래 표보다 새 정보다. 표 안에서 지금 사실과 틀린 셀(FR-704, FR-804, 백그라운드, 데이터 보존, 외부 API 비용, 서비스 지역)은 직접 고쳤다.
+
+| 명령 | 결과(2026-10-09) |
+| --- | --- |
+| `npx tsc --noEmit` | 오류 0건 |
+| `npm test` | 785개 중 784개 통과, 실패 0, 건너뜀 1(wp2-db 실 PostgreSQL 묶음, `YT_TEST_DATABASE_URL` 없을 때) |
+| `npx expo export --platform web` | 성공, ttf 4개 |
+| `node scripts/gate-scope.mjs WP1`~`WP6` | 6개 모두 통과 |
+
+| 기능 | 닿는 FR·비기능 | 파일 | 테스트 | 남은 문제 |
+| --- | --- | --- | --- | --- |
+| 1. PostgreSQL 서버·DB | 그룹 동기화(FR-302·304 서버), 데이터 보존 | server/db/(postgres-store, migrate, projection).mjs, server/db/migrations/001_init.sql, server/(sync-server, invites, retention).mjs, server/docker-compose.yml | wp2-db(PGlite, 실 PostgreSQL 묶음은 `YT_TEST_DATABASE_URL`) | 실 PostgreSQL로는 아직 돌리지 않았다(Docker 꺼짐). 서버 인증 없음 |
+| 2. 키 숨기는 서버 | 보안(키는 서버에만), FR-202·401 장소, FR-504 자동차 | server/proxy.mjs, src/services/kakaoHttp.ts, src/config.ts(EXPO_PUBLIC_API_URL), src/services/registry.ts | wp2-proxy, wp4-api-proxy, wp4-replan(GPS가 경로 제공자로 가지 않음) | 실키·실서버·웹 CORS 미확인. 빈 시간 추천(FR-604)은 아직 지금 GPS로 장소를 묻는다(서버 경유 시 카카오로 감, WP5 결정 필요) |
+| 3. 실제 길 기준 이동 시간 | FR-501·504·505, 외부 API 비용 | src/services/routes/(osm, cache, index, kakao, transit).ts, src/screens/(NavigateScreen, LegTransportScreen).tsx | wp4-road-time, wp4-road-shape, qa-decisions, wp4-travel-batch, wp4-route-cache, wp4-kakao-off | 자동차 계수 1.3은 근거 없는 가정(카카오 실측과 견줘 고칠 값). 묶어 묻기·캐시 서명·카카오 키 없음은 2026-10-10에 풀었다(아래 절) |
+| 4. 동선 기록 보완 | FR-704, FR-804, 백그라운드, 개인정보 | src/services/location/background.ts, src/core/live/(watchControl, background, throttle, engine).ts, src/core/journal/recordMap.ts, src/store/live.ts, app.config.js | wp5-background, wp5-watch-control, wp6-record-map | 실기기(개발 빌드) 확인 전. 결정 4건(옵션 저장 여부, 화면 밖 도착 알림 없음, 자정 정지, 떠난 자리 점) |
+| 5. 시뮬레이터 길 따라가기 | FR-601·602 시연 | src/core/sim/(track, legShapes).ts, src/core/live/(legPath, delay).ts, src/store/live.ts, src/components/map/useLegGeometry.ts | wp5-sim-road, wp5-road-progress, wp5-navigate-progress, wp5-start-recheck | 2026-10-10부터 시뮬레이터 진행의 이동 중 예상 도착은 길 위 진행으로 잰다. 기기 진행은 아직 직선 비율이다. 실제 길로 화면 확인 전 |
+| 웹 실행 오류 1(세션 2) | 외부 API 비용, 성능(재계산) | src/services/routes/(osm, index).ts(쉬는 시간 OSM_COOLDOWN_MS 60초, 직접 table 4초), src/services/registry.ts(netClock: systemClock) | wp4-osm-cooldown | 공개 서버 429 때 100구간 계산 90.5초 → 몇 번만 묻고 끝남(웹 재확인: 공개 서버 요청 4번, 이동시간 조회 단계 4ms). 정상 응답일 때 3초 기준은 서버 중계 기준으로 다시 재야 한다 |
+| 웹 실행 오류 2(세션 2) | FR-603 시연 | src/store/live.ts(makeProposal: 계산 전에 시뮬레이터 멈춤, 조정안 없으면 다시 재생) | wp5-proposal-pause(소스 규칙) | 웹 재확인: 11:10 감지 직후 시트, 원래대로 뒤 재생 이어짐 |
+| 6. CI GitFlow | 지원 환경 | ../.github/workflows/ci.yml(check·db 잡), ../CONTRIBUTING.md | foundation-ci, foundation-ci-db | 실 PostgreSQL·GitHub에서 db 잡 미실행. 넣는 순서(1)→WP2→(3)를 사람이 PR로 나눠야 한다 |
+
+## 2026-10-10 갱신 — 자유 길찾기 추가
+
+사용자 요청 '길찾기 기능을 추가해줘'(자유 길찾기 선택). 13 구간 내비는 그대로 두고 27 길찾기 화면을 더했다. 이 절이 아래 절보다 새 정보다.
+
+| 추가한 것 | 닿는 FR·비기능 | 파일 | 테스트 | 남은 문제 |
+| --- | --- | --- | --- | --- |
+| FR-601~603: 자유 길찾기 추가. 지도 탭 '길찾기'·스팟 상세 '여기까지 길찾기'에서 아무 두 지점(내 위치·기점·스팟·장소 검색·지도에서 고르기)을 골라 자동차·대중교통·도보를 견준다. 수단별 시간·거리, 추정·출처 칩, 안내 줄, 카카오맵 링크, 진행 중이면 '안내 시작'. 지도 탭 시트의 13 진입 버튼 이름은 '구간 안내'로 바꿨다 | FR-601~603, FR-504 확장, FR-801 | src/screens/DirectionsScreen.tsx, src/core/map/directions.ts, src/services/location/once.ts, src/navigation/(routes.ts, RootNavigator.tsx), src/screens/(MapScreen, SpotDetailScreen).tsx, src/ui/Icon.tsx(swap) | wp5-directions(순수 규칙, 화면 소스 규칙, 위치 한 번 읽기) | 웹·기기 화면 확인 전. 대중교통은 모의 모델. 더보기 시연 도구 화면 목록에는 아직 없다(WP1) |
+| 개인정보 결정: 위치는 서버로 올리지 않는다. 사용자가 '내 위치'를 직접 고른 길찾기 질의만 예외로 그 좌표가 경로 서버로 가고(사용자가 '카카오맵으로 열기'를 누르면 그 링크에도 담긴다), 화면에 한 줄로 알린다. 장소 검색 기준점에는 내 위치를 쓰지 않고(지역 중심), 시트를 닫은 뒤 늦게 온 위치는 버린다. 기본 출발은 기점이고 위치는 고를 때만 읽는다 | 개인정보 | src/core/map/directions.ts(ME_NOTICE, searchBiasFor), src/screens/DirectionsScreen.tsx | wp5-directions › 화면 규칙, 검색 기준점, 늦은 결과 버리기 | 없음 |
+
+## 2026-10-10 갱신 — 세션 3 검사
+
+기능 3·5와 세션 2의 작은 수정 8건에 독립 리뷰를 붙이고 나온 문제를 고쳤다(`docs/handoff/2026-10-10/session-3-검사.md`).
+이 절이 위 절보다 새 정보다. 아래 표에서 닿는 줄(FR-603, FR-702, FR-802, 외부 API 비용)도 고쳤다.
+
+| 명령 | 결과(2026-10-10) |
+| --- | --- |
+| `npx tsc --noEmit` | 오류 0건 |
+| `npm test` | 836개 중 835개 통과, 실패 0, 건너뜀 1(wp2-db 실 PostgreSQL 묶음) |
+| `node scripts/gate-scope.mjs WP1`~`WP6` | 6개 모두 통과 |
+| 웹 | 시나리오 채우기 4.9초, 경로 서버 요청 3번(묶음 + 429 뒤 쉬기), 지도·길찾기·시뮬레이터 재생 JS 오류 0, SVG 기본 지도 누르기 |
+
+| 고친 것 | 닿는 FR·비기능 | 파일 | 테스트 |
+| --- | --- | --- | --- |
+| 계획기가 출발지·수단별로 묶어 묻는다(목적지 12곳까지). OSRM은 출발지 여럿을 한 table에. 100구간이 table 25번 | FR-501·505, 외부 API 비용 | src/core/planner/travel.ts, src/services/routes/(cache, osm).ts, src/core/ports.ts(TravelMatrix.estimatedCells) | wp4-travel-batch, wp4-road-time › 좌표가 상한(50개)을 넘으면 상한 안에서 출발지 여럿씩 묶어 나눠 묻는다… |
+| 경로 캐시 v2와 제공자 서명(도로 경로, 카카오 방식, 차 계수, 구간표 해시). 같은 구간 동시 요청 나눠 쓰기. 캐시 시계는 실제 시계 | 외부 API 비용 | src/services/routes/(cache, index).ts, src/services/registry.ts | wp4-route-cache |
+| 서버에 카카오 키 없음(503 kakaoDisabled)이면 5분 카카오를 묻지 않고, 실제 대체 값은 10분만 캐시 | 외부 API 비용, FR-504 | src/services/routes/kakao.ts | wp4-kakao-off |
+| 본문 읽기까지 시간 제한, 200인데 읽지 못하면 실패·쉬기. `ROAD_SHAPE=false`·0·no·none도 끔 | 외부 API 비용 | src/services/routes/osm.ts, src/config.ts | wp4-osm-cooldown, wp4-api-proxy |
+| 지연 조정안: 지금 위치가 스팟·기점 좌표와 같으면 받은 GPS 값이 아니라 그 좌표 그대로 묻는다 | FR-603, 개인정보 | src/core/planner/replan.ts | wp4-replan |
+| 이동 중 예상 도착을 길 위 진행으로 잰다(시뮬레이터). U턴 길에서 이어 만들기·길찾기 진행률이 반대 차선으로 튀지 않는다 | FR-603, FR-601 | src/core/live/(legPath, delay).ts, src/core/sim/track.ts, src/screens/NavigateScreen.tsx | wp5-road-progress, wp5-navigate-progress |
+| 복귀 구간 수단·추정 표시가 계획(DayPlan.returnLeg)과 같다 | FR-802, 13 길찾기 | src/core/map/model.ts | wp5-return-leg |
+| 조정안 계산 중 멈춤(run.calcPause)이 사용자 재생·멈춤을 따른다. 시작 대기 뒤 로그아웃·삭제·나가기를 다시 본다 | FR-603 시연 | src/store/live.ts | wp5-proposal-pause, wp5-start-recheck |
+| 웹 SVG 기본 지도 누르기(onPress: null) | FR-801·803, FR-202 지도에서 선택 | src/components/map/MapCanvas.tsx | wp5-google-map |
+| 바탕 지도를 카카오맵으로(2026-10-10 결정). JavaScript 키가 있으면 기본, 구글은 선택 대체. 웹 SDK·앱 WebView, 우리 묶음 규칙, 실패 시 기본 지도 | FR-801·802·803, FR-202, 국내 전용 | src/core/map/engine.ts, src/components/map/(KakaoMapView, KakaoMapView.web, kakaoHtml, kakaoScript, overlayItems, MapCanvas).ts(x), src/services/registry.ts | wp5-kakao-map, qa-decisions, foundation-design-rules |
+| 지도 '내 위치' 버튼(2026-10-10 'GPS 기능도 추가하자'). 11 지도 탭·27 길찾기 오른쪽 아래. off → 찾는 중 → 내 자리로 당김 → 따라가기 → 끔, 손으로 움직이면 따라가기만 풀림. 누를 때만 GPS를 켜고 화면 떠남·앱 뒤로·내려감에 끈다. 진행 중이면 live 위치. 권한 거부·못 씀·시한은 토스트. 좌표는 기기 안에서만 | FR-601, FR-801, 개인정보 | src/core/map/locate.ts, src/components/map/(useMyLocation.ts, parts.tsx, MapCanvas.tsx, KakaoMapView(.web).tsx, kakaoHtml.ts, GoogleMapView(.web).tsx), src/screens/(MapScreen, DirectionsScreen).tsx | wp5-my-location |
+| 더보기 안내가 도로 경로 상태와 번들에 남은 앱 카카오 키를 알린다 | 보안(키는 서버에만) | src/features/account/settings.ts, src/services/registry.ts | wp1-provider-notice |
+| 일기 템플릿이 장소 아닌 묶음에 '…에서'를 붙이지 않는다 | FR-702 | src/services/diary/template.ts | wp6-diary |
+| 멤버 초대 '2 / 2 단계'는 여행방 만들기에서 넘어왔을 때만 | FR-201·301 | src/screens/(MembersScreen, CreateTripScreen).tsx, src/navigation/routes.ts | 코드 확인 |
+
+남은 문제(코드, 2026-10-10):
+
+1. 빈 시간 추천(FR-604)이 지금 GPS로 장소를 묻는다. 서버 경유면 카카오로 간다(WP5 결정 필요)
+2. 시나리오 채우기가 서버에 카카오 키가 있으면 카카오 장소를 쓴다(시연 수치가 깨질 수 있음)
+3. iOS 백그라운드 기록 중에도 동기화 폴링·재계산이 돈다(WP2)
+4. 자동차 OSRM 계수 1.3은 가정이다
+5. 기기 진행의 이동 중 ETA는 아직 직선 비율이다(시뮬레이터만 길 기준)
+6. 앱 `.env`에 `EXPO_PUBLIC_API_URL`과 `EXPO_PUBLIC_KAKAO_REST_KEY`가 함께 있을 때 빌드 점검이 없다(더보기가 알리기만 함)
+7. 카카오 일시 실패가 묶음 중간에 나면 그 묶음 전체가 대체(provisional)로 간다(드묾)
+
+공개 OSRM이 이 컴퓨터에 429를 주는 상태라 정상 응답 때의 첫 계산 시간(3초 기준)은 아직 재지 못했다.
+
 ## 검증 결과(2026-09-29 실행)
 
 | 명령 | 결과 |

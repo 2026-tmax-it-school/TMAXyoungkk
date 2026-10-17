@@ -172,7 +172,12 @@ function CompactSeg<K extends string>({
               <Txt v="btnSm" c="muted">
                 {String(it.count)}
               </Txt>
-            ) : null}
+              {it.count != null ? (
+                <Txt v={it.icon ? 'cat' : 'seg'} c="muted">
+                  {String(it.count)}
+                </Txt>
+              ) : null}
+            </View>
           </Pressable>
         );
       })}

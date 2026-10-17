@@ -351,6 +351,19 @@ export default function MoreScreen({ navigation }: TabScreenProps<'More'>) {
       />
 
       <ConfirmSheet
+        visible={confirmSignOut}
+        title="로그아웃할까요"
+        text="같은 계정으로 다시 로그인하면 여행방을 이어서 쓸 수 있어요."
+        confirmLabel="로그아웃"
+        onConfirm={() => {
+          setConfirmSignOut(false);
+          signOutFlow();
+          showToast('로그아웃했습니다. 같은 계정으로 다시 로그인하면 여행방을 이어 씁니다');
+        }}
+        onCancel={() => setConfirmSignOut(false)}
+      />
+
+      <ConfirmSheet
         visible={confirmReset}
         title="시연을 처음 상태로 되돌릴까요"
         text="이 기기의 여행방, 계정, 저장된 경로를 모두 지우고 시연 시각을 꺼요."
