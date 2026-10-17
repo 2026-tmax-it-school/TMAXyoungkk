@@ -3,7 +3,8 @@ import { Pressable, StyleSheet, View } from 'react-native';
 
 import { barRatio, type RankRow } from '../../../core/chatmap/votes';
 import { Avatar, H, lineC, ProgressBar, SP, Txt } from '../../../ui';
-import { rankA11y, rankMeta, rankTone, type Voter } from './text';
+import { VOTE_BUDGET } from '../../../core/chatmap/votes';
+import { budgetNote, rankA11y, rankMeta, rankTone, type Voter } from './text';
 import { VoteToggle } from './VoteToggle';
 
 /** 투표자 아바타는 4명까지 그리고 나머지는 '+n' */
@@ -22,6 +23,7 @@ export function RankList({
   total,
   voterOf,
   canVote,
+  isFull,
   focusSpotId,
   onToggle,
   onFocus,
@@ -30,6 +32,8 @@ export function RankList({
   total: number;
   voterOf: (memberId: string) => Voter;
   canVote: boolean;
+  /** 표를 다 써서 이 장소에 켤 수 없는지 */
+  isFull: (spotId: string) => boolean;
   focusSpotId: string | null;
   onToggle: (spotId: string) => void;
   onFocus: (spotId: string) => void;
@@ -64,12 +68,12 @@ export function RankList({
                 <Txt v="mtTight">{meta}</Txt>
               </View>
             </Pressable>
-            <VoteToggle name={r.name} on={r.mine} disabled={!canVote} onPress={() => onToggle(r.spotId)} />
+            <VoteToggle name={r.name} on={r.mine} disabled={!canVote} full={isFull(r.spotId)} onPress={() => onToggle(r.spotId)} />
           </View>
         );
       })}
       <View style={styles.note}>
-        <Txt v="mtTight">장소마다 한 사람이 한 표씩 줄 수 있어요. 말한 사람은 처음부터 한 표가 들어가 있어요.</Txt>
+        <Txt v="mtTight">{budgetNote(VOTE_BUDGET)}</Txt>
       </View>
     </View>
   );

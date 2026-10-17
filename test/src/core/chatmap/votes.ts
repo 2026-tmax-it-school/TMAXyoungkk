@@ -8,7 +8,51 @@ import { proposerIds } from '../spotUtil';
  *   votes가 없는 옛 문서도 그대로 제안자의 표로 보인다.
  * - 세는 것은 활성 멤버의 표뿐이다(나간 멤버의 표는 문서에 남지만 세지 않는다).
  * - 제외된 스팟(removedByUser)은 순위·말한 장소에 나오지 않는다.
+ *
+ * 한 사람의 표 예산(VOTE_BUDGET = 3, 사용자 요청 2026-10-17):
+ * - 예산에 드는 표는 '내가 말하지 않은 장소에 명시적으로 켠 표'(votes[me].on === true)뿐이다.
+ * - 말한 사람의 처음 표(제안자 표)는 예산 밖이다. 명시적으로 껐다가 다시 켜도 같은 제안자 표라 예산 밖이다
+ *   (한 장소에 한 사람 한 표라 이걸로 표를 늘릴 수는 없다). 꺼 두면 그 장소에는 표가 없다.
+ * - 제외된 스팟(removedByUser)의 표는 세지 않는다. 지운 스팟은 표와 함께 사라진다.
+ * - 지키는 곳은 core/ops/spots.validate다. 접을 때도 seq 순으로 돌아서, 오프라인·동시 op가 섞여도
+ *   먼저 접힌 3표가 이기고 넘치는 켜기 op는 버려진다. 끄기는 언제나 된다.
+ * - 복원(spot/restore)으로 예산이 넘치면 복원된 스팟의 표를 끈다(제외된 동안 다른 곳에 쓴 표가 이긴다).
+ * - 제안을 되돌려(undoExtraction) 제안자 표가 예산 표로 바뀌는 드문 경우에는 넘칠 수 있다.
+ *   그때는 남은 표가 0으로 보이고 새로 켜기만 막힌다.
  */
+
+/** 한 사람이 여행방 전체에서 켤 수 있는 표 수(제안자 표 제외) */
+export const VOTE_BUDGET = 3;
+
+/** 예산을 넘는 켜기를 버릴 때의 이유. 화면은 이 문구를 그대로 토스트로 보인다 */
+export const VOTE_BUDGET_REASON = '표는 한 사람당 3표까지예요. 다른 표를 빼고 다시 눌러 주세요';
+
+/** 이 스팟에 켠 표가 그 멤버의 예산을 쓰는지(말하지 않은 장소면 쓴다) */
+export function costsVote(spot: Spot, memberId: string): boolean {
+  return !proposerIds(spot).includes(memberId);
+}
+
+/** 그 멤버가 쓴 표 수. 제외된 스팟과 exceptSpotId는 세지 않는다 */
+export function usedVotes(spots: readonly Spot[], memberId: string, exceptSpotId?: string): number {
+  let n = 0;
+  for (const s of spots) {
+    if (s.removedByUser || s.id === exceptSpotId) continue;
+    if (s.votes?.[memberId]?.on === true && costsVote(s, memberId)) n += 1;
+  }
+  return n;
+}
+
+/** 남은 표(0..VOTE_BUDGET). 활성 멤버가 아니면 0 */
+export function votesLeft(trip: Trip, memberId: string): number {
+  if (!activeMembers(trip).some((m) => m.id === memberId)) return 0;
+  return Math.max(0, VOTE_BUDGET - usedVotes(trip.spots, memberId));
+}
+
+/** 이 스팟에 지금 표를 켜면 예산을 넘는지. 이미 켜져 있거나 제안자 표면 넘지 않는다 */
+export function voteBlocked(spots: readonly Spot[], spot: Spot, memberId: string): boolean {
+  if (hasVote(spot, memberId) || !costsVote(spot, memberId)) return false;
+  return usedVotes(spots, memberId, spot.id) >= VOTE_BUDGET;
+}
 
 export function hasVote(spot: Spot, memberId: string): boolean {
   const v = spot.votes?.[memberId];

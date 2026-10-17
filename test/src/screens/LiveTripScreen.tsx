@@ -225,7 +225,7 @@ export default function LiveTripScreen({ navigation, route }: RootScreenProps<'L
     const r = useTrips.getState().dispatch(tripId, { type: 'spot/restore', spotId });
     if (r.ok) useUi.getState().showToast(`${name}을(를) 고정으로 되돌렸어요`);
   };
-  const openRecord = () => navigation.navigate('RecordMap', { tripId, date });
+  const openRecord = () => navigation.navigate('Journal', { tripId, date });
   const openBigMap = () => {
     useUi.getState().setCurrentTrip(tripId);
     navigation.navigate('Main', { screen: 'Map', params: { date } });
@@ -415,7 +415,7 @@ export default function LiveTripScreen({ navigation, route }: RootScreenProps<'L
         {running ? bgCard : null}
         {running && live.log.length > 0 ? <LogCard lines={live.log} /> : null}
 
-        {showRecordRow ? <ListRow first icon="map" label="기록 보기" onPress={openRecord} /> : null}
+        {showRecordRow ? <ListRow first icon="book" label="여행일지 보기" onPress={openRecord} /> : null}
         {running ? (
           <View style={styles.endZone}>
             <Btn title="여행 진행 끝내기" variant="quiet" size="sm" onPress={() => setAskStop(true)} />
@@ -448,7 +448,7 @@ export default function LiveTripScreen({ navigation, route }: RootScreenProps<'L
         </Foot>
       ) : running && timing === null ? (
         <Foot>
-          <Btn title="기록 보기" icon="map" onPress={openRecord} />
+          <Btn title="여행일지 보기" icon="book" onPress={openRecord} />
         </Foot>
       ) : null}
 

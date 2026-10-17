@@ -12,6 +12,7 @@ export const PAGE_DEFAULT: number;
 export const PAGE_MAX: number;
 export const RATE_LIMIT: number;
 export const RATE_WINDOW_MS: number;
+export const EDIT_LIMIT: number;
 export const POST_BODY_MAX: number;
 export const TAGS_MAX: number;
 export const TAG_LEN_MAX: number;
@@ -33,6 +34,18 @@ export interface StoredPost {
   /** 맞춘 태그(normalizeTag). 없으면 [] */
   tags: string[];
   createdAt: number;
+  /** 고친 시각(ms). 고친 적이 없으면 없음(null) */
+  editedAt?: number | null;
+  photos: { id: string; mime: string; bytes?: Buffer }[];
+}
+
+/** 고치기: 보낸 순서대로의 사진(bytes가 있으면 새 사진, 없으면 남기는 예전 사진) */
+export interface PostPatch {
+  kind: 'photo' | 'diary';
+  title: string;
+  body: string;
+  tags: string[];
+  editedAt: number;
   photos: { id: string; mime: string; bytes?: Buffer }[];
 }
 
@@ -40,7 +53,10 @@ export interface StoredPost {
 export interface CommunityStore {
   readonly kind: 'memory' | 'postgres';
   insertPost(rec: Omit<StoredPost, 'photos'> & { photos: StoredPhoto[] }): Awaitable<void>;
-  list(q: { before: { createdAt: number; id: string } | null; limit: number; kind: string | null; tag?: string | null }): Awaitable<StoredPost[]>;
+  getPost(id: string): Awaitable<StoredPost | null>;
+  /** 본인 글이 아니거나 없으면 null. 빠진 사진은 지운다 */
+  updatePost(id: string, accountId: string, patch: PostPatch): Awaitable<StoredPost | null>;
+  list(q: { before: { createdAt: number; id: string } | null; limit: number; kind: string | null; tag?: string | null; q?: string | null }): Awaitable<StoredPost[]>;
   removePost(id: string, accountId: string): Awaitable<boolean>;
   removeByAccount(accountId: string): Awaitable<number>;
   photo(id: string): Awaitable<{ mime: string; bytes: Buffer } | null>;
@@ -50,10 +66,19 @@ export interface CommunityStore {
 
 export function sniffImage(bytes: Buffer): 'image/jpeg' | 'image/png' | 'image/webp' | null;
 export function normalizeTag(raw: unknown): string | null;
+export const SEARCH_MAX: number;
+/** 검색어 맞추기. 비면 null, 너무 길면 'long' */
+export function normalizeSearch(raw: unknown): string | 'long' | null;
+export function searchTagPart(q: string): string | null;
+export function matchesSearch(post: { title: string; tags: string[] }, q: string): boolean;
 export function parseTags(raw: unknown): { error: string; detail: string } | { tags: string[] };
 export function parsePostInput(
   body: unknown,
 ): { error: string; detail: string } | { kind: 'photo' | 'diary'; title: string; body: string; tags: string[]; photos: StoredPhoto[] };
+export function parsePostUpdate(
+  body: unknown,
+  existing: readonly { id: string; mime: string }[],
+): { error: string; detail: string } | { kind: 'photo' | 'diary'; title: string; body: string; tags: string[]; photos: { id: string; mime: string; bytes?: Buffer }[] };
 export function parseCursor(raw: unknown): { createdAt: number; id: string } | null;
 export function createMemoryCommunityStore(): CommunityStore;
 

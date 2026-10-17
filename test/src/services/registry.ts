@@ -8,6 +8,7 @@ import {
   KAKAO_MAP_JS_KEY,
   KAKAO_REST_KEY,
   MAP_PROVIDER,
+  RECOMMEND_PROXY_URL,
   ROAD_SHAPES,
   roadShapeSource,
   SYNC_URL,
@@ -20,6 +21,7 @@ import { SERVICE_KV_PREFIX, type ServiceKvArea } from '../core/constants';
 import type {
   AuthProvider,
   CommunityProvider,
+  ItineraryProvider,
   Clock,
   DiaryWriter,
   ExtractionProvider,
@@ -37,6 +39,7 @@ import type {
 } from '../core/ports';
 import { createAuthProvider } from './auth';
 import { createCommunityProvider } from './community';
+import { createItineraryProvider } from './itineraries';
 import { isClockOverridden, liveClock, systemClock } from './clock';
 import { createDiaryWriter } from './diary';
 import { createExtractionProvider } from './extraction';
@@ -73,6 +76,7 @@ import { createSyncTransport } from './sync';
  *   우선이고, 자동차는 카카오가 있으면 카카오가 먼저다. 경로 캐시는 실제 시계(systemClock)로 24시간 둔다.
  *   EXPO_PUBLIC_API_URL이 있으면 그 서버의 /osrm을 거친다. EXPO_PUBLIC_ROAD_SHAPE=off면 두 점 직선이다.
  * - EXPO_PUBLIC_AI_PROXY_URL이 있으면 추출·추천·일기가 AI 프록시, 없으면 규칙·로컬·템플릿.
+ *   추천은 AI 프록시가 없어도 EXPO_PUBLIC_API_URL이 있으면 그 서버의 /ai(Gemini + 카카오)다(config RECOMMEND_PROXY_URL).
  * - EXPO_PUBLIC_SYNC_URL이 있으면 동기화가 HTTP 폴링, 없으면 루프백.
  * - 계정은 EXPO_PUBLIC_API_URL(없으면 EXPO_PUBLIC_SYNC_URL)의 서버 /auth를 쓴다(config AUTH_URL). 둘 다 없으면 이 기기 모의 인증.
  * - 위치·사진 기본은 기기. 여행 시뮬레이터가 overrideServices로 sim을 덮는다.
@@ -91,6 +95,8 @@ export interface Services {
   auth: AuthProvider;
   /** 커뮤니티(사진·일기 글). 서버 주소가 있으면 서버, 없으면 이 기기 모의 */
   community: CommunityProvider;
+  /** 일정 공유(올리기·둘러보기·인기순·가져오기). 서버 주소가 있으면 서버, 없으면 이 기기 모의 */
+  itineraries: ItineraryProvider;
   sync: SyncTransport;
   location: LocationProvider;
   photos: PhotoProvider;
@@ -137,7 +143,7 @@ function build(): Services {
     regions: createRegionSearch({ apiUrl, kakaoKey, fetch: appFetch, client: sdk }),
     routes,
     extraction: createExtractionProvider({ aiProxyUrl, fetch: appFetch }),
-    recommend: createRecommendProvider({ aiProxyUrl, fetch: appFetch, places }),
+    recommend: createRecommendProvider({ aiProxyUrl: RECOMMEND_PROXY_URL || undefined, fetch: appFetch, places }),
     diary: createDiaryWriter({ aiProxyUrl, fetch: appFetch }),
     auth: createAuthProvider({
       clock: liveClock,
@@ -148,6 +154,7 @@ function build(): Services {
       fetch: appFetch,
     }),
     community: createCommunityProvider({ serverUrl: AUTH_URL || undefined, fetch: appFetch, clock: liveClock, ids }),
+    itineraries: createItineraryProvider({ serverUrl: AUTH_URL || undefined, fetch: appFetch, clock: liveClock, ids }),
     sync: createSyncTransport({ syncUrl: SYNC_URL || undefined, fetch: appFetch, clock: liveClock, kv: kvFor('sync') }),
     location: createDeviceLocation(),
     photos: createDevicePhotoProvider(),
@@ -310,7 +317,15 @@ export function describeServices(): ServiceStatus[] {
   );
   out.push(
     s.recommend.id === 'ai'
-      ? { key: 'recommend', label: '추천 · AI 프록시', mode: 'real' }
+      ? AI_PROXY_URL
+        ? { key: 'recommend', label: '추천 · AI 프록시', mode: 'real' }
+        : {
+            key: 'recommend',
+            label: '추천 · AI(Gemini)',
+            mode: 'real',
+            via: 'server',
+            note: '서버에 Gemini 키가 없거나 실패하면 로컬 점수로 추천해요',
+          }
       : { key: 'recommend', label: '추천 · 로컬 점수', mode: 'mock' },
   );
   out.push(

@@ -116,7 +116,7 @@ function statusOn(trip: Pick<Trip, 'startDate' | 'endDate'>, today: string): Tri
 }
 
 export type TripNextStep =
-  | { key: 'records'; label: '기록 보기'; route: 'RecordMap' }
+  | { key: 'records'; label: '여행일지 보기'; route: 'Journal' }
   | { key: 'live'; label: '오늘 여행 진행'; route: 'LiveTrip'; date: string }
   | { key: 'collect'; label: '후보 모으기'; route: 'Candidates' }
   | { key: 'plan'; label: '루트 계산하기'; route: 'Planning' }
@@ -124,11 +124,11 @@ export type TripNextStep =
 
 /**
  * 여행 표지 카드의 버튼(다음 할 일). 상태에서 계산해 앞에 둔다.
- * 완료면 기록 지도, 진행 중이면 오늘 여행 진행, 후보가 0곳이면 후보 모으기, 계획이 없으면 루트 계산, 그 밖에는 시간표다.
+ * 완료면 여행일지, 진행 중이면 오늘 여행 진행, 후보가 0곳이면 후보 모으기, 계획이 없으면 루트 계산, 그 밖에는 시간표다.
  */
 export function tripNextStep(trip: Trip, plan: Plan | undefined, today: string): TripNextStep {
   const s = statusOn(trip, today);
-  if (s === 'done') return { key: 'records', label: '기록 보기', route: 'RecordMap' };
+  if (s === 'done') return { key: 'records', label: '여행일지 보기', route: 'Journal' };
   if (s === 'ongoing') return { key: 'live', label: '오늘 여행 진행', route: 'LiveTrip', date: today };
   if (trip.spots.length === 0) return { key: 'collect', label: '후보 모으기', route: 'Candidates' };
   if (!plan) return { key: 'plan', label: '루트 계산하기', route: 'Planning' };
@@ -158,9 +158,9 @@ export type HomeMenuKey =
   | 'navigate'
   | 'recommend'
   | 'settings'
-  | 'photos'
+  | 'share'
   | 'diary';
-export type HomeMenuIcon = 'plus' | 'chat' | 'list' | 'map' | 'link' | 'nav' | 'compass' | 'gear' | 'camera' | 'book' | 'users';
+export type HomeMenuIcon = 'plus' | 'chat' | 'list' | 'map' | 'link' | 'nav' | 'compass' | 'gear' | 'camera' | 'book' | 'users' | 'share';
 
 export interface HomeMenuCell {
   key: HomeMenuKey;
@@ -174,16 +174,15 @@ export interface HomeMenuCell {
 }
 
 function chatCell(trip: Trip): HomeMenuCell {
-  return tripMode(trip) === 'personal'
-    ? { key: 'chat', label: '그룹 채팅', icon: 'chat', disabled: true, reason: '멤버를 초대하면 채팅과 대화 인식이 열려요' }
-    : { key: 'chat', label: '그룹 채팅', icon: 'chat', disabled: false };
+  // 혼자 여행(개인 모드)도 채팅을 쓴다: 혼자 쓰는 '채팅 메모'(2026-10-17)
+  return { key: 'chat', label: tripMode(trip) === 'personal' ? '채팅 메모' : '그룹 채팅', icon: 'chat', disabled: false };
 }
 
 /**
  * 선택한 여행방 구역의 빠른 메뉴 4칸. 단계(예정·진행 중·완료)에 맞는 일을 돌려준다. 여행방 설정은 늘 끝 칸이다.
  * - 예정: 그룹 채팅, 멤버 초대, 여행지 추천, 여행방 설정
- * - 진행 중: 구간 안내(오늘 첫 구간), 그룹 채팅, 사진 올리기(오늘), 여행방 설정
- * - 완료: 사진, 일기, 그룹 채팅, 여행방 설정
+ * - 진행 중: 구간 안내(오늘 첫 구간), 그룹 채팅, 일기 쓰기(오늘), 여행방 설정
+ * - 완료: 여행일지, 일정 공유하기, 그룹 채팅, 여행방 설정
  * 꺼지는 칸은 개인 모드의 채팅 칸 하나뿐이고 이유를 적는다(화면이 그 이유 줄을 칸 아래에 보인다). 여행방이 없으면 빈 목록이다(화면은 만들기 Empty).
  * plan은 호출 모양을 지키려고 받는다(구간 안내 칸은 시간표가 없어도 켜 둔다).
  */
@@ -195,7 +194,7 @@ export function homeActions(trip: Trip | undefined, _plan: Plan | undefined, tod
     return [
       chatCell(trip),
       { key: 'members', label: '멤버 초대', icon: 'users', disabled: false },
-      { key: 'recommend', label: '여행지 추천', icon: 'compass', disabled: false },
+      { key: 'recommend', label: 'AI 여행지 추천', icon: 'compass', disabled: false },
       settings,
     ];
   }
@@ -204,13 +203,13 @@ export function homeActions(trip: Trip | undefined, _plan: Plan | undefined, tod
       // 늘 켠다. 오늘 구간이 없으면 구간 안내 화면이 Empty '루트 계산'으로 다음 할 일을 보여 준다(꺼진 칸은 이유가 안 보여 막다른 칸이 된다)
       { key: 'navigate', label: '구간 안내', icon: 'nav', disabled: false, date: today },
       chatCell(trip),
-      { key: 'photos', label: '사진 올리기', icon: 'camera', disabled: false, date: today },
+      { key: 'diary', label: '일기 쓰기', icon: 'book', disabled: false, date: today },
       settings,
     ];
   }
   return [
-    { key: 'photos', label: '사진', icon: 'camera', disabled: false },
-    { key: 'diary', label: '일기', icon: 'book', disabled: false },
+    { key: 'diary', label: '여행일지', icon: 'book', disabled: false },
+    { key: 'share', label: '일정 공유하기', icon: 'share', disabled: false },
     chatCell(trip),
     settings,
   ];

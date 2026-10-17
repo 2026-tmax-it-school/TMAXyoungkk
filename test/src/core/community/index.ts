@@ -11,7 +11,9 @@ import { normalizeTag, TAG_FULL_TEXT, TAG_RULE_TEXT, TAGS_MAX } from './tags';
 
 export { BODY_MAX, PHOTO_BYTES_MAX, PHOTOS_MAX, TITLE_MAX } from './limits';
 export * from './tags';
+export * from './search';
 export * from './draft';
+export * from './edit';
 
 /** 올릴 것이 없을 때 문장(올리기 버튼 아래에 이유로 보인다) */
 export const EMPTY_POST_TEXT = '사진을 고르거나 내용을 적어 주세요';
@@ -31,19 +33,20 @@ export interface DraftCheck {
 /**
  * 올리기 전 검사. 서버와 같은 규칙이라 서버가 거절할 글을 미리 막는다.
  * 글은 한 가지다: 본문이 있거나 사진이 한 장 이상이면 된다. 제목은 선택, 태그는 0~5개.
+ * kept는 고치기에서 남겨 둔 예전 사진 수다(새 사진과 함께 4장에 세고, 사진 한 장으로 본다).
  */
-export function checkDraft(d: CommunityDraft): DraftCheck {
+export function checkDraft(d: CommunityDraft, kept = 0): DraftCheck {
   const title = d.title.trim();
   const body = d.body.trim();
   if (title.length > TITLE_MAX) return { ok: false, problem: `제목은 ${TITLE_MAX}자까지입니다` };
   if (body.length > BODY_MAX) return { ok: false, problem: `본문은 ${BODY_MAX}자까지입니다` };
-  if (d.photos.length > PHOTOS_MAX) return { ok: false, problem: `사진은 ${PHOTOS_MAX}장까지입니다` };
+  if (d.photos.length + kept > PHOTOS_MAX) return { ok: false, problem: `사진은 ${PHOTOS_MAX}장까지입니다` };
   for (const p of d.photos) {
     if (base64Bytes(p.data) > PHOTO_BYTES_MAX) return { ok: false, problem: '사진 한 장이 너무 큽니다. 다른 사진을 골라 주세요' };
   }
   if (d.tags.length > TAGS_MAX) return { ok: false, problem: TAG_FULL_TEXT };
   if (d.tags.some((t) => normalizeTag(t) !== t)) return { ok: false, problem: TAG_RULE_TEXT };
-  if (body.length === 0 && d.photos.length === 0) return { ok: false, problem: EMPTY_POST_TEXT };
+  if (body.length === 0 && d.photos.length + kept === 0) return { ok: false, problem: EMPTY_POST_TEXT };
   return { ok: true };
 }
 

@@ -7,6 +7,7 @@ import { etaView, pickLiveDate } from '../core/live/session';
 import { dayOrdinal, daySummary } from '../core/map/model';
 import { dayLabel, dayShort, humanMin, weekday } from '../core/util';
 import '../features/live/photoBridge';
+import { useHomeBack } from '../navigation/useBack';
 import { useDayMap } from '../features/live/useDayMap';
 import { TripBar } from '../features/trip/components/TripBar';
 import { useActiveTrip } from '../features/trip/useActiveTrip';
@@ -89,6 +90,7 @@ function spotNameOf(trip: Trip, plan: Plan | undefined, spotId: string): string 
 }
 
 export default function MapScreen({ navigation, route }: TabScreenProps<'Map'>) {
+  const homeBack = useHomeBack();
   const { trip } = useActiveTrip();
   const plan = usePlan(trip?.id);
   const now = useNow();
@@ -145,6 +147,7 @@ export default function MapScreen({ navigation, route }: TabScreenProps<'Map'>) 
     return (
       <Screen>
         <Header
+          back={homeBack}
           title="지도"
           right={<IconBtn icon="nav" label="길찾기" onPress={() => navigation.navigate('Directions', undefined)} />}
         />
@@ -286,6 +289,7 @@ export default function MapScreen({ navigation, route }: TabScreenProps<'Map'>) 
             locate
           >
             <View style={styles.top}>
+              <MapPill icon="back" label="홈" a11yLabel="뒤로, 홈으로" onPress={homeBack} />
               <View style={styles.tripChip}>
                 <TripBar variant="chip" />
               </View>

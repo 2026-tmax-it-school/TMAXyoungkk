@@ -1,13 +1,18 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState, Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, View } from 'react-native';
 
-import type { CommunityPhotoInput } from '../core/ports';
+import type { CommunityPhoto, CommunityPhotoInput } from '../core/ports';
 import {
   addTag,
   BODY_MAX,
   checkDraft,
   diaryAsText,
+  EDIT_SAVED_TEXT,
+  editContentOf,
+  editDraftOf,
+  editLeaveDecision,
   failText,
+  isEditDirty,
   leaveDecision,
   openPlan,
   PHOTOS_MAX,
@@ -20,6 +25,8 @@ import {
   withPendingTag,
   type ComposeContent,
   type DraftOrigin,
+  type EditContent,
+  type LeaveDecision,
   type SavedDraft,
 } from '../core/community';
 import { dayLabel } from '../core/util';
@@ -28,6 +35,7 @@ import { communityDrafts } from '../features/community/drafts';
 import type { RootScreenProps } from '../navigation/routes';
 import { appClock } from '../services/clock';
 import { pickCommunityPhotos } from '../services/community/picker';
+import { getServices } from '../services/registry';
 import { useCommunity } from '../store/community';
 import { useSession } from '../store/session';
 import { useTripDoc } from '../store/trips';
@@ -47,6 +55,10 @@ import { Body, Btn, Card, Col, ConfirmSheet, Empty, Field, Foot, Header, Icon, I
  * - 나가기 확인: 저장하지 않은 바뀐 내용이 있으면 beforeRemove로 막고 '나가시겠습니까?' 시트에 '저장하고 나가기'·'취소' 두 버튼만 둔다.
  *   뒤로 버튼·안드로이드 뒤로·iOS 밀기·웹 뒤로가 모두 beforeRemove를 지난다. 올린 직후·빈 글·안 바뀐 글은 묻지 않는다(leaveDecision).
  * - 로그인한 계정만. 사진 고르기는 버튼을 누른 뒤에만 연다. 올리기는 한 번만 보낸다.
+ * - 고치기(2026-10-17, route editPostId): 피드에 있는 내 글로 제목·본문·태그·사진을 채운다. 예전 사진(kept)은 서버 주소로 보이고 뺄 수 있고,
+ *   새 사진은 합쳐 4장까지 더한다. 머리 제목 '글 수정', 버튼 '저장하기'(바뀐 것이 없으면 못 누른다), 저장하면 '글을 고쳤어요'.
+ *   임시 저장은 쓰지 않는다(draftUser가 없다): 새 글 임시 저장을 읽지도, 덮지도, 지우지도 않는다. 나가기 확인은 처음 연 글과 비교해
+ *   바뀐 것이 있으면 묻는다(core/community editLeaveDecision, '나가기'를 누르면 고친 내용은 버린다).
  */
 
 const TILE = 112;
@@ -55,8 +67,14 @@ export default function CommunityComposeScreen({ navigation, route }: RootScreen
   const session = useSession((s) => s.session);
   const userId = session?.kind === 'account' ? session.userId : undefined;
   const publish = useCommunity((s) => s.publish);
-  const routeTripId = route.params?.tripId;
-  const routeDate = route.params?.date;
+  const edit = useCommunity((s) => s.edit);
+  const editPostId = route.params?.editPostId;
+  const editing = editPostId != null;
+  const editPost = useCommunity((s) => (editPostId ? s.posts.find((p) => p.id === editPostId) : undefined));
+  /** 임시 저장을 쓰는 사람. 고치기에서는 없다(새 글 임시 저장을 건드리지 않는다) */
+  const draftUser = editing ? undefined : userId;
+  const routeTripId = editing ? undefined : route.params?.tripId;
+  const routeDate = editing ? undefined : route.params?.date;
   const trip = useTripDoc(routeTripId);
 
   const [title, setTitle] = useState('');
@@ -64,6 +82,7 @@ export default function CommunityComposeScreen({ navigation, route }: RootScreen
   const [tags, setTags] = useState<string[]>([]);
   const [tagText, setTagText] = useState('');
   const [photos, setPhotos] = useState<CommunityPhotoInput[]>([]);
+  const [kept, setKept] = useState<CommunityPhoto[]>([]);
   const [origin, setOrigin] = useState<DraftOrigin | null>(null);
   const [recent, setRecent] = useState<string[]>([]);
   const [ready, setReady] = useState(false);
@@ -81,6 +100,7 @@ export default function CommunityComposeScreen({ navigation, route }: RootScreen
   const published = useRef(false);
   const bypass = useRef(false);
   const savedRef = useRef<ComposeContent | null>(null);
+  const originalRef = useRef<EditContent | null>(null);
   const pendingAction = useRef<Parameters<typeof navigation.dispatch>[0] | null>(null);
   const pendingDiary = useRef<string | null>(null);
   const photoWarned = useRef(false);
@@ -90,6 +110,8 @@ export default function CommunityComposeScreen({ navigation, route }: RootScreen
   contentRef.current = content;
   const originRef = useRef(origin);
   originRef.current = origin;
+  const keptRef = useRef(kept);
+  keptRef.current = kept;
 
   const setContent = (c: ComposeContent) => {
     setTitle(c.title);
@@ -110,14 +132,33 @@ export default function CommunityComposeScreen({ navigation, route }: RootScreen
     [trip],
   );
 
+  // 고치기로 열 때: 피드의 내 글로 한 번만 채운다(임시 저장은 읽지 않는다)
+  useEffect(() => {
+    if (!editing || !userId || !editPost || originalRef.current) return;
+    const o = editContentOf(editPost);
+    originalRef.current = o;
+    setContent(o);
+    setKept(o.kept);
+    setReady(true);
+    let live = true;
+    void communityDrafts()
+      .recentTags(userId)
+      .then((rec) => {
+        if (live) setRecent(rec);
+      });
+    return () => {
+      live = false;
+    };
+  }, [editing, userId, editPost]);
+
   // 열 때: 저장한 글과 어디서 열었는지 보고 새 글·일기·이어 쓰기·고르기 중 하나
   useEffect(() => {
-    if (!userId) return;
+    if (!draftUser) return;
     let live = true;
     const from: DraftOrigin | null = routeTripId && routeDate ? { tripId: routeTripId, date: routeDate } : null;
     void (async () => {
       const store = communityDrafts();
-      const [saved, rec] = await Promise.all([store.load(userId), store.recentTags(userId)]);
+      const [saved, rec] = await Promise.all([store.load(draftUser), store.recentTags(draftUser)]);
       if (!live) return;
       setRecent(rec);
       const plan = openPlan({ saved, origin: from });
@@ -133,7 +174,7 @@ export default function CommunityComposeScreen({ navigation, route }: RootScreen
     return () => {
       live = false;
     };
-  }, [userId, routeTripId, routeDate]);
+  }, [draftUser, routeTripId, routeDate]);
 
   // 일기로 채우기는 여행방 문서가 있어야 한다(늦게 올 수 있다)
   useEffect(() => {
@@ -144,18 +185,27 @@ export default function CommunityComposeScreen({ navigation, route }: RootScreen
   }, [ready, trip, fillFromDiary]);
 
   const saveNow = useCallback(async (): Promise<boolean> => {
-    if (!userId) return true;
+    if (!draftUser) return true;
     const c = contentRef.current;
-    const r = await communityDrafts().save(userId, { ...c, origin: originRef.current, updatedAt: appClock().now() });
+    const r = await communityDrafts().save(draftUser, { ...c, origin: originRef.current, updatedAt: appClock().now() });
     if (r.ok) savedRef.current = c;
     if (r.photos === 'failed' && !photoWarned.current) {
       photoWarned.current = true;
       useUi.getState().showToast('사진은 임시 저장하지 못했어요', 'warn');
     }
     return r.ok;
-  }, [userId]);
+  }, [draftUser]);
 
-  const isDirtyNow = () => leaveDecision({ current: contentRef.current, saved: savedRef.current, published: published.current }) === 'ask';
+  /** 떠날 때 할 일. 고치기는 처음 연 글과, 새 글은 임시 저장한 글과 비교한다 */
+  const decide = (): LeaveDecision => {
+    if (editing) {
+      const original = originalRef.current;
+      return original ? editLeaveDecision({ current: { ...contentRef.current, kept: keptRef.current }, original, published: published.current }) : 'leave';
+    }
+    return leaveDecision({ current: contentRef.current, saved: savedRef.current, published: published.current });
+  };
+
+  const isDirtyNow = () => decide() === 'ask';
 
   // 앱이 뒤로 가거나(홈 버튼·다른 앱) 웹 탭이 가려지면 저장한다
   useEffect(() => {
@@ -183,17 +233,17 @@ export default function CommunityComposeScreen({ navigation, route }: RootScreen
     () =>
       navigation.addListener('beforeRemove', (e) => {
         if (bypass.current) return;
-        const d = leaveDecision({ current: contentRef.current, saved: savedRef.current, published: published.current });
+        const d = decide();
         if (d === 'leave') return;
         if (d === 'clear') {
-          if (userId) void communityDrafts().clear(userId);
+          if (draftUser) void communityDrafts().clear(draftUser);
           return;
         }
         e.preventDefault();
         pendingAction.current = e.data.action;
         setLeaving(true);
       }),
-    [navigation, userId],
+    [navigation, draftUser, editing],
   );
 
   const goOut = () => {
@@ -211,13 +261,13 @@ export default function CommunityComposeScreen({ navigation, route }: RootScreen
       navigation.goBack();
       return;
     }
-    const d = leaveDecision({ current: contentRef.current, saved: savedRef.current, published: published.current });
+    const d = decide();
     if (d === 'ask') {
       pendingAction.current = null;
       setLeaving(true);
       return;
     }
-    if (d === 'clear' && userId) void communityDrafts().clear(userId);
+    if (d === 'clear' && draftUser) void communityDrafts().clear(draftUser);
     goOut();
   };
 
@@ -230,7 +280,7 @@ export default function CommunityComposeScreen({ navigation, route }: RootScreen
   if (session?.kind !== 'account') {
     return (
       <Screen>
-        <Header back={back} title="글쓰기" />
+        <Header back={back} title={editing ? '글 수정' : '글쓰기'} />
         <Body>
           <Empty
             icon="user"
@@ -243,16 +293,34 @@ export default function CommunityComposeScreen({ navigation, route }: RootScreen
     );
   }
 
-  const check = checkDraft(content);
+  if (editing && !editPost && !originalRef.current) {
+    return (
+      <Screen>
+        <Header back={back} title="글 수정" />
+        <Body>
+          <Empty
+            icon="alert"
+            title="고칠 글을 찾지 못했어요"
+            text="커뮤니티에서 내 글의 수정을 다시 눌러 주세요"
+            action={{ label: '커뮤니티로', onPress: goOut }}
+          />
+        </Body>
+      </Screen>
+    );
+  }
+
+  const check = checkDraft(content, kept.length);
+  const original = originalRef.current;
+  const unchanged = original != null && !isEditDirty({ ...content, kept }, original);
 
   const addPhotos = async () => {
     setPickErr(undefined);
-    const r = await pickCommunityPhotos(photos.length);
+    const r = await pickCommunityPhotos(photos.length + kept.length);
     if (!r.ok) {
       setPickErr(r.reason === 'denied' ? '사진 접근 권한이 없어요. 설정에서 허용해 주세요' : '사진을 불러오지 못했어요');
       return;
     }
-    if (r.photos.length > 0) setPhotos([...photos, ...r.photos].slice(0, PHOTOS_MAX));
+    if (r.photos.length > 0) setPhotos([...photos, ...r.photos].slice(0, PHOTOS_MAX - kept.length));
   };
 
   /** 태그 칸 글자: 구분 기호로 끝난 것은 태그로 넣고, 치는 중인 글자는 칸에 둔다 */
@@ -282,7 +350,7 @@ export default function CommunityComposeScreen({ navigation, route }: RootScreen
     if (sending.current) return;
     const c = contentRef.current;
     const draft = { title: c.title.trim(), body: c.body.trim(), tags: c.tags, photos: c.photos };
-    const ck = checkDraft(draft);
+    const ck = checkDraft(draft, editing ? keptRef.current.length : 0);
     if (!ck.ok) {
       setProblem(ck.problem);
       return;
@@ -290,6 +358,20 @@ export default function CommunityComposeScreen({ navigation, route }: RootScreen
     sending.current = true;
     setBusy(true);
     setProblem(undefined);
+    if (editPostId) {
+      // 고치기: 임시 저장은 건드리지 않는다
+      const er = await edit(editPostId, editDraftOf({ ...c, kept: keptRef.current }));
+      if (er.ok) {
+        published.current = true;
+        useUi.getState().showToast(EDIT_SAVED_TEXT);
+        goOut();
+        return;
+      }
+      sending.current = false;
+      setBusy(false);
+      setProblem(failText(er.code, er.detail));
+      return;
+    }
     const r = await publish(draft);
     if (r.ok) {
       published.current = true;
@@ -321,7 +403,7 @@ export default function CommunityComposeScreen({ navigation, route }: RootScreen
 
   return (
     <Screen>
-      <Header back={back} eyebrow="여행 이야기" title="글쓰기" />
+      <Header back={back} eyebrow="여행 이야기" title={editing ? '글 수정' : '글쓰기'} />
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <Body scroll>
           {restoredAt != null ? (
@@ -339,9 +421,22 @@ export default function CommunityComposeScreen({ navigation, route }: RootScreen
               <Txt v="label" style={{ flex: 1 }}>
                 사진
               </Txt>
-              <Txt v="mtTight">{`${photos.length} / ${PHOTOS_MAX}`}</Txt>
+              <Txt v="mtTight">{`${kept.length + photos.length} / ${PHOTOS_MAX}`}</Txt>
             </Row>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: SP.m }}>
+              {kept.map((p, i) => (
+                <View key={p.id} style={{ width: TILE, height: TILE }}>
+                  <Image
+                    source={{ uri: getServices().community.photoUri(p) }}
+                    accessibilityIgnoresInvertColors
+                    accessibilityLabel={`올린 사진 ${i + 1}`}
+                    style={{ width: TILE, height: TILE, borderRadius: R.photo, backgroundColor: surfaceC.off }}
+                  />
+                  <View style={{ position: 'absolute', top: SP.xs, right: SP.xs, borderRadius: R.iconBtn, backgroundColor: surfaceC.photoScrim }}>
+                    <IconBtn icon="x" color="onInk" label={`올린 사진 ${i + 1} 빼기`} onPress={() => setKept(kept.filter((x) => x.id !== p.id))} />
+                  </View>
+                </View>
+              ))}
               {photos.map((p, i) => (
                 <View key={`${i}-${p.data.length}`} style={{ width: TILE, height: TILE }}>
                   <Image
@@ -355,11 +450,11 @@ export default function CommunityComposeScreen({ navigation, route }: RootScreen
                   </View>
                 </View>
               ))}
-              {photos.length < PHOTOS_MAX ? (
+              {photos.length + kept.length < PHOTOS_MAX ? (
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel="사진 고르기"
-                  disabled={photos.length >= PHOTOS_MAX || busy}
+                  disabled={photos.length + kept.length >= PHOTOS_MAX || busy}
                   onPress={() => void addPhotos()}
                   style={{
                     width: TILE,
@@ -457,16 +552,36 @@ export default function CommunityComposeScreen({ navigation, route }: RootScreen
               {check.problem}
             </Txt>
           ) : null}
-          <Btn title={busy ? '올리는 중' : '올리기'} disabled={busy || !ready || !check.ok} onPress={() => void submit()} />
+          {!problem && check.ok && unchanged ? <Txt v="mtTight">고친 내용이 없어요</Txt> : null}
+          {editing ? (
+            <Btn title={busy ? '저장하는 중' : '저장하기'} disabled={busy || !ready || !check.ok || unchanged} onPress={() => void submit()} />
+          ) : (
+            <Btn title={busy ? '올리는 중' : '올리기'} disabled={busy || !ready || !check.ok} onPress={() => void submit()} />
+          )}
         </Foot>
       </KeyboardAvoidingView>
 
       <ConfirmSheet
-        visible={leaving}
+        visible={leaving && !editing}
         title="나가시겠습니까?"
         text="쓰던 글을 임시 저장해 두면 다음에 글쓰기를 열 때 이어서 쓸 수 있어요."
         confirmLabel="저장하고 나가기"
         onConfirm={() => void saveAndLeave()}
+        onCancel={() => {
+          pendingAction.current = null;
+          setLeaving(false);
+        }}
+      />
+
+      <ConfirmSheet
+        visible={leaving && editing}
+        title="고치지 않고 나갈까요"
+        text="고친 내용은 저장되지 않아요. 글은 고치기 전 그대로 남아요."
+        confirmLabel="나가기"
+        onConfirm={() => {
+          setLeaving(false);
+          goOut();
+        }}
         onCancel={() => {
           pendingAction.current = null;
           setLeaving(false);

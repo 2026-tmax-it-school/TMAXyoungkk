@@ -237,6 +237,12 @@ export default function TripSettingsScreen({ navigation, route }: RootScreenProp
             sub="초대 링크, 초대 권한, 내보내기"
             onPress={() => navigation.navigate('Members', { tripId: trip.id }, { pop: true, merge: true })}
           />
+          <ListRow
+            icon="share"
+            label="내 일정 공유하기"
+            sub="다른 사람이 보고 가져갈 수 있어요"
+            onPress={() => navigation.navigate('ShareItinerary', { tripId: trip.id })}
+          />
           <ListRow icon="clock" label="보관 기한" value={`${dateWithYear(retentionUntil(trip))}까지`} />
         </Col>
 

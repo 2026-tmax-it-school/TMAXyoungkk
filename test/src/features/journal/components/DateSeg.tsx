@@ -2,7 +2,6 @@ import React from 'react';
 
 import type { Trip } from '../../../types';
 import { dateRange, weekday } from '../../../core/util';
-import { daySegLabel } from '../../schedule/view';
 import { Seg, type SegItem } from '../../../ui';
 
 const WEEKDAY_FULL = ['일요일', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일'];
@@ -15,7 +14,7 @@ export function dateA11yLabel(date: string, photos?: number): string {
 }
 
 /**
- * 여행 기간 날짜 Seg(20·21·22). 라벨은 시간표와 같은 '10/18 토'(daySegLabel)다.
+ * 여행 기간 날짜 Seg(20·21·22). 라벨은 '1일차·2일차'(2026-10-17 사용자 요청), 날짜는 머리 보조 줄과 스크린리더 이름이 말한다.
  * all이면 맨 앞에 '전체'를 둔다. 기간이 길면 Seg가 스스로 가로로 민다(바깥 ScrollView 없음).
  * photoCounts가 있으면 칸마다 스크린리더가 사진 수를 함께 읽고, showCount면 개수를 라벨 뒤에 보인다(사진 화면만).
  */
@@ -34,9 +33,9 @@ export function DateSeg({
   photoCounts?: Record<string, number>;
   showCount?: boolean;
 }) {
-  const items: SegItem<string>[] = dateRange(trip.startDate, trip.endDate).map((d) => ({
+  const items: SegItem<string>[] = dateRange(trip.startDate, trip.endDate).map((d, i) => ({
     key: d,
-    label: daySegLabel(d),
+    label: `${i + 1}일차`,
     count: showCount ? (photoCounts?.[d] ?? 0) : undefined,
     a11yLabel: dateA11yLabel(d, photoCounts ? (photoCounts[d] ?? 0) : undefined),
   }));

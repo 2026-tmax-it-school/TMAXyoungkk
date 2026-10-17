@@ -2,3 +2,6 @@
 .env
 .env*.local
 .claude/settings.local.json
+
+# 키가 든 .env 백업(커밋 금지)
+.env.bak*

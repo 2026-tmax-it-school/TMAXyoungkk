@@ -13,6 +13,8 @@
  *                               EXPO_PUBLIC_API_URL이 있으면 쓰지 않는다(값이 있으면 번들에는 들어가니 비워 둔다.
  *                               남아 있으면 KAKAO_KEY_IGNORED로 더보기 서비스 상태가 알린다).
  *   EXPO_PUBLIC_AI_PROXY_URL    있으면 추출·추천·일기 문장이 AI 프록시를 쓴다. AI 키는 프록시 서버에만 둔다.
+ *                               비어 있고 EXPO_PUBLIC_API_URL이 있으면 추천만 그 서버의 /ai(server/ai.mjs, Gemini + 카카오)를 쓴다
+ *                               (pickRecommendProxyUrl, 2026-10-17). 서버에 GEMINI_API_KEY가 없으면 503이고 앱은 로컬 추천이다.
  *   EXPO_PUBLIC_SYNC_URL        있으면 그룹 동기화가 HTTP 폴링 서버(server/sync-server.mjs)를 쓴다.
  *                               계정(가입·로그인)은 EXPO_PUBLIC_API_URL, 없으면 이 주소의 서버(/auth)를 쓴다(pickAuthUrl).
  *                               둘 다 없으면 이 기기 모의 인증이다.
@@ -79,6 +81,13 @@ export function roadShapeSource(
   return apiUrl ? 'server' : 'public';
 }
 
+/** 추천 프록시 주소. AI 프록시가 있으면 그 주소, 없고 키 숨기는 서버가 있으면 그 서버의 /ai, 둘 다 없으면 빈 값(로컬 추천) */
+export function pickRecommendProxyUrl(aiProxyUrl: string | undefined, apiUrl: string): string {
+  const ai = (aiProxyUrl ?? '').trim();
+  if (ai) return ai;
+  return apiUrl ? `${apiUrl}/ai` : '';
+}
+
 /** 계정 서버 주소. 키 숨기는 서버가 있으면 그 서버, 없으면 동기화 서버(같은 server/sync-server.mjs). 둘 다 없으면 빈 값(모의 인증) */
 export function pickAuthUrl(apiUrl: string, syncUrl: string | undefined): string {
   return apiUrl || parseApiUrl(syncUrl);
@@ -126,6 +135,9 @@ export const HAS_KAKAO_KEY = KAKAO_REST_KEY.length > 0;
 export const KAKAO_KEY_IGNORED = KAKAO.ignored;
 
 export const AI_PROXY_URL = process.env.EXPO_PUBLIC_AI_PROXY_URL ?? '';
+
+/** 추천만 쓰는 프록시 주소(AI_PROXY_URL, 없으면 `${API_URL}/ai`). 추출·일기는 AI_PROXY_URL만 본다 */
+export const RECOMMEND_PROXY_URL = pickRecommendProxyUrl(AI_PROXY_URL, API_URL);
 
 export const SYNC_URL = process.env.EXPO_PUBLIC_SYNC_URL ?? '';
 

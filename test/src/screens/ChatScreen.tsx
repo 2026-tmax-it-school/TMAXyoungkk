@@ -15,8 +15,7 @@ import { orderedMessages } from '../core/chatOrder';
 import { areaIndex, groupAreas } from '../core/chatmap/areas';
 import { CHAT_MAP_INITIAL, chatMapStep } from '../core/chatmap/mapView';
 import { pickOptions } from '../core/extract/manual';
-import { activeMembers, tripMode } from '../core/group';
-import { PERSONAL_MODE_REASON } from '../core/ops/chat';
+import { activeMembers, isHost, tripMode } from '../core/group';
 import { josa } from '../core/util';
 import { regionById } from '../data/regions';
 import { SCENARIO_CHAT, SCENARIO_LATE_JOIN, SCENARIO_MEMBERS } from '../data/scenario';
@@ -76,7 +75,7 @@ import {
  * - 오프라인 안내는 앱 전체 OfflineBar가 맡는다. 여기서는 '전송 대기' 칩만 남긴다.
  * - 메뉴: 여행방 설정, 멤버·초대, 그리고 '시연'(보내는 사람 바꾸기, 시나리오 재생).
  * - 그룹 모드에만 지역 칩 줄과 지도가 있다. 좁은 화면(< 900)은 채팅을 늘 마운트해 스크롤을 지키고, 지도는 처음 '지도'로
- *   바꿀 때 마운트한 뒤 숨긴 채 유지한다(카메라·SDK 보존). 넓은 화면(웹 900 이상)은 왼쪽 채팅 열(400)과 오른쪽 지도 열로 나눈다.
+ *   바꿀 때 마운트한 뒤 숨긴 채 유지한다(카메라·SDK 보존). 들어가면 '지도'가 먼저 보인다(그룹·좁은 화면). 넓은 화면(웹 900 이상)은 왼쪽 채팅 열(400)과 오른쪽 지도 열로 나눈다.
  *   '지도'로 바꿀 때(머리말·칩) 키보드를 내린다. 숨은 채팅 층은 웹에서 inert라 Tab 포커스도 들어가지 않는다.
  *   고른 지역은 지금 지역 목록에 있는 키만 칩에 보인다(데이터가 바뀌어 사라진 키는 고르지 않은 것으로 본다).
  * - 개인 모드(활성 멤버 1명)면 입력을 막고 이유를 적는다. 칩·지도·나누기는 없다.
@@ -119,11 +118,15 @@ export default function ChatScreen({ navigation, route }: RootScreenProps<'Chat'
   const wide = width >= WIDE_MIN;
   const [text, setText] = useState('');
   const [menu, setMenu] = useState(false);
+  /** 멤버 시트(방장은 여기서 내보낸다) */
+  const [membersOpen, setMembersOpen] = useState(false);
+  const [removing, setRemoving] = useState<{ id: string; nickname: string } | undefined>();
   const [playing, setPlaying] = useState(false);
   const [pick, setPick] = useState<{ messageId: string; phrase: string } | undefined>();
   const [undoAsk, setUndoAsk] = useState<{ messageId: string; names: string[] } | undefined>();
-  const [view, setView] = useState<ChatView>('chat');
-  const [mapMounted, setMapMounted] = useState(false);
+  // 좁은 화면은 '지도'로 연다(2026-10-17 사용자 요청: 채팅방에 들어가면 지도를 바로 보여 주기)
+  const [view, setView] = useState<ChatView>('map');
+  const [mapMounted, setMapMounted] = useState(true);
   const [sel, act] = useReducer(chatMapStep, CHAT_MAP_INITIAL);
   const scroll = useRef<ScrollView>(null);
   /** 바닥 근처에 있는지(새 메시지가 오면 따라 내려갈지) */
@@ -211,6 +214,11 @@ export default function ChatScreen({ navigation, route }: RootScreenProps<'Chat'
     setMapMounted(true);
     setView('map');
   };
+  /** 채팅에서 말하지 않고 검색해서 바로 후보로 담는다(후보 탭의 검색 칸을 펼쳐 연다) */
+  const openSearchAdd = () => {
+    setCurrentTrip(trip.id);
+    navigation.navigate('Main', { screen: 'Candidates', params: { add: true } });
+  };
   const openCandidates = () => {
     setCurrentTrip(trip.id);
     navigation.navigate('Main', { screen: 'Candidates' });
@@ -237,7 +245,12 @@ export default function ChatScreen({ navigation, route }: RootScreenProps<'Chat'
         scrollEventThrottle={64}
         onContentSizeChange={onContentSize}
       >
-        {messages.length === 0 ? <Empty title="아직 대화가 없어요" text="가고 싶은 곳을 말하면 후보로 담겨요" /> : null}
+        {messages.length === 0 ? (
+          <Empty
+            title="아직 대화가 없어요"
+            text={"가고 싶은 곳 이름을 적으면 후보로 담겨요. 예: '불국사 가자, 황리단길에서 점심'\n이름이 헷갈리면 아래 '장소 검색해서 담기'를 눌러 보세요"}
+          />
+        ) : null}
         {messages.map((m, i) => {
           const meta = metas[i];
           const mine = m.memberId === me;
@@ -286,7 +299,12 @@ export default function ChatScreen({ navigation, route }: RootScreenProps<'Chat'
 
       <View style={[styles.composer, { paddingBottom: SP.l + insets.bottom }]}>
         <CandidateBar trip={trip} plan={plan} onPress={openCandidates} />
-        {group && me ? (
+        {me ? (
+          <Row>
+            <Btn title="장소 검색해서 담기" icon="search" size="sm" variant="quiet" onPress={openSearchAdd} />
+          </Row>
+        ) : null}
+        {me ? (
           <Row gap={SP.m} style={styles.inputRow}>
             <View style={styles.fill}>
               <Field
@@ -295,7 +313,7 @@ export default function ChatScreen({ navigation, route }: RootScreenProps<'Chat'
                 size="sm"
                 value={text}
                 onChangeText={setText}
-                placeholder="가고 싶은 곳을 말해 보세요"
+                placeholder={group ? '가고 싶은 곳을 말해 보세요' : '메모처럼 가고 싶은 곳을 적어 보세요'}
                 returnKeyType="send"
                 keepFocusOnSubmit
                 onSubmitEditing={send}
@@ -306,11 +324,8 @@ export default function ChatScreen({ navigation, route }: RootScreenProps<'Chat'
         ) : (
           <Card variant="tinted">
             <Txt v="mt" c="ink">
-              {group ? '이 여행방의 멤버가 아니라 보낼 수 없어요.' : PERSONAL_MODE_REASON}
+              이 여행방의 멤버가 아니라 보낼 수 없어요.
             </Txt>
-            {!group ? (
-              <Btn title="멤버 초대하기" size="sm" variant="ghost" icon="users" onPress={() => navigation.navigate('Members', { tripId })} />
-            ) : null}
           </Card>
         )}
       </View>
@@ -368,7 +383,7 @@ export default function ChatScreen({ navigation, route }: RootScreenProps<'Chat'
         size="row"
         back={back}
         title={trip.title}
-        sub={group ? `멤버 ${active.length}명 · 보내는 사람 ${meMember?.nickname ?? '없음'}` : '개인 모드 · 채팅 꺼짐'}
+        sub={group ? `멤버 ${active.length}명 · 보내는 사람 ${meMember?.nickname ?? '없음'}` : '혼자 여행 · 채팅 메모'}
         right={
           <>
             {group && !wide ? (
@@ -398,6 +413,15 @@ export default function ChatScreen({ navigation, route }: RootScreenProps<'Chat'
             onPress={() => {
               setMenu(false);
               navigation.navigate('TripSettings', { tripId });
+            }}
+          />
+          <ListRow
+            icon="users"
+            label={`멤버 ${active.length}명 보기`}
+            sub={me && isHost(trip, me) ? '방장은 여기서 내보낼 수 있어요' : undefined}
+            onPress={() => {
+              setMenu(false);
+              setMembersOpen(true);
             }}
           />
           <ListRow
@@ -441,6 +465,38 @@ export default function ChatScreen({ navigation, route }: RootScreenProps<'Chat'
         />
       </Sheet>
 
+      {/* 멤버 시트: 방장은 방장 아닌 멤버를 내보낼 수 있다(member/remove, 확인 1회). 규칙은 core/ops/members.validate */}
+      <Sheet visible={membersOpen} onClose={() => setMembersOpen(false)} title={`멤버 ${active.length}명`}>
+        <Col gap={SP.m}>
+          {active.map((m) => (
+            <Row key={m.id} gap={SP.l}>
+              <Avatar name={m.nickname} index={memberIndex(trip.members, m.id)} />
+              <Col grow gap={SP.xs}>
+                <Txt v="nm">{m.nickname}</Txt>
+                <Row gap={SP.s}>
+                  {m.role === 'host' ? <Chip text="방장" tone="soft" /> : null}
+                  {m.id === me ? <Chip text="나" tone="line" /> : null}
+                </Row>
+              </Col>
+              {me && isHost(trip, me) && m.role !== 'host' ? (
+                <Btn title="내보내기" size="sm" variant="quiet" onPress={() => setRemoving({ id: m.id, nickname: m.nickname })} />
+              ) : null}
+            </Row>
+          ))}
+          {me && isHost(trip, me) ? <Txt v="mtTight">방장만 멤버를 내보낼 수 있어요. 내보내도 제안한 후보와 채팅은 남아요.</Txt> : null}
+        </Col>
+      </Sheet>
+      <ConfirmSheet
+        visible={removing != null}
+        title={`${removing?.nickname ?? ''}님을 내보낼까요`}
+        text="이 멤버는 더 이상 여행방을 보거나 편집할 수 없어요. 제안한 후보와 채팅은 남아요."
+        confirmLabel="내보내기"
+        onConfirm={() => {
+          if (removing) useTrips.getState().dispatch(tripId, { type: 'member/remove', memberId: removing.id });
+          setRemoving(undefined);
+        }}
+        onCancel={() => setRemoving(undefined)}
+      />
       <ConfirmSheet
         visible={!!undoAsk}
         title="손본 후보도 지워져요"

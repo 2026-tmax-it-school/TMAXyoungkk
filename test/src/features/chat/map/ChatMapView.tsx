@@ -4,7 +4,7 @@ import { BackHandler, Platform, StyleSheet, View, type LayoutChangeEvent } from 
 import { MapCanvas } from '../../../components/map/MapCanvas';
 import type { ChatArea } from '../../../core/chatmap/areas';
 import { chatMapInput, chatMapLayout, type ChatMapEvent, type ChatMapState } from '../../../core/chatmap/mapView';
-import { mentionsOf, rankSpots, railOrder, voteCounts } from '../../../core/chatmap/votes';
+import { mentionsOf, rankSpots, railOrder, VOTE_BUDGET, voteBlocked, voteCounts, votesLeft } from '../../../core/chatmap/votes';
 import { activeMembers } from '../../../core/group';
 import { isEditLocked } from '../../../core/ops';
 import type { MapPolylineInput } from '../../../core/map/layout';
@@ -137,6 +137,12 @@ export const ChatMapView = memo(function ChatMapView({
     );
   }
 
+  const left = me ? votesLeft(trip, me) : 0;
+  const isFull = (spotId: string) => {
+    if (!me || left > 0) return false;
+    const spot = trip.spots.find((s) => s.id === spotId);
+    return !!spot && voteBlocked(trip.spots, spot, me);
+  };
   const toggle = (spotId: string) => {
     const spot = trip.spots.find((s) => s.id === spotId);
     if (spot) toggleVote(trip.id, spot);
@@ -206,6 +212,9 @@ export const ChatMapView = memo(function ChatMapView({
           online={online}
           locked={locked}
           canVote={canVote}
+          left={left}
+          budget={VOTE_BUDGET}
+          isFull={isFull}
           focusSpotId={focusSpotId}
           onToggle={toggle}
           onFocus={(spotId) => send({ t: 'focus', spotId })}

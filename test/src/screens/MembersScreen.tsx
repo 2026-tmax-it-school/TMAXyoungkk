@@ -6,7 +6,7 @@ import { dateLongShort } from '../core/trip/format';
 import { INVITE_BASE_URL } from '../config';
 import { inviteStatus, inviteUrlShort, seatsLeft, INVITE_ERROR_TEXT } from '../core/trip/invite';
 import { memberRows, type MemberRow } from '../core/trip/members';
-import { copyInvite, issueAndShare, issueInvite } from '../features/trip/actions';
+import { copyInvite, copyInviteCode, issueAndShare, issueInvite } from '../features/trip/actions';
 import type { RootScreenProps } from '../navigation/routes';
 import { useBack } from '../navigation/useBack';
 import { useNow } from '../services/clock';
@@ -42,7 +42,7 @@ import {
  * 14 멤버 초대 · 링크 공유(FR-301·303, WP2 소유).
  * - 주 행동은 Foot의 버튼 하나다. 쓸 수 있는 링크가 없거나 무효면 '링크 만들고 공유하기', 있으면 '링크 공유하기'(둘 다 issueAndShare).
  *   만들기에서 왔으면(fromCreate) quiet '나중에 초대하기'로 그 방을 현재 여행방으로 두고 후보 화면으로 간다.
- * - 초대 링크 카드: youngtrip.app/j/코드, 복사(expo-clipboard), 만료일·남은 자리, '새 링크 만들기'(재발급하면 이전 링크는 무효, 확인 1회).
+ * - 초대 링크 카드: youngtrip.app/j/코드, 복사(expo-clipboard), 그 아래 초대 코드(링크를 못 여는 사람에게 말로 알려 주는 용, 복사 따로), 만료일·남은 자리, '새 링크 만들기'(재발급하면 이전 링크는 무효, 확인 1회).
  *   발급·재발급은 방장 또는 초대 권한이 있는 멤버만. 초대 권한이 없는 그룹원에게는 링크·복사·공유·시연 합류를 보이지 않는다
  *   (권한표 '멤버 초대' 그룹원 X). 링크를 건네는 것도 초대다.
  * - 멤버 행: 보조 줄 뒤에 ' · 후보 N곳'(0곳도 표시, 제안자 규칙, core의 sub 문자열은 그대로), 칩은 '전송 대기'만.
@@ -147,6 +147,20 @@ export default function MembersScreen({ navigation, route }: RootScreenProps<'Me
                     hitSlop={HIT}
                     onPress={() => void copyInvite(trip)}
                   >
+                    <Txt v="btnSm" c="accent">
+                      복사
+                    </Txt>
+                  </Pressable>
+                </Row>
+                {/* 링크를 못 여는 사람에게는 코드를 말로 알려 준다. 받는 쪽은 '초대 코드로 합류'에 입력한다 */}
+                <Row gap={SP.l}>
+                  <Txt v="label">초대 코드</Txt>
+                  <View style={{ flex: 1 }}>
+                    <Txt v="nm">
+                      {inv.code}
+                    </Txt>
+                  </View>
+                  <Pressable accessibilityRole="button" accessibilityLabel="초대 코드 복사" hitSlop={HIT} onPress={() => void copyInviteCode(trip)}>
                     <Txt v="btnSm" c="accent">
                       복사
                     </Txt>

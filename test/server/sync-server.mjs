@@ -16,7 +16,9 @@
  *   GET  /kakao/…, /osrm/…                          → 키 숨기는 중계(server/proxy.mjs). 카카오 장소·자동차 길찾기, OSRM 길
  *   /auth/…                                         → 계정·로그인(server/auth.mjs. 가입·인증·로그인·세션·프로필·탈퇴·재설정·모의 소셜·
  *                                                      구글·카카오 OAuth(server/oauth.mjs))
+ *   /itineraries/…                                  → 공유한 여행 일정(server/itineraries.mjs. 둘러보기·가져오기는 누구나, 올리기·좋아요는 로그인 계정)
  *   /community/…                                    → 커뮤니티(사진·일기 글, server/community.mjs. 읽기는 누구나, 쓰기는 로그인 계정)
+ *   POST /ai/recommend                              → AI 여행지 추천(server/ai.mjs. Gemini 아이디어 + 카카오 장소 확인)
  *   OPTIONS *                                       → 204(CORS 사전 요청)
  *
  * 시연 리셋은 서버의 여행방을 모두 지운다. 메모리 저장소는 늘 허용하고, PostgreSQL은 SYNC_ALLOW_RESET=1일 때만 허용한다
@@ -39,8 +41,10 @@ import { createServer } from 'node:http';
 import { realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
+import { AI_DEFAULTS, aiOptionsFromEnv, createAiRecommender, isAiPath } from './ai.mjs';
 import { createAuthService, createMemoryAuthStore, devOutboxFromEnv, isAuthPath } from './auth.mjs';
 import { createCommunityService, createMemoryCommunityStore, isCommunityPath, POST_BODY_MAX } from './community.mjs';
+import { BODY_MAX as ITINERARY_BODY_MAX, createItineraryService, createMemoryItineraryStore, isItineraryPath } from './itineraries.mjs';
 import { projectOps } from './db/projection.mjs';
 import { storableId } from './ids.mjs';
 import { judgeInvite, lookupInTrips } from './invites.mjs';
@@ -227,6 +231,8 @@ export function allowResetFromEnv(env, kind) {
  * auth는 계정·로그인 설정(server/auth.mjs)이다. 저장소는 store.authStore(PostgreSQL 저장소가 준다)가 있으면 그것, 없으면 메모리다.
  * auth.devOutbox(개발용 보낸편지함 GET /auth/outbox)와 auth.mockSocial(모의 소셜, 기본 devOutbox와 같다)은 기본이 꺼짐이다.
  * 메모리 저장소라고 열리지 않는다. 닫혀 있으면 그 경로는 404다. auth가 false면 /auth 경로 전체가 404다.
+ * ai는 AI 추천 설정(server/ai.mjs createAiRecommender)이다. 카카오 키·fetch는 중계 설정의 값을 기본으로 쓴다.
+ * 기본은 Gemini 키 없음(503 aiDisabled)이다. false면 /ai 경로도 404다.
  * 돌려주는 close()로 닫는다. 저장소는 닫지 않는다(만든 쪽이 닫는다).
  */
 export async function startSyncServer({
@@ -239,10 +245,22 @@ export async function startSyncServer({
   log = () => {},
   proxy = {},
   auth = {},
+  ai = {},
 } = {}) {
   const api = proxy === false ? null : createApiProxy({ cache: store.routeCache, now, log, ...proxy });
+  const aiService =
+    ai === false
+      ? null
+      : createAiRecommender({
+          now,
+          log,
+          kakaoKey: proxy ? proxy.kakaoKey : '',
+          ...(proxy && proxy.fetch ? { fetch: proxy.fetch } : {}),
+          ...ai,
+        });
   // 커뮤니티는 계정 서비스가 있어야 열린다(쓰기는 로그인 계정). 계정 탈퇴가 그 계정의 글을 지운다
   let community = null;
+  let itineraries = null;
   const accounts =
     auth === false
       ? null
@@ -250,10 +268,19 @@ export async function startSyncServer({
           store: store.authStore ?? createMemoryAuthStore(),
           now,
           log,
-          onAccountRemoved: (accountId) => community?.removeByAccount(accountId),
+          onAccountRemoved: async (accountId) => {
+            await community?.removeByAccount(accountId);
+            await itineraries?.removeByAccount(accountId);
+          },
           ...auth,
         });
   if (accounts) {
+    itineraries = createItineraryService({
+      store: store.itineraryStore ?? createMemoryItineraryStore(),
+      authenticate: (headers) => accounts.authenticate(headers),
+      now,
+      log,
+    });
     community = createCommunityService({
       store: store.communityStore ?? createMemoryCommunityStore(),
       authenticate: (headers) => accounts.authenticate(headers),
@@ -275,6 +302,25 @@ export async function startSyncServer({
       const r = await api.handle({ method: req.method, url, rawLength: (req.url ?? '').length, ip: req.socket.remoteAddress ?? '' });
       return send(res, r.status, r.body, r.headers);
     }
+    if (aiService && isAiPath(url.pathname)) {
+      let body;
+      if (req.method === 'POST') {
+        try {
+          body = JSON.parse((await readBody(req, AI_DEFAULTS.maxBody, { drain: true })) || '{}');
+        } catch (e) {
+          return send(res, e?.message === 'tooLarge' ? 413 : 400, { error: e?.message === 'tooLarge' ? 'tooLarge' : 'badRequest' });
+        }
+      }
+      const r = await aiService.handle({
+        method: req.method,
+        path: url.pathname.slice('/ai/'.length),
+        body,
+        ip: req.socket.remoteAddress ?? '',
+        // TRUST_PROXY=1일 때만 쓴다(ai.mjs clientIp)
+        forwardedFor: req.headers['x-forwarded-for'],
+      });
+      return send(res, r.status, r.body, { 'Cache-Control': 'no-store', ...r.headers });
+    }
     if (accounts && isAuthPath(url.pathname)) {
       let body = {};
       if (req.method === 'POST') {
@@ -287,6 +333,25 @@ export async function startSyncServer({
       const r = await accounts.handle({
         method: req.method,
         path: url.pathname.slice('/auth/'.length),
+        url,
+        headers: req.headers,
+        body,
+        ip: req.socket.remoteAddress ?? '',
+      });
+      return send(res, r.status, r.body, { 'Cache-Control': 'no-store' });
+    }
+    if (itineraries && isItineraryPath(url.pathname)) {
+      let body = {};
+      if (req.method === 'POST') {
+        try {
+          body = JSON.parse((await readBody(req, ITINERARY_BODY_MAX, { drain: true })) || '{}');
+        } catch (e) {
+          return send(res, e?.message === 'tooLarge' ? 413 : 400, { error: e?.message === 'tooLarge' ? 'tooLarge' : 'badRequest' });
+        }
+      }
+      const r = await itineraries.handle({
+        method: req.method,
+        path: url.pathname.slice('/itineraries'.length),
         url,
         headers: req.headers,
         body,
@@ -331,6 +396,7 @@ export async function startSyncServer({
       }
       await store.reset();
       await community?.reset();
+      await itineraries?.reset();
       return send(res, 204);
     }
     if (parts[0] === 'trips' && parts.length === 3 && parts[2] === 'ops') {
@@ -430,6 +496,8 @@ async function main() {
   const proxy = proxyOptionsFromEnv(process.env);
   // 실제 소셜 로그인 키(GOOGLE_OAUTH_*, KAKAO_OAUTH_*)와 돌아올 주소 허용 목록(OAUTH_REDIRECT_URIS). 값은 로그에 남기지 않는다
   const oauth = oauthOptionsFromEnv(process.env);
+  // AI 추천(GEMINI_API_KEY, GEMINI_MODEL). 키 값은 로그에 남기지 않는다(켜짐·꺼짐만)
+  const ai = aiOptionsFromEnv(process.env);
   const server = await startSyncServer({
     port,
     host: '0.0.0.0',
@@ -437,6 +505,7 @@ async function main() {
     allowReset,
     proxy,
     auth: { devOutbox, oauth },
+    ai,
     log: (m) => console.log(m),
   });
   console.log(
@@ -446,6 +515,9 @@ async function main() {
   console.log(`소셜 로그인(OAuth): ${describeOAuth(oauth)}`);
   console.log(
     `중계: 카카오 ${proxy.kakaoKey ? '켜짐' : '꺼짐(KAKAO_REST_KEY 없음, 503)'}, 대중교통 ODsay ${proxy.odsayKey ? '켜짐' : '꺼짐(ODSAY_API_KEY 없음, 503)'}, OSRM ${new URL(proxy.osrmUrl).host}`,
+  );
+  console.log(
+    `AI 추천: ${ai.geminiKey ? `켜짐(${ai.model}${ai.fallbackModel ? `, 대체 ${ai.fallbackModel}` : ''}${ai.trustProxy ? ', X-Forwarded-For 사용' : ''})` : '꺼짐(GEMINI_API_KEY 없음, 503. 앱은 로컬 추천)'}${ai.geminiKey && !proxy.kakaoKey ? ', 카카오 키가 없어 장소 확인 불가(503)' : ''}`,
   );
   const stop = () => {
     server
