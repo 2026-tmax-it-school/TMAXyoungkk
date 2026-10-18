@@ -59,7 +59,8 @@ export type SpotField =
   | 'fixedDate'
   | 'manualOrder'
   | 'arriveOverride'
-  | 'removedByUser';
+  | 'removedByUser'
+  | 'hostPick';
 
 /** 후보. 확정/제외는 계산 결과(Plan)이지 후보의 속성이 아니다(FR-403). */
 export interface Spot {
@@ -99,7 +100,14 @@ export interface Spot {
    * 없으면(옛 문서) 제안자가 처음부터 한 표를 가진 것으로 본다(core/chatmap/votes.hasVote).
    */
   votes?: Record<string, SpotVote>;
+  /**
+   * 방장의 결정(2026-10-17 사용자 요청). 투표 결과보다 앞선다. 없으면 표가 정한다(core/spotUtil.votePinned).
+   * keep: 꼭 넣는다(고정 취급). drop: 일정에서 뺀다(제외 사유 hostDropped). spot/hostPick만 바꾼다(방장만).
+   */
+  hostPick?: HostPick;
 }
+
+export type HostPick = 'keep' | 'drop';
 
 /** 멤버 한 사람의 한 표. on:false는 지우지 않고 남겨 늦게 도착한 옛 op가 표를 되살리지 못하게 한다. */
 export interface SpotVote {
@@ -339,7 +347,7 @@ export interface ReturnLeg {
   notices: ItemNotice[];
 }
 
-export type ExcludeReasonCode = 'dayFull' | 'tooFar' | 'userRemoved' | 'outOfPeriod';
+export type ExcludeReasonCode = 'dayFull' | 'tooFar' | 'userRemoved' | 'outOfPeriod' | 'hostDropped';
 
 /** 제외 스팟. 조용한 제외는 없다(비기능 요구사항: 제외 이유 100% 표시). */
 export interface ExcludedSpot {
@@ -508,6 +516,8 @@ export type OpBody =
   | { type: 'spot/delete'; spotId: string }
   /** 채팅방 지도의 한 표(FR-405). placeId는 다른 기기에서 같은 장소가 합쳐져 spotId가 사라졌을 때의 별칭이다. */
   | { type: 'spot/vote'; spotId: string; placeId: string; on: boolean }
+  /** 방장이 투표 결과를 덮는다. null이면 다시 표가 정한다 */
+  | { type: 'spot/hostPick'; spotId: string; pick: HostPick | null }
   // ops/schedule.ts (WP4)
   | { type: 'schedule/reorder'; date: string; spotIds: string[] }
   | { type: 'schedule/setStay'; spotId: string; stayMin: number }

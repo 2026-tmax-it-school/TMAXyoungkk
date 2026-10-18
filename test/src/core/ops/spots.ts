@@ -1,7 +1,7 @@
 import type { ChatExtraction, ChatMessage, Op, OpOf, Proposal, Spot, Trip } from '../../types';
 import { costsVote, usedVotes, VOTE_BUDGET, VOTE_BUDGET_REASON } from '../chatmap/votes';
 import { addProposals } from '../extract/spot';
-import { activeMembers } from '../group';
+import { activeMembers, isHost } from '../group';
 import { patchSpot, patchVote } from './lww';
 
 /**
@@ -19,6 +19,8 @@ import { patchSpot, patchVote } from './lww';
  *   같은 placeId의 후보다(다른 기기에서 같은 장소가 먼저 생겨 이 기기의 후보가 그쪽에 합쳐진 경우).
  *   새 후보를 만들 때는 페이로드의 votes를 버리고, 기존 후보에 합칠 때는 votes를 그대로 둔다.
  *   후보를 지우는 spot/delete·undoExtraction은 votes도 함께 사라진다. pin은 votes를 건드리지 않는다.
+ * - spot/hostPick(2026-10-17 사용자 요청)은 방장만 쓴다. 투표 결과를 덮는 방장 결정(keep 꼭 넣기, drop 빼기, null 투표대로)이고
+ *   공유 patchSpot(hostPick 필드 LWW)만 쓴다. 계획 계산은 core/planner plannedSpots가 읽는다.
  * - 표 예산(VOTE_BUDGET, core/chatmap/votes): 켜기가 그 멤버의 예산을 넘으면 validate가 버린다(접을 때도 seq 순이라
  *   먼저 접힌 3표가 이긴다). 끄기는 언제나 된다. restore로 제외가 풀려 예산이 넘치는 멤버는 복원된 스팟의 표를 끈다.
  */
@@ -259,6 +261,8 @@ export function reduce(doc: Trip, op: Op): Trip {
       return reduceDelete(doc, op.spotId);
     case 'spot/vote':
       return patchById(doc, op.spotId, (s) => patchVote(s, op.actorId, op.on, op.at), op.placeId);
+    case 'spot/hostPick':
+      return patchById(doc, op.spotId, (s) => patchSpot(s, { hostPick: op.pick ?? undefined }, op.at));
     default:
       return doc;
   }
@@ -290,6 +294,10 @@ export function validate(doc: Trip, op: Op): string | null {
     case 'spot/restore':
     case 'spot/delete':
       return doc.spots.some((s) => s.id === op.spotId) ? null : NO_SPOT;
+    case 'spot/hostPick':
+      if (!doc.spots.some((s) => s.id === op.spotId)) return NO_SPOT;
+      if (!isHost(doc, op.actorId)) return '방장만 정할 수 있어요';
+      return op.pick === null || op.pick === 'keep' || op.pick === 'drop' ? null : '잘못된 요청이에요';
     case 'spot/vote': {
       const spot = doc.spots.find((s) => s.id === op.spotId) ?? (op.placeId ? doc.spots.find((s) => s.placeId === op.placeId) : undefined);
       if (!spot) return NO_SPOT;

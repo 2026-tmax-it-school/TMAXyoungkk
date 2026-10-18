@@ -153,6 +153,42 @@ export function stepTime(hhmm: string, deltaMin: number): string {
   return `${String(Math.floor(v / 60)).padStart(2, '0')}:${String(v % 60).padStart(2, '0')}`;
 }
 
+/** 활동시간으로 고를 수 있는 가장 이른·늦은 시각(분) */
+export const TIME_MIN = 5 * 60;
+export const TIME_MAX = 24 * 60;
+
+const pad2 = (n: number) => String(n).padStart(2, '0');
+export const minToTime = (m: number) => `${pad2(Math.floor(m / 60))}:${pad2(m % 60)}`;
+
+/** 목록에서 고르는 시각: 05:00부터 24:00까지 30분 간격(39개) */
+export const TIME_OPTIONS: readonly string[] = Array.from({ length: (TIME_MAX - TIME_MIN) / 30 + 1 }, (_, i) => minToTime(TIME_MIN + i * 30));
+
+/**
+ * 손으로 적은 시각 → 'HH:MM'. 못 읽거나 05:00~24:00 밖이면 null.
+ * 받는 모양: '9', '09', '9:30', '09:30', '930', '0930', '21', '21:00', '9시', '9시 30분', '9시30분', '24:00', 앞뒤 공백.
+ * 숫자만 세 자리(930)나 네 자리(0930)면 시·분으로 나눈다. 분은 0~59 아무 값이나 받는다(30분 단위가 아니어도 된다).
+ */
+export function parseTimeInput(text: string): string | null {
+  const t = String(text ?? '').trim().replace(/\s+/g, '');
+  if (t === '') return null;
+  let h: number;
+  let m = 0;
+  let r: RegExpMatchArray | null;
+  if ((r = t.match(/^(\d{1,2})(?::|시)(\d{1,2})분?$/))) {
+    h = Number(r[1]);
+    m = Number(r[2]);
+  } else if ((r = t.match(/^(\d{1,2})시?$/))) {
+    h = Number(r[1]);
+  } else if ((r = t.match(/^(\d{1,2})(\d{2})$/)) && t.length >= 3) {
+    h = Number(r[1]);
+    m = Number(r[2]);
+  } else return null;
+  if (!Number.isInteger(h) || !Number.isInteger(m) || m > 59) return null;
+  const v = h * 60 + m;
+  if (v < TIME_MIN || v > TIME_MAX) return null;
+  return minToTime(v);
+}
+
 /** '하루 12시간' */
 export function hoursLabel(dayStart: string, dayEnd: string): string {
   const m = toMin(dayEnd) - toMin(dayStart);

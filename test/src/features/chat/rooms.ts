@@ -28,6 +28,14 @@ export interface ChatRoomRow {
   cover?: string;
   /** 표지가 없을 때 칸 가운데 보일 지역 이름(홈 카드와 같다) */
   place: string;
+  /** 여행 기간 짧게('10/23 – 10/24', 당일이면 '10/23') */
+  dates: string;
+}
+
+/** 'YYYY-MM-DD' 둘 → '10/23 – 10/24'(같은 날이면 하나) */
+export function shortPeriod(start: string, end: string): string {
+  const md = (d: string) => `${Number(d.slice(5, 7))}/${Number(d.slice(8, 10))}`;
+  return start === end ? md(start) : `${md(start)} – ${md(end)}`;
 }
 
 export function chatRooms(trips: readonly Trip[], pinned: readonly string[]): ChatRoomRow[] {
@@ -45,6 +53,7 @@ export function chatRooms(trips: readonly Trip[], pinned: readonly string[]): Ch
       meta: group ? `멤버 ${activeMembers(t).length}명` : '채팅 메모',
       cover: coverUri(t.cover),
       place: regionById(t.region)?.name ?? t.title,
+      dates: shortPeriod(t.startDate, t.endDate),
     };
   });
   return rows.sort((a, b) => (a.pinned === b.pinned ? b.at - a.at : a.pinned ? -1 : 1));

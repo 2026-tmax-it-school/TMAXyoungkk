@@ -1,7 +1,8 @@
 import type { DayPlan, ExcludedSpot, LatLng, Plan, PlanStep, Spot, Trip } from '../../types';
 import { DAYPART_EVENING, DAYPART_NOON, FAR_ROUNDTRIP_MIN, ROUTE_CALL_BUDGET } from '../constants';
 import type { Clock, RouteProvider } from '../ports';
-import { activeSpots, priorityCompare, proposerCount } from '../spotUtil';
+import { activeSpots, priorityCompare, proposerCount, votePinned } from '../spotUtil';
+import { activeMembers } from '../group';
 import { dayShort, haversineKm, humanMin, josa, toMin } from '../util';
 import {
   basePairs,
@@ -92,6 +93,22 @@ export function forcedDate(spot: Spot, dates: readonly string[]): string | undef
 export function preferredDate(spot: Spot, dates: readonly string[]): string | undefined {
   if (spot.manualOrder && dates.includes(spot.manualOrder.date)) return spot.manualOrder.date;
   return undefined;
+}
+
+/**
+ * 계획에 넣을 후보(2026-10-17 사용자 요청: 투표와 방장 결정).
+ * - 방장이 뺀 후보(hostPick drop)는 빠진다(buildPlan이 hostDropped 사유로 보인다).
+ * - 방장이 넣은 후보(hostPick keep)와 활성 멤버 과반의 표를 받은 후보(votePinned)는 고정 취급(pinned)으로 넘긴다.
+ *   저장된 pinned는 바꾸지 않는다. 계산할 때만 고정으로 본다.
+ */
+export function plannedSpots(trip: Trip): Spot[] {
+  const active = activeMembers(trip);
+  const out: Spot[] = [];
+  for (const s of activeSpots(trip)) {
+    if (s.hostPick === 'drop') continue;
+    out.push(!s.pinned && (s.hostPick === 'keep' || votePinned(s, active)) ? { ...s, pinned: true } : s);
+  }
+  return out;
 }
 
 export function isForced(spot: Spot, dates: readonly string[]): boolean {
@@ -393,10 +410,12 @@ export async function buildPlan(trip: Trip, deps: PlanDeps): Promise<Plan> {
   for (const s of trip.spots) {
     if (s.removedByUser) {
       pushEx(s, { reasonCode: 'userRemoved', reason: s.removedReason === 'delay' ? '지연 조정안으로 뺌' : '사용자가 직접 뺌' });
+    } else if (s.hostPick === 'drop') {
+      pushEx(s, { reasonCode: 'hostDropped', reason: '방장이 뺌' });
     }
   }
   const candidates: Spot[] = [];
-  for (const s of activeSpots(trip)) {
+  for (const s of plannedSpots(trip)) {
     if (s.fixedDate && !dates.includes(s.fixedDate)) {
       pushEx(s, { reasonCode: 'outOfPeriod', reason: `지정한 날짜 ${josa(dayShort(s.fixedDate), '이/가')} 여행 기간 밖이라` });
     } else candidates.push(s);

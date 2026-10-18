@@ -14,7 +14,8 @@ import { haversineKm } from '../util';
  */
 
 export type LocateMode = 'off' | 'locating' | 'centered' | 'follow';
-export type LocateFail = 'denied' | 'unavailable' | 'timeout';
+/** declined: 앱의 위치 사용 대화상자에서 '허용 안 함'을 골랐다(기기 설정은 그대로라 다시 누르면 다시 묻는다) */
+export type LocateFail = 'denied' | 'declined' | 'unavailable' | 'timeout';
 
 export type LocateEvent =
   | { type: 'tap' }
@@ -97,6 +98,7 @@ export function locateLabel(mode: LocateMode): string {
 
 /** 실패 안내(토스트). 거부면 켜는 방법을 같이 말한다 */
 export function locateFailText(reason: LocateFail, web: boolean): string {
+  if (reason === 'declined') return '위치를 허용하지 않았어요. 다시 누르면 허용할지 다시 물어봐요';
   if (reason === 'denied') {
     return web
       ? '위치 권한이 꺼져 있어요. 주소창 왼쪽 사이트 설정에서 위치를 허용해 주세요'

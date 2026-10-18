@@ -10,12 +10,16 @@ import {
   deleteNotice,
   detailRows,
   footActions,
+  HOST_PICKS,
   spotDetail,
+  voteInfo,
   stayPreviewText,
   type DetailRowKey,
   type FootAction,
 } from '../features/candidates/detail';
+import { pinLabel } from '../features/candidates/rows';
 import { memberIndex } from '../features/chat/view';
+import { activeMembers, isHost } from '../core/group';
 import { daySegLabel } from '../features/schedule/view';
 import type { RootScreenProps } from '../navigation/routes';
 import { useBack } from '../navigation/useBack';
@@ -141,6 +145,10 @@ export default function SpotDetailScreen({ navigation, route }: RootScreenProps<
   const del = deleteNotice(spot, myMemberId(trip));
   const rows = detailRows(detail);
   const actions = footActions(detail, !!detail.item);
+  const me = myMemberId(trip);
+  const host = !!me && isHost(trip, me);
+  const vote = voteInfo(trip, spot);
+  const pinText = pinLabel(spot, activeMembers(trip));
   const editSheet: Partial<Record<DetailRowKey, 'stay' | 'date'>> = { stay: 'stay', date: 'date' };
 
   const act = (a: FootAction) => {
@@ -158,6 +166,14 @@ export default function SpotDetailScreen({ navigation, route }: RootScreenProps<
     dispatch(tripId, { type: 'spot/pin', spotId, pinned: a.key === 'pin' });
   };
 
+  const hostPick = (pick: (typeof HOST_PICKS)[number]['pick']) => {
+    if ((spot.hostPick ?? null) === pick) return;
+    const r = dispatch(tripId, { type: 'spot/hostPick', spotId, pick });
+    if (!r.ok) return;
+    const done = { keep: '꼭 넣기로 했어요', drop: '일정에서 뺐어요' } as const;
+    toast(pick === null ? `${josa(spot.name, '은/는')} 다시 투표로 정해요` : `${josa(spot.name, '을/를')} ${done[pick]}`);
+  };
+
   const removeNow = () => {
     const r = dispatch(tripId, { type: 'spot/remove', spotId, reason: 'user' });
     if (r.ok) toast(`${josa(spot.name, '을/를')} 제외 스팟으로 옮겼어요`);
@@ -169,9 +185,9 @@ export default function SpotDetailScreen({ navigation, route }: RootScreenProps<
       <Body scroll>
         <MapCanvas compact height={126} markers={markers} polylines={[]} fitTo={base ? [base.coord, spot.coord] : [spot.coord]} />
 
-        {spot.pinned || spot.outsideRegion ? (
+        {pinText || spot.outsideRegion ? (
           <Row wrap gap={SP.s}>
-            {spot.pinned ? <Chip text="고정" icon="pinlock" /> : null}
+            {pinText ? <Chip text={pinText} icon="pinlock" /> : null}
             {spot.outsideRegion ? <Chip text="목적지 밖" tone="warn" /> : null}
           </Row>
         ) : null}
@@ -241,6 +257,31 @@ export default function SpotDetailScreen({ navigation, route }: RootScreenProps<
                   ))}
                 </Col>
               </>
+            ) : null}
+          </Card>
+        ) : null}
+
+        {/* 투표: 표 수가 제외 순서, 과반이면 고정 취급. 방장은 여기서 결과를 덮는다 */}
+        {!spot.removedByUser ? (
+          <Card>
+            <Txt v="eyebrow">투표</Txt>
+            <Txt v="mt">{vote.text}</Txt>
+            {host ? (
+              <Col gap={SP.s}>
+                <Txt v="mtTight">방장 결정</Txt>
+                <Row wrap gap={SP.s}>
+                  {HOST_PICKS.map((p) => (
+                    <Btn
+                      key={p.label}
+                      title={p.label}
+                      size="sm"
+                      variant={(spot.hostPick ?? null) === p.pick ? 'primary' : 'quiet'}
+                      a11yLabel={`방장 결정 ${p.label}`}
+                      onPress={() => hostPick(p.pick)}
+                    />
+                  ))}
+                </Row>
+              </Col>
             ) : null}
           </Card>
         ) : null}

@@ -83,7 +83,9 @@ test('활동시간을 넘으면 carryOver(다음 날 이월 제안)가 나온다
   assert.ok(p.days[0].overMin > 0);
   // 고정은 이월 제안에서 뺀다. 고정 아닌 날짜 지정 스팟은 이월 제안에 들어간다
   assert.deepEqual(p.days[0].carryOver, []);
-  const t2 = oneSpotTrip({ fixedDate: '2026-10-17', stayMin: 300 }, { dayStart: '18:00', dayEnd: '21:00' });
+  // 제안자 한 명(과반이 아니라 투표로 고정되지 않는다, 2026-10-17)
+  const one = scenarioTrip().spots[0].proposals.slice(0, 1);
+  const t2 = oneSpotTrip({ fixedDate: '2026-10-17', stayMin: 300, proposals: one }, { dayStart: '18:00', dayEnd: '21:00' });
   const p2 = await buildPlan(t2, { routes: tableRoutes(), now: 0 });
   assert.deepEqual(p2.days[0].carryOver, ['x']);
 });

@@ -324,8 +324,8 @@ test('06 행 계산: 확정·제외·배치 전, 사유 100%, 시간대와 고�
     ['석굴암', '사찰 · 체류 90분 · 10/18 12:57'],
   ]);
   assert.deepEqual(v.excluded.map((r) => [r.name, r.reasonCode, r.sub]), [
-    ['감은사지 삼층석탑', 'tooFar', '왕복 1시간 10분 · 제안자 1'],
-    ['계림', 'userRemoved', '사용자가 직접 뺌 · 제안자 1'],
+    ['감은사지 삼층석탑', 'tooFar', '왕복 1시간 10분 · 표 1'],
+    ['계림', 'userRemoved', '사용자가 직접 뺌 · 표 1'],
   ]);
   for (const e of v.excluded) assert.ok(e.reason.length > 0);
   assert.equal(v.autoExcluded, 1);
@@ -402,14 +402,14 @@ test('06 화면: 지금 보는 여행방 줄, 시간표|후보 나누기와 요�
   assert.match(src, /trips\.length === 0[\s\S]*?'여행방 만들기'/);
   assert.equal(src.match(/여행방 만들기/g)?.length, 1);
   assert.match(src, /여행방을 골라 주세요/);
-  // 담기 입구: 검색창 모양 버튼(44 이상)을 누르면 그 자리에서 ManualAdd를 펼친다. 그 아래 추천 줄
-  assert.match(src, /장소 검색해서 담기/);
-  // 보이는 글과 접근성 이름이 늘 같다(펼치면 둘 다 '장소 검색 닫기')
-  assert.match(src, /const entryLabel = adding \? '장소 검색 닫기' : '장소 검색해서 담기'/);
-  assert.match(src, /accessibilityLabel=\{entryLabel\}/);
-  assert.match(src, /<Txt v="field" c="muted" numberOfLines=\{1\}>\s*\{entryLabel\}\s*<\/Txt>/);
+  // 담기: 맨 위 돋보기 검색창이 바로 입력 칸이다(아래에 새 칸을 펼치지 않는다, 2026-10-17)
+  assert.match(src, /<ManualAdd key=\{route\.params\?\.add \? 'add' : 'idle'\} trip=\{trip\} focus=\{route\.params\?\.add === true\} \/>/);
+  assert.doesNotMatch(src, /장소 검색 닫기|entryLabel/);
+  const add = read('src/features/candidates/components/ManualAdd.tsx');
+  assert.match(add, /placeholder="장소 검색해서 담기"/);
+  assert.match(add, /<IconBtn icon="search" label=\{busy \? '찾는 중' : '검색'\}/);
+  assert.match(add, /label="검색어 지우기"/);
   assert.match(src, /minHeight: H\.touch/);
-  assert.match(src, /adding \? <ManualAdd trip=\{trip\} focus \/> : null/);
   assert.match(src, /<ListRow[^>]*icon="compass"[^>]*label="성향 태그로 추천 받기"/);
   // 계산 중이면 칩과 '단계 보기'
   assert.match(src, /<Chip text="다시 계산하는 중"[\s\S]*?title="단계 보기" size="sm" variant="quiet"/);

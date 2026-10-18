@@ -19,6 +19,7 @@ const REVEAL_SLOP_V = (H.touch - T.btnSm.lineHeight) / 2;
  * - size 'sm': 높이 44(H.fieldSm). 옆의 44 아이콘 버튼과 줄을 맞춘다.
  * - multiline: 여러 줄 입력(21 일기 문단). minLines 줄만큼 높이를 잡고 글자는 위에서 시작한다.
  * - look 'auth': 15 로그인·16 회원가입 모양(높이 48, 작은 라운드 6). 소셜 버튼(ui/Auth AuthBtn)과 줄을 맞춘다.
+ * - look 'pill': 05 채팅 입력줄(2026-10-17, 메신저형). 높이 48 알약, 연한 테두리, 오른쪽 안에 right(보내기 버튼).
  * - keepFocusOnSubmit: 엔터를 눌러도 키보드를 내리지 않는다(29 커뮤니티 태그처럼 연달아 넣는 칸). 네이티브는 submitBehavior,
  *   웹(react-native-web)은 blurOnSubmit를 본다. returnKeyType·autoCapitalize·onBlur는 그대로 넘긴다.
  * - kind: 칸 종류(이메일·아이디·비밀번호·새 비밀번호·닉네임·초대 코드). 자동완성·자동 고침·키보드·엔터 키 기본값을
@@ -49,6 +50,7 @@ export function Field({
   onBlur,
   kind,
   inputRef,
+  right,
 }: {
   label: string;
   value: string;
@@ -64,13 +66,15 @@ export function Field({
   multiline?: boolean;
   minLines?: number;
   onSubmitEditing?: () => void;
-  look?: 'default' | 'auth';
+  look?: 'default' | 'auth' | 'pill';
   keepFocusOnSubmit?: boolean;
   returnKeyType?: 'done' | 'next' | 'go' | 'search' | 'send';
   autoCapitalize?: 'none' | 'sentences' | 'words' | 'characters';
   onBlur?: () => void;
   kind?: FieldKind;
   inputRef?: React.Ref<TextInput>;
+  /** 칸 안 오른쪽 끝에 두는 것(05 입력줄의 보내기 버튼). 글자와 같은 줄에 있다 */
+  right?: React.ReactNode;
 }) {
   const [focus, setFocus] = useState(false);
   const [shown, setShown] = useState(false);
@@ -79,8 +83,9 @@ export function Field({
   // DS TextField: 라벨이 칸 안 안내문이다. 라벨을 숨기면 44/56 한 줄 칸에 placeholder만 보인다.
   // look auth(15·16)는 높이 48·라운드 6이다(안내문만 보인다).
   const auth = look === 'auth';
-  const inside = !hideLabel && !auth;
-  const boxH = auth ? H.auth : size === 'sm' ? H.fieldSm : H.field;
+  const pill = look === 'pill';
+  const inside = !hideLabel && !auth && !pill;
+  const boxH = auth || pill ? H.auth : size === 'sm' ? H.fieldSm : H.field;
   const padV = multiline ? 8 : size === 'sm' ? 8 : 10;
   const ring = focus ? lineC.ink : lineC.strong;
   return (
@@ -94,11 +99,12 @@ export function Field({
         style={{
           minHeight: multiline ? Math.max(boxH, LINE_H * minLines + 16) : boxH,
           // 포커스 때 테두리가 1 → 2로 굵어지는 만큼 안쪽 여백을 줄여 글자가 밀리지 않게 한다.
-          paddingHorizontal: focus || error ? 11 : 12,
+          paddingLeft: (focus || error ? 11 : 12) + (pill ? SP.s : 0),
+          paddingRight: (focus || error ? 11 : 12) - (pill && right ? 6 : 0),
           paddingVertical: 0,
           borderWidth: focus || error ? 2 : 1,
-          borderColor: error ? surfaceC.amber : ring,
-          borderRadius: auth ? R.auth : R.field,
+          borderColor: error ? surfaceC.amber : pill && !focus ? lineC.strong : ring,
+          borderRadius: auth ? R.auth : pill ? R.chip : R.field,
           backgroundColor: surfaceC.card,
           flexDirection: 'row',
           alignItems: multiline ? 'flex-start' : 'center',
@@ -153,6 +159,7 @@ export function Field({
               <Txt v="mtTight">{`${value.length} / ${maxLength}`}</Txt>
             </View>
           ) : null}
+          {right}
         </View>
       </View>
       {error ? (

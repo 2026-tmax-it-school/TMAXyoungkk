@@ -20,6 +20,7 @@ export { Switch } from './Switch';
 export { Empty, Notice, NotFound, WarnCard } from './Notice';
 export { Avatar, AvatarStack } from './Avatar';
 export { ConfirmSheet, Sheet } from './Sheet';
+export { AlertDialog, type AlertAction } from './AlertDialog';
 export { LeaveConfirmSheet } from './LeaveConfirmSheet';
 export { PeekSheet } from './PeekSheet';
 export {

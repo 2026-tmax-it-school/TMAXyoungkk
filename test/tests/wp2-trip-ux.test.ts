@@ -197,7 +197,12 @@ describe('소스 규칙(B2 여행방 만들기 · 멤버 초대 · 여행방 설
   test('TimeRange는 초안을 들고 있다가 완료에서 onChange를 한 번만 부른다', () => {
     const src = readFileSync('src/features/trip/components/TimeRange.tsx', 'utf8');
     assert.equal(src.match(/onChange\(/g)?.length, 1);
-    assert.match(src, /const done = \(\) => \{\s*if \(draft && !disabled && \(draft\.start !== start \|\| draft\.end !== end\)\) onChange\(draft\);/);
+    assert.match(src, /const done = \(\) => \{\s*if \(startProblem \|\| endProblem\) return;\s*if \(draft && !disabled && \(draft\.start !== start \|\| draft\.end !== end\)\) onChange\(draft\);/);
+    // 시작·끝은 목록(30분 칩)과 직접 입력 두 가지로 정한다
+    assert.match(src, /TIME_OPTIONS\.filter\(\(t\) => t < cur\.end\)/);
+    assert.match(src, /TIME_OPTIONS\.filter\(\(t\) => t > cur\.start\)/);
+    assert.match(src, /parseTimeInput\(text\)/);
+    assert.match(src, /<Btn title="완료" disabled=\{!!startProblem \|\| !!endProblem\} onPress=\{done\} \/>/);
     assert.match(src, /<PickerBox\s+label=\{label\}/);
   });
 

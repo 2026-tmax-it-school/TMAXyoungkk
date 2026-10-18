@@ -1,9 +1,9 @@
 import type { Plan, Spot, Trip } from '../../types';
 import { FAR_ROUNDTRIP_MIN } from '../constants';
 import type { RouteProvider } from '../ports';
-import { activeSpots, priorityCompare } from '../spotUtil';
+import { priorityCompare } from '../spotUtil';
 import { dayContexts, dayPairs, legTransport } from './day';
-import { createEvaluator, isForced } from './index';
+import { createEvaluator, isForced, plannedSpots } from './index';
 import { createTravelBook } from './travel';
 
 /**
@@ -22,7 +22,8 @@ export async function planViolations(trip: Trip, plan: Plan, routes: RouteProvid
   const out: string[] = [];
   const ctxs = dayContexts(trip);
   const dates = ctxs.map((c) => c.date);
-  const byId = new Map(trip.spots.map((s) => [s.id, s]));
+  // 투표·방장 결정으로 고정 취급되는 후보는 계산 때와 같은 모습(plannedSpots)으로 본다
+  const byId = new Map([...trip.spots, ...plannedSpots(trip)].map((s) => [s.id, s]));
 
   // 1. 분할
   const seen = new Map<string, number>();
@@ -41,7 +42,7 @@ export async function planViolations(trip: Trip, plan: Plan, routes: RouteProvid
     if (n !== 1) out.push(`${s.name}: 확정·제외에 ${n}번 나온다`);
   }
 
-  const cands = activeSpots(trip).filter((s) => !(s.fixedDate && !dates.includes(s.fixedDate)));
+  const cands = plannedSpots(trip).filter((s) => !(s.fixedDate && !dates.includes(s.fixedDate)));
   const book = createTravelBook(routes);
   await book.ensure(ctxs.flatMap((c) => dayPairs(c, cands)));
   const ev = createEvaluator(ctxs, book);

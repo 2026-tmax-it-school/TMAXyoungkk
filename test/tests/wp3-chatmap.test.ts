@@ -261,12 +261,13 @@ describe('지역 규칙(areaOf, groupAreas)', () => {
 });
 
 describe('spot/vote op(멤버별 LWW, 툼스톤, placeId 별칭)', () => {
-  test('OP_OWNER와 재계산: spots가 맡고, 계획 재계산·오프라인 dirty를 만들지 않는다', () => {
+  test('OP_OWNER와 재계산: spots가 맡고, 표가 바뀌면 계획을 다시 계산한다(오프라인이면 dirty, 2026-10-17)', () => {
     assert.equal(OP_OWNER['spot/vote'], 'spots');
-    assert.equal(needsRecompute('spot/vote'), false);
+    assert.equal(needsRecompute('spot/vote'), true);
     assert.equal(needsRecompute('spot/pin'), true);
+    assert.equal(needsRecompute('spot/hostPick'), true);
     const dirty = {};
-    assert.equal(markDirty(dirty, 't1', { type: 'spot/vote' }, false), dirty);
+    assert.deepEqual(markDirty(dirty, 't1', { type: 'spot/vote' }, false), { t1: true });
     assert.deepEqual(markDirty(dirty, 't1', { type: 'spot/pin' }, false), { t1: true });
   });
 
@@ -925,8 +926,10 @@ describe('서버 저장과 소스 규칙', () => {
     assert.match(chips, /hitSlop=\{\{ top: SLOP, bottom: SLOP \}\}/, '지역 칩은 누르는 높이 44');
   });
 
-  test("'투표'는 src/features/chat/map 안에만 있다", () => {
-    const outside = listFiles('src', ['.ts', '.tsx']).filter((f) => !f.startsWith('src/features/chat/map/'));
+  test("'투표'는 src/features/chat/map과 투표 결과를 보이는 후보 행·스팟 상세에만 있다", () => {
+    // 2026-10-17: 표가 제외 순서와 자동 고정을 정하면서 후보 행('투표로 고정')과 스팟 상세 투표 카드도 쓴다
+    const shows = ['src/features/candidates/rows.ts', 'src/features/candidates/detail.ts', 'src/screens/SpotDetailScreen.tsx'];
+    const outside = listFiles('src', ['.ts', '.tsx']).filter((f) => !f.startsWith('src/features/chat/map/') && !shows.includes(f));
     const bad = outside.filter((f) => src(f).includes('투표'));
     assert.deepEqual(bad, []);
   });

@@ -47,6 +47,7 @@ import { createDiaryWriter } from './diary';
 import { createExtractionProvider } from './extraction';
 import { asyncStorageKV } from './kv';
 import { createDeviceLocation } from './location';
+import { withLocationConsent } from './location/consent';
 import { createDevicePhotoProvider } from './photos';
 import { createPlaceProvider } from './places';
 import { createKakaoPlaces } from './places/kakao';
@@ -161,7 +162,8 @@ function build(): Services {
     community: createCommunityProvider({ serverUrl: AUTH_URL || undefined, fetch: appFetch, clock: liveClock, ids }),
     itineraries: createItineraryProvider({ serverUrl: AUTH_URL || undefined, fetch: appFetch, clock: liveClock, ids }),
     sync: createSyncTransport({ syncUrl: SYNC_URL || undefined, fetch: appFetch, clock: liveClock, kv: kvFor('sync') }),
-    location: createDeviceLocation(),
+    // 앱 안 동의(위치를 쓸 건지 묻는 대화상자)를 먼저 받는다. 관문은 features/live/locationConsent가 등록한다
+    location: withLocationConsent(createDeviceLocation()),
     photos: createDevicePhotoProvider(),
     clock: liveClock,
     ids,

@@ -32,6 +32,7 @@ const SPOT_EDIT_KEY: Record<keyof SpotPatch, SpotField> = {
   arriveOverride: 'arriveOverride',
   removedByUser: 'removedByUser',
   removedReason: 'removedByUser',
+  hostPick: 'hostPick',
 };
 
 /** 값이 undefined인 필드는 지운다(예: 날짜 지정 해제). */

@@ -30,15 +30,20 @@ test('옛 화면과 기록 지도 코드가 없다', () => {
   assert.ok(!('RecordMap' in SCREEN_META) && !('Photos' in SCREEN_META) && !('Diary' in SCREEN_META));
 });
 
-test('여행일지 화면: 날짜 탭(전체 포함) 아래 일기 블록과 사진, 사진 올리기·공유하기, 사진 정보·지우기', () => {
+test('여행일지 화면: 날짜 탭(전체 포함) 아래 일기 블록과 사진, 일기 쓰기(사진 붙이기)·공유하기, 사진 정보·지우기', () => {
   const j = read('src/screens/JournalScreen.tsx');
-  assert.match(j, /<DateSeg trip=\{trip\} value=\{date\} onChange=\{setDate\} all photoCounts=\{counts\} showCount \/>/);
+  // 탭에 사진 수를 보이지 않는다(일기 화면이다, 2026-10-17). 스크린리더는 사진 수를 읽는다
+  assert.match(j, /<DateSeg trip=\{trip\} value=\{date\} onChange=\{setDate\} all photoCounts=\{counts\} \/>/);
+  assert.doesNotMatch(j, /showCount/);
   assert.match(j, /title="여행일지"/);
   assert.match(j, /const addPhotos = async \(source: 'device' \| 'sim'\)/);
-  assert.match(j, /title=\{adding \? '올리는 중' : '사진 추가'\}/);
-  // 직접 쓰기(일차별)와 공유(머리 메뉴)
-  assert.match(j, /<Btn title="일기 쓰기" icon="pen"/);
-  assert.match(j, /addDiaryNote\(tripId, date, text\)/);
+  // 일기 쓰기와 사진 추가는 하나다: 아래 버튼은 '일기 쓰기' 하나, 시트 안에서 사진을 고르고 저장할 때 올린다
+  assert.match(j, /<Foot>\s*<Btn title="일기 쓰기" icon="pen" onPress=\{openWrite\} \/>\s*<\/Foot>/);
+  assert.doesNotMatch(j, /'올리는 중' : '사진 추가'/);
+  assert.match(j, /pickPhotos\(tripId, source\)/);
+  assert.match(j, /writeDiary\(tripId, writeDay, text, notePhotos\)/);
+  // 전체 탭은 날짜별 일기 블록을 보인다(사진만 보이지 않는다)
+  assert.match(j, /<View>\{blocksOf\(g\.date!, e!\.blocks\)\}<\/View>/);
   assert.match(j, /label="일기 공유하기"/);
   assert.match(j, /title="사진 정보"/);
   assert.match(j, /removePhoto\(tripId, confirmPhoto\.id\)/);

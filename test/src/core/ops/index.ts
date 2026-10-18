@@ -52,6 +52,7 @@ export const OP_OWNER: Record<OpType, ReducerKey> = {
   'spot/restore': 'spots',
   'spot/delete': 'spots',
   'spot/vote': 'spots',
+  'spot/hostPick': 'spots',
   'schedule/reorder': 'schedule',
   'schedule/setStay': 'schedule',
   'schedule/setArrive': 'schedule',

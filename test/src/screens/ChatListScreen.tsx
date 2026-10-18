@@ -19,7 +19,7 @@ export default function ChatListScreen({ navigation }: TabScreenProps<'ChatList'
   const [query, setQuery] = useState('');
   return (
     <Screen>
-      <Header size="row" back={back} title="채팅" />
+      <Header back={back} title="채팅" />
       <Row gap={SP.s} style={{ paddingHorizontal: SP.gutter, paddingBottom: SP.m }}>
         <View style={{ flex: 1 }}>
           <Field

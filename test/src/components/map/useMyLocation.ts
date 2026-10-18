@@ -14,6 +14,7 @@ import {
 } from '../../core/map/locate';
 import type { LatLng } from '../../types';
 import { getServices } from '../../services/registry';
+import { consentDeclined } from '../../services/location/consent';
 import { ONCE_TIMEOUT_MS } from '../../services/location/once';
 import { useUi } from '../../store/ui';
 import type { MapCenterRequest } from './parts';
@@ -141,7 +142,8 @@ export function useMyLocation(live: LocateFix | undefined): MyLocation {
     if (perm !== 'granted') perm = await provider.request().catch(() => 'denied' as const);
     if (gen !== genRef.current) return;
     if (perm !== 'granted') {
-      fail('denied');
+      // 앱 대화상자에서 '허용 안 함'을 골랐으면 기기 설정 안내 대신 다시 물을 수 있다고 알린다
+      fail(consentDeclined() ? 'declined' : 'denied');
       return;
     }
     timerRef.current = setTimeout(() => fail('timeout'), ONCE_TIMEOUT_MS);

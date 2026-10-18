@@ -230,8 +230,15 @@ test('지연은 경고가 아니라 조정안이다(금지 문구 없음)', () =
 /**
  * '투표'를 써도 되는 곳. 사용자 요청(명세 밖, FR-405): 채팅방 지도에서 장소마다 한 표씩 주는 기능이라
  * 그 폴더 안에서만 '투표'라고 부른다. 확정 장소·제외 장소·출발지는 그 폴더에서도 계속 금지한다.
+ * 2026-10-17 사용자 요청: 표가 제외 순서와 자동 고정을 정한다. 그 결과를 보이는 후보 행('투표로 고정')과
+ * 스팟 상세의 투표 카드(방장 결정 포함)에서도 '투표'라고 부른다.
  */
-const VOTE_WORD_ALLOWED = ['src/features/chat/map/**'];
+const VOTE_WORD_ALLOWED = [
+  'src/features/chat/map/**',
+  'src/features/candidates/rows.ts',
+  'src/features/candidates/detail.ts',
+  'src/screens/SpotDetailScreen.tsx',
+];
 
 test('용어를 바꾸지 않는다(확정 장소·제외 장소·투표·출발지 금지, 투표는 채팅방 지도 폴더만 예외)', () => {
   check([
@@ -240,8 +247,8 @@ test('용어를 바꾸지 않는다(확정 장소·제외 장소·투표·출발
   ]);
 });
 
-test("'투표' 예외는 채팅방 지도 폴더 하나뿐이고, 지도 위 그림자 허용 목록에 공용 시트·알약이 있다", () => {
-  assert.deepEqual(VOTE_WORD_ALLOWED, ['src/features/chat/map/**']);
+test("'투표' 예외는 채팅방 지도 폴더와 투표 결과를 보이는 후보 행·스팟 상세뿐이고, 지도 위 그림자 허용 목록에 공용 시트·알약이 있다", () => {
+  assert.equal(VOTE_WORD_ALLOWED.length, 4);
   for (const g of ['src/ui/PeekSheet.tsx', 'src/ui/MapPill.tsx', 'src/features/chat/map/**']) assert.ok(FLOAT_ALLOWED.includes(g), g);
   assert.ok(matches('src/features/chat/map/VoteToggle.tsx', VOTE_WORD_ALLOWED));
   assert.ok(!matches('src/features/chat/components/CandidateBar.tsx', VOTE_WORD_ALLOWED));
