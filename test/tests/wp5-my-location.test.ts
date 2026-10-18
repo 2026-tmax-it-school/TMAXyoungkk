@@ -67,7 +67,10 @@ test('읽기 이름은 누르면 무엇이 되는지, 실패 안내는 한국어
   assert.match(locateFailText('denied', false), /설정/);
   assert.match(locateFailText('unavailable', true), /https|localhost/);
   assert.match(locateFailText('timeout', false), /다시/);
-  for (const r of ['denied', 'unavailable', 'timeout'] as const) {
+  // 앱 대화상자에서 거절했으면 설정 안내가 아니라 다시 물을 수 있다고 말한다(2026-10-17)
+  assert.match(locateFailText('declined', true), /다시/);
+  assert.doesNotMatch(locateFailText('declined', true), /설정/);
+  for (const r of ['denied', 'declined', 'unavailable', 'timeout'] as const) {
     for (const w of [true, false]) assert.doesNotMatch(locateFailText(r, w), /[←-⇿>]/);
   }
 });
@@ -124,7 +127,8 @@ test('훅: GPS 감시(watch)는 startWatch 한 곳에서만 켜고, startWatch�
   // 권한을 묻고, 거부·시한·못 씀을 나눠 알린다
   assert.match(hook, /provider\.permission\(\)/);
   assert.match(hook, /provider\.request\(\)/);
-  assert.match(hook, /fail\('denied'\)/);
+  // 앱 대화상자에서 거절했으면 declined(다시 누르면 다시 묻는다), 기기 거부면 denied(설정 안내)
+  assert.match(hook, /fail\(consentDeclined\(\) \? 'declined' : 'denied'\)/);
   assert.match(hook, /fail\('timeout'\)/);
   assert.match(hook, /fail\('unavailable'\)/);
   assert.match(hook, /showToast\(locateFailText\(/);

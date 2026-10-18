@@ -55,3 +55,30 @@ export function Bubble({ text, highlights, mine }: { text: string; highlights: r
     </View>
   );
 }
+
+/**
+ * 메신저형 메시지 글(2026-10-17, 말풍선 없이 이름 아래에 글만). 장소 강조는 말풍선과 같다(연한 면 + 굵은 글씨).
+ * 내 말과 남의 말이 모양이 같다(왼쪽 정렬, 프로필 + 이름 + 시각 + 글).
+ */
+export function MessageText({ text, highlights }: { text: string; highlights: readonly ChatHighlight[] }) {
+  const segs = bubbleSegments(text, highlights);
+  return (
+    <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+      {segs.map((s, i) =>
+        s.hl ? (
+          <View key={`h${i}`} style={{ backgroundColor: surfaceC.soft, borderRadius: R.hl, paddingHorizontal: SP.hl }}>
+            <Txt v="bubbleBold" c="accentStrong">
+              {s.text}
+            </Txt>
+          </View>
+        ) : (
+          tokens(s.text).map((t, j) => (
+            <Txt key={`t${i}-${j}`} v="bubble" c="ink">
+              {t}
+            </Txt>
+          ))
+        ),
+      )}
+    </View>
+  );
+}

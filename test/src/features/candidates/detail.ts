@@ -1,7 +1,7 @@
-import type { ExcludedSpot, Plan, Spot, TimetableItem, Transport, Trip } from '../../types';
+import type { ExcludedSpot, HostPick, Plan, Spot, TimetableItem, Transport, Trip } from '../../types';
 import { TRANSPORT_LABEL } from '../../core/constants';
-import { memberById } from '../../core/group';
-import { proposerIds } from '../../core/spotUtil';
+import { activeMembers, memberById } from '../../core/group';
+import { proposerIds, spotVoterIds, votePinned } from '../../core/spotUtil';
 import { daysBetween, dayShort, josa } from '../../core/util';
 import { daySegLabel } from '../schedule/view';
 import { kindLabel } from './rows';
@@ -33,6 +33,8 @@ export interface SpotDetail {
   /** 사용자가 지정한 날짜(없으면 자동 배분) */
   fixedDate?: string;
   pinned: boolean;
+  /** 방장이 뺀 후보(hostPick drop). 아래 버튼을 두지 않는다 */
+  hostDropped: boolean;
   /** 기점에서 오는 이동 '자동차 12분'(구할 수 없거나 기점이 곧 이 스팟이면 없음) */
   move?: string;
 }
@@ -113,6 +115,7 @@ export function spotDetail(trip: Trip, plan: Plan | undefined, spot: Spot, baseM
     stayMin: spot.stayMin,
     stayEdited: spot.edited.stayMin != null,
     pinned: spot.pinned,
+    hostDropped: spot.hostPick === 'drop',
   };
   if (spot.fixedDate) out.fixedDate = spot.fixedDate;
   if (move) out.move = move;
@@ -161,6 +164,40 @@ export function detailRows(detail: SpotDetail): DetailRow[] {
   return rows;
 }
 
+/**
+ * 07 '투표' 카드(2026-10-17 사용자 요청, 순수). 표 수가 제외 순서를 정하고, 활성 멤버 과반이 표를 주면 고정 취급한다.
+ * 방장 결정(hostPick)이 있으면 표보다 앞선다. 방장은 이 카드에서 '투표대로 · 꼭 넣기 · 빼기'를 고른다(HOST_PICKS).
+ */
+export interface VoteInfo {
+  votes: number;
+  active: number;
+  /** 자동 고정에 필요한 표 수(과반) */
+  need: number;
+  byVote: boolean;
+  hostPick?: HostPick;
+  text: string;
+}
+
+export function voteInfo(trip: Trip, spot: Spot): VoteInfo {
+  const active = activeMembers(trip);
+  const votes = spotVoterIds(spot, active).length;
+  const need = Math.floor(active.length / 2) + 1;
+  const byVote = votePinned(spot, active);
+  const base = { votes, active: active.length, need, byVote, hostPick: spot.hostPick };
+  if (spot.hostPick === 'keep') return { ...base, text: '방장이 꼭 넣기로 정했어요. 표와 상관없이 일정에 들어가요' };
+  if (spot.hostPick === 'drop') return { ...base, text: '방장이 빼기로 정했어요. 표와 상관없이 일정에서 빠져요' };
+  if (active.length < 2) return { ...base, text: `표 ${votes} · 혼자인 방은 투표로 고정하지 않아요` };
+  if (byVote) return { ...base, text: `표 ${votes}/${active.length} · 과반이라 고정 취급해요` };
+  return { ...base, text: `표 ${votes}/${active.length} · ${need}표가 되면 자동으로 고정돼요. 표가 적을수록 먼저 빠져요` };
+}
+
+/** 방장 결정 고르기. null은 '투표대로'(방장 결정 없음) */
+export const HOST_PICKS: readonly { pick: HostPick | null; label: string }[] = [
+  { pick: null, label: '투표대로' },
+  { pick: 'keep', label: '꼭 넣기' },
+  { pick: 'drop', label: '빼기' },
+];
+
 export type FootActionKey = 'timetable' | 'pin' | 'unpin' | 'restore';
 
 export interface FootAction {
@@ -171,10 +208,15 @@ export interface FootAction {
 
 /**
  * 07 아래 버튼(순수). 주 버튼은 하나뿐이다.
- * - 제외 스팟: primary '고정해서 다시 넣기' 하나(spot/restore는 고정으로 되돌린다).
+ * - 제외 스팟: primary '고정해서 다시 넣기' 하나(spot/restore는 고정으로 되돌린다). 방장이 뺀 곳(hostDropped)은 버튼이 없다.
  * - 확정·배치 전: 배치됐으면 quiet '시간표에서 보기', 그 옆에 primary '고정하기' 또는 quiet '고정 풀기'.
  */
-export function footActions(state: { status: SpotDetail['status']; pinned: boolean }, placed: boolean): FootAction[] {
+export function footActions(
+  state: { status: SpotDetail['status']; pinned: boolean; hostDropped?: boolean },
+  placed: boolean,
+): FootAction[] {
+  // 방장이 뺀 곳은 방장 결정으로만 돌아온다(투표 카드의 '투표대로'·'꼭 넣기'). 다시 넣기 버튼을 두지 않는다.
+  if (state.hostDropped) return [];
   if (state.status === 'excluded') return [{ key: 'restore', title: '고정해서 다시 넣기', variant: 'primary' }];
   const out: FootAction[] = [];
   if (placed) out.push({ key: 'timetable', title: '시간표에서 보기', variant: 'quiet' });

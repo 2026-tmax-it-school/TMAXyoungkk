@@ -34,7 +34,7 @@ test('쌓이는 화면은 모두 머리말 뒤로(back)가 있다', () => {
 
 test('채팅에서 후보 올리기: 검색해서 담기 입구와 안내, 후보 탭이 펼친 채로 연다', () => {
   const chat = read('src/screens/ChatScreen.tsx');
-  assert.match(chat, /title="장소 검색해서 담기"/);
+  assert.match(chat, /label="장소 검색해서 담기"/);
   assert.match(chat, /params: \{ add: true \}/);
   assert.match(read('src/screens/CandidatesScreen.tsx'), /route\.params\?\.add/);
   assert.match(read('src/navigation/routes.ts'), /Candidates: \{ add\?: boolean \} \| undefined/);

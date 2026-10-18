@@ -1,4 +1,5 @@
 import React from 'react';
+import { quickLabelLines } from './quickLabel';
 import { Image, Pressable, View, type StyleProp, type ViewStyle } from 'react-native';
 
 import { Chip } from './Chip';
@@ -49,6 +50,7 @@ export function QuickAction({
   disabled,
   badge,
   onPress,
+  primary,
 }: {
   icon: IconName;
   label: string;
@@ -56,6 +58,8 @@ export function QuickAction({
   disabled?: boolean;
   badge?: string;
   onPress?: () => void;
+  /** 이 줄에서 가장 먼저 할 일(시각적 계층): 원을 주색으로 채우고 아이콘을 흰색으로 */
+  primary?: boolean;
 }) {
   return (
     <Pressable
@@ -71,12 +75,12 @@ export function QuickAction({
           width: H.quick,
           height: H.quick,
           borderRadius: R.chip,
-          backgroundColor: disabled ? surfaceC.soft : surfaceC.accentTint,
+          backgroundColor: disabled ? surfaceC.soft : primary ? surfaceC.accent : surfaceC.accentTint,
           alignItems: 'center',
           justifyContent: 'center',
         }}
       >
-        <Icon name={icon} size={24} color={disabled ? 'faint' : 'accentDeep'} stroke={1.75} />
+        <Icon name={icon} size={24} color={disabled ? 'faint' : primary ? 'onAccent' : 'accentDeep'} stroke={1.75} />
         {badge ? (
           <View
             style={{
@@ -96,8 +100,9 @@ export function QuickAction({
           </View>
         ) : null}
       </View>
-      <Txt v="quick" c={disabled ? 'muted' : 'ink'} center numberOfLines={1}>
-        {label}
+      {/* 4열 격자(칸 폭 25%)에서 'AI 여행지 추천'처럼 긴 이름은 단어 사이(마지막 띄어쓰기)에서 두 줄로 나눈다(글자 중간에서 끊기지 않게) */}
+      <Txt v="quick" c={disabled ? 'muted' : 'ink'} center numberOfLines={2}>
+        {quickLabelLines(label)}
       </Txt>
       {sub ? (
         <Txt v="mtTight" center numberOfLines={2}>

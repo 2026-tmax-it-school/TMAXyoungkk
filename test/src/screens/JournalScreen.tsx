@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, View, type LayoutChangeEvent } from 'react-native';
 
 import type { DiaryBlock, Photo, Trip } from '../types';
+import type { PickedPhoto } from '../core/ports';
 import { datesWithRecords, diaryBlocks, diaryStaleness } from '../core/journal/diary';
 import { formatBytes, isDateAssigned, isPlaceEstimated, photosOutsideTrip, stillOverLimit } from '../core/journal/photo';
 import { isEnded } from '../core/tripStatus';
@@ -9,14 +10,15 @@ import { dateRange, kstDate, kstHHMM } from '../core/util';
 import { DateSeg, initialDate } from '../features/journal/components/DateSeg';
 import { photoBadge, PhotoTile } from '../features/journal/components/PhotoTile';
 import {
-  addDiaryNote,
   editDiaryBlock,
   generateDiary,
   pickAndImport,
+  pickPhotos,
   pruneSessionPhotos,
   removePhoto,
   shareDiary,
   useSessionPhotosVersion,
+  writeDiary,
 } from '../features/journal/api';
 import { daySegLabel } from '../features/schedule/view';
 import type { RootScreenProps } from '../navigation/routes';
@@ -53,10 +55,13 @@ import {
 
 /**
  * 여행일지(FR-701·702·703, 3차, 2026-10-17 사용자 요청: 일기와 사진을 한 화면으로, 기록 지도는 없앴다).
- * 날짜 탭 아래에 그날의 일기와 사진이 같이 나온다. '전체' 탭은 사진을 날짜별로 묶어 보여 준다(기간 밖 사진은 맨 아래 묶음).
+ * 날짜 탭 아래에 그날의 일기와 사진이 같이 나온다. '전체' 탭은 날짜별 일기를 차례로 보여 준다(2026-10-17 사용자 요청: 사진만 보이지 않게).
+ *   일기가 없는 날은 그날 사진과 '일기 만들기', 기간 밖 사진은 맨 아래 묶음이다.
  * - 일기가 있는 날: 사진·도착 기록·장소를 시간순 블록으로 묶은 일기(블록 안 사진을 누르면 사진 정보). 일기가 없는 날: 그날 사진
  *   격자와 '일기 만들기'(만들 기록이 있을 때). 기록이 없으면 '이 날은 기록이 없어요'.
- * - 아래 고정 줄: '사진 올리기'와(일기가 있으면) '공유하기'. 시트에서 '메시지·메모로 보내기'와 '커뮤니티에 올리기'를 고른다.
+ * - 아래 고정 줄은 '일기 쓰기' 하나다(2026-10-17 사용자 요청: 일기 쓰기와 사진 추가를 합쳤다). 시트에서 글을 쓰고 사진을 붙인다.
+ *   저장하면 사진을 올리고(촬영 정보가 없으면 그 날로) 그 날 찍은 사진은 쓴 문단에 붙는다. 사진만 붙여도 된다.
+ *   '전체' 탭에서 열면 시트 안에서 날짜를 고른다. 공유는 머리 메뉴의 '일기 공유하기'다.
  * - 머리말 dots 시트: '다시 만들기'(기록이 뒤처졌을 때의 안내에도 있다), 시연용 '예시 사진 3장 넣기'.
  * - 사진은 올린 사람만 지운다. 타일 배지는 하나(날짜 지정 > 추정 > 장소 추정), 압축 여부는 사진 정보 시트에만 보인다.
  * - 문장 편집은 나중 저장 우선(FR-503과 같은 정책). 고친 채로 시트를 닫으려 하면 저장할지 한 번 묻는다.
@@ -92,14 +97,17 @@ export default function JournalScreen({ navigation, route }: RootScreenProps<'Jo
   const [width, setWidth] = useState(0);
   const [selected, setSelected] = useState<Photo | undefined>();
   const [confirmPhoto, setConfirmPhoto] = useState<Photo | undefined>();
-  const [editing, setEditing] = useState<DiaryBlock | undefined>();
+  const [editing, setEditing] = useState<{ date: string; block: DiaryBlock } | undefined>();
   const [draft, setDraft] = useState('');
   const [askSave, setAskSave] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [menu, setMenu] = useState(false);
-  /** 직접 일기 쓰기 시트와 그 글 */
+  /** 일기 쓰기 시트와 그 글·날짜·붙일 사진(저장할 때 올린다) */
   const [writing, setWriting] = useState(false);
   const [note, setNote] = useState('');
+  const [writeDate, setWriteDate] = useState('');
+  const [notePhotos, setNotePhotos] = useState<PickedPhoto[]>([]);
+  const [saving, setSaving] = useState(false);
   const toast = useUi((s) => s.showToast);
   const autoTried = useRef(new Set<string>());
 
@@ -159,7 +167,8 @@ export default function JournalScreen({ navigation, route }: RootScreenProps<'Jo
     : new Set(trip.visits.filter((v) => v.date === date && v.status === 'arrived').map((v) => v.spotId)).size;
   const photoCount = entry ? entry.blocks.reduce((n, b) => n + b.photoIds.length, 0) : pendingPhotos;
   const dayNo = isAll ? 0 : days.indexOf(date) + 1;
-  const sub = isAll ? `사진 ${trip.photos.length}장` : `${dayNo}일차 · ${daySegLabel(date)} · 방문 ${visits}곳 · 사진 ${photoCount}장${entry?.sharedAt != null ? ' · 공유함' : ''}`;
+  const diaryDays = days.filter((d) => (trip.diaries[d]?.blocks.length ?? 0) > 0).length;
+  const sub = isAll ? `일기 ${diaryDays}일 · 사진 ${trip.photos.length}장` : `${dayNo}일차 · ${daySegLabel(date)} · 방문 ${visits}곳 · 사진 ${photoCount}장${entry?.sharedAt != null ? ' · 공유함' : ''}`;
   const dayPhotos = isAll ? [] : sorted.filter((p) => kstDate(p.takenAt) === date);
   const size = width > 0 ? Math.floor((width - GRID_GAP * 2) / 3) : 0;
   const spotName = (id?: string) => (id ? trip.spots.find((s) => s.id === id)?.name : undefined);
@@ -175,10 +184,10 @@ export default function JournalScreen({ navigation, route }: RootScreenProps<'Jo
   if (stale && stale.blankBlocks > 0) staleParts.push(`사진이 지워져 비운 문단이 ${stale.blankBlocks}개 있어요`);
   const outside = photosOutsideTrip(trip).length;
 
-  const make = async () => {
-    if (busy) return;
+  const make = async (target: string = date) => {
+    if (busy || target === 'all') return;
     setBusy(true);
-    const r = await generateDiary(tripId, date);
+    const r = await generateDiary(tripId, target);
     setBusy(false);
     // 저장 거부는 스토어가 이유를 토스트로 띄운다.
     if (!r.ok) return;
@@ -209,15 +218,34 @@ export default function JournalScreen({ navigation, route }: RootScreenProps<'Jo
     toast(parts.join(' · '));
   };
 
+  // '전체' 탭: 기록(일기·사진·도착)이 있는 날만 차례로, 기간 밖 사진은 맨 아래 묶음
   const groups: PhotoGroup[] = [];
   if (isAll) {
     for (const d of days) {
       const ps = sorted.filter((p) => kstDate(p.takenAt) === d);
-      if (ps.length > 0) groups.push({ key: d, title: daySegLabel(d), date: d, photos: ps });
+      const has = (trip.diaries[d]?.blocks.length ?? 0) > 0 || ps.length > 0 || diaryBlocks(trip, d).length > 0;
+      if (has) groups.push({ key: d, title: `${days.indexOf(d) + 1}일차 · ${daySegLabel(d)}`, date: d, photos: ps });
     }
     const out = sorted.filter((p) => !days.includes(kstDate(p.takenAt)));
     if (out.length > 0) groups.push({ key: 'outside', title: '여행 기간 밖', photos: out });
   }
+  const editBlock = (d: string, b: DiaryBlock) => {
+    setEditing({ date: d, block: b });
+    setDraft(b.text);
+    setAskSave(false);
+  };
+  const blocksOf = (d: string, list: DiaryBlock[]) =>
+    list.map((b, i) => (
+      <BlockCard
+        key={b.id}
+        trip={trip}
+        block={b}
+        first={i === 0}
+        last={i === list.length - 1}
+        onPhoto={setSelected}
+        onPress={canWrite ? () => editBlock(d, b) : undefined}
+      />
+    ));
 
   const grid = (photos: Photo[]) => (
     <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: GRID_GAP }}>
@@ -244,22 +272,48 @@ export default function JournalScreen({ navigation, route }: RootScreenProps<'Jo
     else if (r === 'failed') toast('공유와 복사가 모두 안 돼요. 이 브라우저에서는 글을 직접 옮겨 주세요', 'warn');
   };
 
-  const saveNote = () => {
+  // 일기 쓰기 시트: 전체 탭에서 열면 오늘(기간 안) 또는 첫날을 고른 채로 연다
+  const openWrite = () => {
+    setWriteDate(isAll ? initialDate(trip, kstDate(now), undefined, datesWithRecords(trip)) : date);
+    setWriting(true);
+  };
+  const writeDay = writeDate && days.includes(writeDate) ? writeDate : isAll ? days[0] : date;
+  const writeNo = days.indexOf(writeDay) + 1;
+  const pickForNote = async (source: 'device' | 'sim') => {
+    if (adding) return;
+    setAdding(true);
+    const r = await pickPhotos(tripId, source);
+    setAdding(false);
+    if (!r.ok) toast(r.message, 'warn');
+    else if (r.picked.length > 0) setNotePhotos((prev) => [...prev, ...r.picked]);
+  };
+  const closeWrite = () => {
+    setWriting(false);
+    setNotePhotos([]);
+  };
+  const saveNote = async () => {
     const text = note.trim();
-    if (!text || isAll) return;
-    const r = addDiaryNote(tripId, date, text);
-    if (r.ok) {
-      setNote('');
-      setWriting(false);
-      toast(`${dayNo}일차 일기를 저장했어요`);
-    }
+    if ((!text && notePhotos.length === 0) || saving) return;
+    setSaving(true);
+    const r = await writeDiary(tripId, writeDay, text, notePhotos);
+    setSaving(false);
+    // 저장 거부는 스토어가 이유를 토스트로 띄운다. 사진은 올라갔으면 남는다.
+    if (r.note && !r.note.ok) return;
+    setNote('');
+    closeWrite();
+    if (!isAll) setDate(writeDay);
+    const parts = [r.note ? `${writeNo}일차 일기를 저장했어요` : `사진 ${r.photos.length}장을 올렸어요`];
+    if (r.attached > 0) parts.push(`사진 ${r.attached}장을 붙였어요`);
+    const elsewhere = r.photos.length - r.attached;
+    if (elsewhere > 0) parts.push(`${elsewhere}장은 찍은 날 일기로 들어가요`);
+    toast(parts.join(' · '));
   };
 
   const closeEdit = () => {
     setAskSave(false);
     setEditing(undefined);
   };
-  const dirty = !!editing && draft.trim() !== editing.text.trim();
+  const dirty = !!editing && draft.trim() !== editing.block.text.trim();
   // 고친 내용이 있으면 닫기를 가로채 저장할지 묻는다(입력을 잃지 않는다).
   const requestClose = () => {
     if (dirty) setAskSave(true);
@@ -269,7 +323,7 @@ export default function JournalScreen({ navigation, route }: RootScreenProps<'Jo
     if (!editing) return;
     const text = draft.trim();
     // 바꾸지 않고 저장하면 보내지 않는다(고친 문장으로 표시되어 다시 만들기에서 고정되지 않게).
-    if (text !== editing.text.trim()) editDiaryBlock(tripId, date, editing.id, text);
+    if (text !== editing.block.text.trim()) editDiaryBlock(tripId, editing.date, editing.block.id, text);
     closeEdit();
   };
 
@@ -283,7 +337,7 @@ export default function JournalScreen({ navigation, route }: RootScreenProps<'Jo
         right={canWrite ? <IconBtn icon="dots" label="일지 메뉴" onPress={() => setMenu(true)} /> : undefined}
       />
       <View style={{ paddingHorizontal: SP.gutter, paddingBottom: SP.m }}>
-        <DateSeg trip={trip} value={date} onChange={setDate} all photoCounts={counts} showCount />
+        <DateSeg trip={trip} value={date} onChange={setDate} all photoCounts={counts} />
       </View>
       <Body scroll>
         {left ? <Notice icon="users" text="나간 멤버는 일지를 볼 수만 있어요" /> : null}
@@ -296,23 +350,44 @@ export default function JournalScreen({ navigation, route }: RootScreenProps<'Jo
           {isAll ? (
             groups.length === 0 ? (
               <Empty
-                icon="camera"
-                title="아직 올린 사진이 없어요"
-                text={canWrite ? '찍은 시각과 장소로 날짜와 일기에 저절로 들어가요' : undefined}
+                icon="book"
+                title="아직 쓴 일기가 없어요"
+                text={canWrite ? '아래 \'일기 쓰기\'로 글과 사진을 남기면 날짜별로 모여요' : undefined}
               />
             ) : size === 0 ? null : (
-              groups.map((g) => (
-                <Col key={g.key} gap={SP.m}>
-                  <Row>
-                    <Col grow>
-                      <Txt v="nm">{g.title}</Txt>
-                      <Txt v="mtTight">{g.date ? `사진 ${g.photos.length}장` : `사진 ${g.photos.length}장 · 일기에는 들어가지 않아요`}</Txt>
-                    </Col>
-                    {g.date ? <TextLink title="이 날 일지" onPress={() => setDate(g.date!)} /> : null}
-                  </Row>
-                  {grid(g.photos)}
-                </Col>
-              ))
+              groups.map((g) => {
+                const e = g.date ? trip.diaries[g.date] : undefined;
+                const hasEntry = !!e && e.blocks.length > 0;
+                return (
+                  <Col key={g.key} gap={SP.m}>
+                    <Row>
+                      <Col grow>
+                        <Txt v="nm">{g.title}</Txt>
+                        <Txt v="mtTight">
+                          {!g.date
+                            ? `사진 ${g.photos.length}장 · 일기에는 들어가지 않아요`
+                            : hasEntry
+                              ? `문단 ${e!.blocks.length}개 · 사진 ${g.photos.length}장`
+                              : `아직 일기가 없어요 · 사진 ${g.photos.length}장`}
+                        </Txt>
+                      </Col>
+                      {g.date ? <TextLink title="이 날 보기" onPress={() => setDate(g.date!)} /> : null}
+                    </Row>
+                    {hasEntry ? (
+                      <View>{blocksOf(g.date!, e!.blocks)}</View>
+                    ) : (
+                      <>
+                        {g.photos.length > 0 ? grid(g.photos) : null}
+                        {g.date && canWrite && diaryBlocks(trip, g.date).length > 0 ? (
+                          <View style={{ alignSelf: 'flex-start' }}>
+                            <Btn title="이 날 일기 만들기" size="sm" variant="quiet" icon="book" disabled={busy} onPress={() => void make(g.date)} />
+                          </View>
+                        ) : null}
+                      </>
+                    )}
+                  </Col>
+                );
+              })
             )
           ) : !entry ? (
             busy ? null : (
@@ -342,8 +417,8 @@ export default function JournalScreen({ navigation, route }: RootScreenProps<'Jo
                   <Empty
                     icon="book"
                     title="이 날은 기록이 없어요"
-                    text={canWrite ? '아래 \'일기 쓰기\'로 직접 적거나, 사진을 올리면 일기를 만들 수 있어요' : undefined}
-                    action={canWrite ? { label: '일기 쓰기', onPress: () => setWriting(true) } : undefined}
+                    text={canWrite ? '아래 \'일기 쓰기\'로 글을 적고 사진을 붙일 수 있어요' : undefined}
+                    action={canWrite ? { label: '일기 쓰기', onPress: openWrite } : undefined}
                   />
                 ) : null}
               </>
@@ -363,25 +438,7 @@ export default function JournalScreen({ navigation, route }: RootScreenProps<'Jo
                 }
               />
             ) : null}
-            {entry.blocks.map((b, i) => (
-              <BlockCard
-                key={b.id}
-                trip={trip}
-                block={b}
-                first={i === 0}
-                last={i === entry.blocks.length - 1}
-                onPhoto={setSelected}
-                onPress={
-                  canWrite
-                    ? () => {
-                        setEditing(b);
-                        setDraft(b.text);
-                        setAskSave(false);
-                      }
-                    : undefined
-                }
-              />
-            ))}
+            {blocksOf(date, entry.blocks)}
           </>
           )}
         </View>
@@ -395,26 +452,12 @@ export default function JournalScreen({ navigation, route }: RootScreenProps<'Jo
       </Body>
       {canWrite ? (
         <Foot>
-          <Row gap={SP.m}>
-            {!isAll ? (
-              <View style={{ flex: 1 }}>
-                <Btn title="일기 쓰기" icon="pen" onPress={() => setWriting(true)} />
-              </View>
-            ) : null}
-            <View style={{ flex: 1 }}>
-              <Btn
-                title={adding ? '올리는 중' : '사진 추가'}
-                icon="camera"
-                variant={isAll ? 'primary' : 'quiet'}
-                onPress={() => void addPhotos('device')}
-                disabled={adding}
-              />
-            </View>
-          </Row>
+          <Btn title="일기 쓰기" icon="pen" onPress={openWrite} />
         </Foot>
       ) : null}
 
-      <Sheet visible={writing} onClose={() => setWriting(false)} title={`${dayNo}일차 일기 쓰기`}>
+      <Sheet visible={writing} onClose={closeWrite} title={`${writeNo}일차 일기 쓰기`} scroll>
+        {isAll ? <DateSeg trip={trip} value={writeDay} onChange={setWriteDate} /> : null}
         <Field
           label="일기"
           value={note}
@@ -424,9 +467,40 @@ export default function JournalScreen({ navigation, route }: RootScreenProps<'Jo
           minLines={5}
           placeholder="오늘 어디를 가고 무엇을 느꼈는지 적어 주세요"
         />
+        <Col gap={SP.s}>
+          <Row>
+            <Col grow>
+              <Txt v="label">사진</Txt>
+            </Col>
+            {notePhotos.length > 0 ? <TextLink title="사진 빼기" onPress={() => setNotePhotos([])} /> : null}
+          </Row>
+          {notePhotos.length > 0 ? (
+            <Row gap={SP.s} wrap>
+              {notePhotos.map((p, i) => (
+                <PhotoTile key={`${p.uri}-${i}`} photo={{ id: `pick-${i}`, uri: p.sim ? undefined : p.uri, sim: p.sim }} size={THUMB} />
+              ))}
+            </Row>
+          ) : (
+            <Txt v="mtTight">찍은 시각과 장소로 그 날 일기에 들어가요. 촬영 정보가 없으면 이 날로 넣어요</Txt>
+          )}
+          <View style={{ alignSelf: 'flex-start' }}>
+            <Btn
+              title={adding ? '고르는 중' : notePhotos.length > 0 ? `사진 더 고르기 · ${notePhotos.length}장` : '사진 추가'}
+              icon="camera"
+              size="sm"
+              variant="quiet"
+              disabled={adding || saving}
+              onPress={() => void pickForNote('device')}
+            />
+          </View>
+        </Col>
         <Col gap={SP.m}>
-          <Btn title="저장" onPress={saveNote} disabled={note.trim().length === 0} />
-          <Btn title="취소" variant="quiet" onPress={() => setWriting(false)} />
+          <Btn
+            title={saving ? '저장하는 중' : '저장'}
+            onPress={() => void saveNote()}
+            disabled={(note.trim().length === 0 && notePhotos.length === 0) || saving || adding}
+          />
+          <Btn title="취소" variant="quiet" onPress={closeWrite} />
         </Col>
       </Sheet>
 
@@ -577,7 +651,7 @@ export default function JournalScreen({ navigation, route }: RootScreenProps<'Jo
       <Sheet
         visible={!!editing}
         onClose={askSave ? () => setAskSave(false) : requestClose}
-        title={askSave ? '고친 문장을 저장할까요' : editing ? `${editing.time} ${editing.placeName}` : ''}
+        title={askSave ? '고친 문장을 저장할까요' : editing ? `${editing.block.time} ${editing.block.placeName}` : ''}
       >
         {askSave ? (
           <>

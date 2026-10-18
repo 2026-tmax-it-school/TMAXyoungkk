@@ -79,7 +79,7 @@ test('제공자: AI 서버가 있으면 /summary로 요청, 실패하면 규칙 
 test('화면: 채팅 설정과 입력 줄에서 열고, 처음 한 번 동의, 늦은 응답은 버린다', () => {
   const chat = read('src/screens/ChatScreen.tsx');
   assert.match(chat, /label="AI 대화 요약"/);
-  assert.match(chat, /title="AI 요약"/);
+  assert.match(chat, /label="AI 요약"/);
   assert.match(chat, /title="대화를 AI로 요약할까요"/);
   assert.match(chat, /getServices\(\)\.summary\.id === 'ai' && !summaryConsented/);
   assert.match(chat, /sumTicket\.current/);

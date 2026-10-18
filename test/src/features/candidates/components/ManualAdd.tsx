@@ -8,13 +8,14 @@ import { regionById } from '../../../data/regions';
 import { MapCanvas } from '../../../components/map/MapCanvas';
 import { myMemberId } from '../../../store/trips';
 import { useUi } from '../../../store/ui';
-import { Btn, ConfirmSheet, Field, Notice, Row, Sheet, SP } from '../../../ui';
+import { Btn, ConfirmSheet, Field, IconBtn, Notice, Row, Sheet, SP } from '../../../ui';
 import { addPlace, pickAtCoord, searchForManual, type SearchOutcome } from '../actions';
 import { PlacePickSheet } from './PlacePickSheet';
 
 /**
- * 스팟 수동 등록(FR-202, WP3 소유). 06 목록 맨 위 '장소 검색해서 담기' 입구를 누르면 그 자리에서 펼치는 검색 칸과 '지도에서 선택'.
- * - focus: 펼치자마자 검색 칸에 한 번 포커스를 준다(입구가 라벨 노릇을 하므로 칸 라벨은 화면에 그리지 않는다).
+ * 스팟 수동 등록(FR-202, WP3 소유). 06 목록 맨 위의 돋보기 검색창 자체가 입력 칸이다(2026-10-17 사용자 요청: 아래에 새 칸을 만들지 않는다).
+ *   검색창 오른쪽 돋보기 버튼(또는 엔터)으로 찾고, 글자가 있으면 지우기 버튼이 생긴다. 그 아래 작은 '지도에서 선택'.
+ * - focus: 처음 붙을 때 검색 칸에 한 번 포커스를 준다(채팅방 '장소 검색해서 담기'로 열었을 때).
  * - 안의 시트(동명 장소 고르기 PlacePickSheet, 지도 선택)는 Sheet scroll을 끈 채로 둔다(FlatList가 중첩 목록이 되지 않게).
  * - 검색 0건이면 앰버 안내 '결과 없음'. 여러 곳이면 24 선택 시트. 하나면 바로 담는다.
  * - 목적지 밖이면 확인 창 1회 뒤 담고 후보에 '목적지 밖'이 표시된다(자동 추출은 버린다).
@@ -110,29 +111,41 @@ export function ManualAdd({ trip, focus }: { trip: Trip; focus?: boolean }) {
 
   return (
     <View style={{ gap: SP.m }}>
+      <Row gap={SP.s}>
+        <View style={{ flex: 1 }}>
       <Field
-        label="장소 검색으로 담기"
-        hideLabel={focus}
+        label="장소 검색해서 담기"
+        hideLabel
+        size="sm"
+        placeholder="장소 검색해서 담기"
         inputRef={focusOnce}
         returnKeyType="search"
         value={query}
+        // 글자 수 표시(0 / 40)가 검색창 위에 붙지 않게 maxLength 대신 잘라서 받는다
         onChangeText={(v) => {
-          setQuery(v);
+          setQuery(v.slice(0, 40));
           if (notice) setNotice(undefined);
         }}
-        maxLength={40}
         // 키보드 엔터·검색 키로도 찾는다(검색 버튼과 같은 조건)
         onSubmitEditing={() => {
           if (!busy && query.trim().length >= 2) void search();
         }}
       />
-      <Row gap={SP.m}>
-        <View style={{ flex: 1 }}>
-          <Btn title={busy ? '찾는 중' : '검색'} size="sm" icon="search" onPress={search} disabled={busy || query.trim().length < 2} />
         </View>
-        <View style={{ flex: 1 }}>
-          <Btn title="지도에서 선택" size="sm" variant="quiet" icon="map" onPress={() => setMapOpen(true)} />
-        </View>
+        {query ? (
+          <IconBtn
+            icon="x"
+            label="검색어 지우기"
+            onPress={() => {
+              setQuery('');
+              setNotice(undefined);
+            }}
+          />
+        ) : null}
+        <IconBtn icon="search" label={busy ? '찾는 중' : '검색'} onPress={() => void search()} disabled={busy || query.trim().length < 2} />
+      </Row>
+      <Row>
+        <Btn title="지도에서 선택" size="sm" variant="quiet" icon="map" onPress={() => setMapOpen(true)} />
       </Row>
       {notice ? <Notice tone="warn" icon="alert" text={notice} /> : null}
 

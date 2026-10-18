@@ -23,7 +23,9 @@ import { getServices } from '../services/registry';
 import type { ChatSummary } from '../core/ports';
 import { nightsLabel, periodLabel } from '../core/trip/create';
 import { PlacePickSheet } from '../features/candidates/components/PlacePickSheet';
-import { Bubble } from '../features/chat/components/Bubble';
+import { MessageText } from '../features/chat/components/Bubble';
+import { ShareTripSheet } from '../features/chat/components/ShareTripSheet';
+import { TripContextCard } from '../features/chat/components/TripContextCard';
 import { CandidateBar } from '../features/chat/components/CandidateBar';
 import { ChatRoomList } from '../features/chat/components/ChatRoomList';
 import { ExtractionCardView } from '../features/chat/components/ExtractionCardView';
@@ -37,6 +39,7 @@ import {
   messageA11yLabel,
   messageMeta,
   nearEnd,
+  roomPeople,
   senderName,
   undoLosesEdits,
 } from '../features/chat/view';
@@ -97,13 +100,11 @@ const CHAT_COL_W = 400;
 
 type ChatView = 'chat' | 'map';
 
-/** KST 날짜 구분 줄(선 · 글자 · 선) */
+/** KST 날짜 구분 줄: 가운데 날짜 글자만(메신저형, 2026-10-17) */
 function DayDivider({ label }: { label: string }) {
   return (
     <View accessible accessibilityRole="header" accessibilityLabel={label} style={styles.divider}>
-      <View style={styles.dividerLine} />
-      <Txt v="mtTight">{label}</Txt>
-      <View style={styles.dividerLine} />
+      <Txt v="nmSm">{label}</Txt>
     </View>
   );
 }
@@ -129,6 +130,10 @@ export default function ChatScreen({ navigation, route }: RootScreenProps<'Chat'
   const [rooms, setRooms] = useState(false);
   /** 멤버 시트(방장은 여기서 내보낸다) */
   const [membersOpen, setMembersOpen] = useState(false);
+  /** 여행방 공유 시트(머리 아래 여행방 카드의 '여행방 공유') */
+  const [shareOpen, setShareOpen] = useState(false);
+  /** 입력줄 왼쪽 '+' 시트(장소 검색해서 담기·AI 요약) */
+  const [plus, setPlus] = useState(false);
   /** AI 대화 요약: 동의 확인 → 요약 시트 */
   const [sumStep, setSumStep] = useState<'closed' | 'consent' | 'view'>('closed');
   const [summary, setSummary] = useState<ChatSummary | undefined>();
@@ -166,7 +171,6 @@ export default function ChatScreen({ navigation, route }: RootScreenProps<'Chat'
     );
   }
 
-  const meMember = trip.members.find((m) => m.id === me);
   const group = tripMode(trip) === 'group';
   const active = activeMembers(trip);
   const region = regionById(trip.region);
@@ -275,7 +279,7 @@ export default function ChatScreen({ navigation, route }: RootScreenProps<'Chat'
         {messages.length === 0 ? (
           <Empty
             title="아직 대화가 없어요"
-            text={"가고 싶은 곳 이름을 적으면 후보로 담겨요. 예: '불국사 가자, 황리단길에서 점심'\n이름이 헷갈리면 아래 '장소 검색해서 담기'를 눌러 보세요"}
+            text={"가고 싶은 곳 이름을 적으면 후보로 담겨요. 예: '불국사 가자, 황리단길에서 점심'\n이름이 헷갈리면 아래 '+'의 '장소 검색해서 담기'를 눌러 보세요"}
           />
         ) : null}
         {messages.map((m, i) => {
@@ -284,31 +288,34 @@ export default function ChatScreen({ navigation, route }: RootScreenProps<'Chat'
           const card = extractionCard(trip, m);
           const name = senderName(trip.members, m.memberId);
           const showMeta = meta.groupEnd || m.status === 'pending';
+          const host = trip.members.find((x) => x.id === m.memberId)?.role === 'host';
           return (
             <View key={m.id} style={[styles.message, meta.groupStart ? styles.groupStart : null]}>
               {meta.dayLabel ? <DayDivider label={meta.dayLabel} /> : null}
-              <View
-                accessible
-                accessibilityLabel={messageA11yLabel(m, mine ? '나' : name, meta.time)}
-                style={[styles.line, mine ? styles.lineMine : null]}
-              >
-                {mine ? null : meta.groupEnd ? (
-                  <Avatar name={name} index={memberIndex(trip.members, m.memberId)} />
+              {/* 메신저형(2026-10-17): 내 말도 남의 말도 왼쪽 정렬. 묶음 첫 줄에만 프로필 + 이름(방장 표시) + 시각, 아래에 글 */}
+              <View accessible accessibilityLabel={messageA11yLabel(m, mine ? '나' : name, meta.time)} style={styles.line}>
+                {meta.groupStart ? (
+                  <Avatar size="lg" name={name} index={memberIndex(trip.members, m.memberId)} />
                 ) : (
                   <View style={styles.avatarGap} />
                 )}
-                <Col gap={SP.xs} style={[styles.bubbleCol, mine ? styles.bubbleColMine : null]}>
-                  {mine || !meta.groupStart ? null : <Txt v="mtTight">{name}</Txt>}
-                  <Bubble text={m.text} highlights={m.extraction?.highlights ?? []} mine={mine} />
-                  {showMeta ? (
+                <Col gap={2} style={styles.bodyCol}>
+                  {meta.groupStart ? (
                     <Row gap={SP.s}>
-                      {m.status === 'pending' ? <Chip text="전송 대기" tone="line" icon="clock" /> : null}
-                      {meta.groupEnd ? <Txt v="mtTight">{meta.time}</Txt> : null}
+                      <Txt v="nmSm">{`${name}${host && group ? ' (방장)' : ''}${mine ? ' · 나' : ''}`}</Txt>
+                      <Txt v="mtTight">{meta.time}</Txt>
+                    </Row>
+                  ) : null}
+                  <MessageText text={m.text} highlights={m.extraction?.highlights ?? []} />
+                  {m.status === 'pending' ? (
+                    <Row>
+                      <Chip text="전송 대기" tone="line" icon="clock" />
                     </Row>
                   ) : null}
                 </Col>
               </View>
               {card ? (
+                <View style={styles.cardIndent}>
                 <ExtractionCardView
                   card={card}
                   onUndo={() => askUndo(m.id)}
@@ -318,6 +325,7 @@ export default function ChatScreen({ navigation, route }: RootScreenProps<'Chat'
                   onChoose={(phrase, o) => resolvePick(tripId, m.id, phrase, { place: o.place, existingSpotId: o.existingSpotId })}
                   onNone={(phrase) => resolvePick(tripId, m.id, phrase, null)}
                 />
+                </View>
               ) : null}
             </View>
           );
@@ -327,27 +335,23 @@ export default function ChatScreen({ navigation, route }: RootScreenProps<'Chat'
       <View style={[styles.composer, { paddingBottom: SP.l + bottom }]}>
         <CandidateBar trip={trip} plan={plan} onPress={openCandidates} />
         {me ? (
-          <Row gap={SP.s} wrap>
-            <Btn title="장소 검색해서 담기" icon="search" size="sm" variant="quiet" onPress={openSearchAdd} />
-            <Btn title="AI 요약" icon="book" size="sm" variant="quiet" onPress={startSummary} />
-          </Row>
-        ) : null}
-        {me ? (
-          <Row gap={SP.m} style={styles.inputRow}>
+          // 메신저형 입력줄: 왼쪽 '+'(장소 검색해서 담기·AI 요약은 여기 안에, 점진적 공개) + 알약 칸 안 둥근 보내기
+          <Row gap={SP.s}>
+            <IconBtn icon="plus" label="더하기" variant="soft" onPress={() => setPlus(true)} />
             <View style={styles.fill}>
               <Field
+                look="pill"
                 label="메시지"
                 hideLabel
-                size="sm"
                 value={text}
                 onChangeText={setText}
-                placeholder={group ? '가고 싶은 곳을 말해 보세요' : '메모처럼 가고 싶은 곳을 적어 보세요'}
+                placeholder={group ? '메시지 쓰기' : '메모 쓰기'}
                 returnKeyType="send"
                 keepFocusOnSubmit
                 onSubmitEditing={send}
+                right={<SendButton round onPress={send} disabled={text.trim() === ''} />}
               />
             </View>
-            <SendButton onPress={send} disabled={text.trim() === ''} />
           </Row>
         ) : (
           <Card variant="tinted">
@@ -409,8 +413,9 @@ export default function ChatScreen({ navigation, route }: RootScreenProps<'Chat'
       <Header
         size="row"
         back={back}
-        title={trip.title}
-        sub={group ? `멤버 ${active.length}명 · 보내는 사람 ${meMember?.nickname ?? '없음'}` : '혼자 여행 · 채팅 메모'}
+        // 메신저형: 제목은 대화 상대(다른 멤버 이름), 여행 정보는 아래 여행방 카드가 맡는다
+        title={group ? roomPeople(active, me) : '채팅 메모'}
+        sub={group ? `멤버 ${active.length}명` : '혼자 여행 · 채팅 메모'}
         onTitlePress={() => setRooms(true)}
         titlePressLabel={`${trip.title} 채팅방, 다른 채팅방 고르기`}
         right={
@@ -430,7 +435,39 @@ export default function ChatScreen({ navigation, route }: RootScreenProps<'Chat'
           </>
         }
       />
+      <TripContextCard
+        trip={trip}
+        onSchedule={() => {
+          setCurrentTrip(trip.id);
+          navigation.navigate('Main', { screen: 'Schedule', params: {} });
+        }}
+        onShare={() => setShareOpen(true)}
+      />
       {body}
+      <Sheet visible={plus} onClose={() => setPlus(false)} title="더하기">
+        <View>
+          <ListRow
+            first
+            icon="search"
+            label="장소 검색해서 담기"
+            sub="이름으로 찾아 후보에 바로 담아요"
+            onPress={() => {
+              setPlus(false);
+              openSearchAdd();
+            }}
+          />
+          <ListRow
+            icon="book"
+            label="AI 요약"
+            sub="지금까지 이야기를 정리해 줘요"
+            onPress={() => {
+              setPlus(false);
+              startSummary();
+            }}
+          />
+        </View>
+      </Sheet>
+      <ShareTripSheet trip={trip} visible={shareOpen} onClose={() => setShareOpen(false)} onManage={() => navigation.navigate('Members', { tripId })} />
 
       <Sheet visible={rooms} onClose={() => setRooms(false)} title="채팅방" scroll>
         <ChatRoomList
@@ -601,46 +638,32 @@ const styles = StyleSheet.create({
     gap: SP.m,
   },
   groupStart: {
-    marginTop: SP.s,
+    marginTop: SP.l,
   },
   line: {
     flexDirection: 'row',
-    alignItems: 'flex-end',
-    gap: SP.m,
-    justifyContent: 'flex-start',
-  },
-  lineMine: {
-    justifyContent: 'flex-end',
+    alignItems: 'flex-start',
+    gap: SP.l,
   },
   avatarGap: {
-    width: H.avatar,
+    width: H.avatarLg,
   },
-  bubbleCol: {
-    flexShrink: 1,
-    maxWidth: '70%',
-    alignItems: 'flex-start',
+  bodyCol: {
+    flex: 1,
+    minWidth: 0,
   },
-  bubbleColMine: {
-    alignItems: 'flex-end',
+  // 추출 카드는 글 열에 맞춰 프로필 폭만큼 들인다
+  cardIndent: {
+    marginLeft: H.avatarLg + SP.l,
   },
   divider: {
-    flexDirection: 'row',
     alignItems: 'center',
-    gap: SP.m,
-    paddingVertical: SP.s,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: lineC.line,
+    paddingVertical: SP.l,
   },
   composer: {
     paddingHorizontal: SP.gutter,
     paddingTop: SP.m,
     gap: SP.m,
-  },
-  inputRow: {
-    alignItems: 'flex-end',
   },
   split: {
     flex: 1,

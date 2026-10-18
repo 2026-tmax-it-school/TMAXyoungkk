@@ -1,6 +1,7 @@
 import type { ExcludedSpot, Plan, Spot, TimetableItem, Trip } from '../../types';
 import { DAYPART_EVENING, DAYPART_NOON } from '../../core/constants';
-import { priorityCompare, proposerCount } from '../../core/spotUtil';
+import { activeMembers } from '../../core/group';
+import { priorityCompare, proposerCount, spotVoterIds, votePinned } from '../../core/spotUtil';
 import { dayShort, humanMin, toMin } from '../../core/util';
 
 /**
@@ -11,14 +12,28 @@ import { dayShort, humanMin, toMin } from '../../core/util';
  * - 제외 스팟: plan.excluded. 사용자가 직접 뺀 후보인데 계획이 아직 모르면(재계산 전) '사용자가 직접 뺌'으로 채운다.
  *   조용한 제외는 없다. 모든 제외 행은 사유 문장을 가진다.
  * - 배치 전: 계획이 없거나 아직 계산되지 않은 후보. '계산 중'으로 보여주고 확정·제외 어느 쪽에도 넣지 않는다.
+ * 2026-10-17 사용자 요청: 우선순위는 표 수(제안자 표 + 채팅방 지도에서 켠 표)로 센다. 행의 칩은 '표 N'이고,
+ * 고정 취급이면 그 이유(pinLabel: 직접 고정 · 방장이 넣음 · 투표로 고정)를 칩으로 보인다.
  */
+
+/** 고정 취급 이유. 고정이 아니면 null. 방장 결정 > 직접 고정 > 투표 과반 순으로 하나만 보인다 */
+export function pinLabel(spot: Spot, active: readonly { id: string }[]): string | null {
+  if (spot.hostPick === 'keep') return '방장이 넣음';
+  if (spot.pinned) return '고정';
+  if (votePinned(spot, active)) return '투표로 고정';
+  return null;
+}
 
 export interface ConfirmedRow {
   spotId: string;
   name: string;
   sub: string;
   proposerCount: number;
+  /** 활성 멤버의 표 수 */
+  votes: number;
   pinned: boolean;
+  /** 고정 취급 이유(pinLabel). 고정이 아니면 null */
+  pinLabel: string | null;
   outsideRegion: boolean;
   date: string;
   arrive: string;
@@ -31,6 +46,7 @@ export interface ExcludedRow {
   reason: string;
   reasonCode: ExcludedSpot['reasonCode'];
   proposerCount: number;
+  votes: number;
 }
 
 export interface PendingRow {
@@ -38,7 +54,11 @@ export interface PendingRow {
   name: string;
   sub: string;
   proposerCount: number;
+  /** 활성 멤버의 표 수 */
+  votes: number;
   pinned: boolean;
+  /** 고정 취급 이유(pinLabel). 고정이 아니면 null */
+  pinLabel: string | null;
 }
 
 export interface CandidateView {
@@ -85,8 +105,11 @@ export function candidateView(trip: Trip, plan: Plan | undefined): CandidateView
   const confirmed: ConfirmedRow[] = [];
   const excluded: ExcludedRow[] = [];
   const pending: PendingRow[] = [];
+  const active = activeMembers(trip);
   for (const s of spots) {
     const count = proposerCount(s);
+    const votes = spotVoterIds(s, active).length;
+    const label = pinLabel(s, active);
     const base = `${kindLabel(s)} · 체류 ${s.stayMin}분`;
     const ex = excludedById.get(s.id);
     const at = placed.get(s.id);
@@ -95,10 +118,11 @@ export function candidateView(trip: Trip, plan: Plan | undefined): CandidateView
       excluded.push({
         spotId: s.id,
         name: s.name,
-        sub: `${reason} · 제안자 ${count}`,
+        sub: `${reason} · 표 ${votes}`,
         reason,
         reasonCode: ex?.reasonCode ?? 'userRemoved',
         proposerCount: count,
+        votes,
       });
       continue;
     }
@@ -108,21 +132,23 @@ export function candidateView(trip: Trip, plan: Plan | undefined): CandidateView
         name: s.name,
         sub: `${base} · ${placementText(at.date, at.item.arrive, s.pinned)}`,
         proposerCount: count,
+        votes,
         pinned: s.pinned,
+        pinLabel: label,
         outsideRegion: !!s.outsideRegion,
         date: at.date,
         arrive: at.item.arrive,
       });
       continue;
     }
-    pending.push({ spotId: s.id, name: s.name, sub: `${base} · 배치 계산 전`, proposerCount: count, pinned: s.pinned });
+    pending.push({ spotId: s.id, name: s.name, sub: `${base} · 배치 계산 전`, proposerCount: count, votes, pinned: s.pinned, pinLabel: label });
   }
   return {
     total: trip.spots.length,
     confirmed,
     excluded,
     pending,
-    autoExcluded: excluded.filter((e) => e.reasonCode !== 'userRemoved').length,
+    autoExcluded: excluded.filter((e) => e.reasonCode !== 'userRemoved' && e.reasonCode !== 'hostDropped').length,
     capacityExcluded: excluded.filter((e) => e.reasonCode === 'dayFull').length,
     otherExcluded: excluded.filter((e) => e.reasonCode === 'tooFar' || e.reasonCode === 'outOfPeriod').length,
     overCapacity: (plan?.overCapacity ?? []).map((o) => ({

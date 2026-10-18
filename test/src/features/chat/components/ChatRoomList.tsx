@@ -9,8 +9,8 @@ import { chatRooms, deleteRoomPlan, filterRooms, roomTime, type ChatRoomRow } fr
 
 /**
  * 채팅방 목록(내 여행방마다 채팅방 하나). 채팅 목록 화면(ChatList)과 채팅 화면 머리의 방 바꾸기 시트에서 같이 쓴다.
- * - 방 하나는 정사각형 칸이고 한 줄에 두 칸이다(2026-10-17 사용자 요청). 칸 바탕은 여행방 표지(홈 카드와 같은 사진, 없으면 지역 이름),
- *   위에 고정·시각 알약, 아래 흰 판에 방 이름과 마지막 말(없으면 멤버 수)
+ * - 메신저 받은편지함형 목록(2026-10-17 사용자 요청, 정사각형 칸 대신): 왼쪽 둥근 표지(없으면 핀), 오른쪽에 '방 이름 · 지역'과 시각,
+ *   마지막 말(두 줄까지), '기간 · 멤버 N명'. 줄 사이는 구분선
  * - 누르면 onOpen(tripId)
  * - 꾹 누르면 메뉴 시트: 고정/고정 해제, 삭제. 삭제는 경고(ConfirmSheet) 뒤 그 여행방에서 나간다(방장은 여행방 삭제)
  * - current: 지금 보고 있는 방(채팅 화면 시트에서 표시)
@@ -39,8 +39,6 @@ export function ChatRoomList({
   const now = useNow(60_000);
   const [menuFor, setMenuFor] = useState<ChatRoomRow | undefined>(undefined);
   const [deleting, setDeleting] = useState<ChatRoomRow | undefined>(undefined);
-  // 정사각형 칸 두 줄 배치: 줄 폭을 재서 (폭 - 간격) / 2로 칸 한 변을 정한다
-  const [gridW, setGridW] = useState(0);
   const all = chatRooms(trips, pinned ?? []);
   const rows = filterRooms(all, query);
 
@@ -65,65 +63,53 @@ export function ChatRoomList({
     );
   }
 
-  const tile = gridW > 0 ? Math.floor((gridW - TILE_GAP) / 2) : 0;
   return (
     <View>
-      <View style={[styles.grid, inset && styles.inset]} onLayout={(e) => setGridW(e.nativeEvent.layout.width - (inset ? SP.gutter * 2 : 0))}>
-        {tile > 0
-          ? rows.map((r) => {
-              const on = r.tripId === current;
-              return (
-                <Pressable
-                  key={r.tripId}
-                  accessibilityRole="button"
-                  accessibilityLabel={`${r.title} 채팅방${r.pinned ? ', 고정됨' : ''}${r.preview ? `, ${r.preview}` : ''}`}
-                  accessibilityHint="꾹 누르면 고정하거나 삭제할 수 있어요"
-                  accessibilityState={{ selected: on }}
-                  accessibilityActions={[{ name: 'longpress', label: '고정·삭제 메뉴' }]}
-                  onAccessibilityAction={() => setMenuFor(r)}
-                  onPress={() => onOpen(r.tripId)}
-                  onLongPress={() => setMenuFor(r)}
-                  delayLongPress={400}
-                  style={({ pressed }) => [styles.tile, { width: tile, height: tile }, on && styles.tileOn, pressed && styles.pressed]}
-                >
-                  {/* 표지: 여행방 표지 사진(홈 카드와 같다). 없으면 연회색 바탕 가운데 핀과 지역 이름 */}
-                  {r.cover ? (
-                    <Image source={{ uri: r.cover }} resizeMode="cover" accessibilityIgnoresInvertColors style={StyleSheet.absoluteFill} />
-                  ) : (
-                    <View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.place]}>
-                      <Icon name="pin" size={20} color="muted" stroke={1.6} />
-                      <Txt v="mtTight" numberOfLines={1}>
-                        {r.place}
-                      </Txt>
-                    </View>
-                  )}
-                  <View style={styles.tileTop}>
-                    {r.pinned ? (
-                      <View style={styles.chip} accessibilityLabel="고정됨">
-                        <Icon name="pinlock" size={12} color="accentDeep" stroke={2} />
-                      </View>
-                    ) : (
-                      <View />
-                    )}
-                    {r.hasMessage ? (
-                      <View style={styles.chip}>
-                        <Txt v="chip">{roomTime(r.at, now)}</Txt>
-                      </View>
-                    ) : null}
+      {/* 메신저 받은편지함형 목록(2026-10-17): 둥근 표지 · '방 이름 · 지역' + 시각 · 마지막 말 · 기간과 멤버 수, 줄 사이 구분선 */}
+      <View style={inset && styles.inset}>
+        {rows.map((r, i) => {
+          const on = r.tripId === current;
+          return (
+            <Pressable
+              key={r.tripId}
+              accessibilityRole="button"
+              accessibilityLabel={`${r.title} 채팅방${r.pinned ? ', 고정됨' : ''}${r.preview ? `, ${r.preview}` : ''}`}
+              accessibilityHint="꾹 누르면 고정하거나 삭제할 수 있어요"
+              accessibilityState={{ selected: on }}
+              accessibilityActions={[{ name: 'longpress', label: '고정·삭제 메뉴' }]}
+              onAccessibilityAction={() => setMenuFor(r)}
+              onPress={() => onOpen(r.tripId)}
+              onLongPress={() => setMenuFor(r)}
+              delayLongPress={400}
+              style={({ pressed }) => [styles.row, i < rows.length - 1 && styles.rowLine, on && styles.rowOn, pressed && styles.pressed]}
+            >
+              <View style={styles.avatar}>
+                {r.cover ? (
+                  <Image source={{ uri: r.cover }} resizeMode="cover" accessibilityIgnoresInvertColors style={StyleSheet.absoluteFill} />
+                ) : (
+                  <Icon name="pin" size={20} color="muted" stroke={1.6} />
+                )}
+              </View>
+              <View style={styles.body}>
+                <View style={styles.top}>
+                  <View style={styles.grow}>
+                    <Txt v="mtTight" numberOfLines={1}>{`${r.title} · ${r.place}`}</Txt>
                   </View>
-                  {/* 글은 아래 흰 판에(사진 위에서도 읽히게, 홈 카드와 같은 모양) */}
-                  <View style={styles.panel}>
-                    <Txt v="nm" numberOfLines={1}>
-                      {r.title}
-                    </Txt>
-                    <Txt v="mtTight" numberOfLines={1}>
-                      {r.preview || r.meta}
-                    </Txt>
-                  </View>
-                </Pressable>
-              );
-            })
-          : null}
+                  {r.pinned ? <Icon name="pinlock" size={12} color="accentDeep" stroke={2} /> : null}
+                  {r.hasMessage ? <Txt v="mtTight">{roomTime(r.at, now)}</Txt> : null}
+                </View>
+                {r.preview ? (
+                  <Txt v="nm" numberOfLines={2}>
+                    {r.preview}
+                  </Txt>
+                ) : (
+                  <Txt v="mt">{r.meta === '채팅 메모' ? '아직 메모가 없어요' : '아직 대화가 없어요'}</Txt>
+                )}
+                <Txt v="mtTight" numberOfLines={1}>{`${r.dates} · ${r.meta}`}</Txt>
+              </View>
+            </Pressable>
+          );
+        })}
       </View>
 
       <Sheet visible={!!menuFor} onClose={() => setMenuFor(undefined)} title={menuFor?.title}>
@@ -176,42 +162,27 @@ export function ChatRoomList({
   );
 }
 
-/** 정사각형 칸 사이 간격 */
-const TILE_GAP = SP.xl;
+/** 목록 줄 왼쪽 둥근 표지 지름 */
+const AVATAR = 52;
 
 const styles = StyleSheet.create({
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: TILE_GAP, paddingVertical: SP.m },
   inset: { paddingHorizontal: SP.gutter },
-  tile: {
-    borderRadius: R.card,
-    borderWidth: 1,
-    borderColor: lineC.line,
-    backgroundColor: surfaceC.soft,
-    padding: SP.m,
-    justifyContent: 'space-between',
-    overflow: 'hidden',
-  },
-  place: { alignItems: 'center', justifyContent: 'center', gap: SP.xs, paddingBottom: 40 },
-  chip: {
-    paddingHorizontal: SP.m,
-    paddingVertical: 2,
-    borderRadius: R.chip,
-    borderWidth: 1,
-    borderColor: lineC.line,
-    backgroundColor: surfaceC.card,
-  },
-  panel: {
-    paddingHorizontal: SP.l,
-    paddingVertical: SP.m,
-    gap: 2,
-    borderRadius: R.btnSm,
-    borderWidth: 1,
-    borderColor: lineC.line,
-    backgroundColor: surfaceC.card,
-  },
+  row: { flexDirection: 'row', alignItems: 'flex-start', gap: SP.l, paddingVertical: SP.xl },
+  rowLine: { borderBottomWidth: 1, borderBottomColor: lineC.line },
   // 채팅 화면 시트에서 지금 보고 있는 방
-  tileOn: { borderWidth: 2, borderColor: lineC.ink },
-  tileTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', minHeight: 18 },
+  rowOn: { backgroundColor: surfaceC.soft },
+  avatar: {
+    width: AVATAR,
+    height: AVATAR,
+    borderRadius: R.chip,
+    overflow: 'hidden',
+    backgroundColor: surfaceC.off,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  body: { flex: 1, minWidth: 0, gap: 2 },
+  top: { flexDirection: 'row', alignItems: 'center', gap: SP.s },
+  grow: { flex: 1, minWidth: 0 },
   pressed: { opacity: 0.6 },
   menu: { gap: SP.m },
   empty: { paddingHorizontal: SP.gutter, paddingVertical: SP.section, gap: SP.s, alignItems: 'center' },

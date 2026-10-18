@@ -22,6 +22,7 @@ import {
   tapRange,
   TITLE_MAX,
 } from '../src/core/trip/create';
+import { parseTimeInput, TIME_OPTIONS } from '../src/core/trip/create';
 import { expiredTripIds, memberRows } from '../src/core/trip/members';
 import { retentionUntil } from '../src/core/tripStatus';
 import { addDays, atKst } from '../src/core/util';
@@ -380,5 +381,29 @@ describe('데이터 보존: 보관 기한 정리(purgeExpired 판정)', () => {
     assert.deepEqual(expiredTripIds(docs, until - 1000), []);
     assert.deepEqual(expiredTripIds(docs, until), ['trip-1']);
     assert.deepEqual(expiredTripIds(docs, until + 1000), ['trip-1']);
+  });
+});
+
+describe('활동시간 고르기: 목록과 직접 입력(2026-10-17)', () => {
+  test('목록은 05:00부터 24:00까지 30분 간격 39개다', () => {
+    assert.equal(TIME_OPTIONS.length, 39);
+    assert.deepEqual([TIME_OPTIONS[0], TIME_OPTIONS[1], TIME_OPTIONS.at(-1)], ['05:00', '05:30', '24:00']);
+    assert.ok(TIME_OPTIONS.includes('09:00') && TIME_OPTIONS.includes('21:00'));
+    assert.deepEqual([...TIME_OPTIONS].sort(), [...TIME_OPTIONS], '시각 순서대로라 글자 비교가 시각 비교다');
+  });
+
+  test('직접 입력은 여러 적는 모양을 읽는다', () => {
+    const ok: [string, string][] = [
+      ['9', '09:00'], ['09', '09:00'], ['9:30', '09:30'], ['09:30', '09:30'], ['930', '09:30'], ['0930', '09:30'],
+      ['21', '21:00'], ['2130', '21:30'], ['9시', '09:00'], ['9시 30분', '09:30'], ['9시30분', '09:30'], ['24:00', '24:00'],
+      ['  9 : 05 '.replace(/ /g, ''), '09:05'], ['5', '05:00'], [' 12:15 ', '12:15'],
+    ];
+    for (const [text, want] of ok) assert.equal(parseTimeInput(text), want, JSON.stringify(text));
+  });
+
+  test('못 읽거나 05:00~24:00 밖이면 null', () => {
+    for (const text of ['', ' ', 'abc', '4', '4:59', '24:01', '25', '9:60', '9:3x', '-9', '9.5', '12345', '99:00', '오후 9시']) {
+      assert.equal(parseTimeInput(text), null, JSON.stringify(text));
+    }
   });
 });

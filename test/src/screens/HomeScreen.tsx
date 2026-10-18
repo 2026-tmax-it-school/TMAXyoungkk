@@ -17,10 +17,13 @@ import { kstDate } from '../core/util';
 import { regionById } from '../data/regions';
 import {
   HOME_PICKS,
+  pickTitle,
   homeSegments,
   NEW_TRIP_H,
   NEW_TRIP_PEEK,
   cardRowAtEnd,
+  cardRowArrows,
+  cardRowStep,
   cardRowAtStart,
   cardRowContentWidth,
   PULL_TRIGGER,
@@ -45,6 +48,7 @@ import { useUi } from '../store/ui';
 import {
   AvatarStack,
   Btn,
+  Col,
   Card,
   CoverTile,
   Empty,
@@ -147,10 +151,19 @@ export default function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
   const rowAtEnd = useRef(false);
   // 줄 끝 판단: 지금 스크롤 위치 + 화면 폭이 내용 폭에 닿았는지. 크기가 나중에 재져도 위치를 함께 본다
   const rowSize = useRef({ x: 0, viewW: 0, contentW: 0 });
+  // 양옆 화살표: 화면 밖에 여행 카드가 남은 쪽만 보인다(2026-10-17)
+  const [arrows, setArrows] = useState({ left: false, right: false });
+  const cardCount = useRef(0);
   const updateAtEnd = () => {
     const { x, viewW, contentW } = rowSize.current;
     rowAtEnd.current = cardRowAtEnd(x, viewW, contentW);
     rowAtStart.current = cardRowAtStart(x, viewW);
+    const next = cardRowArrows(x, viewW, cardCount.current);
+    setArrows((was) => (was.left === next.left && was.right === next.right ? was : next));
+  };
+  const stepRow = (dir: 1 | -1) => {
+    const { x, viewW } = rowSize.current;
+    rowRef.current?.scrollTo({ x: cardRowStep(x, cardCount.current, dir, viewW), animated: true });
   };
   const openCreate = () => {
     setPullReady(false);
@@ -175,6 +188,7 @@ export default function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
     updateAtEnd();
   };
   // 카드가 늘거나 줄면 내용 폭을 다시 계산한다
+  cardCount.current = list.length;
   useEffect(() => {
     rowSize.current = { ...rowSize.current, contentW: cardRowContentWidth(list.length) };
     updateAtEnd();
@@ -249,12 +263,12 @@ export default function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
           ) : trips.length === 0 ? (
             <View style={styles.gutter}>
               <Card>
-                <Empty
-                  icon="compass"
-                  title="다음 여행을 계획해 보세요"
-                  action={{ label: '여행방 만들기', onPress: () => navigation.navigate('CreateTrip') }}
-                />
-                <Btn title="초대 코드로 합류" variant="quiet" onPress={() => navigation.navigate('InviteAccept')} />
+                <Empty icon="compass" title="다음 여행을 계획해 보세요" />
+                {/* 두 버튼은 같은 크기·같은 비율(전체 폭, 같은 높이)로 위아래에 둔다(2026-10-17) */}
+                <Col gap={SP.m}>
+                  <Btn title="여행방 만들기" onPress={() => navigation.navigate('CreateTrip')} />
+                  <Btn title="초대 코드로 합류" variant="quiet" onPress={() => navigation.navigate('InviteAccept')} />
+                </Col>
               </Card>
             </View>
           ) : (
@@ -285,6 +299,16 @@ export default function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
             </Animated.ScrollView>
             <EdgePull side="left" icon="link" pull={pullL} ready={pullLReady} title="초대 코드" idle="더 당기면 합류해요" done="놓으면 합류해요" />
             <EdgePull side="right" icon="plus" pull={pullX} ready={pullReady} title="새 여행" idle="더 당기면 만들어요" done="놓으면 만들어요" />
+            {arrows.left ? (
+              <View style={[styles.arrow, styles.arrowLeft]}>
+                <IconBtn icon="back" label="이전 여행방" variant="soft" onPress={() => stepRow(-1)} />
+              </View>
+            ) : null}
+            {arrows.right ? (
+              <View style={[styles.arrow, styles.arrowRight]}>
+                <IconBtn icon="right" label="다음 여행방" variant="soft" onPress={() => stepRow(1)} />
+              </View>
+            ) : null}
             </View>
           )}
         </View>
@@ -317,7 +341,7 @@ export default function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
               <CoverTile
                 key={p.id}
                 place={p.name}
-                title={p.name}
+                title={pickTitle(p.id, p.name)}
                 lines={[p.blurb]}
                 a11yLabel={`${p.name} 예시 일정 보기`}
                 onPress={() => navigation.navigate('SampleTrip', { regionId: p.id })}
@@ -446,6 +470,9 @@ const styles = StyleSheet.create({
   picks: { marginTop: SP.section + SP.m, gap: SP.xl },
   pickRow: { paddingHorizontal: SP.gutter, paddingVertical: SP.s, gap: SP.xl },
   rowWrap: { overflow: 'hidden' },
+  arrow: { position: 'absolute', top: '50%', marginTop: -22 },
+  arrowLeft: { left: SP.s },
+  arrowRight: { right: SP.s },
   // '+' 손잡이와 당기기 칸: 연한 대표색 바탕의 잘린 카드(+ 만 진한 대표색)
   // 줄 양 끝: 좌우 여백을 없애 양쪽 잘린 카드가 화면 끝에 붙는다
   cardRowEnd: { paddingLeft: 0, paddingRight: 0 },

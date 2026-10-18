@@ -4,7 +4,7 @@ import type { DiaryBlock, DiaryEntry, Photo } from '../../types';
 import type { PhotoProvider, PickedPhoto } from '../../core/ports';
 import { composeDiary, diaryShareText } from '../../core/journal/diary';
 import { buildPhoto } from '../../core/journal/photo';
-import { kstHHMM } from '../../core/util';
+import { kstDate, kstHHMM } from '../../core/util';
 import { appClock } from '../../services/clock';
 import { getServices } from '../../services/registry';
 import { shareText, type ShareOutcome } from '../../services/share';
@@ -135,19 +135,26 @@ export type PickResult =
   | { ok: true; photos: Photo[]; picked: number }
   | { ok: false; reason: 'permission' | 'failed'; message: string };
 
-/** 사진 고르기 → 올리기. source 'device'는 등록된 사진 제공자(시뮬레이터가 덮으면 sim) */
-export async function pickAndImport(tripId: string, source: 'device' | 'sim', fallbackDate?: string): Promise<PickResult> {
+export type PickOnlyResult = { ok: true; picked: PickedPhoto[] } | { ok: false; reason: 'permission' | 'failed'; message: string };
+
+/** 사진만 고른다(아직 올리지 않는다). 일기 쓰기 시트가 저장할 때 writeDiary로 올린다 */
+export async function pickPhotos(tripId: string, source: 'device' | 'sim'): Promise<PickOnlyResult> {
   const provider = source === 'sim' ? simPhotosFor(tripId) : getServices().photos;
-  let picked: PickedPhoto[];
   try {
-    picked = await provider.pick({ multiple: true });
+    return { ok: true, picked: await provider.pick({ multiple: true }) };
   } catch (e) {
     return e instanceof PhotoPermissionDenied
-      ? { ok: false, reason: 'permission', message: '사진 접근 권한이 없습니다. 설정에서 허용하면 올릴 수 있습니다' }
-      : { ok: false, reason: 'failed', message: '사진을 불러오지 못했습니다. 다시 시도해 주세요' };
+      ? { ok: false, reason: 'permission', message: '사진 접근 권한이 없어요. 설정에서 허용하면 올릴 수 있어요' }
+      : { ok: false, reason: 'failed', message: '사진을 불러오지 못했어요. 다시 시도해 주세요' };
   }
-  const photos = await importPhotos(tripId, picked, fallbackDate);
-  return { ok: true, photos, picked: picked.length };
+}
+
+/** 사진 고르기 → 올리기. source 'device'는 등록된 사진 제공자(시뮬레이터가 덮으면 sim) */
+export async function pickAndImport(tripId: string, source: 'device' | 'sim', fallbackDate?: string): Promise<PickResult> {
+  const r = await pickPhotos(tripId, source);
+  if (!r.ok) return r;
+  const photos = await importPhotos(tripId, r.picked, fallbackDate);
+  return { ok: true, photos, picked: r.picked.length };
 }
 
 export function removePhoto(tripId: string, photoId: string): DispatchResult {
@@ -174,8 +181,8 @@ export async function generateDiary(tripId: string, date: string, opts?: { quiet
   return { ok: true, entry: useTrips.getState().docs[tripId]?.diaries[date] ?? entry };
 }
 
-/** 직접 쓴 일기 문단을 그날 일기에 더한다(고친 문장으로 표시되어 다시 만들어도 남는다) */
-export function addDiaryNote(tripId: string, date: string, text: string): DispatchResult {
+/** 직접 쓴 일기 문단을 그날 일기에 더한다(고친 문장으로 표시되어 다시 만들어도 남는다). photoIds는 함께 붙인 사진 */
+export function addDiaryNote(tripId: string, date: string, text: string, photoIds: string[] = []): DispatchResult {
   const trip = useTrips.getState().docs[tripId];
   const me = trip ? myMemberId(trip) : undefined;
   const at = appClock().now();
@@ -183,12 +190,32 @@ export function addDiaryNote(tripId: string, date: string, text: string): Dispat
     id: `${date}:note-${at.toString(36)}`,
     time: kstHHMM(at),
     placeName: '내가 쓴 일기',
-    photoIds: [],
+    photoIds,
     text: text.trim(),
     editedAt: at,
     ...(me ? { editedBy: me } : {}),
   };
   return useTrips.getState().dispatch(tripId, { type: 'journal/diaryNote', date, block });
+}
+
+export interface WriteResult {
+  /** 일기 문단 저장 결과. 글도 붙일 사진도 없으면 undefined */
+  note?: DispatchResult;
+  /** 올라간 사진 */
+  photos: Photo[];
+  /** 그중 이 날 일기에 붙인 사진 수(찍은 날이 다른 사진은 그 날로 간다) */
+  attached: number;
+}
+
+/**
+ * 일기 쓰기(2026-10-17 사용자 요청: 일기 쓰기와 사진 추가를 하나로). 고른 사진을 올리고(촬영 정보가 없으면 이 날로),
+ * 이 날 찍은 사진은 직접 쓴 문단에 붙인다. 글이 없어도 사진만으로 문단을 남긴다.
+ */
+export async function writeDiary(tripId: string, date: string, text: string, picked: PickedPhoto[]): Promise<WriteResult> {
+  const photos = picked.length > 0 ? await importPhotos(tripId, picked, date) : [];
+  const ids = photos.filter((p) => kstDate(p.takenAt) === date).map((p) => p.id);
+  if (!text.trim() && ids.length === 0) return { photos, attached: 0 };
+  return { note: addDiaryNote(tripId, date, text, ids), photos, attached: ids.length };
 }
 
 export function editDiaryBlock(tripId: string, date: string, blockId: string, text: string): DispatchResult {

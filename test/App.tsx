@@ -5,6 +5,7 @@ import { View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { bootstrap } from './src/features/account/bootstrap';
+import { LocationConsentDialog } from './src/features/live/components/LocationConsentDialog';
 import { OfflineBar } from './src/navigation/OfflineBar';
 import { linking } from './src/navigation/routes';
 import { navTheme, RootNavigator } from './src/navigation/RootNavigator';
@@ -19,7 +20,7 @@ const SPLASH_MIN_MS = 1500;
 /**
  * Young Trip 진입점. 부팅(bootstrap: 폰트 4개, 저장소 4개 복원, 세션 갱신) 동안 01 스플래시를 그리고(워드마크가 뜬 뒤 최소 1.5초),
  * 끝나면 루트 스택을 띄운다. 라우트 등록 규칙은 src/navigation/routes.ts(A8)에 있다.
- * 오프라인 안내(OfflineBar)는 루트 스택 위 한 줄로 앱 전체에 하나다.
+ * 오프라인 안내(OfflineBar)는 루트 스택 위 한 줄로 앱 전체에 하나다. 위치 사용 동의 대화상자(LocationConsentDialog)도 하나다.
  */
 export default function App() {
   const [boot, setBoot] = useState({ progress: 0, label: '준비 중' });
@@ -64,6 +65,8 @@ export default function App() {
         <SplashScreen progress={boot.progress} label={boot.label} minMs={SPLASH_MIN_MS} onShown={splashShown.resolve} />
       )}
       {ready ? <ToastHost /> : null}
+      {/* 위치를 처음 쓰려 할 때 묻는 대화상자(앱 전체에 하나) */}
+      {ready ? <LocationConsentDialog /> : null}
     </SafeAreaProvider>
   );
 }

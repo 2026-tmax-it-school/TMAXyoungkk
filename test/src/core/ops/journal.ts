@@ -135,7 +135,9 @@ export function validate(doc: Trip, op: Op): string | null {
       if (!active) return '나간 멤버는 일기를 쓸 수 없습니다';
       if (op.date < doc.startDate || op.date > doc.endDate) return '여행 기간 밖 날짜입니다';
       const text = op.block.text.trim();
-      if (text.length === 0) return '일기 내용을 적어 주세요';
+      // 사진만 붙인 문단도 된다(일기 쓰기에 사진 추가가 합쳐졌다, 2026-10-17)
+      if (text.length === 0 && op.block.photoIds.length === 0) return '일기 내용을 적어 주세요';
+      if (op.block.photoIds.some((id) => !doc.photos.some((p) => p.id === id))) return '사진을 찾을 수 없습니다';
       if (text.length > DIARY_TEXT_MAX) return `문장은 ${DIARY_TEXT_MAX}자까지 쓸 수 있습니다`;
       if (doc.diaries[op.date]?.blocks.some((b) => b.id === op.block.id)) return '이미 있는 문단입니다';
       return null;

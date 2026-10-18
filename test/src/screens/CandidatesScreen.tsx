@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { tripMode } from '../core/group';
@@ -30,14 +30,10 @@ import {
   Empty,
   H,
   Header,
-  Icon,
-  lineC,
   ListRow,
-  R,
   Row,
   Screen,
   SP,
-  surfaceC,
   Txt,
   WarnCard,
 } from '../ui';
@@ -48,7 +44,7 @@ import {
  *   방은 useActiveTrip이 정한다. 방이 0개일 때만 '여행방 만들기'를 보이고, 방은 있는데 고른 방이 없으면 고르라고 안내한다.
  *   오프라인 안내는 앱 공통 OfflineBar가 맡는다(여기서 Notice를 쌓지 않는다).
  * - 확정 버튼이 없다(FR-403). 계산 중이면 '다시 계산하는 중' 칩과 '단계 보기', 문서가 바뀌어 계산을 기다리면 칩 하나.
- * - 담기 입구: 목록 맨 위의 검색창 모양 버튼을 누르면 그 자리에서 수동 등록(ManualAdd)을 펼친다(시트를 겹치지 않는다).
+ * - 담기: 목록 맨 위 돋보기 검색창(ManualAdd)이 바로 입력 칸이다. 누르면 아래에 새 칸이 펼쳐지던 방식은 2026-10-17에 없앴다.
  *   그 아래 '성향 태그로 추천 받기' 줄.
  * - 목록은 하나이고 구역 머리(eyebrow + 개수)로 나눈다(rows.ts candidateSections, 순수).
  *   확정 스팟은 앞 5곳만 보이고 '나머지 N곳 보기'로 편다. 배치 계산 전은 있을 때만. 제외 스팟은 절대 접지 않는다.
@@ -62,11 +58,6 @@ export default function CandidatesScreen({ navigation, route }: TabScreenProps<'
   const dirty = useTrips((s) => (trip ? !!s.dirty[trip.id] : false));
   const toast = useUi((s) => s.showToast);
   const homeBack = useHomeBack();
-  const [adding, setAdding] = useState(route.params?.add === true);
-  // 채팅방에서 '장소 검색해서 담기'로 다시 열었을 때도 펼친다
-  useEffect(() => {
-    if (route.params?.add) setAdding(true);
-  }, [route.params?.add, route.params]);
   const [expanded, setExpanded] = useState(false);
   const view = useMemo(() => (trip ? candidateView(trip, plan) : undefined), [trip, plan]);
 
@@ -101,8 +92,6 @@ export default function CandidatesScreen({ navigation, route }: TabScreenProps<'
   const line = summaryLine(view);
   const sections = candidateSections(view, expanded);
   const busy = !!planning?.busy;
-  // 보이는 글과 접근성 이름을 같게 둔다(펼친 뒤에는 누르면 닫힌다)
-  const entryLabel = adding ? '장소 검색 닫기' : '장소 검색해서 담기';
   const open = (spotId: string) => navigation.navigate('SpotDetail', { tripId, spotId });
   const restore = (row: ExcludedRow) => {
     const r = useTrips.getState().dispatch(tripId, { type: 'spot/restore', spotId: row.spotId });
@@ -134,25 +123,8 @@ export default function CandidatesScreen({ navigation, route }: TabScreenProps<'
           </Row>
         ) : null}
 
-        {/* 담기 입구: 검색창 모양 버튼. 누르면 그 자리에서 검색 칸과 '지도에서 선택'을 펼친다 */}
-        <Col gap={SP.m}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={entryLabel}
-            accessibilityState={{ expanded: adding }}
-            onPress={() => setAdding((v) => !v)}
-            style={styles.searchEntry}
-          >
-            <Icon name="search" size={18} color="muted" stroke={1.9} />
-            <View style={styles.searchText}>
-              <Txt v="field" c="muted" numberOfLines={1}>
-                {entryLabel}
-              </Txt>
-            </View>
-            <Icon name={adding ? 'x' : 'plus'} size={18} color="muted" stroke={1.9} />
-          </Pressable>
-          {adding ? <ManualAdd trip={trip} focus /> : null}
-        </Col>
+        {/* 담기: 맨 위 돋보기 검색창이 바로 입력 칸이다(아래에 새 칸을 만들지 않는다, 2026-10-17) */}
+        <ManualAdd key={route.params?.add ? 'add' : 'idle'} trip={trip} focus={route.params?.add === true} />
         <ListRow first icon="compass" label="성향 태그로 추천 받기" onPress={() => navigation.navigate('Recommend', { tripId })} />
 
         {view.total === 0 ? (
@@ -193,7 +165,7 @@ export default function CandidatesScreen({ navigation, route }: TabScreenProps<'
                     <Txt v="mtTight">{r.sub}</Txt>
                   </Col>
                   <Col gap={SP.xs}>
-                    {r.pinned ? <Chip text="고정" icon="pinlock" /> : <Chip text={`제안자 ${r.proposerCount}`} />}
+                    {r.pinLabel ? <Chip text={r.pinLabel} icon="pinlock" /> : <Chip text={`표 ${r.votes}`} />}
                     {r.outsideRegion ? <Chip text="목적지 밖" tone="warn" /> : null}
                   </Col>
                 </Row>
@@ -229,7 +201,7 @@ export default function CandidatesScreen({ navigation, route }: TabScreenProps<'
                     <Txt v="nm">{r.name}</Txt>
                     <Txt v="mtTight">{r.sub}</Txt>
                   </Col>
-                  {r.pinned ? <Chip text="고정" icon="pinlock" /> : <Chip text={`제안자 ${r.proposerCount}`} tone="line" />}
+                  {r.pinLabel ? <Chip text={r.pinLabel} icon="pinlock" /> : <Chip text={`표 ${r.votes}`} tone="line" />}
                 </Row>
               </Card>
             ))}
@@ -255,16 +227,19 @@ export default function CandidatesScreen({ navigation, route }: TabScreenProps<'
                     <Txt v="mtTight">{r.sub}</Txt>
                   </Col>
                 </Pressable>
-                <View style={styles.start}>
-                  <Btn
-                    title="고정해서 다시 넣기"
-                    size="sm"
-                    variant="ghost"
-                    icon="undo"
-                    a11yLabel={`${r.name} 고정해서 다시 넣기`}
-                    onPress={() => restore(r)}
-                  />
-                </View>
+                {/* 방장이 뺀 곳은 방장 결정으로만 돌아온다(스팟 상세의 투표 카드) */}
+                {r.reasonCode !== 'hostDropped' ? (
+                  <View style={styles.start}>
+                    <Btn
+                      title="고정해서 다시 넣기"
+                      size="sm"
+                      variant="ghost"
+                      icon="undo"
+                      a11yLabel={`${r.name} 고정해서 다시 넣기`}
+                      onPress={() => restore(r)}
+                    />
+                  </View>
+                ) : null}
               </Card>
             ))}
           </Col>
@@ -286,18 +261,6 @@ function SectionHead<T>({ section }: { section: CandidateSection<T> }) {
 const styles = StyleSheet.create({
   actions: { paddingTop: SP.l, paddingBottom: SP.xl },
   summary: { paddingHorizontal: SP.gutter, paddingTop: SP.s, paddingBottom: SP.xs },
-  searchEntry: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SP.m,
-    minHeight: H.touch,
-    paddingHorizontal: SP.xl,
-    borderRadius: R.field,
-    borderWidth: 1,
-    borderColor: lineC.line,
-    backgroundColor: surfaceC.card,
-  },
-  searchText: { flex: 1, minWidth: 0 },
   excludedOpen: { minHeight: H.touch, justifyContent: 'center' },
   start: { alignSelf: 'flex-start' },
   sectionHead: { paddingTop: SP.s },

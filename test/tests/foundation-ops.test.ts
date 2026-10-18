@@ -53,7 +53,7 @@ describe('OP_OWNER와 applyOp 라우팅', () => {
       journal: 'journal',
     };
     const types = Object.keys(OP_OWNER) as OpType[];
-    assert.equal(types.length, 36);
+    assert.equal(types.length, 37);
     // 채팅방 지도의 한 표(FR-405)도 spot/ 접두라 spots 리듀서가 맡는다
     assert.equal(OP_OWNER['spot/vote'], 'spots');
     for (const t of types) assert.equal(OP_OWNER[t], prefixToFile[t.split('/')[0]], t);

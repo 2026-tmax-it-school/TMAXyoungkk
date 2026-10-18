@@ -322,6 +322,16 @@ describe('직접 쓴 일기(2026-10-17)', () => {
     assert.equal(validateOp(t0, op({ type: 'journal/diaryNote', date: D, block: note('y', 'x'.repeat(1001)) })).ok, false);
   });
 
+  test('사진을 붙인 문단: 글 없이 사진만 붙여도 되고, 없는 사진은 거부(일기 쓰기에 사진 추가를 합쳤다)', () => {
+    const t0 = tripWithRecords();
+    const photoId = t0.photos[0].id;
+    const withPhoto = { ...note('p', ''), photoIds: [photoId] };
+    assert.equal(validateOp(t0, op({ type: 'journal/diaryNote', date: D, block: withPhoto })).ok, true);
+    const t1 = applyOp(t0, op({ type: 'journal/diaryNote', date: D, block: withPhoto })) as Trip;
+    assert.deepEqual(t1.diaries[D].blocks[0].photoIds, [photoId]);
+    assert.equal(validateOp(t0, op({ type: 'journal/diaryNote', date: D, block: { ...note('q'), photoIds: ['nope'] } })).ok, false);
+  });
+
   test('다시 만들어도 직접 쓴 문단은 남는다', async () => {
     let t = tripWithRecords();
     t = applyOp(t, op({ type: 'journal/diaryNote', date: D, block: note() })) as Trip;

@@ -148,9 +148,16 @@ test('ChatScreen: 키보드 대응, Enter로 보내기, 후보 줄, 채팅 설�
   assert.match(chatSrc, /returnKeyType="send"/);
   assert.match(chatSrc, /keepFocusOnSubmit/);
   assert.match(chatSrc, /onSubmitEditing=\{send\}/);
-  assert.match(chatSrc, /placeholder=\{group \? '가고 싶은 곳을 말해 보세요' : '메모처럼 가고 싶은 곳을 적어 보세요'\}/);
+  assert.match(chatSrc, /placeholder=\{group \? '메시지 쓰기' : '메모 쓰기'\}/);
+  // 메신저형 입력줄(2026-10-17): 알약 칸 안 오른쪽에 둥근 보내기
+  assert.match(chatSrc, /look="pill"/);
+  assert.match(chatSrc, /right=\{<SendButton round onPress=\{send\}/);
   // 혼자 여행(개인 모드)도 입력이 열린다: 채팅 메모
-  assert.match(chatSrc, /\{me \? \(\s*<Row gap=\{SP\.m\} style=\{styles\.inputRow\}>/);
+  assert.match(chatSrc, /<IconBtn icon="plus" label="더하기" variant="soft"/);
+  assert.match(chatSrc, /<Field\s+look="pill"/);
+  // 머리 제목은 대화 상대(다른 멤버), 여행 정보는 여행방 카드
+  assert.match(chatSrc, /title=\{group \? roomPeople\(active, me\) : '채팅 메모'\}/);
+  assert.match(chatSrc, /<TripContextCard/);
   assert.match(chatSrc, /'혼자 여행 · 채팅 메모'/);
   assert.match(chatSrc, /paddingBottom: SP\.l \+ bottom/);
   assert.match(chatSrc, /<CandidateBar trip=\{trip\} plan=\{plan\} onPress=\{openCandidates\} \/>/);
@@ -179,4 +186,26 @@ test('ChatScreen: 키보드 대응, Enter로 보내기, 후보 줄, 채팅 설�
   assert.match(card, /name="undo"/);
   assert.match(card, /opts\.length <= INLINE_PICK_MAX/);
   assert.match(card, /<PickHint|card\.pickHint/);
+});
+
+test('메신저형 채팅(2026-10-17): 머리 제목은 다른 멤버 이름, 목록은 받은편지함형, 공유 시트', async () => {
+  const { roomPeople } = await import('../src/features/chat/view');
+  const m = (id: string, nickname: string) => ({ id, nickname });
+  assert.equal(roomPeople([m('me', '나'), m('a', '준호')], 'me'), '준호');
+  assert.equal(roomPeople([m('me', '나'), m('a', '준호'), m('b', '수아')], 'me'), '준호, 수아');
+  assert.equal(roomPeople([m('me', '나'), m('a', '준호'), m('b', '수아'), m('c', '지우')], 'me'), '준호, 수아 외 1명');
+  assert.equal(roomPeople([m('me', '나')], 'me'), '나만 있어요');
+  const { shortPeriod } = await import('../src/features/chat/rooms');
+  assert.equal(shortPeriod('2026-10-23', '2026-10-24'), '10/23 – 10/24');
+  assert.equal(shortPeriod('2026-10-26', '2026-10-26'), '10/26');
+  const list = read('src/features/chat/components/ChatRoomList.tsx');
+  assert.match(list, /`\$\{r\.title\} · \$\{r\.place\}`/);
+  assert.match(list, /`\$\{r\.dates\} · \$\{r\.meta\}`/);
+  assert.doesNotMatch(list, /TILE_GAP|gridW/);
+  const share = read('src/features/chat/components/ShareTripSheet.tsx');
+  for (const label of ['초대 링크 복사', '메시지로 보내기', '멤버·초대 관리']) assert.ok(share.includes(`'${label}'`), label);
+  assert.match(share, /if \(!trip\.invite\?\.code\) issueInvite\(trip\.id\)/);
+  const chat = read('src/screens/ChatScreen.tsx');
+  assert.match(chat, /<MessageText text=\{m\.text\}/);
+  assert.doesNotMatch(chat, /<Bubble /);
 });

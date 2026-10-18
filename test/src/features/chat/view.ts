@@ -181,3 +181,14 @@ export const STICK_TO_END_PX = 80;
 export function nearEnd(contentH: number, offsetY: number, viewH: number, px = STICK_TO_END_PX): boolean {
   return contentH - (offsetY + viewH) <= px;
 }
+
+/**
+ * 채팅방 머리 제목(메신저형, 2026-10-17): 나를 뺀 활동 멤버 이름. 둘까지는 '준호, 수아', 셋 이상은 '준호, 수아 외 1명'.
+ * 나 말고 아무도 없으면 '나만 있어요'
+ */
+export function roomPeople(active: readonly Pick<Member, 'id' | 'nickname'>[], me: string | undefined): string {
+  const others = active.filter((m) => m.id !== me).map((m) => m.nickname);
+  if (others.length === 0) return '나만 있어요';
+  if (others.length <= 2) return others.join(', ');
+  return `${others.slice(0, 2).join(', ')} 외 ${others.length - 2}명`;
+}

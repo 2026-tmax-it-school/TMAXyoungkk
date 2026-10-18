@@ -1,4 +1,5 @@
 import type { Plan, Trip } from '../../types';
+import { sampleTripFor } from '../../data/sampleTrips';
 import { TRANSPORT_LABEL } from '../../core/constants';
 import { activeMembers, tripMode } from '../../core/group';
 import { daysUntil, tripStatus, type TripStatus } from '../../core/tripStatus';
@@ -188,44 +189,36 @@ function chatCell(trip: Trip): HomeMenuCell {
 
 /**
  * 여행방 빠른 메뉴 칸(features/trip/components/TripActions가 후보·시간표 화면 위에 그린다, 2026-10-17 홈에서 옮김).
- * 단계(예정·진행 중·완료)에 맞는 일을 돌려준다. 여행방 설정은 늘 끝 칸이다.
- * - 예정: 멤버 초대, 채팅, 여행일지, 여행지 추천, 공유된 일정, 여행방 설정
- * - 진행 중: 구간 안내(오늘 첫 구간), 채팅, 일기 쓰기(오늘 여행일지), 공유된 일정, 여행방 설정
- * - 완료: 채팅, 여행일지, 일정 공유하기, 공유된 일정, 여행방 설정
- * 채팅 오른쪽은 늘 여행일지(진행 중이면 오늘 날짜로 여는 '일기 쓰기')다. 홈의 '여행일지' 구역은 뺐다. 여행 이름 줄의 채팅·멤버·설정 아이콘은 뺐다. 새 여행은 홈 카드 줄 오른쪽 '+' 칸에 있다. 꺼지는 칸은 없다. 여행방이 없으면 빈 목록이다.
- * plan은 호출 모양을 지키려고 받는다(구간 안내 칸은 시간표가 없어도 켜 둔다).
+ * 단계(예정·진행 중·완료)마다 그때 자주 쓰는 일부터 놓는다(2026-10-17 사용자 요청: 우선도 순). 여행방 설정은 늘 끝 칸이다.
+ * - 예정(그룹): 채팅 → 멤버 초대 → AI 여행지 추천 → 공유된 일정 → 여행일지 → 여행방 설정
+ *   예정(혼자): 채팅 메모 → AI 여행지 추천 → 공유된 일정 → 여행일지 → 멤버 초대 → 여행방 설정(혼자는 초대가 뒤로)
+ * - 진행 중: 구간 안내(오늘 첫 구간) → 일기 쓰기(오늘) → 채팅 → AI 여행지 추천 → 공유된 일정 → 여행방 설정
+ * - 완료: 여행일지 → 일정 공유하기 → 채팅 → 공유된 일정 → 여행방 설정
+ * 꺼지는 칸은 없다. 여행방이 없으면 빈 목록이다. plan은 호출 모양을 지키려고 받는다(구간 안내 칸은 시간표가 없어도 켜 둔다).
  */
 export function homeActions(trip: Trip | undefined, _plan: Plan | undefined, today: string): HomeMenuCell[] {
   if (!trip) return [];
   const settings: HomeMenuCell = { key: 'settings', label: '여행방 설정', icon: 'gear', disabled: false };
+  const members: HomeMenuCell = { key: 'members', label: '멤버 초대', icon: 'users', disabled: false };
+  const recommend: HomeMenuCell = { key: 'recommend', label: 'AI 여행지 추천', icon: 'compass', disabled: false };
   const s = statusOn(trip, today);
   if (s === 'upcoming') {
-    return [
-      { key: 'members', label: '멤버 초대', icon: 'users', disabled: false },
-      chatCell(trip),
-      JOURNAL_CELL,
-      { key: 'recommend', label: 'AI 여행지 추천', icon: 'compass', disabled: false },
-      SHARED_CELL,
-      settings,
-    ];
+    return tripMode(trip) === 'personal'
+      ? [chatCell(trip), recommend, SHARED_CELL, JOURNAL_CELL, members, settings]
+      : [chatCell(trip), members, recommend, SHARED_CELL, JOURNAL_CELL, settings];
   }
   if (s === 'ongoing') {
     return [
       // 늘 켠다. 오늘 구간이 없으면 구간 안내 화면이 Empty '루트 계산'으로 다음 할 일을 보여 준다(꺼진 칸은 이유가 안 보여 막다른 칸이 된다)
       { key: 'navigate', label: '구간 안내', icon: 'nav', disabled: false, date: today },
-      chatCell(trip),
       { key: 'diary', label: '일기 쓰기', icon: 'book', disabled: false, date: today },
+      chatCell(trip),
+      recommend,
       SHARED_CELL,
       settings,
     ];
   }
-  return [
-    chatCell(trip),
-    JOURNAL_CELL,
-    { key: 'share', label: '일정 공유하기', icon: 'share', disabled: false },
-    SHARED_CELL,
-    settings,
-  ];
+  return [JOURNAL_CELL, { key: 'share', label: '일정 공유하기', icon: 'share', disabled: false }, chatCell(trip), SHARED_CELL, settings];
 }
 
 /* ---------- 카드 줄 끝 '+ 새 여행' 당기기(2026-10-17) ---------- */
@@ -261,6 +254,35 @@ export function cardRowAtEnd(x: number, viewW: number, contentW: number): boolea
   return x + viewW >= contentW - 2;
 }
 
+/* ---------- 카드 줄 양옆 화살표(2026-10-17) ---------- */
+
+/** 여행 카드 i(0부터)의 왼쪽 끝 위치(내용 좌표). 왼쪽 '초대' 잘린 카드와 간격 뒤에서 시작한다 */
+export function cardLeft(i: number): number {
+  return NEW_TRIP_PEEK + CARD_GAP + i * (CARD_W + CARD_GAP);
+}
+
+/**
+ * 화살표를 보일지. 지금 화면 밖에 여행 카드가 남아 있는 쪽만 보인다(양 끝의 '초대'·'+' 잘린 카드는 세지 않는다).
+ * 카드가 없거나 화면 폭을 모르면 둘 다 숨긴다.
+ */
+export function cardRowArrows(x: number, viewW: number, cards: number): { left: boolean; right: boolean } {
+  if (!(viewW > 0) || cards <= 0) return { left: false, right: false };
+  const lastRight = cardLeft(cards - 1) + CARD_W;
+  return { left: cardLeft(0) < x - 4, right: lastRight > x + viewW + 4 };
+}
+
+/** 화살표를 눌렀을 때 갈 스크롤 위치: 한 장 넘게 떨어진 다음(앞) 카드가 화면 왼쪽에서 조금 안쪽에 오게. 처음 카드로 돌아가면 0 */
+export function cardRowStep(x: number, cards: number, dir: 1 | -1, viewW: number): number {
+  const PAD = 24;
+  const max = Math.max(0, cardRowContentWidth(cards) - viewW);
+  if (dir > 0) {
+    for (let i = 0; i < cards; i += 1) if (cardLeft(i) - PAD > x + CARD_W / 2) return Math.min(max, cardLeft(i) - PAD);
+    return max;
+  }
+  for (let i = cards - 1; i >= 0; i -= 1) if (cardLeft(i) - PAD < x - CARD_W / 2) return i === 0 ? 0 : Math.max(0, cardLeft(i) - PAD);
+  return 0;
+}
+
 /** 칸이 이만큼 따라오면(손가락 약 285px) 놓았을 때 여행방 만들기로 간다 */
 export const PULL_TRIGGER = 110;
 
@@ -281,6 +303,13 @@ export interface HomePick {
   id: string;
   name: string;
   blurb: string;
+}
+
+/** 추천 여행 일정 타일 제목: 지역 이름 + 예시 일정 기간('부산 2박 3일'). 예시가 없으면 지역 이름만 */
+export function pickTitle(regionId: string, name: string): string {
+  const days = sampleTripFor(regionId)?.days.length ?? 0;
+  if (days <= 0) return name;
+  return days === 1 ? `${name} 당일` : `${name} ${days - 1}박 ${days}일`;
 }
 
 /** 홈 '추천 여행지' 가로 줄. 누르면 그 지역을 고른 채로 여행방 만들기로 간다(id는 data/regions의 지역 id) */

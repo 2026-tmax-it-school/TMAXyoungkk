@@ -29,7 +29,16 @@ export function photoBadge(p: Photo): string | undefined {
   return undefined;
 }
 
-export function PhotoTile({ photo, size, badge }: { photo: Photo; size: number; badge?: string }) {
+export function PhotoTile({
+  photo,
+  size,
+  badge,
+}: {
+  /** 고르기만 한 사진(일기 쓰기 미리보기)도 그린다 */
+  photo: Pick<Photo, 'id' | 'uri' | 'sim' | 'sessionOnly'>;
+  size: number;
+  badge?: string;
+}) {
   const uri = photo.uri ?? sessionPhotoUri(photo.id);
   let body: React.ReactNode;
   if (photo.sim) {

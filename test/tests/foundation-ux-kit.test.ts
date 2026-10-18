@@ -301,3 +301,21 @@ describe('키트 조각', () => {
     assert.match(pill, /E\.float/);
   });
 });
+
+test('시트 열기: 패널이 먼저 올라온 뒤 뒤 배경이 제자리에서 어두워진다(Modal slide 금지), 닫는 동안 Modal 유지(2026-10-17)', () => {
+  const sheet = read('src/ui/Sheet.tsx');
+  assert.match(sheet, /animationType="none"/);
+  assert.doesNotMatch(sheet, /animationType="slide"/);
+  assert.match(sheet, /Animated\.sequence\(\[\s*Animated\.timing\(slide,[\s\S]*?Animated\.timing\(dim,/);
+  assert.match(sheet, /<Animated\.View pointerEvents="none" style=\{\[StyleSheet\.absoluteFill, \{ backgroundColor: DIM, opacity: dim \}\]\} \/>/);
+  assert.match(sheet, /if \(finished\) setMounted\(false\)/);
+  assert.match(sheet, /transform: \[\{ translateY \}\]/);
+});
+
+test("빠른 메뉴 칸 이름은 6자를 넘으면 마지막 띄어쓰기에서 두 줄('AI 여행지\\n추천')", async () => {
+  const { quickLabelLines } = await import('../src/ui/quickLabel');
+  assert.equal(quickLabelLines('AI 여행지 추천'), 'AI 여행지\n추천');
+  assert.equal(quickLabelLines('공유된 일정'), '공유된 일정');
+  assert.equal(quickLabelLines('일정 공유하기'), '일정\n공유하기');
+  assert.equal(quickLabelLines('가나다라마바사'), '가나다라마바사');
+});

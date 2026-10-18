@@ -10,6 +10,10 @@ import {
   homeActions,
   homeSegments,
   cardRowAtEnd,
+  cardRowArrows,
+  cardRowStep,
+  cardLeft,
+  pickTitle,
   cardRowAtStart,
   cardRowContentWidth,
   pullOffset,
@@ -172,21 +176,22 @@ describe('여행방 빠른 메뉴(후보·시간표 화면 위)', () => {
   const today = '2026-10-18';
   const keys = (t: Trip | undefined, plan?: Plan) => homeActions(t, plan, today).map((c) => c.key);
 
-  test('예정: 멤버 초대, 채팅(멤버 초대 오른쪽), 여행일지(채팅 오른쪽), 여행지 추천, 여행방 설정', () => {
-    assert.deepEqual(keys(trip('a', '2026-11-01', '2026-11-02')), ['members', 'chat', 'diary', 'recommend', 'itineraries', 'settings']);
+  test('예정(우선도 순): 그룹은 채팅·멤버 초대·AI 추천·공유된 일정·여행일지·설정, 혼자는 초대가 뒤로', () => {
+    assert.deepEqual(keys(trip('a', '2026-11-01', '2026-11-02')), ['chat', 'members', 'recommend', 'itineraries', 'diary', 'settings']);
+    assert.deepEqual(keys(personal(trip('a', '2026-11-01', '2026-11-02'))), ['chat', 'recommend', 'itineraries', 'diary', 'members', 'settings']);
   });
 
-  test('진행 중: 구간 안내, 채팅, 일기 쓰기(오늘), 여행방 설정', () => {
+  test('진행 중(우선도 순): 구간 안내, 일기 쓰기(오늘), 채팅, AI 추천, 공유된 일정, 설정', () => {
     const cells = homeActions(trip('a', '2026-10-17', '2026-10-19'), undefined, today);
     assert.deepEqual(
       cells.map((c) => c.key),
-      ['navigate', 'chat', 'diary', 'itineraries', 'settings'],
+      ['navigate', 'diary', 'chat', 'recommend', 'itineraries', 'settings'],
     );
     assert.equal(cells.find((c) => c.key === 'diary')?.date, today);
   });
 
-  test('완료: 채팅, 여행일지, 일정 공유하기, 여행방 설정', () => {
-    assert.deepEqual(keys(trip('a', '2026-09-01', '2026-09-03')), ['chat', 'diary', 'share', 'itineraries', 'settings']);
+  test('완료(우선도 순): 여행일지, 일정 공유하기, 채팅, 공유된 일정, 설정', () => {
+    assert.deepEqual(keys(trip('a', '2026-09-01', '2026-09-03')), ['diary', 'share', 'chat', 'itineraries', 'settings']);
   });
 
   test("구간 안내 칸 이름은 '구간 안내'이고 늘 켜져 있다(시간표가 없으면 구간 안내 화면이 '루트 계산'을 안내)", () => {
@@ -217,11 +222,13 @@ describe('여행방 빠른 메뉴(후보·시간표 화면 위)', () => {
     }
   });
 
-  test('빠른 메뉴는 홈이 아니라 후보·시간표 화면 위(TripActions)에 있고 5칸이면 오륜기처럼 두 줄이다', () => {
+  test('빠른 메뉴는 후보·시간표 화면 위(TripActions): 4열 격자, 첫 칸 강조, 3칸 + 더 보기(펴면 접기)', () => {
     const actions = readFileSync('src/features/trip/components/TripActions.tsx', 'utf8');
-    // 5칸이면 오륜기처럼 위 3칸·아래 2칸(가운데), 칸 폭은 한 줄의 1/3
-    assert.match(actions, /const rows = cells\.length >= 5 \? \[cells\.slice\(0, 3\), cells\.slice\(3\)\] : \[cells\];/);
-    assert.match(actions, /width: '33\.33%'/);
+    assert.match(actions, /export const QUICK_VISIBLE = 3;/);
+    assert.match(actions, /export const QUICK_COLS = 4;/);
+    assert.match(actions, /primary=\{i === 0\}/);
+    assert.match(actions, /label=\{more \? '접기' : '더 보기'\}/);
+    assert.match(actions, /const folds = cells\.length > QUICK_COLS;/);
     assert.match(readFileSync('src/screens/CandidatesScreen.tsx', 'utf8'), /<TripActions trip=\{trip\} \/>/);
     assert.match(readFileSync('src/screens/ScheduleScreen.tsx', 'utf8'), /<TripActions trip=\{trip\} \/>/);
     assert.doesNotMatch(readFileSync('src/screens/HomeScreen.tsx', 'utf8'), /<QuickAction|homeActions/);
@@ -319,5 +326,39 @@ describe('홈 검색(내 여행방·지역·AI 추천 여행지)', () => {
     assert.match(home, /<HomeSearchResults/);
     const results = readFileSync('src/features/account/HomeSearchResults.tsx', 'utf8');
     assert.match(results, /recommend\.recommend\(\{ region: first/, 'AI 추천은 첫 지역으로 묻는다');
+  });
+});
+
+describe('홈 카드 줄 화살표·추천 일정 제목(2026-10-17)', () => {
+  test('화살표는 화면 밖에 여행 카드가 남은 쪽만, 양 끝 잘린 카드는 세지 않는다', () => {
+    assert.deepEqual(cardRowArrows(0, 393, 0), { left: false, right: false });
+    assert.deepEqual(cardRowArrows(0, 0, 3), { left: false, right: false }, '화면 폭을 모르면 숨긴다');
+    assert.deepEqual(cardRowArrows(0, 393, 1), { left: false, right: false }, '카드 하나는 화살표 없음');
+    assert.deepEqual(cardRowArrows(0, 393, 3), { left: false, right: true });
+    const end = cardRowContentWidth(3) - 393;
+    assert.deepEqual(cardRowArrows(end, 393, 3), { left: true, right: false });
+    assert.deepEqual(cardRowArrows(300, 393, 3), { left: true, right: true });
+  });
+
+  test('화살표를 누르면 다음·앞 카드가 왼쪽에 오게 민다(끝을 넘지 않는다, 처음으로 돌아가면 0)', () => {
+    const next = cardRowStep(0, 3, 1, 393);
+    assert.equal(next, cardLeft(1) - 24);
+    assert.equal(cardRowStep(next, 3, -1, 393), 0);
+    const max = cardRowContentWidth(3) - 393;
+    assert.equal(cardRowStep(max, 3, 1, 393), max);
+    assert.ok(cardRowStep(cardLeft(2) - 24, 3, 1, 393) <= max);
+  });
+
+  test("추천 여행 일정 타일 제목은 '지역 N박 N+1일'", () => {
+    assert.equal(pickTitle('busan', '부산'), '부산 2박 3일');
+    assert.equal(pickTitle('nowhere', '어딘가'), '어딘가');
+    assert.match(readFileSync('src/screens/HomeScreen.tsx', 'utf8'), /title=\{pickTitle\(p\.id, p\.name\)\}/);
+  });
+
+  test('빈 홈 카드: 여행방 만들기·초대 코드로 합류는 같은 크기(전체 폭 Btn)로 위아래', () => {
+    const home = readFileSync('src/screens/HomeScreen.tsx', 'utf8');
+    assert.match(home, /<Btn title="여행방 만들기" onPress=\{\(\) => navigation\.navigate\('CreateTrip'\)\} \/>\s*<Btn title="초대 코드로 합류" variant="quiet"/);
+    assert.match(home, /label="이전 여행방"/);
+    assert.match(home, /label="다음 여행방"/);
   });
 });
