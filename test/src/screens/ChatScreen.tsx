@@ -1,4 +1,4 @@
-import React, { useMemo, useReducer, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import {
   Keyboard,
   Platform,
@@ -45,7 +45,7 @@ import {
 } from '../features/chat/view';
 import type { RootScreenProps } from '../navigation/routes';
 import { useBack } from '../navigation/useBack';
-import { myMemberId, usePlan, useTripDoc, useTrips } from '../store/trips';
+import { myMemberId, useMyTrips, usePlan, useTripDoc, useTrips } from '../store/trips';
 import { useUi } from '../store/ui';
 import {
   Avatar,
@@ -126,8 +126,13 @@ export default function ChatScreen({ navigation, route }: RootScreenProps<'Chat'
   const wide = width >= WIDE_MIN;
   const [text, setText] = useState('');
   const [menu, setMenu] = useState(false);
-  // 머리의 방 이름을 누르면 채팅방 목록 시트로 다른 방을 고른다(2026-10-17)
+  // 머리의 방 이름(▼)을 누르면 채팅방 목록 시트로 다른 방을 고른다(2026-10-17). 하단 '채팅' 탭은 목록 없이 이 화면으로 바로 온다(2026-10-21)
   const [rooms, setRooms] = useState(false);
+  const myTrips = useMyTrips();
+  // 연 방을 '가장 최근에 쓴 여행방'으로 남긴다. 다음에 하단 '채팅' 탭을 누르면 이 방이 열린다
+  useEffect(() => {
+    if (trip) setCurrentTrip(trip.id);
+  }, [trip?.id, setCurrentTrip]);
   /** 멤버 시트(방장은 여기서 내보낸다) */
   const [membersOpen, setMembersOpen] = useState(false);
   /** 여행방 공유 시트(머리 아래 여행방 카드의 '여행방 공유') */
@@ -413,9 +418,9 @@ export default function ChatScreen({ navigation, route }: RootScreenProps<'Chat'
       <Header
         size="row"
         back={back}
-        // 메신저형: 제목은 대화 상대(다른 멤버 이름), 여행 정보는 아래 여행방 카드가 맡는다
-        title={group ? roomPeople(active, me) : '채팅 메모'}
-        sub={group ? `멤버 ${active.length}명` : '혼자 여행 · 채팅 메모'}
+        // 제목은 채팅방(여행방) 이름 + ▼. 눌러서 다른 방을 고른다(2026-10-21). 보조 줄은 대화 상대
+        title={trip.title}
+        sub={group ? `${roomPeople(active, me)} · 멤버 ${active.length}명` : '혼자 여행 · 채팅 메모'}
         onTitlePress={() => setRooms(true)}
         titlePressLabel={`${trip.title} 채팅방, 다른 채팅방 고르기`}
         right={
@@ -482,7 +487,14 @@ export default function ChatScreen({ navigation, route }: RootScreenProps<'Chat'
           onDeleted={(id) => {
             if (id !== trip.id) return;
             setRooms(false);
-            navigation.navigate('Main', { screen: 'ChatList' });
+            // 지금 방을 지웠으면 남은 다른 방으로, 없으면 홈으로
+            const next = myTrips.find((t) => t.id !== id);
+            if (next) {
+              useUi.getState().setCurrentTrip(next.id);
+              navigation.replace('Chat', { tripId: next.id });
+            } else {
+              navigation.navigate('Main', { screen: 'Home' });
+            }
           }}
         />
       </Sheet>

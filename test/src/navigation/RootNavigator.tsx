@@ -63,17 +63,22 @@ export const navTheme: Theme = {
 
 function AppTabBar({ state, navigation }: BottomTabBarProps) {
   const route = state.routes[state.index].name as TabRouteName;
-  const { trips } = useActiveTrip();
+  const { trip, trips } = useActiveTrip();
   const showToast = useUi((s) => s.showToast);
   return (
     <TabBar
       items={TAB_ITEMS}
       active={activeTabKey(route)}
       onPress={(key) => {
-        // 채팅 칸: 채팅방 목록 탭. 여행방이 없으면 홈에서 만들게 한다
-        if (key === 'ChatList' && trips.length === 0) {
-          showToast('여행방을 만들면 채팅방이 생겨요');
-          if (route !== 'Home') navigation.navigate('Home');
+        // 채팅 칸: 목록 없이 가장 최근에 쓴 여행방(useActiveTrip)의 채팅으로 바로 간다(2026-10-21). 방은 채팅 머리에서 바꾼다.
+        // 여행방이 없으면 홈에서 만들게 한다
+        if (key === 'ChatList') {
+          if (!trip || trips.length === 0) {
+            showToast('여행방을 만들면 채팅방이 생겨요');
+            if (route !== 'Home') navigation.navigate('Home');
+            return;
+          }
+          navigation.navigate('Chat', { tripId: trip.id });
           return;
         }
         if (key !== route) navigation.navigate(key);

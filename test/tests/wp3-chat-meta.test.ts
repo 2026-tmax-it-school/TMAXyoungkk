@@ -156,7 +156,9 @@ test('ChatScreen: 키보드 대응, Enter로 보내기, 후보 줄, 채팅 설�
   assert.match(chatSrc, /<IconBtn icon="plus" label="더하기" variant="soft"/);
   assert.match(chatSrc, /<Field\s+look="pill"/);
   // 머리 제목은 대화 상대(다른 멤버), 여행 정보는 여행방 카드
-  assert.match(chatSrc, /title=\{group \? roomPeople\(active, me\) : '채팅 메모'\}/);
+  // 2026-10-21: 제목은 방 이름(눌러서 방 바꾸기), 대화 상대는 보조 줄
+  assert.match(chatSrc, /title=\{trip\.title\}/);
+  assert.match(chatSrc, /sub=\{group \? `\$\{roomPeople\(active, me\)\}/);
   assert.match(chatSrc, /<TripContextCard/);
   assert.match(chatSrc, /'혼자 여행 · 채팅 메모'/);
   assert.match(chatSrc, /paddingBottom: SP\.l \+ bottom/);

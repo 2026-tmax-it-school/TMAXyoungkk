@@ -86,5 +86,7 @@ test('채팅방 검색: 방 이름이나 마지막 말에 들어 있으면 남�
   assert.deepEqual(filterRooms(rows, '서울3박').map((r) => r.tripId), ['c']);
   assert.deepEqual(filterRooms(rows, '불국사').map((r) => r.tripId), ['a'], '마지막 말로도 찾는다');
   assert.deepEqual(filterRooms(rows, 'beach').map((r) => r.tripId), ['b']);
-  assert.match(read('src/screens/ChatListScreen.tsx'), /<ChatRoomList\s*query=\{query\}/);
+  // 2026-10-21: 탭은 목록 없이 최근 여행방 채팅으로 바로 간다(검색 규칙 filterRooms는 위에서 순수 함수로만 본다)
+  assert.match(read('src/navigation/RootNavigator.tsx'), /navigation\.navigate\('Chat', \{ tripId: trip\.id \}\)/);
+  assert.match(read('src/screens/ChatListScreen.tsx'), /navigation\.navigate\('Chat', \{ tripId \}\)/);
 });
