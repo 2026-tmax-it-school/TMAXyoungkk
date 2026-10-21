@@ -33,6 +33,8 @@ const VIEW_CONFIG = { itemVisiblePercentThreshold: 50 };
  */
 export default function CommunityScreen({ navigation, route }: TabScreenProps<'Community'>) {
   const [tab, setTab] = useState<'posts' | 'plans'>(route.params?.tab === 'plans' ? 'plans' : 'posts');
+  // '여행 일정' 빈 목록(검색어 없음): 가운데 빈 화면 버튼과 떠 있는 버튼이 겹치지 않게 한다
+  const plansEmpty = useItineraries((s) => s.status === 'ready' && s.items.length === 0 && !s.query);
   // 홈에서 '여행 일정'으로 다시 열었을 때도 맞춘다
   useEffect(() => {
     if (route.params?.tab) setTab(route.params.tab);
@@ -179,9 +181,12 @@ export default function CommunityScreen({ navigation, route }: TabScreenProps<'C
       {tab === 'plans' ? (
         <>
           <ItineraryFeed navigation={navigation} region={null} onShare={shareStart} />
-          <Row style={{ position: 'absolute', right: SP.gutter, bottom: SP.xxl }}>
-            <Btn title="일정 공유" icon="share" size="sm" onPress={shareStart} />
-          </Row>
+          {/* 빈 목록은 가운데 '내 일정 공유하기' 버튼이 같은 일을 하므로 떠 있는 버튼을 숨긴다 */}
+          {plansEmpty ? null : (
+            <Row style={{ position: 'absolute', right: SP.gutter, bottom: SP.xxl }}>
+              <Btn title="일정 공유" icon="share" size="sm" onPress={shareStart} />
+            </Row>
+          )}
         </>
       ) : (
       <>

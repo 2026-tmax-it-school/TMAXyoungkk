@@ -56,7 +56,8 @@ export default function App() {
         <View style={{ flex: 1 }}>
           <OfflineBar />
           <View style={{ flex: 1 }}>
-            <NavigationContainer linking={linking} theme={navTheme}>
+            {/* 웹 탭 제목에 라우트 이름(Main, LiveTrip 등)이 그대로 보이지 않게 앱 이름으로 고정한다 */}
+            <NavigationContainer linking={linking} theme={navTheme} documentTitle={{ formatter: () => 'Young Trip' }}>
               <RootNavigator hasSession={hasSession} />
             </NavigationContainer>
           </View>

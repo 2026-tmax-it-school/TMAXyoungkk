@@ -1,7 +1,7 @@
 import type { Adjustment, LatLng, Transport } from '../../types';
 import { DELAY_THRESHOLD_MIN, DETOUR_FACTOR, FALLBACK_SPEED_KMH, FREE_TIME_MIN } from '../constants';
 import { legGeometryKey } from '../map/model';
-import { haversineKm } from '../util';
+import { haversineKm, humanMin } from '../util';
 import { nextIndex, type ArrivalTracker } from './arrival';
 import { minuteOfDay, type LiveDay } from './context';
 import { legPathFor, progressOnPath, type LegAlong } from './legPath';
@@ -148,5 +148,5 @@ export const PROPOSAL_KEEP = '원래대로';
 
 /** 조정안 시트 안내 한 줄. 예: '석굴암 예상 도착 11:32 · 계획 11:07보다 25분 뒤' */
 export function proposalLead(name: string, etaHHMM: string, plannedHHMM: string, delayMin: number): string {
-  return `${name} 예상 도착 ${etaHHMM} · 계획 ${plannedHHMM}보다 ${delayMin}분 뒤`;
+  return `${name} 예상 도착 ${etaHHMM} · 계획 ${plannedHHMM}보다 ${humanMin(delayMin)} 뒤`;
 }

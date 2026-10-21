@@ -1,5 +1,5 @@
 import type { DayPlan, LatLng, NotifyLogEntry, Plan, Trip, Visit } from '../../types';
-import { addDays, atKst, dayShort, kstDate, toHHMM, toMin, weekday } from '../util';
+import { addDays, atKst, dayShort, humanMin, kstDate, toHHMM, toMin, weekday } from '../util';
 import type { ArrivalTracker, VisitStatus } from './arrival';
 import { msOfMinute, type LiveDay } from './context';
 import type { Timing } from './delay';
@@ -171,7 +171,7 @@ export function jumpTargets(trip: Pick<Trip, 'endDate'>, day: LiveDay | undefine
 export interface EtaView {
   planned: string;
   eta: string;
-  /** '계획대로', 'N분 여유', '계획보다 N분 뒤' */
+  /** '계획대로', 'N분 여유', '계획보다 N분 뒤'(한 시간이 넘으면 'N시간 M분') */
   delta: string;
   tone: 'ok' | 'muted';
 }
@@ -184,8 +184,8 @@ export function etaView(t: Timing): EtaView {
   const planned = toHHMM(Math.round(t.plannedArriveMin));
   const eta = toHHMM(Math.round(t.etaMin));
   const diff = Math.round(t.etaMin - t.plannedArriveMin);
-  if (diff >= 1) return { planned, eta, delta: `계획보다 ${diff}분 뒤`, tone: 'muted' };
-  if (diff <= -5) return { planned, eta, delta: `${-diff}분 여유`, tone: 'ok' };
+  if (diff >= 1) return { planned, eta, delta: `계획보다 ${humanMin(diff)} 뒤`, tone: 'muted' };
+  if (diff <= -5) return { planned, eta, delta: `${humanMin(-diff)} 여유`, tone: 'ok' };
   return { planned, eta, delta: '계획대로', tone: 'ok' };
 }
 
@@ -203,7 +203,7 @@ export function logLine(e: EngineEffect, nameOf: (spotId: string) => string): Li
         ? { t: e.at, text: `${nameOf(e.spotId)} 도착`, icon: 'check' }
         : { t: e.at, text: `${nameOf(e.spotId)} 건너뜀`, icon: 'right' };
     case 'delay':
-      return { t: e.at, text: `${e.name} 예상 도착이 계획보다 ${e.delayMin}분 뒤 · 조정안`, icon: 'clock' };
+      return { t: e.at, text: `${e.name} 예상 도착이 계획보다 ${humanMin(e.delayMin)} 뒤 · 조정안`, icon: 'clock' };
     case 'freeTime':
       // 주변 결과가 없으면 아무것도 보이지 않아야 해서(FR-604) 찾은 뒤에 freeTimeLine으로 적는다.
       return null;

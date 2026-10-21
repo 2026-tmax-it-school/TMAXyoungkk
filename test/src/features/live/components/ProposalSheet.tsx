@@ -3,7 +3,7 @@ import { View } from 'react-native';
 
 import type { Adjustment, LiveProposal } from '../../../types';
 import { PROPOSAL_APPLY, PROPOSAL_KEEP, PROPOSAL_TITLE, proposalLead } from '../../../core/live/delay';
-import { toHHMM } from '../../../core/util';
+import { humanMin, toHHMM } from '../../../core/util';
 import type { ProposalInfo } from '../../../store/live';
 import { Btn, Card, Col, Icon, Row, Sheet, SP, Txt } from '../../../ui';
 
@@ -44,7 +44,7 @@ export function ProposalSheet({
   if (!proposal) return null;
   const lead = info
     ? proposalLead(info.name, toHHMM(Math.round(info.etaMin)), toHHMM(Math.round(info.plannedArriveMin)), proposal.delayMin)
-    : `다음 스팟 예상 도착이 계획보다 ${proposal.delayMin}분 뒤`;
+    : `다음 스팟 예상 도착이 계획보다 ${humanMin(proposal.delayMin)} 뒤`;
   const chosen = proposal.adjustments.find((a) => a.id === picked) ?? proposal.adjustments[0];
 
   return (

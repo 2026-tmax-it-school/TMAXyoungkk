@@ -269,9 +269,12 @@ export default function CreateTripScreen({ navigation, route }: RootScreenProps<
       />
       <Sheet visible={sheet === 'dates'} onClose={() => setSheet(undefined)} title="날짜 고르기">
         <CalendarRange value={range} onChange={setRange} initialMonth={(range.start ?? today).slice(0, 7)} minDate={today} />
-        {range.start && range.end ? (
-          <Txt v="mtTight">{`${periodLabel(range.start, range.end)} · ${nightsLabel(range.start, range.end)}`}</Txt>
-        ) : null}
+        {/* 줄을 늘 두어 첫 날짜를 누를 때 시트 높이가 바뀌어 달력이 위로 밀리지 않게 한다(두 번째 탭이 엉뚱한 날에 닿던 문제) */}
+        <Txt v="mtTight">
+          {range.start && range.end
+            ? `${periodLabel(range.start, range.end)} · ${nightsLabel(range.start, range.end)}`
+            : '시작일과 종료일을 차례로 눌러 주세요'}
+        </Txt>
         <Btn title="이 날짜로" disabled={!range.start || !range.end} onPress={() => setSheet(undefined)} />
       </Sheet>
       <BaseSearchSheet

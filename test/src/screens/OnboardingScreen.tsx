@@ -94,7 +94,8 @@ export default function OnboardingScreen({ navigation }: RootScreenProps<'Onboar
       </Body>
       <Foot>
         {returning ? <Btn title="다시 로그인하기" onPress={login} /> : null}
-        <Btn title="게스트로 시작하기" variant={returning ? 'ghost' : 'primary'} disabled={problem != null} onPress={start} />
+        {/* 막지 않는다: 닉네임 없이 누르면 start가 칸 아래 이유를 보인다(막아 두면 눌러도 아무 반응이 없었다) */}
+        <Btn title="게스트로 시작하기" variant={returning ? 'ghost' : 'primary'} onPress={start} />
         <Btn title="초대 코드로 합류" variant="quiet" size="sm" onPress={invite} />
       </Foot>
       <ConfirmSheet
