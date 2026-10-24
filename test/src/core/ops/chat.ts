@@ -9,6 +9,16 @@ import { activeMembers } from '../group';
  */
 
 export const MESSAGE_MAX = 500;
+/** 글자 수 안내는 한도에 가까워질 때만 보인다(항상 보이면 입력줄이 복잡해진다) */
+export const MESSAGE_WARN_AT = 450;
+
+/** 입력 중인 글이 한도에 가까우면 보여 줄 안내. 멀면 null */
+export function messageLengthHint(length: number): { text: string; over: boolean } | null {
+  if (length < MESSAGE_WARN_AT) return null;
+  return length > MESSAGE_MAX
+    ? { text: `${length} / ${MESSAGE_MAX} · ${MESSAGE_MAX}자까지 보낼 수 있어요`, over: true }
+    : { text: `${length} / ${MESSAGE_MAX}`, over: false };
+}
 
 export function reduce(doc: Trip, op: Op): Trip {
   switch (op.type) {

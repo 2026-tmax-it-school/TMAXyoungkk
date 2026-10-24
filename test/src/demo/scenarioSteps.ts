@@ -26,7 +26,10 @@ export type ScenarioStep =
   | { kind: 'chat'; line: number; from: ScenarioMemberKey; text: string; at: number }
   | { kind: 'action'; action: ScenarioAction; at: number };
 
-export type ScenarioStage = 'trip' | 'members' | 'chat' | 'all';
+export type ScenarioStage = 'trip' | 'members' | 'collect' | 'chat' | 'all';
+
+/** 발표 시나리오 1단계('채팅으로 담기')가 끝나는 줄. 이 줄까지의 대화와 그 뒤 조작까지만 먼저 돌린다 */
+export const COLLECT_LAST_LINE = 9;
 
 const SEC = 1000;
 
@@ -72,6 +75,18 @@ export function stepsUntil(steps: ScenarioStep[], until: ScenarioStage): Scenari
         (s.kind === 'join' && s.member !== SCENARIO_LATE_JOIN.member),
     );
   }
+  if (until === 'collect') {
+    // 대화 COLLECT_LAST_LINE번째 줄과 그 줄 뒤 조작까지(다음 줄 시각 이전). 지우 합류가 그보다 앞서면 합류 직전까지
+    const next = steps.findIndex((s) => s.kind === 'chat' && s.line === COLLECT_LAST_LINE + 1);
+    const late = steps.findIndex((s) => s.kind === 'join' && s.member === SCENARIO_LATE_JOIN.member);
+    const cut = [next, late].filter((i) => i >= 0);
+    return cut.length === 0 ? steps : steps.slice(0, Math.min(...cut));
+  }
   const cut = steps.findIndex((s) => s.kind === 'join' && s.member === SCENARIO_LATE_JOIN.member);
   return cut < 0 ? steps : steps.slice(0, cut);
+}
+
+/** `done`까지 이미 돌린 순서표의 나머지. 이어서 돌릴 때 쓴다 */
+export function stepsAfter(steps: ScenarioStep[], done: ScenarioStage): ScenarioStep[] {
+  return steps.slice(stepsUntil(steps, done).length);
 }

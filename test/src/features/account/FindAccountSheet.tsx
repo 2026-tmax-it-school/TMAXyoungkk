@@ -148,9 +148,9 @@ export function FindAccountSheet({
           {sentTo ? (
             <Col gap={SP.m}>
               <CodeEntry label="메일로 받은 재설정 코드" button="코드로 재설정" busy={busy} onSubmit={(code) => setPicked({ id: 'code', kind: 'reset', to: sentTo, subject: '', token: code, sentAt: 0, invalidated: false })} />
-              <Txt v="label">모의 메일함</Txt>
+              {mails.length > 0 ? <Txt v="label">모의 메일함</Txt> : null}
               {mails.length === 0 ? (
-                <Txt v="mt">개발용 메일함이 닫혀 있거나 받은 재설정 메일이 없어요. 메일로 온 코드를 위 칸에 붙여 넣어 주세요.</Txt>
+                <Txt v="mt">메일이 도착하면 메일로 온 코드를 위 칸에 붙여 넣어 주세요.</Txt>
               ) : (
                 mails.map((m) => (
                   <Card key={m.id} variant={m.invalidated ? 'excluded' : 'default'}>

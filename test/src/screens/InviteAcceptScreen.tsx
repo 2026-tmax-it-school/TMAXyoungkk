@@ -3,13 +3,14 @@ import { View } from 'react-native';
 
 import type { Trip } from '../types';
 import { NICKNAME_MAX } from '../core/constants';
-import { activeMembers } from '../core/group';
+import { activeMembers, REMOVED_TEXT, REMOVED_TITLE, wasRemoved } from '../core/group';
 import { periodLabel, effectiveBase } from '../core/trip/create';
 import { normalizeInviteCode } from '../core/trip/invite';
 import { cleanNickname, JOIN_ERROR_TEXT } from '../core/trip/join';
 import { GUEST_LIMIT_HELP } from '../features/account/messages';
 import type { RootScreenProps } from '../navigation/routes';
 import { getServices } from '../services/registry';
+import { canUseDemoTools } from '../config';
 import { useSession } from '../store/session';
 import { useTrips, type InvitePreview } from '../store/trips';
 import { useUi } from '../store/ui';
@@ -52,6 +53,8 @@ import {
 export default function InviteAcceptScreen({ navigation, route }: RootScreenProps<'InviteAccept'>) {
   const session = useSession((s) => s.session);
   const profileName = useSession((s) => s.profile.nickname);
+  // '다른 사람으로 합류(시연)'은 관리자 계정에만 보인다
+  const demoAllowed = canUseDemoTools(session);
   const previewInvite = useTrips((s) => s.previewInvite);
   const acceptInvite = useTrips((s) => s.acceptInvite);
   const online = useTrips((s) => s.online);
@@ -79,6 +82,11 @@ export default function InviteAcceptScreen({ navigation, route }: RootScreenProp
 
   // 온보딩이 넘긴 닉네임은 이름 칸에 한 번 담고 경로에서 지운다. 웹에서는 경로 값이 주소(?nickname=)로 남아,
   // 그 주소를 초대 링크로 퍼뜨리면 받은 사람 이름 칸이 내 닉네임으로 차고 방문 기록에도 남는다.
+  // 같은 화면이 열린 채로 다른 초대 링크가 들어오면 새 코드로 다시 확인한다
+  const paramCode = route.params?.code;
+  useEffect(() => {
+    if (paramCode) setCode(paramCode);
+  }, [paramCode]);
   const passedNick = route.params?.nickname;
   useEffect(() => {
     if (passedNick) navigation.setParams({ nickname: undefined });
@@ -236,6 +244,8 @@ export default function InviteAcceptScreen({ navigation, route }: RootScreenProp
   const trip = preview.trip;
   const host = trip.members.find((m) => m.role === 'host');
   const already = preview.already && !demoOther;
+  // 방장이 내보낸 사람은 이 링크로 다시 합류할 수 없다(코어 member/join이 막는다). 눌러 보기 전에 알린다
+  const removed = !already && !demoOther && wasRemoved(trip, session?.userId);
   const guest = demoOther || !session || session.kind === 'guest';
   const who = cleanNickname(nickname);
   const toggleDemo = () => {
@@ -270,20 +280,21 @@ export default function InviteAcceptScreen({ navigation, route }: RootScreenProp
             }}
           />
         )}
-        {session ? (
+        {session && demoAllowed ? (
           // 시연 전용(같은 기기 다른 멤버). 합류·거절과 같은 무게로 두지 않고 이름 칸 아래 글자 링크로 둔다.
           <Row gap={SP.m} wrap>
             <TextLink title={demoOther ? '나로 합류하기' : '다른 사람으로 합류(시연)'} onPress={toggleDemo} />
             {demoOther ? <Chip text="시연 · 새 멤버로 합류" tone="line" /> : null}
           </Row>
         ) : null}
+        {removed ? <Notice tone="warn" icon="alert" title={REMOVED_TITLE} text={REMOVED_TEXT} /> : null}
         {!online ? <Notice tone="warn" icon="alert" text="오프라인이에요. 합류는 이 기기에 먼저 반영되고 연결되면 보내요." /> : null}
       </Body>
       <Foot>
         {already ? (
           <Btn title={joining ? '들어가는 중' : '여행방으로 가기'} disabled={joining} onPress={() => void enter()} />
         ) : (
-          <Btn title={joining ? '합류하는 중' : guest ? '게스트로 합류하기' : '합류하기'} disabled={joining || !who} onPress={join} />
+          <Btn title={joining ? '합류하는 중' : guest ? '게스트로 합류하기' : '합류하기'} disabled={joining || !who || removed} onPress={join} />
         )}
         <Btn title="초대 거절" variant="quiet" size="sm" onPress={leave} />
       </Foot>

@@ -11,6 +11,7 @@ import type { RootScreenProps } from '../navigation/routes';
 import { useBack } from '../navigation/useBack';
 import { useNow } from '../services/clock';
 import { getServices } from '../services/registry';
+import { canUseDemoTools } from '../config';
 import { useSession } from '../store/session';
 import { useUi } from '../store/ui';
 import {
@@ -127,7 +128,7 @@ export default function ProfileScreen({ navigation }: RootScreenProps<'Profile'>
       if (!p) return;
       takeImage(p.bytes, p.uri);
     } catch {
-      setNotice({ title: '사진을 고르지 못했어요', text: '사진 권한을 확인하거나 예시 사진으로 시연해 주세요.' });
+      setNotice({ title: '사진을 고르지 못했어요', text: '사진 권한을 확인한 뒤 다시 골라 주세요.' });
     }
   };
 
@@ -200,7 +201,7 @@ export default function ProfileScreen({ navigation }: RootScreenProps<'Profile'>
             </Txt>
           </View>
         ) : null}
-        <TextLink title="예시 사진으로 시연" onPress={() => takeImage(SAMPLE_PROFILE_IMAGE_BYTES)} />
+        {canUseDemoTools(session) ? <TextLink title="예시 사진으로 시연" onPress={() => takeImage(SAMPLE_PROFILE_IMAGE_BYTES)} /> : null}
 
         {notice ? <Notice tone="warn" icon="alert" title={notice.title} text={notice.text} /> : null}
 

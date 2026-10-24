@@ -84,7 +84,7 @@ test('19 시작 전: 진행 방식은 ListRow 세 줄이고, 오늘이 여행 �
   assert.match(live, /label="시뮬레이터로 재생"/);
   assert.match(
     live,
-    /tripStatus\(trip, now\) === 'ongoing' \? \(\['device', 'manual', 'sim'\] as const\) : \(\['sim', 'device', 'manual'\] as const\)[\s\S]{0,40}\.filter\(\(k\) => DEMO_TOOLS \|\| k !== 'sim'\)/,
+    /tripStatus\(trip, now\) === 'ongoing' \? \(\['device', 'manual', 'sim'\] as const\) : \(\['sim', 'device', 'manual'\] as const\)[\s\S]{0,40}\.filter\(\(k\) => demoAllowed \|\| k !== 'sim'\)/,
   );
   // '어떻게 진행할까요'는 지도보다 앞이다
   assert.ok(live.indexOf('어떻게 진행할까요') < live.indexOf('<MapCanvas'));

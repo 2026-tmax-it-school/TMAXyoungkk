@@ -169,9 +169,9 @@ export default function SignupScreen({ navigation, route }: RootScreenProps<'Sig
           {fail ? <Notice tone="warn" icon="alert" title={fail.title} text={fail.text} /> : null}
 
           <CodeEntry label="메일로 받은 인증 코드" button="코드로 인증하기" busy={busy} onSubmit={(code) => void verify({ id: 'code', kind: 'verify', to: sentTo, subject: '', token: code, sentAt: 0, invalidated: false })} />
-          <Txt v="label">모의 메일함</Txt>
+          {shown.length > 0 ? <Txt v="label">모의 메일함</Txt> : null}
           {shown.length === 0 ? (
-            <Txt v="mt">개발용 메일함이 닫혀 있거나 아직 받은 메일이 없어요. 메일로 온 코드를 위 칸에 붙여 넣어 주세요</Txt>
+            <Txt v="mt">메일이 도착하면 안의 코드를 위 칸에 붙여 넣어 주세요</Txt>
           ) : (
             shown.map((m) => (
               <Card key={m.id} variant={m.invalidated ? 'excluded' : 'default'}>

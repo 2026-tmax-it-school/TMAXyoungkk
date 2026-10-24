@@ -16,7 +16,7 @@ import { useLive } from '../store/live';
 import { useSession } from '../store/session';
 import { useTrips } from '../store/trips';
 import { useUi } from '../store/ui';
-import { scenarioSteps, stepsUntil, type ScenarioStage } from './scenarioSteps';
+import { scenarioSteps, stepsAfter, stepsUntil, type ScenarioStage } from './scenarioSteps';
 
 /**
  * 시연 도구(WP1 소유). 18 더보기 > 시연 도구가 쓴다.
@@ -76,9 +76,19 @@ function memberIdByKey(tripId: string, key: ScenarioMemberKey): string | undefin
   return doc?.members.find((m) => m.nickname === nickname && m.leftAt == null)?.id;
 }
 
+/** 이 기기에 있는 시나리오 방 id(같은 초대 코드를 가진 방). 없으면 빈 문자열 */
+export function scenarioTripId(): string {
+  const doc = Object.values(useTrips.getState().docs).find((d) => d.invite?.code === SCENARIO_INVITE_CODE && d.deletedAt == null);
+  return doc?.id ?? '';
+}
+
+/**
+ * until까지 순서표를 돌린다. after를 주면 그 단계까지 이미 돌린 방에서 이어서 until까지 돌린다(발표 시나리오).
+ * 이어 돌릴 때는 이전 방을 지우지 않고, 방이 없으면 던진다.
+ */
 export async function seedScenario(
   until: ScenarioStage,
-  opts: { onProgress?: (p: SeedProgress) => void } = {},
+  opts: { onProgress?: (p: SeedProgress) => void; after?: ScenarioStage } = {},
 ): Promise<string> {
   const gen = generation;
   const stale = () => gen !== generation;
@@ -87,11 +97,18 @@ export async function seedScenario(
   let tripId = '';
   let lastAt = SCENARIO_T0;
   const failures: string[] = [];
-  const steps = stepsUntil(scenarioSteps(SCENARIO_T0), until);
+  const all = scenarioSteps(SCENARIO_T0);
+  const steps = opts.after ? stepsAfter(stepsUntil(all, until), opts.after) : stepsUntil(all, until);
 
-  // 이전 시나리오 방을 지운다(리셋 없이 두 번 채워도 같은 결과).
-  for (const doc of Object.values(trips().docs)) {
-    if (doc.invite?.code === SCENARIO_INVITE_CODE) trips().removeLocal(doc.id);
+  if (opts.after) {
+    tripId = scenarioTripId();
+    if (!tripId) throw new Error('먼저 앞 단계를 실행해 주세요');
+    lastAt = steps[0]?.at ?? SCENARIO_T0;
+  } else {
+    // 이전 시나리오 방을 지운다(리셋 없이 두 번 채워도 같은 결과).
+    for (const doc of Object.values(trips().docs)) {
+      if (doc.invite?.code === SCENARIO_INVITE_CODE) trips().removeLocal(doc.id);
+    }
   }
 
   seedingNow = true;

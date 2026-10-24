@@ -17,7 +17,7 @@ import { FreeTimeCard } from '../features/live/components/FreeTimeCard';
 import { LiveNowCard } from '../features/live/components/LiveNowCard';
 import { ProposalSheet } from '../features/live/components/ProposalSheet';
 import { SIM_BANNER_TEXT } from '../features/live/components/SimBanner';
-import { DEMO_TOOLS } from '../config';
+import { canUseDemoTools } from '../config';
 import { SimControls } from '../features/live/components/SimControls';
 import '../features/live/photoBridge';
 import { TripEditSheet } from '../features/trip/components/TripEditSheet';
@@ -130,6 +130,8 @@ export default function LiveTripScreen({ navigation, route }: RootScreenProps<'L
   const live = useLive();
   const now = useNow(live.background ? 60_000 : 1000);
   const useDevice = useSession((s) => s.useDeviceLocation);
+  // 시뮬레이터 시작은 관리자 계정에만 보인다(훅이라 조기 반환보다 위에 둔다)
+  const demoAllowed = canUseDemoTools(useSession((s) => s.session));
   const back = useBack('Map');
   const [picked, setPicked] = useState<string | undefined>(route.params.date);
   /** 접어 둔 조정안 id(바탕을 눌러 닫은 경우). 거절과 다르다 */
@@ -249,7 +251,7 @@ export default function LiveTripScreen({ navigation, route }: RootScreenProps<'L
   // 시뮬레이터 시작은 시연용이라 EXPO_PUBLIC_DEMO_TOOLS가 켜졌을 때만 보인다(2026-10-22 셀프 QA)
   const startOrder: StartKind[] = (
     tripStatus(trip, now) === 'ongoing' ? (['device', 'manual', 'sim'] as const) : (['sim', 'device', 'manual'] as const)
-  ).filter((k) => DEMO_TOOLS || k !== 'sim');
+  ).filter((k) => demoAllowed || k !== 'sim');
   const startRow = (k: StartKind, first: boolean) => {
     if (k === 'device') {
       return (

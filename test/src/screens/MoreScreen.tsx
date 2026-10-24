@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import { DEMO_TOOLS } from '../config';
+import { canUseDemoTools } from '../config';
+import { PresentationPanel } from '../demo/PresentationPanel';
+import { PRESENTATION_LIVE_DATE, type PresentationStepKey } from '../demo/presentation';
 import { isSeeding, resetDemo, seedScenario, type SeedProgress } from '../demo/tools';
 import type { ScenarioStage } from '../demo/scenarioSteps';
 import { useHomeBack } from '../navigation/useBack';
@@ -114,6 +116,15 @@ export default function MoreScreen({ navigation }: TabScreenProps<'More'>) {
     }
   };
 
+  /** 발표 시나리오 단계가 끝나면 그 단계에 맞는 화면을 연다 */
+  const openPresentationStep = (step: PresentationStepKey, tripId: string) => {
+    useUi.getState().setCurrentTrip(tripId);
+    if (step === 'collect') navigation.navigate('Chat', { tripId, view: 'chat' });
+    else if (step === 'select') navigation.navigate('Main', { screen: 'Candidates' });
+    else if (step === 'schedule') navigation.navigate('Main', { screen: 'Schedule' });
+    else navigation.navigate('LiveTrip', { tripId, date: PRESENTATION_LIVE_DATE });
+  };
+
   const soonChip = summary.soon ? <Chip text="곧 만료" tone="warn" /> : undefined;
 
   return (
@@ -146,7 +157,7 @@ export default function MoreScreen({ navigation }: TabScreenProps<'More'>) {
 
         {/* 앱 둘러보기(2026-10-24): 모든 기능을 순서대로 안내한다 */}
         <TourTarget id="more-guide">
-          <ListRow first icon="compass" label="앱 둘러보기" sub="화면을 비추며 기능을 하나씩 알려 드려요" onPress={() => useTour.getState().start(0)} />
+          <ListRow first icon="compass" label="앱 둘러보기" sub="화면을 비추며 기능을 하나씩 알려 드려요" onPress={() => { useUi.getState().dismissGuide(); useTour.getState().start(0); }} />
           <ListRow icon="book" label="기능 설명 모아 보기" sub="모든 기능을 글로 읽어요" onPress={() => navigation.navigate('Guide')} />
         </TourTarget>
 
@@ -195,11 +206,13 @@ export default function MoreScreen({ navigation }: TabScreenProps<'More'>) {
         </Col>
 
         {/* 시연 도구(접힘). EXPO_PUBLIC_DEMO_TOOLS가 켜졌을 때만(2026-10-22 셀프 QA: 일반 사용자에게 보였다) */}
-        {DEMO_TOOLS ? (
+        {canUseDemoTools(session) ? (
         <Col>
           <DisclosureRow label="시연 도구" open={demoOpen} onToggle={() => setDemoOpen((v) => !v)} />
           {demoOpen ? (
             <Col gap={SP.xxl}>
+              <PresentationPanel busy={seeding != null} onOpen={openPresentationStep} />
+
               <Col gap={SP.m}>
                 <Txt v="nm">시나리오 채우기</Txt>
                 {SEED_ROWS.map((row) => (

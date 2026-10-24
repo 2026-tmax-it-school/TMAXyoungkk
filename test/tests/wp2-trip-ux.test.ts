@@ -170,7 +170,7 @@ describe('소스 규칙(B2 여행방 만들기 · 멤버 초대 · 여행방 설
     assert.match(src, /icon="gear" label="여행방 설정"/);
     // 멤버 → 설정 → 멤버로 오가도 화면이 쌓이지 않게 스택에 있는 설정 화면으로 돌아간다
     assert.match(src, /navigation\.navigate\('TripSettings', \{ tripId: trip\.id \}, \{ pop: true \}\)/);
-    assert.match(src, /<NotFound /);
+    assert.match(src, /<NotFound\b/);
     assert.match(src, /<Txt v="eyebrow">시연<\/Txt>/);
     assert.match(src, /label=\{`\$\{menuFor\.nickname\}님 내보내기`\}/);
   });

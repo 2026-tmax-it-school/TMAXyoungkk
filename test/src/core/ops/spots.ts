@@ -2,6 +2,7 @@ import type { ChatExtraction, ChatMessage, Op, OpOf, Proposal, Spot, Trip } from
 import { costsVote, usedVotes, VOTE_BUDGET, VOTE_BUDGET_REASON } from '../chatmap/votes';
 import { addProposals } from '../extract/spot';
 import { activeMembers, isHost } from '../group';
+import { proposerIds } from '../spotUtil';
 import { patchSpot, patchVote } from './lww';
 
 /**
@@ -289,10 +290,16 @@ export function validate(doc: Trip, op: Op): string | null {
       return null;
     case 'spot/undoExtraction':
       return doc.messages.find((m) => m.id === op.messageId)?.extraction ? null : '되돌릴 추출 결과가 없습니다';
+    case 'spot/delete': {
+      const spot = doc.spots.find((s) => s.id === op.spotId);
+      if (!spot) return NO_SPOT;
+      // 후보를 지우거나 빼는 것은 방장과 그 후보를 담은 사람만 한다(다른 멤버의 후보를 남이 지우지 못하게)
+      if (!isHost(doc, op.actorId) && !proposerIds(spot).includes(op.actorId)) return '방장이나 이 후보를 담은 사람만 지울 수 있어요';
+      return null;
+    }
     case 'spot/pin':
     case 'spot/remove':
     case 'spot/restore':
-    case 'spot/delete':
       return doc.spots.some((s) => s.id === op.spotId) ? null : NO_SPOT;
     case 'spot/hostPick':
       if (!doc.spots.some((s) => s.id === op.spotId)) return NO_SPOT;

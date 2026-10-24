@@ -14,6 +14,7 @@ import { orderedMessages } from '../core/chatOrder';
 import { areaIndex, groupAreas } from '../core/chatmap/areas';
 import { CHAT_MAP_INITIAL, chatMapStep } from '../core/chatmap/mapView';
 import { pickOptions } from '../core/extract/manual';
+import { messageLengthHint } from '../core/ops/chat';
 import { activeMembers, isHost, tripMode } from '../core/group';
 import { josa } from '../core/util';
 import { regionById } from '../data/regions';
@@ -118,7 +119,7 @@ function DayDivider({ label }: { label: string }) {
 let summaryConsented = false;
 
 export default function ChatScreen({ navigation, route }: RootScreenProps<'Chat'>) {
-  const { tripId } = route.params;
+  const { tripId, view: firstView } = route.params;
   const trip = useTripDoc(tripId);
   const plan = usePlan(tripId);
   const online = useTrips((s) => s.online);
@@ -157,7 +158,7 @@ export default function ChatScreen({ navigation, route }: RootScreenProps<'Chat'
   const [undoAsk, setUndoAsk] = useState<{ messageId: string; names: string[] } | undefined>();
   // 좁은 화면은 '지도'로 연다(2026-10-17 사용자 요청: 채팅방에 들어가면 지도를 바로 보여 주기)
   // 혼자 여행(채팅 메모)은 입력이 먼저라 '채팅'으로 열고, 지도는 위 탭으로 본다
-  const [view, setView] = useState<ChatView>(trip && tripMode(trip) === 'personal' ? 'chat' : 'map');
+  const [view, setView] = useState<ChatView>(firstView ?? (trip && tripMode(trip) === 'personal' ? 'chat' : 'map'));
   const [mapMounted, setMapMounted] = useState(true);
   const [sel, act] = useReducer(chatMapStep, CHAT_MAP_INITIAL);
   const scroll = useRef<ScrollView>(null);
@@ -189,6 +190,8 @@ export default function ChatScreen({ navigation, route }: RootScreenProps<'Chat'
   const region = regionById(trip.region);
   const mapOn = !wide && view === 'map';
   const selArea = sel.selArea && areas.some((a) => a.key === sel.selArea) ? sel.selArea : null;
+
+  const lengthHint = messageLengthHint(text.length);
 
   const send = async () => {
     const body = text.trim();
@@ -292,7 +295,7 @@ export default function ChatScreen({ navigation, route }: RootScreenProps<'Chat'
         {messages.length === 0 ? (
           <Empty
             title="아직 대화가 없어요"
-            text={"가고 싶은 곳 이름을 적으면 후보로 담겨요. 예: '불국사 가자, 황리단길에서 점심'\n이름이 헷갈리면 아래 '+'의 '장소 검색해서 담기'를 눌러 보세요"}
+            text={"가고 싶은 곳 이름을 적으면 후보로 담겨요. 예: '한옥마을 가자, 남부시장에서 점심'\n이름이 헷갈리면 아래 '+'의 '장소 검색해서 담기'를 눌러 보세요"}
           />
         ) : null}
         {messages.map((m, i) => {
@@ -347,6 +350,13 @@ export default function ChatScreen({ navigation, route }: RootScreenProps<'Chat'
 
       <View style={[styles.composer, { paddingBottom: SP.l + bottom }]}>
         <CandidateBar trip={trip} plan={plan} onPress={openCandidates} />
+        {lengthHint ? (
+          <View style={{ alignItems: 'flex-end' }}>
+            <Txt v="mtTight" c={lengthHint.over ? 'warn' : 'muted'}>
+              {lengthHint.text}
+            </Txt>
+          </View>
+        ) : null}
         {me ? (
           // 메신저형 입력줄: 왼쪽 '+'(장소 검색해서 담기·AI 요약은 여기 안에, 점진적 공개) + 알약 칸 안 둥근 보내기
           <Row gap={SP.s}>

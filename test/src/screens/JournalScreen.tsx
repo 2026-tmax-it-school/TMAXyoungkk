@@ -26,6 +26,8 @@ import type { RootScreenProps } from '../navigation/routes';
 import { useBack } from '../navigation/useBack';
 import { useNow } from '../services/clock';
 import { getServices } from '../services/registry';
+import { canUseDemoTools } from '../config';
+import { useSession } from '../store/session';
 import { myMemberId, useTripDoc } from '../store/trips';
 import { useUi } from '../store/ui';
 import {
@@ -103,6 +105,8 @@ export default function JournalScreen({ navigation, route }: RootScreenProps<'Jo
   const [askSave, setAskSave] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [menu, setMenu] = useState(false);
+  // 메뉴의 '시연'(예시 사진 넣기)은 관리자 계정에만 보인다
+  const demoAllowed = canUseDemoTools(useSession((s) => s.session));
   /** 일기 쓰기 시트와 그 글·날짜·붙일 사진(저장할 때 올린다) */
   const [writing, setWriting] = useState(false);
   const [note, setNote] = useState('');
@@ -202,8 +206,10 @@ export default function JournalScreen({ navigation, route }: RootScreenProps<'Jo
     if (adding) return;
     setAdding(true);
     const fallbackDate = isAll ? undefined : date;
-    const r = await pickAndImport(tripId, source, fallbackDate);
-    setAdding(false);
+    // 파일 창을 닫거나 읽기에 실패해도 버튼이 '고르는 중'에 갇히지 않게 항상 푼다
+    const r = await pickAndImport(tripId, source, fallbackDate)
+      .catch(() => ({ ok: false as const, message: '사진을 가져오지 못했어요. 다시 시도해 주세요' }))
+      .finally(() => setAdding(false));
     if (!r.ok) {
       toast(r.message, 'warn');
       return;
@@ -569,20 +575,24 @@ export default function JournalScreen({ navigation, route }: RootScreenProps<'Jo
             />
           ) : null}
         </View>
-        <Txt v="eyebrow">시연</Txt>
-        <View>
-          <ListRow
-            first
-            icon="camera"
-            label="예시 사진 3장 넣기"
-            sub="여행 시뮬레이터의 시각과 위치로 만든 사진이에요"
-            disabled={adding}
-            onPress={() => {
-              setMenu(false);
-              void addPhotos('sim');
-            }}
-          />
-        </View>
+        {demoAllowed ? (
+          <>
+            <Txt v="eyebrow">시연</Txt>
+            <View>
+              <ListRow
+                first
+                icon="camera"
+                label="예시 사진 3장 넣기"
+                sub="여행 시뮬레이터의 시각과 위치로 만든 사진이에요"
+                disabled={adding}
+                onPress={() => {
+                  setMenu(false);
+                  void addPhotos('sim');
+                }}
+              />
+            </View>
+          </>
+        ) : null}
       </Sheet>
 
       <Sheet visible={!!selected} onClose={() => setSelected(undefined)} title="사진 정보">

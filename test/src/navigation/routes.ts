@@ -42,7 +42,7 @@ export type RootStackParamList = {
   TripSettings: { tripId: string };
   /** fromCreate: 여행방 만들기에서 넘어왔을 때만 '2 / 2 단계'를 보인다 */
   Members: { tripId: string; fromCreate?: boolean };
-  Chat: { tripId: string };
+  Chat: { tripId: string; /** 처음에 열 화면. 없으면 그룹방은 지도, 혼자 방은 채팅 */ view?: 'chat' | 'map' };
   SpotDetail: { tripId: string; spotId: string };
   Recommend: { tripId: string };
   Planning: { tripId: string; date?: string };

@@ -252,7 +252,7 @@ export default function CommunityScreen({ navigation, route }: TabScreenProps<'C
         visible={asking != null}
         title="글을 지울까요"
         text="올린 사진과 글이 모두에게서 사라지고 되돌릴 수 없어요."
-        confirmLabel="지우기"
+        confirmLabel="삭제"
         onConfirm={() => void confirmDelete()}
         onCancel={() => setAsking(undefined)}
       />

@@ -135,7 +135,7 @@ export default function ItineraryDetailScreen({ navigation, route }: RootScreenP
             </Col>
           </>
         ) : null}
-        <Txt v="mtTight">다른 사람이 짠 일정이에요. 영업시간과 휴무일은 가기 전에 확인해 주세요.</Txt>
+        <Txt v="mtTight">{item.mine ? '영업시간과 휴무일은 가기 전에 확인해 주세요.' : '다른 사람이 짠 일정이에요. 영업시간과 휴무일은 가기 전에 확인해 주세요.'}</Txt>
         </View>
       </Body>
       <Foot>

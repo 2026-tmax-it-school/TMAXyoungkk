@@ -1,16 +1,16 @@
 import React, { useMemo, useState } from 'react';
 import { Pressable, View } from 'react-native';
 
-import { activeMembers, canIssueInvite, isHost } from '../core/group';
+import { activeMembers, canIssueInvite, isHost, REMOVED_TEXT, REMOVED_TITLE, wasRemoved } from '../core/group';
 import { dateLongShort } from '../core/trip/format';
-import { INVITE_BASE_URL } from '../config';
+import { canUseDemoTools, INVITE_BASE_URL } from '../config';
 import { inviteStatus, inviteUrlShort, seatsLeft, INVITE_ERROR_TEXT } from '../core/trip/invite';
 import { memberRows, type MemberRow } from '../core/trip/members';
 import { copyInvite, copyInviteCode, issueAndShare, issueInvite } from '../features/trip/actions';
 import type { RootScreenProps } from '../navigation/routes';
 import { useBack } from '../navigation/useBack';
 import { useNow } from '../services/clock';
-import { getUserId } from '../store/session';
+import { getUserId, useSession } from '../store/session';
 import { myMemberId, useTripDoc, useTrips } from '../store/trips';
 import { useUi } from '../store/ui';
 import {
@@ -51,6 +51,8 @@ import {
  * - 시연 합류(같은 기기에서 다른 사람으로 합류)는 맨 아래 '시연' 구역에 둔다. 머리말 오른쪽 톱니는 여행방 설정이다.
  */
 export default function MembersScreen({ navigation, route }: RootScreenProps<'Members'>) {
+  // 시연 합류는 관리자 계정에만 보인다(훅이라 조기 반환보다 위에 둔다)
+  const demoAllowed = canUseDemoTools(useSession((s) => s.session));
   const { tripId, fromCreate } = route.params;
   const trip = useTripDoc(tripId);
   const pending = useTrips((s) => s.pending);
@@ -67,11 +69,16 @@ export default function MembersScreen({ navigation, route }: RootScreenProps<'Me
   const back = useBack('Home');
 
   if (!trip || trip.deletedAt != null || !me) {
+    const removed = !!trip && trip.deletedAt == null && wasRemoved(trip, getUserId());
     return (
       <Screen>
         <Header back={back} title="멤버 초대" size="sm" />
         <Body>
-          <NotFound title="여행방을 찾을 수 없어요" onHome={() => navigation.navigate('Main', { screen: 'Home' })} />
+          <NotFound
+            title={removed ? REMOVED_TITLE : '여행방을 찾을 수 없어요'}
+            text={removed ? REMOVED_TEXT : undefined}
+            onHome={() => navigation.navigate('Main', { screen: 'Home' })}
+          />
         </Body>
       </Screen>
     );
@@ -191,7 +198,7 @@ export default function MembersScreen({ navigation, route }: RootScreenProps<'Me
           ))}
         </Col>
 
-        {mayInvite && inv && status === 'ok' ? (
+        {demoAllowed && mayInvite && inv && status === 'ok' ? (
           <Col gap={SP.s}>
             <Txt v="eyebrow">시연</Txt>
             <Btn

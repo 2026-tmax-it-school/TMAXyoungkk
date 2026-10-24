@@ -232,6 +232,8 @@ export default function CommunityComposeScreen({ navigation, route }: RootScreen
     () =>
       navigation.addListener('beforeRemove', (e) => {
         if (bypass.current) return;
+        // 다른 화면(가입·로그인)이 위에 열려 있다가 그 화면이 스택을 정리하는 경우는 묻지 않는다
+        if (!navigation.isFocused()) return;
         const d = decide();
         if (d === 'leave') return;
         if (d === 'clear') {

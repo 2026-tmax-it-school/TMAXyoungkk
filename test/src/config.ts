@@ -35,6 +35,8 @@
  *   EXPO_PUBLIC_DEMO_TOOLS      1(또는 true·on·yes)이면 시연용 기능을 보인다: 프로필 탭 '시연 도구', 여행 진행의
  *                               '시뮬레이터로 재생'·프리셋. 비우면 숨긴다(2026-10-22 셀프 QA: 일반 사용자에게 시연 기능이 보였다).
  *                               이미 시뮬레이터로 진행 중이면 조작 카드는 그대로 보인다(멈출 수 있게).
+ *   EXPO_PUBLIC_ADMIN_EMAILS    관리자 이메일(쉼표로 구분). 시연 기능은 DEMO_TOOLS가 켜져 있고 이 계정으로 로그인했을 때만 보인다.
+ *                               일반 계정·게스트에게는 시나리오 채우기·시연 리셋·시뮬레이터 시작이 안 보인다.
  *   EXPO_PUBLIC_GOOGLE_OAUTH_WEB_CLIENT_ID      실제 구글 로그인(OAuth 웹 클라이언트 ID). 공개 값이다(로그인 주소에 그대로 실린다).
  *   EXPO_PUBLIC_GOOGLE_OAUTH_ANDROID_CLIENT_ID  앱 개발 빌드용(선택). 없으면 안드로이드에서 구글 로그인 키가 없다고 안내한다.
  *   EXPO_PUBLIC_GOOGLE_OAUTH_IOS_CLIENT_ID      앱 개발 빌드용(선택).
@@ -161,6 +163,23 @@ export function parseFlag(raw: string | undefined): boolean {
 
 /** 시연용 기능(시연 도구, 시뮬레이터 시작)을 보일지 */
 export const DEMO_TOOLS = parseFlag(process.env.EXPO_PUBLIC_DEMO_TOOLS);
+
+/** 관리자 이메일(쉼표로 구분, 대소문자 무시). 시연 기능은 이 계정으로 로그인했을 때만 보인다. 비우면 아무도 못 본다 */
+export const ADMIN_EMAILS = parseEmailList(process.env.EXPO_PUBLIC_ADMIN_EMAILS);
+
+export function parseEmailList(raw: string | undefined): string[] {
+  return (raw ?? '')
+    .split(',')
+    .map((v) => v.trim().toLowerCase())
+    .filter((v) => v.length > 0);
+}
+
+/** 시연 기능(시나리오 채우기·시연 리셋·시뮬레이터 시작)을 이 세션에 보일지: 시연 스위치가 켜져 있고 관리자 계정일 때만 */
+export function canUseDemoTools(session: { kind: string; email?: string } | undefined, admins: string[] = ADMIN_EMAILS, on: boolean = DEMO_TOOLS): boolean {
+  if (!on) return false;
+  if (session?.kind !== 'account') return false;
+  return admins.includes((session.email ?? '').trim().toLowerCase());
+}
 
 /** 도로 모양을 받을지와 서버 주소. off(false·0·no·none)면 끈다. http(s) 주소면 그 서버, 비우면 기본(API_URL이 있으면 그 서버의 /osrm, 없으면 공개 서버) */
 export const ROAD_SHAPES = parseRoadShapes(process.env.EXPO_PUBLIC_ROAD_SHAPE);

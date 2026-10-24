@@ -206,3 +206,23 @@ test('시간표: 같은 대체 안내(자동차 경로가 없어 도보로 계�
   assert.match(src, /n\.kind !== 'fallbackTransport' && n\.kind !== 'noRoute'/);
   assert.match(src, /noticesNow = r\.kind === 'spot' \? freshNotices\(r\.notices\) : \[\]/);
 });
+
+test('QA 수정(2026-10-24): 시연 사진 버튼은 관리자만, 후보 영구 삭제는 방장·제안자만, 카카오 경로 없음은 대체 제공자로 한 번 더 묻는다', () => {
+  assert.match(read('src/screens/ProfileScreen.tsx'), /canUseDemoTools\(session\) \? <TextLink title="예시 사진으로 시연"/);
+  const ops = read('src/core/ops/spots.ts');
+  assert.match(ops, /case 'spot\/delete': \{[\s\S]*?!isHost\(doc, op\.actorId\) && !proposerIds\(spot\)\.includes\(op\.actorId\)/);
+  const kakao = read('src/services/routes/kakao.ts');
+  assert.match(kakao, /const fb = await opts\.fallback\.matrix\(\[o\], \[d\], t\)/);
+  assert.match(kakao, /return leg \?\? opts\.fallback\.route\(a, b, t\)/);
+  // 초대 화면은 같은 화면에서 코드가 바뀌면 새 코드로 다시 확인한다
+  assert.match(read('src/screens/InviteAcceptScreen.tsx'), /if \(paramCode\) setCode\(paramCode\)/);
+  // 글쓰기 나가기 확인은 그 화면이 위에 있을 때만 묻는다
+  assert.match(read('src/screens/CommunityComposeScreen.tsx'), /if \(!navigation\.isFocused\(\)\) return;/);
+});
+
+test('채팅 추출: 성문 이름(풍남문)과 성당(전동성당)을 어휘 밖 이름으로 잡는다, 질문·대문 같은 일반 단어는 잡지 않는다', async () => {
+  const { findSuffixPhrases } = await import('../src/core/extract/text');
+  assert.deepEqual(findSuffixPhrases('풍남문 가자', []).map((p) => p.phrase), ['풍남문']);
+  assert.deepEqual(findSuffixPhrases('빈빈성당 가고 싶다', []).map((p) => p.phrase), ['빈빈성당']);
+  assert.deepEqual(findSuffixPhrases('질문 있어 그리고 대문 앞', []).map((p) => p.phrase), []);
+});

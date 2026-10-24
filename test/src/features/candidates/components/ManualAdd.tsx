@@ -46,6 +46,8 @@ export function ManualAdd({ trip, focus }: { trip: Trip; focus?: boolean }) {
   const [notice, setNotice] = useState<string | undefined>();
   const [options, setOptions] = useState<PickOption[] | undefined>();
   const [confirm, setConfirm] = useState<PickOption | undefined>();
+  // 지도를 한 번 눌러 찾은 한 곳은 바로 담지 않고 한 번 물어본다(잘못 눌러 근처 가게가 담기는 일을 막는다)
+  const [mapConfirm, setMapConfirm] = useState<PickOption | undefined>();
   const [mapOpen, setMapOpen] = useState(false);
   const toast = useUi((s) => s.showToast);
   const region = regionById(trip.region);
@@ -81,12 +83,15 @@ export function ManualAdd({ trip, focus }: { trip: Trip; focus?: boolean }) {
     else setConfirm(opt);
   };
 
-  const handle = (out: SearchOutcome, emptyText: string, fromSheet = false) => {
+  const handle = (out: SearchOutcome, emptyText: string, fromSheet = false, viaMap = false) => {
     if (out.kind === 'error') setNotice(out.text);
     else if (out.kind === 'none') setNotice(emptyText);
     else if (out.kind === 'one') {
       setNotice(undefined);
-      choose(out.option, fromSheet);
+      if (viaMap) {
+        const option = out.option;
+        afterModal(() => setMapConfirm(option));
+      } else choose(out.option, fromSheet);
     } else {
       setNotice(undefined);
       const options = out.options;
@@ -106,7 +111,7 @@ export function ManualAdd({ trip, focus }: { trip: Trip; focus?: boolean }) {
   const onMap = async (coord: LatLng) => {
     setMapOpen(false);
     const out = await pickAtCoord(trip, coord);
-    handle(out, '누른 곳 300m 안에 담을 수 있는 장소가 없어요', true);
+    handle(out, '누른 곳 300m 안에 담을 수 있는 장소가 없어요', true, true);
   };
 
   return (
@@ -155,6 +160,19 @@ export function ManualAdd({ trip, focus }: { trip: Trip; focus?: boolean }) {
         options={options ?? []}
         onPick={(o) => choose(o, true)}
         onDismiss={() => setOptions(undefined)}
+      />
+
+      <ConfirmSheet
+        visible={!!mapConfirm}
+        title="이 장소를 후보에 담을까요?"
+        text={mapConfirm ? `누른 곳 근처의 ${mapConfirm.place.name}이에요.` : ''}
+        confirmLabel="후보에 담기"
+        onConfirm={() => {
+          const opt = mapConfirm;
+          setMapConfirm(undefined);
+          if (opt) choose(opt, true);
+        }}
+        onCancel={() => setMapConfirm(undefined)}
       />
 
       <ConfirmSheet

@@ -47,7 +47,7 @@ const STOPWORDS = new Set([
 /** 어휘 밖 이름을 잡는 접미사. 한 글자 접미사는 사찰·궁·릉만 둔다(오탐 방지). */
 const SUFFIXES = [
   '해수욕장', '한옥마을', '민속마을', '박물관', '미술관', '전망대', '수목원', '식물원', '해변', '폭포', '계곡',
-  '공원', '시장', '서원', '향교', '고택', '왕릉', '타워', '마을', '카페', '식당', '사', '궁', '릉',
+  '공원', '시장', '서원', '향교', '고택', '왕릉', '타워', '마을', '카페', '식당', '성당', '성곽', '남문', '북문', '동문', '서문', '사', '궁', '릉',
 ].sort((a, b) => b.length - a.length);
 
 const HANGUL = /[가-힣]/;
@@ -158,7 +158,9 @@ export function findSuffixPhrases(text: string, taken: readonly ExtractedPhrase[
     const name = stripTail(word);
     const suffix = SUFFIXES.find((s) => name.endsWith(s));
     if (!suffix) continue;
-    if (name.length - suffix.length < 2) continue;
+    // 성문 이름(풍남문·숭례문 식 '남문' 접미사)은 앞 한 글자만 있어도 이름이다
+    const minHead = /^[남북동서]문$/.test(suffix) ? 1 : 2;
+    if (name.length - suffix.length < minHead) continue;
     if (suffix.length === 1 && name.length < 3) continue;
     if (STOPWORDS.has(name)) continue;
     if (n > 0 && DEMONSTRATIVES.has(ws[n - 1].word)) continue;
