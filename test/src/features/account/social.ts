@@ -34,3 +34,8 @@ export function judgeSocial(intent: SocialIntent, result: AuthResult, currentAcc
   }
   return { kind: 'signIn' };
 }
+
+/** 서버가 연결 확인 메일을 보냈고(linkRequired) 응답에 코드(linkToken)는 없다 → 메일 코드를 입력받아야 한다 */
+export function needsMailCode(result: { code: string; linkToken?: string }): boolean {
+  return result.code === 'linkRequired' && !result.linkToken;
+}

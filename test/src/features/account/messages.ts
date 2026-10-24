@@ -65,3 +65,17 @@ export function guestNowTitle(nickname: string): string {
   const name = nickname.trim();
   return `지금은 게스트 ${name}${josa(name, '이/가').endsWith('가') ? '예요' : '이에요'}`;
 }
+
+/** 메일로 받은 소셜 연결 코드를 붙여 넣었다가 실패했을 때의 문구. 링크가 아니라 코드이고, 틀린 코드와 지난 코드를 서버가 같은 오류로 돌려준다 */
+export function mailCodeFailText(fail: { code: AuthFail; detail?: string; retryAt?: number; violations?: string[] }): {
+  title: string;
+  text: string;
+} {
+  if (fail.code === 'invalidToken') {
+    return {
+      title: '코드가 맞지 않아요',
+      text: '메일의 코드를 그대로 붙여 넣었는지 확인해 주세요. 30분이 지났다면 구글·카카오 로그인을 다시 눌러 새 코드를 받아 주세요',
+    };
+  }
+  return authFailText(fail);
+}

@@ -4,8 +4,9 @@ import type { NavigationProp, ParamListBase } from '@react-navigation/native';
 import type { OAuthProviderKind } from '../../core/ports';
 import { useUi } from '../../store/ui';
 import { confirmLinkFlow } from './flows';
-import { authFailText } from './messages';
+import { authFailText, mailCodeFailText } from './messages';
 import { OAUTH_LABEL } from './oauth';
+import { needsMailCode } from './social';
 import { useAuthDone } from './useAuthDone';
 import { useOAuthLogin, type OAuthOutcome } from './useOAuthLogin';
 
@@ -24,6 +25,9 @@ export function useSocialSignIn(navigation: NavigationProp<ParamListBase>) {
   const [unavailable, setUnavailable] = useState<{ provider: OAuthProviderKind; text: string; mockFallback: boolean } | null>(null);
   const [link, setLink] = useState<{ provider: OAuthProviderKind; token: string; text: string } | null>(null);
   const [answering, setAnswering] = useState(false);
+  // 실제 서버는 연결 확인 코드를 메일로만 보낸다(응답에 linkToken이 없다). 그 코드를 붙여 넣을 칸을 띄운다
+  const [mailLink, setMailLink] = useState<OAuthProviderKind | null>(null);
+  const [mailBusy, setMailBusy] = useState(false);
 
   const handle = (provider: OAuthProviderKind, r: OAuthOutcome) => {
     const label = OAUTH_LABEL[provider];
@@ -37,6 +41,7 @@ export function useSocialSignIn(navigation: NavigationProp<ParamListBase>) {
         return;
       case 'fail':
         setFail(authFailText(r.result));
+        if (needsMailCode(r.result)) setMailLink(provider);
         return;
       case 'unavailable':
         setUnavailable({ provider, text: r.text, mockFallback: r.mockFallback });
@@ -51,6 +56,7 @@ export function useSocialSignIn(navigation: NavigationProp<ParamListBase>) {
     setFail(null);
     setUnavailable(null);
     setLink(null);
+    setMailLink(null);
     const r = await (provider === 'kakao' ? kakao : google).start();
     handle(provider, r);
   };
@@ -74,5 +80,35 @@ export function useSocialSignIn(navigation: NavigationProp<ParamListBase>) {
     setFail(authFailText(r));
   };
 
-  return { kakao, google, busy: kakao.busy || google.busy, start, fail, unavailable, link, answer, answering };
+  /** 메일로 받은 연결 코드를 붙여 넣어 구글·카카오 로그인을 기존 계정에 연결한다 */
+  const submitMailCode = async (code: string) => {
+    const token = code.trim();
+    if (!mailLink || mailBusy || token.length === 0) return;
+    setMailBusy(true);
+    const r = await confirmLinkFlow(token, true);
+    setMailBusy(false);
+    if (r.ok) {
+      showToast(`${OAUTH_LABEL[mailLink]} 로그인을 ${r.account.email} 계정에 연결했어요`);
+      setMailLink(null);
+      setFail(null);
+      finish();
+      return;
+    }
+    setFail(mailCodeFailText(r));
+  };
+
+  return {
+    kakao,
+    google,
+    busy: kakao.busy || google.busy,
+    start,
+    fail,
+    unavailable,
+    link,
+    answer,
+    answering,
+    mailLink,
+    mailBusy,
+    submitMailCode,
+  };
 }

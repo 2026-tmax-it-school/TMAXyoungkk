@@ -5,6 +5,7 @@ import { NICKNAME_MAX } from '../core/constants';
 import { nicknameProblem } from '../core/auth';
 import { GUEST_LIMIT_HELP } from '../features/account/messages';
 import { OAUTH_LABEL } from '../features/account/oauth';
+import { MailLinkCode } from '../features/account/components/MailLinkCode';
 import { useSocialSignIn } from '../features/account/useSocialSignIn';
 import type { RootScreenProps } from '../navigation/routes';
 import { useSession } from '../store/session';
@@ -71,6 +72,7 @@ export default function OnboardingScreen({ navigation }: RootScreenProps<'Onboar
           <AuthBtn title="이메일로 로그인 · 회원가입" variant="outline" onPress={login} />
         </Col>
         {social.fail ? <Notice tone="warn" icon="alert" title={social.fail.title} text={social.fail.text} /> : null}
+        {social.mailLink ? <MailLinkCode busy={social.mailBusy} onSubmit={(c) => void social.submitMailCode(c)} /> : null}
         {social.unavailable ? (
           <Notice
             icon="alert"

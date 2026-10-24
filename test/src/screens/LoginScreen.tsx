@@ -3,11 +3,13 @@ import { View } from 'react-native';
 
 import { isEmailLike, normalizeEmail } from '../core/auth';
 import type { OAuthProviderKind } from '../core/ports';
+import { MailLinkCode } from '../features/account/components/MailLinkCode';
 import { FindAccountSheet } from '../features/account/FindAccountSheet';
 import { confirmLinkFlow, signInFlow } from '../features/account/flows';
-import { authFailText, guestNowTitle } from '../features/account/messages';
+import { authFailText, guestNowTitle, mailCodeFailText } from '../features/account/messages';
 import { OAUTH_LABEL } from '../features/account/oauth';
 import { useAuthDone } from '../features/account/useAuthDone';
+import { needsMailCode } from '../features/account/social';
 import { useOAuthLogin, type OAuthOutcome } from '../features/account/useOAuthLogin';
 import type { RootScreenProps } from '../navigation/routes';
 import { useBack } from '../navigation/useBack';
@@ -45,6 +47,9 @@ export default function LoginScreen({ navigation }: RootScreenProps<'Login'>) {
   const [social, setSocial] = useState<{ provider: OAuthProviderKind; text: string; mockFallback: boolean } | null>(null);
   const [link, setLink] = useState<{ provider: OAuthProviderKind; token: string; text: string } | null>(null);
   const [findOpen, setFindOpen] = useState(false);
+  // 서버가 연결 확인 코드를 메일로만 보낸 경우: 코드를 붙여 넣을 칸
+  const [mailLink, setMailLink] = useState<OAuthProviderKind | null>(null);
+  const [mailBusy, setMailBusy] = useState(false);
   const passwordRef = useRef<Focusable | null>(null);
   const finish = useAuthDone(navigation);
   const kakao = useOAuthLogin('kakao');
@@ -98,6 +103,7 @@ export default function LoginScreen({ navigation }: RootScreenProps<'Login'>) {
       case 'fail':
         setSocial(null);
         setFail(authFailText(r.result));
+        if (needsMailCode(r.result)) setMailLink(provider);
         return;
       case 'unavailable':
         setSocial({ provider, text: r.text, mockFallback: r.mockFallback });
@@ -112,8 +118,25 @@ export default function LoginScreen({ navigation }: RootScreenProps<'Login'>) {
     setFail(null);
     setSocial(null);
     setLink(null);
+    setMailLink(null);
     const r = await (provider === 'kakao' ? kakao : google).start();
     handleSocial(provider, r);
+  };
+
+  const submitMailCode = async (code: string) => {
+    const token = code.trim();
+    if (!mailLink || mailBusy || token.length === 0) return;
+    setMailBusy(true);
+    const r = await confirmLinkFlow(token, true);
+    setMailBusy(false);
+    if (r.ok) {
+      showToast(`${OAUTH_LABEL[mailLink]} 로그인을 ${r.account.email} 계정에 연결했어요`);
+      setMailLink(null);
+      setFail(null);
+      finish();
+      return;
+    }
+    setFail(mailCodeFailText(r));
   };
 
   const answer = async (accept: boolean) => {
@@ -196,6 +219,7 @@ export default function LoginScreen({ navigation }: RootScreenProps<'Login'>) {
             action={fail.unverified ? { label: '인증 메일 다시 받기', onPress: () => void resend() } : undefined}
           />
         ) : null}
+        {mailLink ? <MailLinkCode busy={mailBusy} onSubmit={(c) => void submitMailCode(c)} /> : null}
 
         <AuthBtn title={busy ? '확인 중' : '로그인'} disabled={!canSubmit} onPress={() => void submit()} />
         <AuthBtn title="회원가입" variant="outline" onPress={() => navigation.navigate('Signup')} />

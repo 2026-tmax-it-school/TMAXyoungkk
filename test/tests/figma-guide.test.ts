@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 
+import { mailCodeFailText } from '../src/features/account/messages';
+import { needsMailCode } from '../src/features/account/social';
 import { GUIDE_SECTIONS, GUIDE_STEPS, stepCounter, stepsBySection, stepWhere } from '../src/features/guide/steps';
 
 /**
@@ -151,4 +153,23 @@ test('스포트라이트 연결: 비출 자리가 화면에 모두 표시돼 있
   }
   assert.match(read('App.tsx'), /<TourOverlay \/>/);
   assert.match(read('src/features/guide/TourOverlay.tsx'), /holeLayout\(rect, screen\)/);
+});
+
+test('소셜 연결 확인: 코드가 메일로만 오면 코드 입력 칸을 띄우고, 응답에 코드가 있으면(모의) 바로 확인한다', () => {
+  assert.equal(needsMailCode({ code: 'linkRequired' }), true);
+  assert.equal(needsMailCode({ code: 'linkRequired', linkToken: 'abc' }), false);
+  assert.equal(needsMailCode({ code: 'badCredentials' }), false);
+  // 온보딩과 로그인 둘 다 칸을 달고 같은 연결 흐름(confirmLinkFlow, accept true)을 쓴다
+  const hook = read('src/features/account/useSocialSignIn.ts');
+  assert.match(hook, /confirmLinkFlow\(token, true\)/);
+  assert.match(hook, /needsMailCode\(r\.result\)/);
+  assert.match(read('src/screens/OnboardingScreen.tsx'), /<MailLinkCode busy=\{social\.mailBusy\}/);
+  const login = read('src/screens/LoginScreen.tsx');
+  assert.match(login, /<MailLinkCode busy=\{mailBusy\}/);
+  assert.match(login, /confirmLinkFlow\(token, true\)/);
+  // 틀린 코드·지난 코드는 '링크' 대신 '코드' 문구로 보인다
+  assert.equal(mailCodeFailText({ code: 'invalidToken', detail: '연동 확인 시간이 지났습니다' }).title, '코드가 맞지 않아요');
+  assert.notEqual(mailCodeFailText({ code: 'badCredentials' }).title, '코드가 맞지 않아요');
+  // 코드 입력 칸은 tsx라 테스트가 가져오지 않는다(화면 글자만 확인)
+  assert.match(read('src/features/account/components/MailLinkCode.tsx'), /메일로 받은 연결 코드/);
 });
