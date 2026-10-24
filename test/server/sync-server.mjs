@@ -44,7 +44,7 @@ import { fileURLToPath } from 'node:url';
 import { createMailer, mailerOptionsFromEnv } from './mailer.mjs';
 import { AI_DEFAULTS, aiOptionsFromEnv, createAiRecommender, isAiPath } from './ai.mjs';
 import { createAuthService, createMemoryAuthStore, devOutboxFromEnv, isAuthPath, mailExemptFromEnv } from './auth.mjs';
-import { createCommunityService, createMemoryCommunityStore, isCommunityPath, POST_BODY_MAX } from './community.mjs';
+import { createCommunityService, createMemoryCommunityStore, isCommunityPath, parseHiddenIds, POST_BODY_MAX, withHiddenPosts } from './community.mjs';
 import { BODY_MAX as ITINERARY_BODY_MAX, createItineraryService, createMemoryItineraryStore, isItineraryPath } from './itineraries.mjs';
 import { projectOps } from './db/projection.mjs';
 import { storableId } from './ids.mjs';
@@ -283,7 +283,7 @@ export async function startSyncServer({
       log,
     });
     community = createCommunityService({
-      store: store.communityStore ?? createMemoryCommunityStore(),
+      store: withHiddenPosts(store.communityStore ?? createMemoryCommunityStore(), parseHiddenIds(process.env.COMMUNITY_HIDDEN_POST_IDS)),
       authenticate: (headers) => accounts.authenticate(headers),
       now,
       log,

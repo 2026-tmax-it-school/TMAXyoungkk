@@ -90,6 +90,8 @@ export function parsePostUpdate(
 ): { error: string; detail: string } | { kind: 'photo' | 'diary'; title: string; body: string; tags: string[]; photos: { id: string; mime: string; bytes?: Buffer }[] };
 export function parseCursor(raw: unknown): { createdAt: number; id: string } | null;
 export function createMemoryCommunityStore(): CommunityStore;
+export function parseHiddenIds(raw: string | undefined): Set<string>;
+export function withHiddenPosts(store: CommunityStore, hidden: Set<string> | undefined): CommunityStore;
 
 export interface CommunityService {
   handle(req: {

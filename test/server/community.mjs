@@ -319,6 +319,37 @@ export function createMemoryCommunityStore() {
  * 커뮤니티 서비스. authenticate(headers) → {account} | null (auth 서비스의 Bearer 판정).
  * handle은 {status, body} 또는 사진이면 {status, raw:{mime, bytes}}를 돌려준다.
  */
+/**
+ * 숨긴 글(운영자가 가린 글). 목록과 상세에서 빠지고 좋아요·조회도 받지 않는다. 글은 저장소에 그대로 있어
+ * 숨김 목록(COMMUNITY_HIDDEN_POST_IDS, 쉼표로 구분한 글 id)에서 빼면 다시 보인다.
+ * 목록은 숨긴 글이 끼어도 한 쪽을 채우도록 다음 쪽을 이어서 읽는다.
+ */
+export function parseHiddenIds(raw) {
+  return new Set(String(raw ?? '').split(',').map((v) => v.trim()).filter(Boolean));
+}
+
+export function withHiddenPosts(store, hidden) {
+  if (!hidden || hidden.size === 0) return store;
+  return {
+    ...store,
+    async getPost(id) {
+      return hidden.has(id) ? null : store.getPost(id);
+    },
+    async list(args) {
+      const out = [];
+      let before = args.before;
+      for (;;) {
+        const rows = await store.list({ ...args, before });
+        for (const r of rows) if (!hidden.has(r.id)) out.push(r);
+        if (out.length >= args.limit || rows.length < args.limit) break;
+        const last = rows[rows.length - 1];
+        before = { createdAt: last.createdAt, id: last.id };
+      }
+      return out.slice(0, args.limit);
+    },
+  };
+}
+
 export function createCommunityService({ store = createMemoryCommunityStore(), authenticate = async () => null, now = () => Date.now(), log = () => {} } = {}) {
   const fail = (status, error, detail) => ({ status, body: { error, ...(detail ? { detail } : {}) } });
   /** 계정별 고친 시각들(한 시간 창). 올리기 제한과 따로 센다 */

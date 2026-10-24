@@ -537,7 +537,7 @@ export function createAuthService({
       });
     }
     if (typeof redirectUri !== 'string' || !oauthClient.redirectAllowed(redirectUri)) {
-      return fail(400, 'providerFailed', '허용하지 않은 돌아올 주소입니다. 서버 OAUTH_REDIRECT_URIS에 이 주소를 넣어야 합니다');
+      return fail(400, 'providerFailed', '허용하지 않은 돌아올 주소예요. 이 주소에서는 구글·카카오 로그인을 쓸 수 없으니 이메일로 로그인해 주세요');
     }
     return null;
   }
