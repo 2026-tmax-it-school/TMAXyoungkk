@@ -72,7 +72,8 @@ export function QuickAction({
       accessibilityState={{ disabled: !!disabled }}
       disabled={disabled}
       onPress={onPress}
-      style={{ flex: 1, alignItems: 'center', gap: SP.m }}
+      // flex: 1은 쓰지 않는다. 높이가 정해지지 않은 칸에서는 앱(iOS·안드로이드)이 높이를 0으로 만들어 원이 아래 글자·탭을 덮는다
+      style={{ width: '100%', alignItems: 'center', gap: SP.m }}
     >
       <View
         style={{

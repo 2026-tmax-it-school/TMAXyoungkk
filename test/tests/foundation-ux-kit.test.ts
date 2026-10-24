@@ -114,7 +114,9 @@ describe('입력과 시트', () => {
     assert.match(layout, /keyboardShouldPersistTaps="handled"/);
     assert.match(layout, /keyboardDismissMode="on-drag"/);
     assert.match(layout, /keyboard\?: boolean/);
-    assert.match(layout, /<KeyboardAvoid>/);
+    assert.match(layout, /<KeyboardAvoid offset=\{topInset\}>/);
+    // 부모 기준으로 재는 KeyboardAvoidingView가 위 안전 영역만큼 짧게 띄우지 않게 그 높이를 넘긴다
+    assert.match(read('src/ui/KeyboardAvoid.tsx'), /keyboardVerticalOffset=\{Platform\.OS === 'web' \? 0 : offset\}/);
     // 안드로이드 edge-to-edge(SDK 57)는 창이 줄지 않아 안드로이드도 padding으로 띄운다
     const avoid = read('src/ui/KeyboardAvoid.tsx');
     assert.match(avoid, /behavior=\{Platform\.OS === 'web' \? undefined : 'padding'\}/);

@@ -1,7 +1,7 @@
 import { BottomTabBarHeightContext } from '@react-navigation/bottom-tabs';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, View, type StyleProp, type ViewStyle } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { IconBtn } from './Btn';
 import { Icon } from './Icon';
@@ -39,6 +39,7 @@ export function Screen({
   }, []);
   const foot = useMemo(() => ({ register, hasFoot: feet > 0 }), [register, feet]);
   const layout = useLayout();
+  const topInset = useSafeAreaInsets().top;
   return (
     <FootCtx.Provider value={foot}>
       <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: surfaceC[bg] }}>
@@ -49,7 +50,7 @@ export function Screen({
             layout.contentMax ? { maxWidth: wide ?? layout.contentMax, alignSelf: 'center', borderWidth: 1, borderTopWidth: 0, borderBottomWidth: 0, borderColor: lineC.line } : null,
           ]}
         >
-          {keyboard ? <KeyboardAvoid>{children}</KeyboardAvoid> : children}
+          {keyboard ? <KeyboardAvoid offset={topInset}>{children}</KeyboardAvoid> : children}
         </View>
       </SafeAreaView>
     </FootCtx.Provider>

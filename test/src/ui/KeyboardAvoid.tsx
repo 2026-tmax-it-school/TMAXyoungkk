@@ -8,9 +8,15 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
  * 창 크기 조정(adjustResize)으로는 창이 줄지 않는다. 그래서 안드로이드도 키보드 높이만큼 직접 띄운다.
  * 웹은 키보드가 창을 줄이므로 아무것도 하지 않는다.
  */
-export function KeyboardAvoid({ children }: { children?: React.ReactNode }) {
+export function KeyboardAvoid({ children, offset = 0 }: { children?: React.ReactNode; offset?: number }) {
+  // offset: 이 칸 위에 화면 위 가장자리까지 차지하는 것(안전 영역 위쪽 등)이 있으면 그 높이. KeyboardAvoidingView는
+  // 자기 위치(onLayout)를 부모 기준으로 재서, 부모가 화면 위에서 떨어져 있으면 그만큼 키보드가 입력줄을 덮는다
   return (
-    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'web' ? undefined : 'padding'}>
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === 'web' ? undefined : 'padding'}
+      keyboardVerticalOffset={Platform.OS === 'web' ? 0 : offset}
+    >
       {children}
     </KeyboardAvoidingView>
   );
