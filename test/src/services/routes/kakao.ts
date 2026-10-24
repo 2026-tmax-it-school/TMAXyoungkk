@@ -180,7 +180,12 @@ export function createKakaoRoutes(opts: {
             return fallbackMatrix(await opts.fallback.matrix(origins, destinations, t), off);
           }
           asked = true;
-          row.push(leg ? leg.minutes : null);
+          if (leg) row.push(leg.minutes);
+          else {
+            // 카카오가 이 구간 경로를 못 찾았다(교통 장애·도로 없음 등). 없다고 단정하지 않고 대체 제공자(OSRM · 로컬)로 한 번 더 묻는다
+            const fb = await opts.fallback.matrix([o], [d], t);
+            row.push(fb.minutes[0]?.[0] ?? null);
+          }
         }
         minutes.push(row);
       }
@@ -204,7 +209,7 @@ export function createKakaoRoutes(opts: {
         return fallbackLeg(await opts.fallback.route(a, b, t), off);
       }
       served = 'kakao';
-      if (known === undefined) return leg;
+      if (known === undefined) return leg ?? opts.fallback.route(a, b, t);
       // 구간표 구간: 카카오가 경로를 못 찾으면 대체 제공자(구간표 시간), 찾으면 선 모양은 카카오 · 시간은 구간표
       if (!leg) return opts.fallback.route(a, b, t);
       return { ...leg, minutes: known, note: `${leg.note ?? ''} · 시간은 예시 구간표` };
