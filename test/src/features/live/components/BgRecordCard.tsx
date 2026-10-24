@@ -46,7 +46,7 @@ export function BgRecordCard({
             <Txt v="nm">{BG_RECORD_LABEL}</Txt>
             <Txt v="mtTight">{sub}</Txt>
           </Col>
-          <View importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
+          <View aria-hidden>
             <Chip text={chip} tone={on && !block ? 'soft' : 'line'} icon={on && !block && !busy ? 'check' : undefined} />
           </View>
         </Row>

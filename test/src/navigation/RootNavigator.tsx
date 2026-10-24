@@ -10,6 +10,7 @@ import CommunityComposeScreen from '../screens/CommunityComposeScreen';
 import CommunityScreen from '../screens/CommunityScreen';
 import CreateTripScreen from '../screens/CreateTripScreen';
 import DirectionsScreen from '../screens/DirectionsScreen';
+import GuideScreen from '../screens/GuideScreen';
 import HomeScreen from '../screens/HomeScreen';
 import InviteAcceptScreen from '../screens/InviteAcceptScreen';
 import JournalScreen from '../screens/JournalScreen';
@@ -37,6 +38,7 @@ import TripSettingsScreen from '../screens/TripSettingsScreen';
 import { lineC, surfaceC, TabBar, textC } from '../ui';
 import { useActiveTrip } from '../features/trip/useActiveTrip';
 import { useUi } from '../store/ui';
+import { useLayout } from '../ui/responsive';
 import { activeTabKey, TAB_ITEMS, type MainTabParamList, type RootStackParamList, type TabRouteName } from './routes';
 
 /**
@@ -88,8 +90,13 @@ function AppTabBar({ state, navigation }: BottomTabBarProps) {
 }
 
 function MainTabs() {
+  // 컴퓨터 폭이면 탭을 왼쪽 세로 메뉴로(ui/responsive, 2026-10-22)
+  const { rail } = useLayout();
   return (
-    <Tabs.Navigator screenOptions={{ headerShown: false }} tabBar={(props) => <AppTabBar {...props} />}>
+    <Tabs.Navigator
+      screenOptions={{ headerShown: false, tabBarPosition: rail ? 'left' : 'bottom' }}
+      tabBar={(props) => <AppTabBar {...props} />}
+    >
       <Tabs.Screen name="Home" component={HomeScreen} />
       <Tabs.Screen name="Candidates" component={CandidatesScreen} />
       <Tabs.Screen name="Schedule" component={ScheduleScreen} />
@@ -125,6 +132,7 @@ export function RootNavigator({ hasSession }: { hasSession: boolean }) {
           <Stack.Screen name="LiveTrip" component={LiveTripScreen} />
           <Stack.Screen name="Journal" component={JournalScreen} />
           <Stack.Screen name="Profile" component={ProfileScreen} />
+          <Stack.Screen name="Guide" component={GuideScreen} />
           <Stack.Screen name="CommunityCompose" component={CommunityComposeScreen} />
         </>
       ) : (

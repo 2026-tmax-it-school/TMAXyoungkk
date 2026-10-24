@@ -10,7 +10,7 @@ import {
   type NativeSyntheticEvent,
 } from 'react-native';
 
-import type { Trip } from '../types';
+import type { Plan, Trip } from '../types';
 import { coverUri } from '../core/trip/cover';
 import { tripStatus, type TripStatus } from '../core/tripStatus';
 import { kstDate } from '../core/util';
@@ -31,7 +31,10 @@ import {
   SEGMENT_ORDER,
   showsSegmentBar,
   STATUS_LABEL,
+  homeGreeting,
+  homeNowTask,
   tripCardInfo,
+  tripCardLines,
   tripNextStep,
   visibleSegments,
 } from '../features/account/home';
@@ -39,6 +42,7 @@ import { syncNicknameToTrips } from '../features/account/flows';
 import { HomeSearchResults } from '../features/account/HomeSearchResults';
 import { searchTrips } from '../features/account/homeSearch';
 import { useSessionKeepAlive } from '../features/account/useSessionKeepAlive';
+import { TripActions } from '../features/trip/components/TripActions';
 import { useActiveTrip } from '../features/trip/useActiveTrip';
 import type { TabScreenProps } from '../navigation/routes';
 import { useNow } from '../services/clock';
@@ -46,6 +50,9 @@ import { useSession } from '../store/session';
 import { useTrips } from '../store/trips';
 import { useUi } from '../store/ui';
 import {
+  PE,
+  RegionArt,
+  useLayout,
   AvatarStack,
   Btn,
   Col,
@@ -62,7 +69,9 @@ import {
   Seg,
   SP,
   surfaceC,
+  TourTarget,
   Txt,
+  useTour,
   type IconName,
 } from '../ui';
 
@@ -74,7 +83,8 @@ import {
  *   세그먼트(개수가 있는 칸만)를 그린다. 상태는 공유 tripStatus(KST, appClock)라 시뮬레이터 시각을 따른다.
  * - 카드를 누르면 그 방을 고르고 다음 할 일(tripNextStep: 기록 보기, 오늘 여행 진행, 후보 모으기,
  *   루트 계산하기, 시간표 보기)로 바로 간다. 카드 안에 따로 버튼을 두지 않는다(2026-10-17).
- * - 여행방 빠른 메뉴(멤버 초대·AI 추천·설정 등)는 카드를 누르면 가는 후보·시간표 화면 위(features/trip TripActions)로 옮겼다.
+ * - 여행방 빠른 메뉴(멤버 초대·AI 추천·설정 등)는 카드를 누르면 가는 후보·시간표 화면 위(features/trip TripActions)에 있고,
+ *   2026-10-22부터 홈 카드 줄 아래에도 고른 방(테두리 카드) 것을 같은 칸으로 둔다(들어가야만 보여 기능이 없는 줄 알았다).
  *   '초대 코드로 합류'는 카드 줄 왼쪽 끝 잘린 카드(누르거나 오른쪽으로 당기기)다.
  * - 지금 보는 방은 useActiveTrip(pickCurrentTrip) 하나로 정한다. 홈이 따로 대체 규칙을 두지 않는다.
  * - 여행방이 없으면 만들기 Empty와 '초대 코드로 합류'.
@@ -85,11 +95,14 @@ import {
  */
 export default function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
   const { trip: current, trips } = useActiveTrip();
+  const desk = useLayout().mode === 'desktop';
   const plans = useTrips((s) => s.plans);
   const now = useNow();
   const today = kstDate(now);
   const session = useSession((s) => s.session);
   const setCurrentTrip = useUi((s) => s.setCurrentTrip);
+  const guideDismissed = useUi((s) => s.guideDismissed);
+  const dismissGuide = useUi((s) => s.dismissGuide);
 
   const seg = useMemo(() => homeSegments(trips, now), [trips, now]);
   const visible = visibleSegments(seg.counts);
@@ -99,6 +112,7 @@ export default function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
   const active: TripStatus = currentSeg && visible.includes(currentSeg) ? currentSeg : (visible[0] ?? 'ongoing');
   // 홈 검색: 적으면 카드 줄은 방 이름·여행지에 맞는 방만, 아래에는 지역과 AI 추천 여행지(features/account/homeSearch)
   const [query, setQuery] = useState('');
+  const [searchOpen, setSearchOpen] = useState(false);
   const searching = query.trim().length > 0;
   const allCards = segBar ? seg.groups[active] : SEGMENT_ORDER.flatMap((k) => seg.groups[k]);
   const list = searching ? searchTrips(trips, query) : allCards;
@@ -108,6 +122,7 @@ export default function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
 
   // 예전에 닉네임을 바꿔 옛 이름이 남은 여행방이 있으면 지금 닉네임으로 맞춘다(같으면 아무것도 보내지 않는다)
   const myName = session?.nickname;
+  const greeting = homeGreeting(myName, current, current ? regionById(current.region)?.name : undefined, now);
   useEffect(() => {
     if (myName) syncNicknameToTrips();
   }, [myName, trips]);
@@ -231,19 +246,29 @@ export default function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
   ).current;
 
   return (
-    <Screen>
+    <Screen wide={desk ? HOME_DESK_W : undefined}>
       <ScrollView style={styles.fill} contentContainerStyle={styles.scroll}>
         <View style={styles.head}>
-          {/* 맨 위는 검색칸, 그 아래 큰 제목 '내 여행'(2026-10-17). '계정 · 닉네임' 줄은 뺐다 */}
-          <Row gap={SP.s}>
+          {/* 피그마 최종안 09(2026-10-23): 맨 위 줄은 이름과 검색 단추, 그 아래 인사('민지님, 경주까지 D-3').
+              검색칸은 검색 단추를 누르거나 검색어가 있을 때만 펼친다 */}
+          <Row>
             <View style={styles.fill}>
-              <Field label="검색" hideLabel size="sm" value={query} onChangeText={(v) => setQuery(v.slice(0, 40))} placeholder="검색" />
+              <Txt v="ttlSm">Young Trip</Txt>
             </View>
-            {query ? <IconBtn icon="x" label="검색어 지우기" onPress={() => setQuery('')} /> : null}
+            <IconBtn
+              icon={searchOpen ? 'x' : 'search'}
+              label={searchOpen ? '검색 닫기' : '여행 검색'}
+              onPress={() => {
+                if (searchOpen) setQuery('');
+                setSearchOpen(!searchOpen);
+              }}
+            />
           </Row>
-          {/* 검색칸과 붙어 보이지 않게 제목을 조금 아래로 */}
+          {searchOpen ? (
+            <Field label="검색" hideLabel size="sm" value={query} onChangeText={(v) => setQuery(v.slice(0, 40))} placeholder="여행방·지역 검색" />
+          ) : null}
           <View accessibilityRole="header" style={styles.title}>
-            <Txt v="hero">내 여행</Txt>
+            <Txt v={greeting === '내 여행' ? 'hero' : 'ttl'}>{greeting}</Txt>
           </View>
           {segBar && !searching ? (
             <Seg
@@ -254,6 +279,55 @@ export default function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
           ) : null}
         </View>
 
+        {desk && !searching ? (
+          // 컴퓨터 폭(2026-10-22): 왼쪽 단은 여행 카드 격자와 추천 일정, 오른쪽 단은 지금 할 일. 가로로 넘기는 줄·잘린 칸을 쓰지 않는다
+          <View style={styles.deskRow}>
+            <View style={styles.deskMain}>
+              <View style={styles.grid}>
+                {list.map((t) => (
+                  <TripCard
+                    key={t.id}
+                    trip={t}
+                    selected={t.id === current?.id}
+                    info={tripCardInfo(t, plans[t.id], now)}
+                    nextLabel={tripNextStep(t, plans[t.id], today).label}
+                    onPress={() => goNext(t)}
+                  />
+                ))}
+                <AddTile icon="plus" title="새 여행방 만들기" sub="날짜와 기점부터" onPress={openCreate} />
+                <AddTile icon="link" title="초대 코드로 합류" sub="받은 코드나 링크로" onPress={openInvite} />
+              </View>
+              <View style={styles.deskPicks}>
+                <SectionTitle title="추천 여행 일정" />
+                <View style={styles.grid}>
+                  {HOME_PICKS.map((p) => (
+                    <CoverTile
+                      key={p.id}
+                      place={p.name}
+                      art={<RegionArt regionId={p.id} />}
+                      title={pickTitle(p.id, p.name)}
+                      lines={[p.blurb]}
+                      a11yLabel={`${p.name} 예시 일정 보기`}
+                      onPress={() => navigation.navigate('SampleTrip', { regionId: p.id })}
+                    />
+                  ))}
+                </View>
+              </View>
+            </View>
+            {current ? (
+              <View style={styles.deskAside}>
+                <NowTaskCard trip={current} plan={plans[current.id]} now={now} onGo={() => goNext(current)} inset />
+              </View>
+            ) : null}
+          </View>
+        ) : (
+          <>
+        {/* 처음이세요?(2026-10-24): 앱 둘러보기로 안내한다. 한 번 열거나 닫으면 다시 안 보인다 */}
+        {!searching && !guideDismissed ? <GuideInvite onOpen={() => { dismissGuide(); useTour.getState().start(0); }} onClose={dismissGuide} /> : null}
+
+        {/* 지금 할 일(2026-10-22 디자인 검토: 오늘 무엇을 할지가 첫 화면에 없었다). 고른 방의 다음 할 일 한 가지와 버튼 하나 */}
+        {!searching && current ? <NowTaskCard trip={current} plan={plans[current.id]} now={now} onGo={() => goNext(current)} /> : null}
+
         {/* 내 여행 표지 카드 */}
         <View style={styles.cards}>
           {searching && list.length === 0 ? (
@@ -262,6 +336,7 @@ export default function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
             </View>
           ) : trips.length === 0 ? (
             <View style={styles.gutter}>
+              <TourTarget id="home-empty">
               <Card>
                 <Empty icon="compass" title="다음 여행을 계획해 보세요" />
                 {/* 두 버튼은 같은 크기·같은 비율(전체 폭, 같은 높이)로 위아래에 둔다(2026-10-17) */}
@@ -270,8 +345,10 @@ export default function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
                   <Btn title="초대 코드로 합류" variant="quiet" onPress={() => navigation.navigate('InviteAccept')} />
                 </Col>
               </Card>
+              </TourTarget>
             </View>
           ) : (
+            <TourTarget id="home-cards">
             <View {...pan.panHandlers} style={styles.rowWrap}>
             <Animated.ScrollView
               ref={rowRef}
@@ -310,6 +387,7 @@ export default function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
               </View>
             ) : null}
             </View>
+            </TourTarget>
           )}
         </View>
 
@@ -341,6 +419,7 @@ export default function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
               <CoverTile
                 key={p.id}
                 place={p.name}
+                art={<RegionArt regionId={p.id} />}
                 title={pickTitle(p.id, p.name)}
                 lines={[p.blurb]}
                 a11yLabel={`${p.name} 예시 일정 보기`}
@@ -353,12 +432,89 @@ export default function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
         {/* 다른 사람의 일정 둘러보기는 여행방 빠른 메뉴의 '공유된 일정' 칸과 커뮤니티 탭에 있다(2026-10-17) */}
           </>
         )}
+          </>
+        )}
       </ScrollView>
     </Screen>
   );
 }
 
+/** 컴퓨터 폭 홈 본문 칸(두 단). 오른쪽 단 폭 */
+const HOME_DESK_W = 1040;
+const HOME_ASIDE_W = 340;
+/** 여행 카드(CoverTile lg) 폭과 같다 */
+const COVER_LG_W = 272;
+
 const SEG_ICON: Record<TripStatus, IconName> = { ongoing: 'play', upcoming: 'cal', done: 'check' };
+
+/** 컴퓨터 폭 카드 격자의 '새 여행방'·'초대 코드' 칸(여행 카드와 같은 크기, 점선 테두리) */
+function AddTile({ icon, title, sub, onPress }: { icon: IconName; title: string; sub: string; onPress: () => void }) {
+  return (
+    <Pressable accessibilityRole="button" accessibilityLabel={title} onPress={onPress} style={styles.addTile}>
+      <Icon name={icon} size={26} color="accentDeep" stroke={2.2} />
+      <Txt v="nm">{title}</Txt>
+      <Txt v="mtTight">{sub}</Txt>
+    </Pressable>
+  );
+}
+
+/** 홈 맨 위 '지금 할 일' 카드. 글은 features/account/home.homeNowTask(순수)가 고른다 */
+/** 처음 쓰는 사람에게 앱 둘러보기를 권하는 카드(피그마 톤: 연한 카드 + 버튼 한 개 + 닫기) */
+function GuideInvite({ onOpen, onClose }: { onOpen: () => void; onClose: () => void }) {
+  return (
+    <View style={styles.now}>
+      <Card variant="tinted">
+        <Row gap={SP.xl}>
+          <Icon name="compass" size={22} color="accent" />
+          <Col grow gap={2}>
+            <Txt v="nm">처음이세요?</Txt>
+            <Txt v="mtTight">앱의 모든 기능을 순서대로 안내해 드려요.</Txt>
+          </Col>
+          <IconBtn icon="x" label="안내 닫기" onPress={onClose} />
+        </Row>
+        <Btn title="앱 둘러보기" variant="ghost" size="sm" onPress={onOpen} />
+      </Card>
+    </View>
+  );
+}
+
+function NowTaskCard({
+  trip,
+  plan,
+  now,
+  onGo,
+  inset,
+}: {
+  trip: Trip;
+  plan: Plan | undefined;
+  now: number;
+  onGo: () => void;
+  /** 바깥 여백 없이(컴퓨터 오른쪽 단) */
+  inset?: boolean;
+}) {
+  const task = homeNowTask(trip, plan, now);
+  return (
+    <View style={inset ? null : styles.now}>
+      <TourTarget id="home-now">
+      <Card variant="brand">
+        <Col gap={SP.xs}>
+          <Txt v="eyebrow" c="accent" numberOfLines={1}>
+            {task.eyebrow}
+          </Txt>
+          <Txt v="ttl">{task.title}</Txt>
+          <Txt v="mt" c="ink">
+            {task.sub}
+          </Txt>
+        </Col>
+        <Btn title={task.action} onPress={onGo} />
+        {/* 그 방의 다른 기능은 같은 카드 안 작은 칸으로(2026-10-22: 카드 아래 따로 두면 초록 버튼이 둘로 겹쳤다). 강조는 위 주 버튼 하나 */}
+        <View style={styles.nowDivider} />
+        <TripActions trip={trip} compact />
+      </Card>
+      </TourTarget>
+    </View>
+  );
+}
 
 function TripCard({
   trip,
@@ -380,14 +536,15 @@ function TripCard({
       size="lg"
       place={regionById(trip.region)?.name ?? trip.title}
       image={coverUri(trip.cover)}
+      art={<RegionArt regionId={trip.region} />}
       badge={info.badge}
       title={info.title}
-      lines={[info.dateText, info.countsText]}
+      lines={tripCardLines(info)}
       selected={selected}
       a11yLabel={`${trip.title} ${nextLabel}`}
       onPress={onPress}
       footer={
-        <View pointerEvents="none">
+        <View style={PE.none}>
           <AvatarStack names={info.memberNames} max={4} />
         </View>
       }
@@ -439,7 +596,7 @@ function EdgePull({
   const grow = pull.interpolate({ inputRange: [0, PULL_TRIGGER, PULL_TRIGGER + 30], outputRange: [1, 1.3, 1.45], extrapolate: 'clamp' });
   const label = pull.interpolate({ inputRange: [50, 90], outputRange: [0, 1], extrapolate: 'clamp' });
   return (
-    <Animated.View pointerEvents="none" style={[styles.pull, side === 'left' ? styles.pullLeft : styles.pullRight, { width, opacity: shown }]}>
+    <Animated.View style={[PE.none, styles.pull, side === 'left' ? styles.pullLeft : styles.pullRight, { width, opacity: shown }]}>
       <Animated.View style={[StyleSheet.absoluteFill, styles.pullTint, { opacity: tint }]} />
       <Animated.View style={{ transform: [{ rotate: spin }, { scale: grow }] }}>
         <Icon name={icon} size={26} color="accentDeep" stroke={2.2} />
@@ -463,6 +620,26 @@ const styles = StyleSheet.create({
   gutter: { paddingHorizontal: SP.gutter },
   title: { marginTop: SP.xl },
   cards: { marginTop: SP.section, gap: SP.xl },
+  quick: { marginTop: SP.xxl, gap: SP.m },
+  now: { marginTop: SP.xl, paddingHorizontal: SP.gutter },
+  nowDivider: { height: 1, backgroundColor: surfaceC.softLine, marginVertical: SP.xs },
+  deskRow: { marginTop: SP.section, paddingHorizontal: SP.gutter, flexDirection: 'row', alignItems: 'flex-start', gap: SP.section },
+  deskMain: { flex: 1, minWidth: 0, gap: SP.section },
+  deskAside: { width: HOME_ASIDE_W },
+  deskPicks: { gap: SP.xl },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: SP.xxl },
+  addTile: {
+    width: COVER_LG_W,
+    height: NEW_TRIP_H,
+    borderRadius: R.photo,
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    borderColor: surfaceC.softLine,
+    backgroundColor: surfaceC.accentTint,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: SP.s,
+  },
   cardRow: { paddingHorizontal: SP.gutter, paddingVertical: SP.s, gap: SP.xxl },
   section: { marginTop: SP.section, paddingHorizontal: SP.gutter, gap: SP.xxl },
   stretch: { alignItems: 'stretch' },

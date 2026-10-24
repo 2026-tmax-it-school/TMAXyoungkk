@@ -20,7 +20,7 @@ import { createTravelBook } from './travel';
  */
 export async function planViolations(trip: Trip, plan: Plan, routes: RouteProvider): Promise<string[]> {
   const out: string[] = [];
-  const ctxs = dayContexts(trip);
+  const ctxs = dayContexts(trip, plan.computedAt);
   const dates = ctxs.map((c) => c.date);
   // 투표·방장 결정으로 고정 취급되는 후보는 계산 때와 같은 모습(plannedSpots)으로 본다
   const byId = new Map([...trip.spots, ...plannedSpots(trip)].map((s) => [s.id, s]));

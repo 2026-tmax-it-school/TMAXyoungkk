@@ -9,7 +9,8 @@ import { buildPlan, resolveBases } from '../src/core/planner';
 import { returnLegOf } from '../src/core/planner/day';
 import { legDrafts } from '../src/features/schedule/edit';
 import { toMin } from '../src/core/util';
-import { spotSubLine, timelineRows } from '../src/features/schedule/timeline';
+import { placeLabel, spotSubLine, timelineRows } from '../src/features/schedule/timeline';
+import { kindLabel } from '../src/features/candidates/rows';
 import { createRouteProvider } from '../src/services/routes';
 import { fakeFetch, fixedClock, memoryKV, tableRoutes } from './helpers/fakes';
 import { fixturePlan1018, scenarioTrip, SCENARIO_T0 } from './helpers/fixtures';
@@ -148,7 +149,11 @@ test('timelineRows: 스팟 행은 떠나는 시각(depart)과 문서 스팟의 �
     assert.equal(r.depart, it.depart, `${r.title} 떠나는 시각`);
     assert.equal(r.category, trip.spots.find((x) => x.id === r.spotId)?.category, `${r.title} 카테고리`);
     assert.ok(r.category, '시나리오 스팟은 모두 카테고리가 있다');
-    assert.equal(spotSubLine(r), `${r.category} · 체류 ${r.stayMin}분`);
+    // 세부 분류(kind)가 있으면 후보 목록과 같은 이름(placeLabel), 없으면 카테고리(2026-10-22 셀프 QA 중간 4)
+    const doc = trip.spots.find((x) => x.id === r.spotId);
+    assert.equal(r.place, doc?.kind);
+    assert.equal(spotSubLine(r), `${placeLabel(doc?.kind, r.category)} · 체류 ${r.stayMin}분`);
+    assert.equal(kindLabel({ kind: doc?.kind, category: r.category ?? '기타' }), placeLabel(doc?.kind, r.category));
   }
   // 스팟 목록을 넘기지 않으면(예전 호출) 카테고리 없이 '체류 N분'만
   const plain = timelineRows(day).find((r) => r.kind === 'spot');
@@ -253,4 +258,12 @@ test('복귀 구간 자동차 경로가 없으면 도보로 대체하고 복귀 
   const rows = timelineRows(d18);
   const row = rows[rows.length - 1];
   assert.ok(row.kind === 'return' && row.notices.some((n) => n.kind === 'fallbackTransport'));
+});
+
+test('장소 분류 이름: 세부 분류의 쉼표는 가운뎃점, 없으면 카테고리', () => {
+  assert.equal(placeLabel('절,사찰', '관광지'), '절·사찰');
+  assert.equal(placeLabel(' 카페거리 ', '카페'), '카페거리');
+  assert.equal(placeLabel(undefined, '관광지'), '관광지');
+  assert.equal(placeLabel('', undefined), '');
+  assert.equal(spotSubLine({ place: '연못', category: '관광지', stayMin: 60 }), '연못 · 체류 60분');
 });

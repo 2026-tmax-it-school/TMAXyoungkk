@@ -21,6 +21,7 @@ import {
   Btn,
   Chip,
   dayColor,
+  E,
   Empty,
   H,
   Header,
@@ -37,6 +38,7 @@ import {
   SP,
   surfaceC,
   Txt,
+  useLayout,
   type SheetSnap,
 } from '../ui';
 
@@ -89,8 +91,14 @@ function spotNameOf(trip: Trip, plan: Plan | undefined, spotId: string): string 
   );
 }
 
+/** 컴퓨터 지도 왼쪽 패널 너비(피그마 최종안 D4) */
+const DESK_PANEL_W = 400;
+/** 컴퓨터 지도는 본문 칸을 넘어 오른쪽 끝까지 쓴다 */
+const DESK_MAP_W = 4000;
+
 export default function MapScreen({ navigation, route }: TabScreenProps<'Map'>) {
   const homeBack = useHomeBack();
+  const desk = useLayout().mode === 'desktop';
   const { trip } = useActiveTrip();
   const plan = usePlan(trip?.id);
   const now = useNow();
@@ -263,7 +271,7 @@ export default function MapScreen({ navigation, route }: TabScreenProps<'Map'>) 
   ) : null;
 
   return (
-    <Screen>
+    <Screen wide={desk ? DESK_MAP_W : undefined}>
       {/* 다른 화면이 위에 쌓여 이 화면이 숨으면(웹 display:none) 높이가 0으로 온다. 그때 지도를 내리지 않아야
           돌아왔을 때 지도를 새로 불러오지 않는다(구글 지도는 띄울 때마다 사용량이 든다) */}
       <View
@@ -300,6 +308,8 @@ export default function MapScreen({ navigation, route }: TabScreenProps<'Map'>) 
         ) : null}
 
         <PeekSheet
+          // 피그마 최종안 D4(컴퓨터): 아래 시트 대신 왼쪽에 뜬 패널(지도는 화면 전체)
+          style={desk ? [styles.deskPanel, E.float] : undefined}
           snap={snap}
           onSnap={setSnap}
           snaps={SNAPS}
@@ -458,7 +468,7 @@ function PickedCard({
       <Row gap={SP.l}>
         {/* 순번은 아래 묶음 이름이 'n번째 스팟'으로 읽으므로 스크린리더에서 숨긴다 */}
         {planned ? (
-          <View style={styles.numDot} aria-hidden importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
+          <View style={styles.numDot} aria-hidden>
             <Txt v="chip" c="onInk">
               {String(planned.index + 1)}
             </Txt>
@@ -496,6 +506,7 @@ function PickedCard({
 }
 
 const styles = StyleSheet.create({
+  deskPanel: { left: SP.gutter, right: undefined, width: DESK_PANEL_W, bottom: SP.gutter, borderRadius: R.sheet },
   area: { flex: 1, minHeight: 0 },
   grow: { flex: 1, minWidth: 0 },
   start: { alignSelf: 'flex-start' },

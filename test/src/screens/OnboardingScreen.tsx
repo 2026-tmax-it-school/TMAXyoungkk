@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { StyleSheet, View } from 'react-native';
 
 import { NICKNAME_MAX } from '../core/constants';
 import { nicknameProblem } from '../core/auth';
@@ -7,7 +8,7 @@ import { OAUTH_LABEL } from '../features/account/oauth';
 import { useSocialSignIn } from '../features/account/useSocialSignIn';
 import type { RootScreenProps } from '../navigation/routes';
 import { useSession } from '../store/session';
-import { AuthBtn, Body, Btn, Col, ConfirmSheet, Divider, Field, Foot, Header, Notice, Screen, SP, Txt } from '../ui';
+import { AuthBtn, Body, Btn, Col, ConfirmSheet, Divider, Field, Foot, Notice, R, RegionArt, Screen, SP, Txt } from '../ui';
 
 /**
  * 온보딩 · 로그인 또는 게스트로 시작(FR-105, WP1 소유). 방장이 처음 여는 화면이다.
@@ -39,8 +40,19 @@ export default function OnboardingScreen({ navigation }: RootScreenProps<'Onboar
 
   return (
     <Screen keyboard>
-      <Header eyebrow="Young Trip 시작하기" title="채팅에서 나온 곳을 여행 루트로" />
       <Body scroll>
+        {/* 피그마 최종안 02(2026-10-23): 위에 지역 그림과 한 줄 소개, 그 아래 로그인 버튼 */}
+        <View style={styles.hero}>
+          <RegionArt regionId="busan" />
+        </View>
+        <View accessibilityRole="header">
+          <Txt v="authTitle">
+            {'친구들이 고른 곳으로\n하루가 짜여요'}
+          </Txt>
+        </View>
+        <Col gap={SP.s}>
+          <Txt v="mt">채팅에서 나온 장소를 모아 후보로 올리고, 좋아요를 모으면 동선과 시간표를 알아서 맞춰요.</Txt>
+        </Col>
         {returning ? <Notice icon="user" text="로그인이 끝났어요. 다시 로그인하면 여행방을 이어 써요" /> : null}
 
         <Col gap={SP.m}>
@@ -111,3 +123,7 @@ export default function OnboardingScreen({ navigation }: RootScreenProps<'Onboar
     </Screen>
   );
 }
+
+const styles = StyleSheet.create({
+  hero: { height: 180, borderRadius: R.photo, overflow: 'hidden', marginTop: SP.xl },
+});

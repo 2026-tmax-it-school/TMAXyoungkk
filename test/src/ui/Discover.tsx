@@ -7,6 +7,7 @@ import { Icon, type IconName } from './Icon';
 import { Switch } from './Switch';
 import { Txt } from './Txt';
 import { H, lineC, R, SP, surfaceC } from './tokens';
+import { PE } from './pointer';
 
 /**
  * 홈·프로필 조각(Young Trip 디자인 시스템: TripCard, ListRow와 빠른 메뉴·프로필 머리).
@@ -51,6 +52,7 @@ export function QuickAction({
   badge,
   onPress,
   primary,
+  onTint,
 }: {
   icon: IconName;
   label: string;
@@ -60,6 +62,8 @@ export function QuickAction({
   onPress?: () => void;
   /** 이 줄에서 가장 먼저 할 일(시각적 계층): 원을 주색으로 채우고 아이콘을 흰색으로 */
   primary?: boolean;
+  /** brand-soft 카드 위(피그마 최종안 홈 지금 할 일): 흰 원에 1px 선 */
+  onTint?: boolean;
 }) {
   return (
     <Pressable
@@ -75,7 +79,8 @@ export function QuickAction({
           width: H.quick,
           height: H.quick,
           borderRadius: R.chip,
-          backgroundColor: disabled ? surfaceC.soft : primary ? surfaceC.accent : surfaceC.accentTint,
+          backgroundColor: disabled ? surfaceC.soft : primary ? surfaceC.accent : onTint ? surfaceC.card : surfaceC.accentTint,
+          ...(onTint && !disabled && !primary ? { borderWidth: 1, borderColor: lineC.line } : null),
           alignItems: 'center',
           justifyContent: 'center',
         }}
@@ -117,9 +122,15 @@ export function QuickAction({
  * 여행 카드(DS TripCard). 사진 자리가 주인공이고 카드 테두리·그림자는 없다. 사진 모서리만 radius-lg.
  * 사진이 없으면 연회색(surface-soft) 자리에 핀과 장소 이름만 둔다. 색 면이나 무늬로 사진을 흉내 내지 않는다.
  * 사진 위에는 왼쪽 위 badge 하나. 선택된 카드는 사진 자리에 잉크 2px 테두리이고 스크린리더에는 selected로 알린다.
- * size 'lg'는 홈 가로 줄의 내 여행(272×300, footer까지 상자 안 흰 판에 담는다), 'sm'은 추천 여행지(정사각).
+ * size 'lg'는 홈 가로 줄의 내 여행(272×252, footer까지 상자 안 흰 판에 담는다), 'sm'은 추천 여행지(정사각).
+ * 2026-10-22: lg를 300에서 252로 낮췄다(위쪽이 빈 칸이라 첫 화면에 카드 한 장 반만 보였다). 대신 그림(art)과 다음 일정 줄을 담는다.
  * a11yLabel: 스크린리더 이름(기본 '{title} 열기'). 실제 동작과 같게 쓴다('경주 여행 보기, 여행 중 · 2일째').
  */
+/** 내 여행 카드(lg) 높이. 홈 카드 줄 양 끝 잘린 칸(features/account/home NEW_TRIP_H)과 같다 */
+export const COVER_LG_H = 252;
+/** lg 카드 아래 흰 판이 덮는 대략의 높이. 그림은 이 위에만 그린다 */
+const COVER_LG_PANEL = 112;
+
 export function CoverTile({
   place,
   badge,
@@ -134,9 +145,12 @@ export function CoverTile({
   style,
   a11yLabel,
   image,
+  art,
 }: {
   /** 표지 이미지 주소(data URI 등). 있으면 지역 이름 대신 사진을 꽉 채운다 */
   image?: string;
+  /** 사진이 없을 때 상자를 채울 그림(ui/RegionArt). 없으면 핀 아이콘과 지역 이름 */
+  art?: React.ReactNode;
   place: string;
   badge?: string;
   title: string;
@@ -154,8 +168,8 @@ export function CoverTile({
 }) {
   const lg = size === 'lg';
   const width = lg ? 272 : 148;
-  // lg는 흰 판에 제목·날짜·개수와 footer(멤버·다음 할 일)까지 담아 정사각보다 조금 길다(272×300)
-  const height = lg ? width + 28 : width;
+  // lg는 흰 판에 제목·날짜·다음 일정과 footer(멤버)까지 담는다(272×252)
+  const height = lg ? COVER_LG_H : width;
   // lg(내 여행)는 제목·날짜·개수와 footer를 상자 안 아래 흰 판에 담는다. sm(추천)은 상자 아래에 둔다
   const inside = lg;
   const info = (
@@ -190,9 +204,12 @@ export function CoverTile({
             accessibilityIgnoresInvertColors
             style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
           />
+        ) : art ? (
+          // lg는 아래 흰 판(제목·날짜·멤버)이 덮으므로 그림을 판 위쪽 칸에만 그린다(주제가 판에 가리지 않게)
+          <View style={[PE.none, { position: 'absolute', top: 0, left: 0, right: 0, height: lg ? height - COVER_LG_PANEL : height }]}>{art}</View>
         ) : null}
-        <View pointerEvents="none" style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: SP.m }}>
-          {image ? null : (
+        <View style={[PE.none, { flex: 1, alignItems: 'center', justifyContent: 'center', gap: SP.m }]}>
+          {image || art ? null : (
             <>
               <Icon name="pin" size={lg ? 28 : 24} color="muted" stroke={1.6} />
               <Txt v="btnSm" c="muted" numberOfLines={1}>
@@ -211,8 +228,7 @@ export function CoverTile({
         {inside ? (
           // 상자 버튼(위 Pressable) 뒤 형제라 footer의 버튼이 눌린다. 판 빈 곳은 box-none이라 상자 버튼으로 통과한다
           <View
-            pointerEvents="box-none"
-            style={{
+            style={[PE.boxNone, {
               marginHorizontal: SP.m,
               marginBottom: SP.m,
               paddingHorizontal: SP.l,
@@ -222,16 +238,15 @@ export function CoverTile({
               borderWidth: 1,
               borderColor: lineC.line,
               backgroundColor: surfaceC.card,
-            }}
+            }]}
           >
-            <View pointerEvents="none">{info}</View>
+            <View style={PE.none}>{info}</View>
             {footer}
           </View>
         ) : null}
         {badge ? (
           <View
-            pointerEvents="none"
-            style={{
+            style={[PE.none, {
               position: 'absolute',
               top: SP.xl,
               left: SP.xl,
@@ -241,7 +256,7 @@ export function CoverTile({
               borderWidth: 1,
               borderColor: lineC.line,
               backgroundColor: surfaceC.card,
-            }}
+            }]}
           >
             <Txt v="chip">{badge}</Txt>
           </View>

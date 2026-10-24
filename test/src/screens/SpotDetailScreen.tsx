@@ -17,7 +17,9 @@ import {
   type DetailRowKey,
   type FootAction,
 } from '../features/candidates/detail';
+import { ChatQuote } from '../features/candidates/components/ChatQuote';
 import { pinLabel } from '../features/candidates/rows';
+import { spotHintLabel, spotQuote } from '../features/candidates/talk';
 import { memberIndex } from '../features/chat/view';
 import { activeMembers, isHost } from '../core/group';
 import { daySegLabel } from '../features/schedule/view';
@@ -149,6 +151,8 @@ export default function SpotDetailScreen({ navigation, route }: RootScreenProps<
   const host = !!me && isHost(trip, me);
   const vote = voteInfo(trip, spot);
   const pinText = pinLabel(spot, activeMembers(trip));
+  const hintText = spotHintLabel(trip, spot);
+  const quote = spotQuote(trip, spot);
   const editSheet: Partial<Record<DetailRowKey, 'stay' | 'date'>> = { stay: 'stay', date: 'date' };
 
   const act = (a: FootAction) => {
@@ -185,8 +189,9 @@ export default function SpotDetailScreen({ navigation, route }: RootScreenProps<
       <Body scroll>
         <MapCanvas compact height={126} markers={markers} polylines={[]} fitTo={base ? [base.coord, spot.coord] : [spot.coord]} />
 
-        {pinText || spot.outsideRegion ? (
+        {pinText || spot.outsideRegion || hintText ? (
           <Row wrap gap={SP.s}>
+            {hintText ? <Chip text={hintText} tone="warn" icon="clock" /> : null}
             {pinText ? <Chip text={pinText} icon="pinlock" /> : null}
             {spot.outsideRegion ? <Chip text="목적지 밖" tone="warn" /> : null}
           </Row>
@@ -244,7 +249,7 @@ export default function SpotDetailScreen({ navigation, route }: RootScreenProps<
                 {detail.proposerNames.join(' · ')}
               </Txt>
             </Row>
-            {detail.quotes.length > 0 ? (
+            {detail.quotes.length > 0 && !quote ? (
               <>
                 <View style={styles.rule} />
                 <Col gap={SP.s}>
@@ -260,6 +265,9 @@ export default function SpotDetailScreen({ navigation, route }: RootScreenProps<
             ) : null}
           </Card>
         ) : null}
+
+        {/* 피그마 최종안 B안: 장소가 처음 나온 채팅 한 줄(말한 사람과 장소 강조) */}
+        {quote ? <ChatQuote quote={quote} place={spot.name} /> : null}
 
         {/* 투표: 표 수가 제외 순서, 과반이면 고정 취급. 방장은 여기서 결과를 덮는다 */}
         {!spot.removedByUser ? (

@@ -395,7 +395,10 @@ export function createAuthService({
   mailer = null,
   /** 가입 응답이 메일 결과를 기다리는 시간(테스트에서 줄인다) */
   mailWaitMs = MAIL_WAIT_MS,
+  /** 메일 발송 한도(기기별 10분·주소별 하루)를 건너뛸 이메일 주소들(개발자 본인 주소 전용, MAIL_LIMIT_EXEMPT). 이 주소 밖에는 한도가 그대로다 */
+  mailExempt = [],
 } = {}) {
+  const exemptSet = new Set(mailExempt.map((e) => normalizeEmail(String(e))).filter(Boolean));
   const oauthClient = createOAuthClient({ now, ...oauth });
   /** 개발용 보낸편지함(메모리). 토큰 원문은 여기에만 있고 DB에는 해시만 간다 */
   let outbox = [];
@@ -478,6 +481,7 @@ export function createAuthService({
   /** 시도 제한 한 칸. 넘으면 풀리는 시각 */
   /** 이 주소로 24시간에 5통까지. 가입 여부와 상관없이 요청 횟수를 세어 응답이 계정 유무를 드러내지 않는다. 막히면 다시 시도할 시각(ms) */
   async function limitedAddress(email) {
+    if (exemptSet.has(email)) return null;
     const r = await store.hit(`mailto:${email}`, now(), DAY);
     return r.count > MAIL_PER_ADDRESS_DAILY ? r.windowStart + DAY : null;
   }
@@ -661,7 +665,7 @@ export function createAuthService({
       const device = typeof body.deviceToken === 'string' && body.deviceToken.length >= 8 && body.deviceToken.length <= 200 ? body.deviceToken : null;
       if (userId && !device) return fail(400, 'badCredentials', '게스트 확인 정보가 없습니다. 앱을 다시 열어 주세요');
       const upgradeProof = userId ? tokenHash(`guest:${device}`) : null;
-      const retryAt = await limited(`mail:${ip}`, MAIL_LIMIT);
+      const retryAt = exemptSet.has(email) ? null : await limited(`mail:${ip}`, MAIL_LIMIT);
       if (retryAt) return fail(429, 'deviceLimited', '잠시 뒤 다시 시도해 주세요', { retryAt });
       const addrRetry = await limitedAddress(email);
       if (addrRetry) return fail(429, 'deviceLimited', ADDRESS_LIMITED, { retryAt: addrRetry });
@@ -711,7 +715,7 @@ export function createAuthService({
     async 'POST resend'({ body, ip }) {
       const email = normalizeEmail(body.email);
       if (!isEmailLike(email)) return fail(400, 'badCredentials', '이메일 형식이 아닙니다');
-      const retryAt = await limited(`mail:${ip}`, MAIL_LIMIT);
+      const retryAt = exemptSet.has(email) ? null : await limited(`mail:${ip}`, MAIL_LIMIT);
       if (retryAt) return fail(429, 'deviceLimited', '잠시 뒤 다시 시도해 주세요', { retryAt });
       const addrRetry = await limitedAddress(email);
       if (addrRetry) return fail(429, 'deviceLimited', ADDRESS_LIMITED, { retryAt: addrRetry });
@@ -830,12 +834,13 @@ export function createAuthService({
     async 'POST password/reset'({ body, ip }) {
       const email = normalizeEmail(body.email);
       if (!isEmailLike(email)) return fail(400, 'badCredentials', '이메일 형식이 아닙니다');
-      const retryAt = await limited(`mail:${ip}`, MAIL_LIMIT);
+      const retryAt = exemptSet.has(email) ? null : await limited(`mail:${ip}`, MAIL_LIMIT);
       if (retryAt) return fail(429, 'deviceLimited', '잠시 뒤 다시 시도해 주세요', { retryAt });
       const addrRetry = await limitedAddress(email);
       if (addrRetry) return fail(429, 'deviceLimited', ADDRESS_LIMITED, { retryAt: addrRetry });
       const acc = await store.accountByEmail(email);
-      if (acc && acc.passwordHash != null) await issueMailToken('reset', acc);
+      // 구글·카카오로 만든 계정(비밀번호 없음)에도 보낸다(2026-10-24). 메일을 받은 사람이 이메일 주인이라, 여기서 비밀번호를 정하면 이메일로도 로그인할 수 있다
+      if (acc) await issueMailToken('reset', acc);
       return okBody();
     },
 
@@ -849,7 +854,12 @@ export function createAuthService({
       const acc = used ? await store.accountById(used.accountId) : null;
       if (!acc) return fail(400, 'invalidToken', '쓸 수 없는 재설정 링크입니다. 재설정 메일을 다시 받아 주세요');
       // 메일을 받았으니 이메일 소유도 확인된 것이다. 다른 기기의 세션은 모두 끊는다
-      await store.updateAccount(acc.accountId, { passwordHash: await hashPassword(password, { cost: passwordCost }), verifiedAt: acc.verifiedAt ?? now() });
+      await store.updateAccount(acc.accountId, {
+        passwordHash: await hashPassword(password, { cost: passwordCost }),
+        verifiedAt: acc.verifiedAt ?? now(),
+        // 소셜 전용 계정이 비밀번호를 정하면 이메일 로그인도 쓰는 계정이다
+        providers: acc.providers.includes('email') ? acc.providers : ['email', ...acc.providers],
+      });
       await store.dropSessions(acc.accountId);
       await store.dropTokens(acc.accountId, 'reset');
       await store.setLock(`acct:${acc.email}`, { fails: 0, lockedUntil: null }, now());
@@ -884,7 +894,7 @@ export function createAuthService({
         // 응답은 계정이 있든 없든·인증 전이든·다른 신원에 묶였든 하나다(가입 여부를 드러내지 않는다)
         const email = normalizeEmail(body.providerEmail);
         if (!isEmailLike(email)) return fail(400, 'notFound', `${PROVIDER_SUBJECT[provider]} 돌려줄 이메일을 입력해 주세요(모의)`);
-        const retryAt = await limited(`mail:${ip}`, MAIL_LIMIT);
+        const retryAt = exemptSet.has(email) ? null : await limited(`mail:${ip}`, MAIL_LIMIT);
         if (retryAt) return fail(429, 'deviceLimited', '잠시 뒤 다시 시도해 주세요', { retryAt });
         const target = await store.accountByEmail(email);
         const owner = await store.identity(provider, subject);
@@ -1028,4 +1038,15 @@ export function isAuthPath(pathname) {
  */
 export function devOutboxFromEnv(env) {
   return (env.SYNC_ALLOW_RESET ?? '').trim() === '1' || (env.AUTH_DEV_OUTBOX ?? '').trim() === '1';
+}
+
+/**
+ * 메일 발송 한도(기기별·주소별)를 건너뛸 주소들. 서버 변수 MAIL_LIMIT_EXEMPT에 쉼표로 적는다(개발자 본인 주소 전용, 2026-10-24).
+ * 비어 있으면 모두 한도를 받는다. 적힌 주소로만 한도 없이 메일이 가고, 다른 주소의 한도는 그대로다
+ */
+export function mailExemptFromEnv(env) {
+  return (env.MAIL_LIMIT_EXEMPT ?? '')
+    .split(/[,\s]+/)
+    .map((e) => normalizeEmail(e))
+    .filter((e) => isEmailLike(e));
 }

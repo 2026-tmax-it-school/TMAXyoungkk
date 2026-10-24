@@ -4,7 +4,7 @@ import { Image, Pressable, StyleSheet, View } from 'react-native';
 import { myMemberId, useMyTrips, useTrips } from '../../../store/trips';
 import { useNow } from '../../../services/clock';
 import { useUi } from '../../../store/ui';
-import { Btn, ConfirmSheet, Icon, lineC, R, Sheet, SP, surfaceC, Txt } from '../../../ui';
+import { Btn, ConfirmSheet, Icon, lineC, R, RegionArt, Sheet, SP, surfaceC, Txt } from '../../../ui';
 import { chatRooms, deleteRoomPlan, filterRooms, roomTime, type ChatRoomRow } from '../rooms';
 
 /**
@@ -87,7 +87,8 @@ export function ChatRoomList({
                 {r.cover ? (
                   <Image source={{ uri: r.cover }} resizeMode="cover" accessibilityIgnoresInvertColors style={StyleSheet.absoluteFill} />
                 ) : (
-                  <Icon name="pin" size={20} color="muted" stroke={1.6} />
+                  // 피그마 최종안 25: 표지가 없으면 지역 그림
+                  <RegionArt regionId={r.region} />
                 )}
               </View>
               <View style={styles.body}>

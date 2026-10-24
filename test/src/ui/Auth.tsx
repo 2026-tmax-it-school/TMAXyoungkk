@@ -10,13 +10,32 @@ import { brandC, H, lineC, R, SP, surfaceC, type TextColorKey } from './tokens';
  * 소셜 버튼은 브랜드 가이드를 따른다: 카카오는 노란 면에 검정 말풍선, 구글은 흰 면·회색 테두리에 네 색 G. 로고는 왼쪽, 글자는 가운데.
  */
 
-/** 가운데 큰 제목('로그인', '회원가입') */
-export function AuthTitle({ title }: { title: string }) {
+/**
+ * 큰 제목('다시 만나서 반가워요', '회원가입'). 2026-10-23 피그마 최종안 03·04: 왼쪽 정렬, 아래 보조 줄(sub),
+ * 여러 단계면 위에 진행 막대와 'N / M 단계'(step).
+ */
+export function AuthTitle({ title, sub, step }: { title: string; sub?: string; step?: { at: number; total: number } }) {
   return (
-    <View accessibilityRole="header" style={{ paddingTop: SP.section, paddingBottom: SP.xl }}>
-      <Txt v="authTitle" center>
-        {title}
-      </Txt>
+    <View style={{ paddingTop: SP.xxl, paddingBottom: SP.xl, gap: SP.m }}>
+      {step ? (
+        <View style={{ gap: SP.s }}>
+          <View aria-hidden style={{ height: H.progress, borderRadius: R.iconBtn, backgroundColor: surfaceC.track }}>
+            <View
+              style={{
+                width: `${Math.round((step.at / step.total) * 100)}%`,
+                height: H.progress,
+                borderRadius: R.iconBtn,
+                backgroundColor: surfaceC.accent,
+              }}
+            />
+          </View>
+          <Txt v="label">{`${step.at} / ${step.total} 단계`}</Txt>
+        </View>
+      ) : null}
+      <View accessibilityRole="header">
+        <Txt v="authTitle">{title}</Txt>
+      </View>
+      {sub ? <Txt v="mt">{sub}</Txt> : null}
     </View>
   );
 }
@@ -24,7 +43,7 @@ export function AuthTitle({ title }: { title: string }) {
 export type AuthBtnVariant = 'primary' | 'outline' | 'kakao' | 'google';
 
 const LOOK: Record<AuthBtnVariant, { box: ViewStyle; text: TextColorKey }> = {
-  primary: { box: { backgroundColor: surfaceC.ink }, text: 'onInk' },
+  primary: { box: { backgroundColor: surfaceC.accent }, text: 'onAccent' },
   outline: { box: { backgroundColor: surfaceC.card, borderWidth: 1, borderColor: lineC.accent }, text: 'ink' },
   kakao: { box: { backgroundColor: surfaceC.kakao }, text: 'onKakao' },
   google: { box: { backgroundColor: surfaceC.card, borderWidth: 1, borderColor: brandC.googleLine }, text: 'ink' },
@@ -103,6 +122,14 @@ export function TextLink({ title, onPress, align = 'left' }: { title: string; on
 }
 
 /** 가로 구분선(1px line) */
-export function Divider() {
-  return <View accessibilityElementsHidden importantForAccessibility="no" style={{ height: 1, backgroundColor: lineC.line, marginVertical: SP.s }} />;
+export function Divider({ label }: { label?: string } = {}) {
+  if (!label) return <View aria-hidden style={{ height: 1, backgroundColor: lineC.line, marginVertical: SP.s }} />;
+  // 피그마 최종안 03: 가운데 '또는'을 둔 구분선
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: SP.xl, marginVertical: SP.s }}>
+      <View aria-hidden style={{ flex: 1, height: 1, backgroundColor: lineC.line }} />
+      <Txt v="mtTight">{label}</Txt>
+      <View aria-hidden style={{ flex: 1, height: 1, backgroundColor: lineC.line }} />
+    </View>
+  );
 }

@@ -12,7 +12,7 @@ import { brandC, H } from './tokens';
 export function BrandLogo({ brand, size = H.brandLogo }: { brand: 'kakao' | 'google'; size?: number }) {
   if (brand === 'kakao') {
     return (
-      <Svg width={size} height={size} viewBox="0 0 24 24" accessibilityElementsHidden importantForAccessibility="no">
+      <Svg width={size} height={size} viewBox="0 0 24 24" aria-hidden>
         <Path
           fill={brandC.kakaoSymbol}
           d="M12 3.2c-5.25 0-9.5 3.33-9.5 7.44 0 2.66 1.78 4.99 4.46 6.3l-.92 3.37c-.08.3.26.54.52.37l4.04-2.68c.46.05.93.08 1.4.08 5.25 0 9.5-3.33 9.5-7.44S17.25 3.2 12 3.2z"
@@ -21,7 +21,7 @@ export function BrandLogo({ brand, size = H.brandLogo }: { brand: 'kakao' | 'goo
     );
   }
   return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" accessibilityElementsHidden importantForAccessibility="no">
+    <Svg width={size} height={size} viewBox="0 0 24 24" aria-hidden>
       <Path
         fill={brandC.googleBlue}
         d="M23.49 12.27c0-.79-.07-1.54-.19-2.27H12v4.51h6.47c-.29 1.48-1.14 2.73-2.4 3.58v3h3.86c2.26-2.09 3.56-5.17 3.56-8.82z"

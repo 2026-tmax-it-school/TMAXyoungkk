@@ -17,6 +17,7 @@ import { FreeTimeCard } from '../features/live/components/FreeTimeCard';
 import { LiveNowCard } from '../features/live/components/LiveNowCard';
 import { ProposalSheet } from '../features/live/components/ProposalSheet';
 import { SIM_BANNER_TEXT } from '../features/live/components/SimBanner';
+import { DEMO_TOOLS } from '../config';
 import { SimControls } from '../features/live/components/SimControls';
 import '../features/live/photoBridge';
 import { TripEditSheet } from '../features/trip/components/TripEditSheet';
@@ -245,7 +246,10 @@ export default function LiveTripScreen({ navigation, route }: RootScreenProps<'L
   };
 
   // 시작 줄 순서: 오늘이 여행 기간 안이면 기기 위치가, 아니면 시뮬레이터가 맨 위다
-  const startOrder: StartKind[] = tripStatus(trip, now) === 'ongoing' ? ['device', 'manual', 'sim'] : ['sim', 'device', 'manual'];
+  // 시뮬레이터 시작은 시연용이라 EXPO_PUBLIC_DEMO_TOOLS가 켜졌을 때만 보인다(2026-10-22 셀프 QA)
+  const startOrder: StartKind[] = (
+    tripStatus(trip, now) === 'ongoing' ? (['device', 'manual', 'sim'] as const) : (['sim', 'device', 'manual'] as const)
+  ).filter((k) => DEMO_TOOLS || k !== 'sim');
   const startRow = (k: StartKind, first: boolean) => {
     if (k === 'device') {
       return (

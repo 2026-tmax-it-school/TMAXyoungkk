@@ -89,7 +89,7 @@ test('11 지도 탭: 루트 계산 전 후보를 골라도 카드에 이름이 �
   // 카드 글 묶음은 스크린리더가 한 번에 읽고(accessible), 순번 원은 숨긴다(이름에 'n번째'가 있다)
   const card = map.slice(map.indexOf('function PickedCard('), map.indexOf('const styles = StyleSheet.create'));
   assert.match(card, /<View\s+accessible\s+accessibilityLabel=\{planned \? `\$\{planned\.index \+ 1\}번째 스팟/);
-  assert.match(card, /<View style=\{styles\.numDot\} aria-hidden importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>/);
+  assert.match(card, /<View style=\{styles\.numDot\} aria-hidden>/);
 });
 
 test('11 지도 탭: 진행 중이면 한 줄(다음 스팟·예상 시각)이 여행 진행 버튼 자리에 있고 19로 간다. 금지 문구가 없다', () => {

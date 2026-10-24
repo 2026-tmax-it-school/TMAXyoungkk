@@ -67,6 +67,8 @@ export const surfaceC = {
   ink: '#222222',
   /** brand-soft. 빠른 메뉴 원, 빈 상태 원, 좋은 상태 배지 바탕 */
   accentTint: '#EFF6E6',
+  /** 피그마 최종안 라임 배지 면('투표 1위', '시간표에 맞음'). 위 글자는 ink */
+  lime: '#D9F29E',
   /** 카카오 로그인 버튼 면(카카오 디자인 가이드 컨테이너 색) */
   kakao: '#FEE500',
   /** 01 스플래시 이미지(assets/splash.png) 바탕색. 이미지가 화면 비율과 달라도 가장자리가 이어지게 깐다 */
@@ -79,6 +81,8 @@ export const surfaceC = {
    * 반투명이라 글자 대비 검사 목록(TEXT_ON_SURFACE_PAIRS)에는 넣지 않는다. 글자를 올리지 않는다.
    */
   photoScrim: 'rgba(0,0,0,0.4)',
+  /** 앱 둘러보기(스포트라이트)에서 비추는 곳 밖을 덮는 그림자. 글자를 올리지 않는다 */
+  tourDim: 'rgba(0,0,0,0.62)',
 } as const;
 export type SurfaceColorKey = keyof typeof surfaceC;
 
@@ -368,6 +372,8 @@ export const TEXT_ON_SURFACE_PAIRS: { text: TextColorKey; surface: SurfaceColorK
   { text: 'accent', surface: 'accentTint' },
   { text: 'ink', surface: 'accentTint' },
   { text: 'onKakao', surface: 'kakao' },
+  { text: 'ink', surface: 'lime' },
+  { text: 'onInk', surface: 'ink' },
 ];
 
 /**

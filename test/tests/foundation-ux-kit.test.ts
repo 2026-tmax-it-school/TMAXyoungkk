@@ -64,7 +64,8 @@ describe('내비게이션', () => {
         ['More', '프로필'],
       ],
     );
-    assert.equal(activeTabKey('Candidates'), 'Candidates');
+    assert.equal(activeTabKey('Candidates'), 'Home');
+    assert.equal(activeTabKey('Schedule'), 'Home');
     assert.equal(TAB_ITEMS[2].icon, 'chat');
     assert.match(read('src/navigation/RootNavigator.tsx'), /<Tabs\.Screen name="ChatList" component=\{ChatListScreen\} \/>/);
     assert.equal(activeTabKey('Map'), 'Map');
@@ -96,11 +97,14 @@ describe('입력과 시트', () => {
     const field = read('src/ui/Field.tsx');
     assert.match(field, /kind\?: FieldKind/);
     assert.match(field, /inputRef\?: React\.Ref<TextInput>/);
-    assert.match(field, /'숨기기' : '보기'/);
-    // 보기/숨기기 글자 버튼도 누르는 높이 44: 행간 + 위아래 hitSlop
-    assert.match(field, /const REVEAL_SLOP_V = \(H\.touch - T\.btnSm\.lineHeight\) \/ 2;/);
-    assert.match(field, /hitSlop=\{\{ top: REVEAL_SLOP_V, bottom: REVEAL_SLOP_V,/);
-    assert.ok(T.btnSm.lineHeight + 2 * ((H.touch - T.btnSm.lineHeight) / 2) >= 44);
+    // 비밀번호 보기·숨기기는 글자 대신 눈 아이콘(2026-10-24). 스크린리더 이름은 그대로 '보기'/'숨기기'
+    assert.match(field, /<Icon name=\{shown \? 'eyeOff' : 'eye'\}/);
+    assert.match(field, /\$\{label\} 숨기기` : `\$\{label\} 보기`/);
+    assert.doesNotMatch(field, /\{shown \? '숨기기' : '보기'\}/);
+    // 눈 아이콘 버튼도 누르는 영역 44: 아이콘 + 사방 hitSlop
+    assert.match(field, /const REVEAL_SLOP = \(H\.touch - REVEAL_ICON\) \/ 2;/);
+    assert.match(field, /hitSlop=\{\{ top: REVEAL_SLOP, bottom: REVEAL_SLOP, left: REVEAL_SLOP, right: REVEAL_SLOP \}\}/);
+    for (const n of ['eye', 'eyeOff']) assert.match(read('src/ui/Icon.tsx'), new RegExp(`\\n  ${n}: \\[`), n);
     assert.match(field, /<View accessibilityLiveRegion="polite">\s*<Txt v="mtTight" c="warn">/);
     assert.match(field, /scroll\?: boolean/);
   });
@@ -307,7 +311,7 @@ test('시트 열기: 패널이 먼저 올라온 뒤 뒤 배경이 제자리에�
   assert.match(sheet, /animationType="none"/);
   assert.doesNotMatch(sheet, /animationType="slide"/);
   assert.match(sheet, /Animated\.sequence\(\[\s*Animated\.timing\(slide,[\s\S]*?Animated\.timing\(dim,/);
-  assert.match(sheet, /<Animated\.View pointerEvents="none" style=\{\[StyleSheet\.absoluteFill, \{ backgroundColor: DIM, opacity: dim \}\]\} \/>/);
+  assert.match(sheet, /<Animated\.View style=\{\[PE\.none, StyleSheet\.absoluteFill, \{ backgroundColor: DIM, opacity: dim \}\]\} \/>/);
   assert.match(sheet, /if \(finished\) setMounted\(false\)/);
   assert.match(sheet, /transform: \[\{ translateY \}\]/);
 });

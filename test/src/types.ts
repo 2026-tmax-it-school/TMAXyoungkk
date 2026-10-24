@@ -105,6 +105,11 @@ export interface Spot {
    * keep: 꼭 넣는다(고정 취급). drop: 일정에서 뺀다(제외 사유 hostDropped). spot/hostPick만 바꾼다(방장만).
    */
   hostPick?: HostPick;
+  /**
+   * 채팅 속 시간 힌트(2026-10-22). 저장하지 않는다. 계산할 때 planner.plannedSpots가 원문에서 읽어 붙인다
+   * (core/planner/hints). 야경·저녁이면 저녁, 점심이면 점심때, 아침·일출이면 오전에 오게 순서를 고른다.
+   */
+  timeHint?: 'morning' | 'lunch' | 'evening';
 }
 
 export type HostPick = 'keep' | 'drop';

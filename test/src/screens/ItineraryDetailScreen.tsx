@@ -10,7 +10,7 @@ import { useBack } from '../navigation/useBack';
 import { useItineraries } from '../store/itineraries';
 import { useSession } from '../store/session';
 import { useUi } from '../store/ui';
-import { Body, Btn, Card, Chip, Col, ConfirmSheet, Empty, Foot, Header, Notice, Row, Screen, Seg, SP, Txt } from '../ui';
+import { ArtHero, Body, Btn, Card, Chip, Col, ConfirmSheet, Empty, Foot, Header, Notice, Row, Screen, Seg, SP, Txt } from '../ui';
 
 /**
  * 32 공유된 일정 상세(WP2 소유, 2026-10-17). 열면 조회수가 오른다(같은 사람은 하루 한 번).
@@ -86,8 +86,19 @@ export default function ItineraryDetailScreen({ navigation, route }: RootScreenP
 
   return (
     <Screen>
-      <Header back={back} eyebrow={`${item.regionLabel || '국내'} · ${item.authorNickname}`} title={item.title} sub={item.note || undefined} />
-      <Body scroll>
+      <Body scroll flush>
+        {/* 피그마 최종안 14: 지역 그림 머리(뒤로·좋아요 뜬 버튼), 아래 제목 */}
+        <ArtHero
+          regionId={item.regionId}
+          onBack={back}
+          right={{ icon: 'heart', label: item.liked ? '좋아요 취소' : '좋아요', onPress: () => void toggleLike() }}
+        />
+        <View style={{ gap: SP.xl, paddingHorizontal: SP.gutter }}>
+        <Col gap={SP.xs}>
+          <Txt v="eyebrow">{`${item.regionLabel || '국내'} · ${item.authorNickname}`}</Txt>
+          <Txt v="ttl">{item.title}</Txt>
+          {item.note ? <Txt v="mt">{item.note}</Txt> : null}
+        </Col>
         <Row gap={SP.s} wrap>
           <Chip text={`${item.dayCount}일 · ${item.placeCount}곳`} tone="soft" icon="cal" />
           <Chip text={`조회 ${countText(item.views)}`} tone="line" />
@@ -125,6 +136,7 @@ export default function ItineraryDetailScreen({ navigation, route }: RootScreenP
           </>
         ) : null}
         <Txt v="mtTight">다른 사람이 짠 일정이에요. 영업시간과 휴무일은 가기 전에 확인해 주세요.</Txt>
+        </View>
       </Body>
       <Foot>
         <Btn title="이 일정으로 여행방 만들기" onPress={makeTrip} />

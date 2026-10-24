@@ -123,6 +123,8 @@ export interface AuthServiceOptions {
   mailer?: { trySend(mail: { to: string; subject: string; text: string }): Promise<boolean> } | null;
   /** 가입 응답이 메일 결과를 기다리는 시간(ms, 기본 5000). 늦으면 실패로 보지 않는다 */
   mailWaitMs?: number;
+  /** 메일 발송 한도를 건너뛸 이메일 주소들(개발자 본인 주소 전용) */
+  mailExempt?: string[];
 }
 
 export const MAIL_WAIT_MS: number;
@@ -147,6 +149,7 @@ export interface AuthService {
 export function createAuthService(opts?: AuthServiceOptions): AuthService;
 export function isAuthPath(pathname: string): boolean;
 export function devOutboxFromEnv(env: Record<string, string | undefined>): boolean;
+export function mailExemptFromEnv(env: Record<string, string | undefined>): string[];
 
 /** 이 컴퓨터에서 바로 연 요청인지(루프백 + 프록시 머리글 없음). 개발용 보낸편지함 열람 조건 */
 export function isDirectLocal(ip: unknown, headers?: Record<string, unknown>): boolean;

@@ -8,6 +8,7 @@ import { formatBytes, isDateAssigned, isPlaceEstimated, photosOutsideTrip, still
 import { isEnded } from '../core/tripStatus';
 import { dateRange, kstDate, kstHHMM } from '../core/util';
 import { DateSeg, initialDate } from '../features/journal/components/DateSeg';
+import { arrivedNames } from '../features/journal/places';
 import { photoBadge, PhotoTile } from '../features/journal/components/PhotoTile';
 import {
   editDiaryBlock,
@@ -170,6 +171,7 @@ export default function JournalScreen({ navigation, route }: RootScreenProps<'Jo
   const diaryDays = days.filter((d) => (trip.diaries[d]?.blocks.length ?? 0) > 0).length;
   const sub = isAll ? `일기 ${diaryDays}일 · 사진 ${trip.photos.length}장` : `${dayNo}일차 · ${daySegLabel(date)} · 방문 ${visits}곳 · 사진 ${photoCount}장${entry?.sharedAt != null ? ' · 공유함' : ''}`;
   const dayPhotos = isAll ? [] : sorted.filter((p) => kstDate(p.takenAt) === date);
+  const placesToday = isAll ? [] : arrivedNames(trip, date);
   const size = width > 0 ? Math.floor((width - GRID_GAP * 2) / 3) : 0;
   const spotName = (id?: string) => (id ? trip.spots.find((s) => s.id === id)?.name : undefined);
   const memberOf = (id: string) => trip.members.find((m) => m.id === id);
@@ -392,6 +394,17 @@ export default function JournalScreen({ navigation, route }: RootScreenProps<'Jo
           ) : !entry ? (
             busy ? null : (
               <>
+                {/* 피그마 최종안 30: 그날 도착한 곳을 라임 배지로 */}
+                {placesToday.length > 0 ? (
+                  <Col gap={SP.s}>
+                    <Txt v="eyebrow">오늘 간 곳</Txt>
+                    <Row gap={SP.s} wrap>
+                      {placesToday.map((n) => (
+                        <Chip key={n} text={n} tone="lime" />
+                      ))}
+                    </Row>
+                  </Col>
+                ) : null}
                 {dayPhotos.length > 0 && size > 0 ? (
                   <Col gap={SP.m}>
                     <Txt v="eyebrow">{`사진 ${dayPhotos.length}장`}</Txt>

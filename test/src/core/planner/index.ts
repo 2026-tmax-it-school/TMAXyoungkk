@@ -1,5 +1,5 @@
 import type { DayPlan, ExcludedSpot, LatLng, Plan, PlanStep, Spot, Trip } from '../../types';
-import { DAYPART_EVENING, DAYPART_NOON, FAR_ROUNDTRIP_MIN, ROUTE_CALL_BUDGET } from '../constants';
+import { DAYPART_EVENING, DAYPART_NOON, FAR_ROUNDTRIP_MIN, OPEN_DAY_PENALTY_MIN, ROUTE_CALL_BUDGET } from '../constants';
 import type { Clock, RouteProvider } from '../ports';
 import { activeSpots, priorityCompare, proposerCount, votePinned } from '../spotUtil';
 import { activeMembers } from '../group';
@@ -16,6 +16,7 @@ import {
   type DayCtx,
   type DayEval,
 } from './day';
+import { spotTimeHint } from './hints';
 import { createTravelBook, type Pair, type TravelBook } from './travel';
 
 /**
@@ -100,13 +101,18 @@ export function preferredDate(spot: Spot, dates: readonly string[]): string | un
  * - 방장이 뺀 후보(hostPick drop)는 빠진다(buildPlan이 hostDropped 사유로 보인다).
  * - 방장이 넣은 후보(hostPick keep)와 활성 멤버 과반의 표를 받은 후보(votePinned)는 고정 취급(pinned)으로 넘긴다.
  *   저장된 pinned는 바꾸지 않는다. 계산할 때만 고정으로 본다.
+ * - 채팅 원문의 시간 힌트(야경·점심·아침)를 timeHint로 붙인다(hints.spotTimeHint, 2026-10-22).
  */
 export function plannedSpots(trip: Trip): Spot[] {
   const active = activeMembers(trip);
   const out: Spot[] = [];
+  const names = trip.spots.map((s) => s.name);
   for (const s of activeSpots(trip)) {
     if (s.hostPick === 'drop') continue;
-    out.push(!s.pinned && (s.hostPick === 'keep' || votePinned(s, active)) ? { ...s, pinned: true } : s);
+    let x = !s.pinned && (s.hostPick === 'keep' || votePinned(s, active)) ? { ...s, pinned: true } : s;
+    const timeHint = spotTimeHint(s, trip.messages, names);
+    if (timeHint) x = { ...x, timeHint };
+    out.push(x);
   }
   return out;
 }
@@ -165,6 +171,10 @@ export function allocate(
     onPlaced?.(done, total);
   };
 
+  /** 이 날에 끼우는 비용. 빈 날은 여는 비용(OPEN_DAY_PENALTY_MIN)을 더한다(가까운 곳끼리 한 날에 모이게) */
+  const placeCost = (i: number, s: Spot): number =>
+    insertionDelta(ctxs[i], ev.evalDay(i, days[i]).order, s, book) + (days[i].length === 0 ? OPEN_DAY_PENALTY_MIN : 0);
+
   const ordered = [...candidates].sort(priorityCompare);
   const forced = ordered.filter((s) => isForced(s, dates));
   const free = ordered.filter((s) => !isForced(s, dates));
@@ -184,7 +194,7 @@ export function allocate(
     let bestDelta = Infinity;
     for (let i = 0; i < n; i += 1) {
       if (!ev.fits(i, [...days[i], s])) continue;
-      const delta = insertionDelta(ctxs[i], ev.evalDay(i, days[i]).order, s, book);
+      const delta = placeCost(i, s);
       if (delta < bestDelta) {
         bestDelta = delta;
         best = i;
@@ -215,7 +225,7 @@ export function allocate(
     let bestDelta = Infinity;
     for (let i = 0; i < n; i += 1) {
       if (!ev.fits(i, [...days[i], s])) continue;
-      const delta = insertionDelta(ctxs[i], ev.evalDay(i, days[i]).order, s, book);
+      const delta = placeCost(i, s);
       if (delta < bestDelta - 1e-9) {
         bestDelta = delta;
         best = i;
@@ -399,7 +409,7 @@ export async function buildPlan(trip: Trip, deps: PlanDeps): Promise<Plan> {
     if (final) mark = clockNow();
   };
 
-  const ctxs = dayContexts(trip);
+  const ctxs = dayContexts(trip, deps.now);
   const dates = ctxs.map((c) => c.date);
   const book = createTravelBook(deps.routes);
 

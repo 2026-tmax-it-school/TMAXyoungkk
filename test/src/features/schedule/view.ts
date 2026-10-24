@@ -1,6 +1,6 @@
 import type { Adjustment, DayPlan, OpDraft, Plan, PlanDiff, PlanStep, Transport, Trip, Visit } from '../../types';
 import { TRANSPORT_LABEL } from '../../core/constants';
-import { dayShort, humanMin, josa, toHHMM, weekday } from '../../core/util';
+import { dayShort, humanMin, josa, toHHMM, toMin, weekday } from '../../core/util';
 
 /**
  * 08·09·10·12 화면 문구와 행 계산(WP4 소유, 순수). 화면 파일에는 그리기만 남긴다.
@@ -327,4 +327,42 @@ export function deltaChip(delta: number | null): { text: string; tone: 'warn' | 
   if (delta > 0) return { text: `+${humanMin(delta)}`, tone: 'warn' };
   if (delta < 0) return { text: `-${humanMin(-delta)}`, tone: 'ok' };
   return { text: '같음', tone: 'soft' };
+}
+
+/**
+ * 09 시간표 맨 위 '지금' 카드(2026-10-23 피그마 최종안 20). 오늘 그날을 볼 때만 있다(순수).
+ * 머무는 중이면 '불국사에 있어요 · 11:30 출발', 다음 곳으로 가는 중이면 '석굴암으로 이동해요 · 11:50 도착 예정',
+ * 첫 곳 전이면 '첫 곳은 불국사예요 · 10:00 도착 예정'. 마지막 곳을 떠났으면 없음.
+ */
+export function scheduleNow(
+  day: Pick<DayPlan, 'date' | 'items'>,
+  today: string,
+  nowMin: number,
+): { eyebrow: string; title: string; sub: string; spotId: string } | undefined {
+  if (day.date !== today || day.items.length === 0) return undefined;
+  const eyebrow = `지금 · ${toHHMM(nowMin)}`;
+  for (let i = 0; i < day.items.length; i += 1) {
+    const it = day.items[i];
+    const arrive = toMin(it.arrive);
+    const depart = toMin(it.depart);
+    if (nowMin < arrive) {
+      if (i === 0) return { eyebrow, title: `첫 곳은 ${it.name}예요`, sub: `${it.arrive} 도착 예정`, spotId: it.spotId };
+      return {
+        eyebrow,
+        title: `${josa(it.name, '으로/로')} 이동해요`,
+        sub: `${TRANSPORT_LABEL[it.legTransport]} ${humanMin(it.travelMin)} · ${it.arrive} 도착 예정`,
+        spotId: it.spotId,
+      };
+    }
+    if (nowMin < depart) {
+      const next = day.items[i + 1];
+      return {
+        eyebrow,
+        title: `${it.name}에 있어요`,
+        sub: next ? `${it.depart} 출발 · 다음 ${next.name}` : `${it.depart}까지 · 오늘 마지막 곳`,
+        spotId: it.spotId,
+      };
+    }
+  }
+  return undefined;
 }

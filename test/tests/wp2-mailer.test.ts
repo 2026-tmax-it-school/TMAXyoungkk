@@ -122,6 +122,14 @@ test('DATA의 점으로 시작하는 줄은 점을 하나 더 붙인다', () => 
   assert.ok(m.startsWith('From: a@b.com'));
 });
 
+test('머리글에 Date와 Message-ID가 있다(받는 쪽 필터가 의심하지 않게)', () => {
+  const m = buildMessage({ from: 'a@b.com', to: 'c@d.com', subject: 's', text: 't', now: new Date('2026-10-24T01:02:03Z') });
+  assert.match(m, /^Date: Sat, 24 Oct 2026 01:02:03 \+0000$/m);
+  assert.match(m, /^Message-ID: <[0-9a-f]{24}@b\.com>$/m);
+  const other = buildMessage({ from: 'a@b.com', to: 'c@d.com', subject: 's', text: 't' });
+  assert.notEqual(m.match(/^Message-ID: .*$/m)![0], other.match(/^Message-ID: .*$/m)![0]);
+});
+
 test('가입 응답: 메일 서버가 실패하면 mailFailed, 성공·늦음·메일 꺼짐이면 없다(가입 자체는 늘 된다)', async () => {
   const run = async (mailer: { trySend: (m: { to: string; subject: string; text: string }) => Promise<boolean> } | undefined, email: string) => {
     const srv = await startSyncServer({
@@ -155,4 +163,33 @@ test('가입 응답: 메일 서버가 실패하면 mailFailed, 성공·늦음·�
   assert.deepEqual([c.ok, c.mailFailed], [true, undefined]);
   const d = await run(undefined, 'd@example.com');
   assert.deepEqual([d.ok, d.mailFailed], [true, undefined]);
+});
+
+test('메일 한도 예외(MAIL_LIMIT_EXEMPT): 적힌 주소만 하루 5통·기기 10분 한도를 건너뛰고, 다른 주소는 그대로 막힌다', async () => {
+  const { mailExemptFromEnv } = await import('../server/auth.mjs');
+  assert.deepEqual(mailExemptFromEnv({}), []);
+  assert.deepEqual(mailExemptFromEnv({ MAIL_LIMIT_EXEMPT: ' Me@Gmail.com, bad, b@x.kr ' }), ['me@gmail.com', 'b@x.kr']);
+  const srv = await startSyncServer({
+    store: createSyncStore(),
+    purgeEveryMs: 0,
+    proxy: false,
+    auth: { devOutbox: true, passwordCost: 1024, mailExempt: ['me@gmail.com'] },
+  });
+  try {
+    const reset = async (email: string) => {
+      const r = await fetch(`${srv.url}/auth/password/reset`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email }) });
+      return r.status;
+    };
+    // 예외 주소: 한도(주소 5통·기기 10통)를 훌쩍 넘겨도 계속 200
+    const mine: number[] = [];
+    for (let i = 0; i < 14; i += 1) mine.push(await reset('me@gmail.com'));
+    assert.deepEqual([...new Set(mine)], [200]);
+    // 다른 주소: 주소별 하루 5통을 넘으면 429
+    const other: number[] = [];
+    for (let i = 0; i < 7; i += 1) other.push(await reset('someone@gmail.com'));
+    assert.equal(other.slice(0, 5).every((s) => s === 200), true);
+    assert.equal(other[5], 429);
+  } finally {
+    await srv.close();
+  }
 });

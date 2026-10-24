@@ -5,6 +5,8 @@ import { Btn, IconBtn } from './Btn';
 import { KeyboardAvoid, useBottomInset } from './KeyboardAvoid';
 import { Txt } from './Txt';
 import { H, lineC, R, SP, surfaceC } from './tokens';
+import { PE } from './pointer';
+import { SHEET_MAX_W, useLayout } from './responsive';
 
 /** 시트 패널의 최대 높이(창 높이 대비) */
 const SHEET_MAX_RATIO = 0.85;
@@ -41,6 +43,7 @@ export function Sheet({
 }) {
   const bottom = useBottomInset();
   const { height } = useWindowDimensions();
+  const layout = useLayout();
   // 닫는 애니메이션 동안에는 visible이 꺼져도 Modal을 띄워 둔다
   const [mounted, setMounted] = useState(visible);
   const slide = useRef(new Animated.Value(visible ? 1 : 0)).current;
@@ -67,11 +70,15 @@ export function Sheet({
   return (
     <Modal visible={mounted} transparent animationType="none" onRequestClose={onClose}>
       {/* 뒤 배경: 제자리에서 어두워진다(같이 밀려 올라오지 않는다) */}
-      <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: DIM, opacity: dim }]} />
+      <Animated.View style={[PE.none, StyleSheet.absoluteFill, { backgroundColor: DIM, opacity: dim }]} />
       <KeyboardAvoid>
         <Pressable accessibilityLabel="닫기" onPress={onClose} style={{ flex: 1 }} />
         <Animated.View
           style={{
+            // 넓은 화면에서는 가운데 SHEET_MAX_W 폭(ui/responsive). 폰은 화면 폭 그대로
+            width: '100%',
+            maxWidth: layout.mode === 'phone' ? undefined : SHEET_MAX_W,
+            alignSelf: 'center',
             maxHeight: scroll ? Math.round(height * SHEET_MAX_RATIO) : undefined,
             backgroundColor: surfaceC.card,
             borderTopWidth: 1,

@@ -1,7 +1,7 @@
 import type { Place, Spot, Trip } from '../../types';
 import type { Region } from '../ports';
 import { haversineKm, josa } from '../util';
-import { inRegion, isBasePlace } from './index';
+import { findSameSpot, inRegion, isBasePlace } from './index';
 import { spotFromPlace } from './spot';
 
 /**
@@ -33,7 +33,7 @@ export function pickOptions(results: Place[], region: Region, trip: Pick<Trip, '
   for (const place of results) {
     if (seen.has(place.placeId)) continue;
     seen.add(place.placeId);
-    const existing = trip.spots.find((s) => s.placeId === place.placeId);
+    const existing = findSameSpot(trip, place);
     const opt: PickOption = {
       place,
       outside: !inRegion(region, place),

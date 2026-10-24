@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
+import { DEMO_TOOLS } from '../config';
 import { isSeeding, resetDemo, seedScenario, type SeedProgress } from '../demo/tools';
 import type { ScenarioStage } from '../demo/scenarioSteps';
 import { useHomeBack } from '../navigation/useBack';
@@ -15,6 +16,7 @@ import {
   retentionText,
   sessionSummary,
 } from '../features/account/settings';
+import { profileStats } from '../features/account/home';
 import { useActiveTrip } from '../features/trip/useActiveTrip';
 import type { TabScreenProps } from '../navigation/routes';
 import { useNow } from '../services/clock';
@@ -36,11 +38,15 @@ import {
   ListRow,
   ProfileHero,
   ProgressBar,
+  R,
   Row,
   Screen,
   Sheet,
   SP,
+  surfaceC,
+  TourTarget,
   Txt,
+  useTour,
 } from '../ui';
 
 /** 시나리오 채우기 단계. 한 줄 네 칸이면 글자가 줄바꿈되어 두 줄 두 칸으로 둔다 */
@@ -72,7 +78,7 @@ type OpenSheet = 'notify' | 'retention' | null;
  */
 export default function MoreScreen({ navigation }: TabScreenProps<'More'>) {
   const homeBack = useHomeBack();
-  const { trip } = useActiveTrip();
+  const { trip, trips: myTrips } = useActiveTrip();
   const online = useTrips((s) => s.online);
   const setOnline = useTrips((s) => s.setOnline);
   const showToast = useUi((s) => s.showToast);
@@ -127,7 +133,22 @@ export default function MoreScreen({ navigation }: TabScreenProps<'More'>) {
           imageUri={profile.imageUri}
           onPress={() => navigation.navigate('Profile')}
         />
+        {/* 피그마 최종안 07: 여행 · 일기 · 사진 숫자 줄 */}
+        <View style={styles.stats}>
+          {profileStats(myTrips).map((st) => (
+            <View key={st.label} accessible accessibilityLabel={`${st.label} ${st.value}`} style={styles.stat}>
+              <Txt v="ttlSm">{String(st.value)}</Txt>
+              <Txt v="mtTight">{st.label}</Txt>
+            </View>
+          ))}
+        </View>
 
+
+        {/* 앱 둘러보기(2026-10-24): 모든 기능을 순서대로 안내한다 */}
+        <TourTarget id="more-guide">
+          <ListRow first icon="compass" label="앱 둘러보기" sub="화면을 비추며 기능을 하나씩 알려 드려요" onPress={() => useTour.getState().start(0)} />
+          <ListRow icon="book" label="기능 설명 모아 보기" sub="모든 기능을 글로 읽어요" onPress={() => navigation.navigate('Guide')} />
+        </TourTarget>
 
         {/* 설정 */}
         <Col>
@@ -173,7 +194,8 @@ export default function MoreScreen({ navigation }: TabScreenProps<'More'>) {
           )}
         </Col>
 
-        {/* 시연 도구(접힘) */}
+        {/* 시연 도구(접힘). EXPO_PUBLIC_DEMO_TOOLS가 켜졌을 때만(2026-10-22 셀프 QA: 일반 사용자에게 보였다) */}
+        {DEMO_TOOLS ? (
         <Col>
           <DisclosureRow label="시연 도구" open={demoOpen} onToggle={() => setDemoOpen((v) => !v)} />
           {demoOpen ? (
@@ -218,6 +240,7 @@ export default function MoreScreen({ navigation }: TabScreenProps<'More'>) {
             </Col>
           ) : null}
         </Col>
+        ) : null}
       </Body>
 
       <Sheet visible={sheet === 'notify'} title="알림" onClose={() => setSheet(null)}>
@@ -311,6 +334,8 @@ function ProviderStatus() {
 }
 
 const styles = StyleSheet.create({
+  stats: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: SP.xxl, paddingHorizontal: SP.gutter, borderRadius: R.card, backgroundColor: surfaceC.soft },
+  stat: { alignItems: 'center', gap: 2 },
   hero: { paddingTop: SP.l },
   sectionTop: { marginTop: SP.l },
   grow: { flex: 1, minWidth: 0 },

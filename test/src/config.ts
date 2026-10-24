@@ -32,6 +32,9 @@
  *                               자동차는 카카오가 있으면 카카오가 먼저다(OSRM 자동차 시간은 교통 보정 1.3배).
  *                               EXPO_PUBLIC_API_URL이 있으면 그 서버의 /osrm을 거친다(서버가 대신 묻고 24시간 캐시).
  *                               스팟 좌표가 그 서버로 간다. 다른 OSRM 서버 주소를 넣으면 그 서버를 쓴다.
+ *   EXPO_PUBLIC_DEMO_TOOLS      1(또는 true·on·yes)이면 시연용 기능을 보인다: 프로필 탭 '시연 도구', 여행 진행의
+ *                               '시뮬레이터로 재생'·프리셋. 비우면 숨긴다(2026-10-22 셀프 QA: 일반 사용자에게 시연 기능이 보였다).
+ *                               이미 시뮬레이터로 진행 중이면 조작 카드는 그대로 보인다(멈출 수 있게).
  *   EXPO_PUBLIC_GOOGLE_OAUTH_WEB_CLIENT_ID      실제 구글 로그인(OAuth 웹 클라이언트 ID). 공개 값이다(로그인 주소에 그대로 실린다).
  *   EXPO_PUBLIC_GOOGLE_OAUTH_ANDROID_CLIENT_ID  앱 개발 빌드용(선택). 없으면 안드로이드에서 구글 로그인 키가 없다고 안내한다.
  *   EXPO_PUBLIC_GOOGLE_OAUTH_IOS_CLIENT_ID      앱 개발 빌드용(선택).
@@ -150,6 +153,14 @@ export const KAKAO_MAP_JS_KEY = (process.env.EXPO_PUBLIC_KAKAO_MAP_JS_KEY ?? '')
 export const GOOGLE_MAPS_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY ?? '';
 
 export const MAP_PROVIDER = process.env.EXPO_PUBLIC_MAP_PROVIDER ?? '';
+
+/** 켜는 값(대소문자 무시) → true. 그 밖(빈 값 포함)은 false */
+export function parseFlag(raw: string | undefined): boolean {
+  return ['1', 'true', 'on', 'yes'].includes((raw ?? '').trim().toLowerCase());
+}
+
+/** 시연용 기능(시연 도구, 시뮬레이터 시작)을 보일지 */
+export const DEMO_TOOLS = parseFlag(process.env.EXPO_PUBLIC_DEMO_TOOLS);
 
 /** 도로 모양을 받을지와 서버 주소. off(false·0·no·none)면 끈다. http(s) 주소면 그 서버, 비우면 기본(API_URL이 있으면 그 서버의 /osrm, 없으면 공개 서버) */
 export const ROAD_SHAPES = parseRoadShapes(process.env.EXPO_PUBLIC_ROAD_SHAPE);

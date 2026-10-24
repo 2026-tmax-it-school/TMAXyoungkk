@@ -207,14 +207,15 @@ export default function NavigateScreen({ navigation, route }: RootScreenProps<'N
             locate
           >
             <View style={[styles.stepCard, E.float]}>
-              <Card>
+              {/* 피그마 최종안 28: 잉크 면 안내 카드(큰 흰 글씨) */}
+              <Card variant="ink">
                 <Row gap={SP.l}>
                   <View style={styles.stepIcon}>
                     <Icon name="nav" size={19} color="onAccent" stroke={2} />
                   </View>
                   <View style={styles.stepText}>
-                    <Txt v="nm">{current?.text ?? `${leg.toName} 방향`}</Txt>
-                    <Txt v="mtTight" numberOfLines={1}>
+                    <Txt v="ttlSm" c="onInk">{current?.text ?? `${leg.toName} 방향`}</Txt>
+                    <Txt v="mtTight" c="onInk" numberOfLines={1}>
                       {nextStep ? `다음 · ${nextStep.text}` : `${leg.toName} 도착`}
                     </Txt>
                   </View>

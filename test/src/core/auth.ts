@@ -26,6 +26,44 @@ export function isEmailLike(email: string): boolean {
 }
 
 /** FR-101 비밀번호 규칙: 8자 이상, 영문과 숫자 포함. 위반 항목을 돌려준다. */
+/** 흔한 이메일 도메인 오타(2026-10-24: 'gamil.com'으로 가입해 인증 메일이 영영 안 왔다). 틀린 도메인 → 맞는 도메인 */
+const DOMAIN_TYPOS: Record<string, string> = {
+  'gamil.com': 'gmail.com',
+  'gmial.com': 'gmail.com',
+  'gmai.com': 'gmail.com',
+  'gmail.co': 'gmail.com',
+  'gmail.con': 'gmail.com',
+  'gmail.cm': 'gmail.com',
+  'gmil.com': 'gmail.com',
+  'gmaill.com': 'gmail.com',
+  'gnail.com': 'gmail.com',
+  'gmali.com': 'gmail.com',
+  'naver.con': 'naver.com',
+  'naver.co': 'naver.com',
+  'navre.com': 'naver.com',
+  'nvaer.com': 'naver.com',
+  'daum.nt': 'daum.net',
+  'daum.ent': 'daum.net',
+  'duam.net': 'daum.net',
+  'hanmail.nt': 'hanmail.net',
+  'hanmial.net': 'hanmail.net',
+  'nate.co': 'nate.com',
+  'kakao.con': 'kakao.com',
+  'icloud.con': 'icloud.com',
+  'outlook.con': 'outlook.com',
+  'hotmail.con': 'hotmail.com',
+  'yahoo.con': 'yahoo.com',
+};
+
+/** 이메일 도메인이 흔한 오타면 고친 주소를, 아니면 null(순수). 막지는 않고 화면이 '이 주소가 맞나요?'로 물어본다 */
+export function emailTypoSuggestion(email: string): string | null {
+  const e = normalizeEmail(email);
+  const at = e.lastIndexOf('@');
+  if (at <= 0) return null;
+  const fixed = DOMAIN_TYPOS[e.slice(at + 1)];
+  return fixed ? `${e.slice(0, at + 1)}${fixed}` : null;
+}
+
 export function passwordViolations(password: string): string[] {
   const out: string[] = [];
   if (password.length < PASSWORD_MIN_LENGTH) out.push(`${PASSWORD_MIN_LENGTH}자 이상`);

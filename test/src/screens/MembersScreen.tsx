@@ -153,18 +153,16 @@ export default function MembersScreen({ navigation, route }: RootScreenProps<'Me
                   </Pressable>
                 </Row>
                 {/* 링크를 못 여는 사람에게는 코드를 말로 알려 준다. 받는 쪽은 '초대 코드로 합류'에 입력한다 */}
-                <Row gap={SP.l}>
-                  <Txt v="label">초대 코드</Txt>
-                  <View style={{ flex: 1 }}>
-                    <Txt v="nm">
-                      {inv.code}
-                    </Txt>
-                  </View>
-                  <Pressable accessibilityRole="button" accessibilityLabel="초대 코드 복사" hitSlop={HIT} onPress={() => void copyInviteCode(trip)}>
-                    <Txt v="btnSm" c="accent">
-                      복사
-                    </Txt>
-                  </Pressable>
+                {/* 피그마 최종안 15: 연회색 상자 안 큰 초대 코드와 복사 버튼 */}
+                <Row
+                  gap={SP.l}
+                  style={{ paddingVertical: SP.xxl, paddingHorizontal: SP.xxl, borderRadius: R.sheet, backgroundColor: surfaceC.soft }}
+                >
+                  <Col grow gap={2}>
+                    <Txt v="label">초대 코드</Txt>
+                    <Txt v="hero">{inv.code}</Txt>
+                  </Col>
+                  <Btn title="복사" size="sm" variant="ghost" a11yLabel="초대 코드 복사" onPress={() => void copyInviteCode(trip)} />
                 </Row>
                 <Row>
                   <View style={{ flex: 1 }}>
@@ -278,12 +276,17 @@ function MemberLine({
   onMenu: () => void;
 }) {
   return (
-    <Row gap={SP.l}>
-      <Avatar name={row.nickname} index={row.left ? 3 : index} />
+    // 피그마 최종안 16: 큰 아바타, 이름 옆 '방장' 잉크 배지
+    <Row gap={SP.xl}>
+      <Avatar name={row.nickname} index={row.left ? 3 : index} size="lg" />
       <Col gap={4} grow>
-        <Txt v="nm" c={row.left ? 'muted' : 'ink'} numberOfLines={1}>
-          {row.nickname}
-        </Txt>
+        <Row gap={SP.s}>
+          <Txt v="nm" c={row.left ? 'muted' : 'ink'} numberOfLines={1}>
+            {row.nickname}
+          </Txt>
+          {row.role === 'host' ? <Chip text="방장" tone="ink" /> : null}
+          {row.isMe && row.role !== 'host' ? <Chip text="나" tone="ok" /> : null}
+        </Row>
         <Txt v="mtTight" numberOfLines={2}>
           {`${row.sub} · 후보 ${row.candidates}곳`}
         </Txt>

@@ -94,6 +94,8 @@ const FLOAT_ALLOWED = [
   'src/ui/tokens.ts',
   'src/ui/PeekSheet.tsx',
   'src/ui/MapPill.tsx',
+  // 2026-10-23 피그마 최종안: 그림 머리(ArtHero) 위에 뜬 원 버튼. 지도 위 버튼과 같은 처지다
+  'src/ui/Thumb.tsx',
   'src/components/map/**',
   'src/features/chat/map/**',
   'src/features/live/**',

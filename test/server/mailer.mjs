@@ -7,6 +7,7 @@
  */
 import net from 'node:net';
 import tls from 'node:tls';
+import { randomBytes } from 'node:crypto';
 
 export const MAIL_TIMEOUT_MS = 12_000;
 const CRLF = '\r\n';
@@ -28,10 +29,14 @@ const b64 = (s) => Buffer.from(s, 'utf8').toString('base64');
 const wrap76 = (s) => s.replace(/(.{76})/g, `$1${CRLF}`);
 
 /** 한 번 보낸 메일 한 통의 SMTP 대화 본문(DATA 부분) */
-export function buildMessage({ from, to, subject, text }) {
+export function buildMessage({ from, to, subject, text, now = new Date() }) {
+  // Date·Message-ID가 없으면 받는 쪽 필터가 의심한다(2026-10-24). 도메인은 보내는 주소의 것이다
+  const domain = from.slice(from.lastIndexOf('@') + 1).replace(/[^\w.-]/g, '') || 'youngtrip.local';
   return [
     `From: ${from}`,
     `To: ${to}`,
+    `Date: ${now.toUTCString().replace('GMT', '+0000')}`,
+    `Message-ID: <${randomBytes(12).toString('hex')}@${domain}>`,
     `Subject: =?UTF-8?B?${b64(subject)}?=`,
     'MIME-Version: 1.0',
     'Content-Type: text/plain; charset=utf-8',

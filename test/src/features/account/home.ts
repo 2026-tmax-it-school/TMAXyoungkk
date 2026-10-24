@@ -3,7 +3,7 @@ import { sampleTripFor } from '../../data/sampleTrips';
 import { TRANSPORT_LABEL } from '../../core/constants';
 import { activeMembers, tripMode } from '../../core/group';
 import { daysUntil, tripStatus, type TripStatus } from '../../core/tripStatus';
-import { daysBetween, kstDate, weekday } from '../../core/util';
+import { daysBetween, josa, kstDate, kstHHMM, toMin, weekday } from '../../core/util';
 
 /**
  * 03 홈 판정(FR-203, WP1 소유). 순수 함수라 wp1-home 테스트가 node로 부른다.
@@ -93,11 +93,14 @@ export interface TripCardInfo {
   memberNames: string[];
   counts: TripCounts;
   countsText: string;
+  /** 다음 일정 한 줄('다음 · 10/23 09:35 불국사'). 시간표가 없거나 끝난 여행이면 없다 */
+  nextText?: string;
 }
 
 export function tripCardInfo(trip: Trip, plan: Plan | undefined, now: number): TripCardInfo {
   const counts = tripCounts(trip, plan);
-  return {
+  const next = nextStop(trip, plan, now);
+  const info: TripCardInfo = {
     badge: tripBadge(trip, now),
     title: trip.title,
     dateText: `${tripDateText(trip)} · ${TRANSPORT_LABEL[trip.transport]}`,
@@ -105,6 +108,72 @@ export function tripCardInfo(trip: Trip, plan: Plan | undefined, now: number): T
     counts,
     countsText: countsText(counts),
   };
+  if (next) info.nextText = `다음 · ${next.when} ${next.name}`;
+  return info;
+}
+
+/** 카드 lines: 날짜 줄 + (다음 일정이 있으면 그것, 없으면 후보 개수). 2026-10-22: 카드에 정보가 적다는 디자인 검토 */
+export function tripCardLines(info: TripCardInfo): string[] {
+  return [info.dateText, info.nextText ?? info.countsText];
+}
+
+/** 'YYYY-MM-DD' → 'M/D' */
+function md(date: string): string {
+  const [, m, d] = date.split('-');
+  return `${Number(m)}/${Number(d)}`;
+}
+
+/**
+ * 다음 일정(순수). 시간표에서 지금 뒤에 오는 첫 장소. 오늘이면 시각만('13:36'), 다른 날이면 날짜까지('10/23 09:35').
+ * 끝난 여행, 시간표 없음, 남은 장소 없음이면 undefined.
+ */
+export function nextStop(trip: Trip, plan: Plan | undefined, now: number): { date: string; time: string; name: string; when: string } | undefined {
+  if (!plan) return undefined;
+  const today = kstDate(now);
+  if (today > trip.endDate) return undefined;
+  const nowMin = toMin(kstHHMM(now));
+  for (const day of [...plan.days].sort((a, b) => (a.date < b.date ? -1 : 1))) {
+    if (day.date < today) continue;
+    const it = day.items.find((x) => day.date > today || toMin(x.arrive) >= nowMin);
+    if (it) return { date: day.date, time: it.arrive, name: it.name, when: day.date === today ? it.arrive : `${md(day.date)} ${it.arrive}` };
+  }
+  return undefined;
+}
+
+/** 홈 맨 위 '지금 할 일' 카드(2026-10-22 디자인 검토: 오늘 무엇을 할지가 첫 화면에 없었다) */
+export interface NowTask {
+  eyebrow: string;
+  title: string;
+  sub: string;
+  action: string;
+}
+
+export function homeNowTask(trip: Trip, plan: Plan | undefined, now: number): NowTask {
+  const step = tripNextStep(trip, plan, kstDate(now));
+  const next = nextStop(trip, plan, now);
+  const eyebrow = `지금 할 일 · ${trip.title}`;
+  switch (step.key) {
+    case 'records':
+      return { eyebrow, title: '여행은 어땠나요?', sub: '사진과 일기를 하루씩 정리해 보세요', action: step.label };
+    case 'live':
+      return {
+        eyebrow,
+        title: '오늘 여행 중이에요',
+        sub: next && next.date === kstDate(now) ? `다음은 ${next.time} ${next.name}` : '오늘 남은 일정이 없어요',
+        action: step.label,
+      };
+    case 'collect':
+      return { eyebrow, title: '가고 싶은 곳부터 모아요', sub: '채팅에 장소 이름을 쓰면 후보로 담겨요', action: step.label };
+    case 'plan':
+      return { eyebrow, title: `후보 ${trip.spots.length}곳으로 루트를 짜요`, sub: '이동 시간과 영업시간에 맞춰 시간표를 만들어요', action: step.label };
+    default:
+      return {
+        eyebrow,
+        title: `${tripBadge(trip, now).split(' · ')[1] ?? ''} 시간표가 준비됐어요`.trim(),
+        sub: next ? `첫 일정 ${next.when} ${next.name}` : '시간표를 확인해 보세요',
+        action: step.label,
+      };
+  }
 }
 
 /* ---------- 다음 할 일(여행 표지 카드 버튼) ---------- */
@@ -225,7 +294,7 @@ export function homeActions(trip: Trip | undefined, _plan: Plan | undefined, tod
 
 /** 카드 줄 끝에 늘 보이는 '+' 손잡이 폭과 높이(내 여행 카드 CoverTile lg 높이와 같다) */
 export const NEW_TRIP_PEEK = 52;
-export const NEW_TRIP_H = 300;
+export const NEW_TRIP_H = 252;
 /**
  * 당김 저항(고무줄). 손가락이 d만큼 끌면 칸은 d·K/(d+K)만큼만 따라온다. K에 가까워질수록 점점 덜 움직여서
  * 끝으로 갈수록 뻑뻑하다(손가락 100 → 64, 200 → 95, 400 → 124).
@@ -321,3 +390,28 @@ export const HOME_PICKS: HomePick[] = [
   { id: 'jeonju', name: '전주', blurb: '한옥마을과 골목 맛집' },
   { id: 'yeosu', name: '여수', blurb: '밤바다가 예쁜 남해 도시' },
 ];
+
+/**
+ * 홈 머리 인사(2026-10-23 피그마 최종안 09). 고른 방이 예정이면 '민지님, 경주까지 D-3', 진행 중이면 '민지님, 경주 여행 중이에요',
+ * 고른 방이 없거나 끝났으면 '내 여행'. place는 지역 이름(없으면 방 이름)이다.
+ */
+export function homeGreeting(nickname: string | undefined, trip: Trip | undefined, place: string | undefined, now: number): string {
+  if (!trip || !nickname) return '내 여행';
+  const where = place ?? trip.title;
+  const status = tripStatus(trip, now);
+  if (status === 'ongoing') return `${nickname}님, ${where} 여행 중이에요`;
+  if (status === 'upcoming') {
+    const d = daysUntil(trip, now);
+    return d <= 0 ? `${nickname}님, 오늘 ${josa(where, '으로/로')} 떠나요` : `${nickname}님, ${where}까지 D-${d}`;
+  }
+  return '내 여행';
+}
+
+/** 프로필 숫자 줄(2026-10-23 피그마 최종안 07): 내 여행방 수, 일기 쓴 날 수, 올린 사진 수 */
+export function profileStats(trips: readonly Pick<Trip, 'diaries' | 'photos'>[]): { label: string; value: number }[] {
+  return [
+    { label: '여행', value: trips.length },
+    { label: '일기', value: trips.reduce((n, t) => n + Object.keys(t.diaries ?? {}).length, 0) },
+    { label: '사진', value: trips.reduce((n, t) => n + (t.photos?.length ?? 0), 0) },
+  ];
+}

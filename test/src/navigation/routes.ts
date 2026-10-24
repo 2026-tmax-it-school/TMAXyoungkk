@@ -57,6 +57,8 @@ export type RootStackParamList = {
   /** 여행일지: 일기와 사진을 한 화면에서. date가 없으면 기록이 있는 날, 'all'이면 사진 모아 보기 */
   Journal: { tripId: string; date?: string };
   Profile: undefined;
+  /** 앱 둘러보기. step은 처음 보일 단계 id(features/guide/steps) */
+  Guide: { step?: string } | undefined;
   /** 추천 여행지 예시 2박 3일 일정(홈 추천 여행지에서). 누르면 이 일정으로 여행방 만들기로 간다 */
   SampleTrip: { regionId: string };
   /** 일정 공유: 올라온 여행 일정 둘러보기(인기·최신·조회순, 검색). region을 주면 그 지역만 */
@@ -120,16 +122,19 @@ export type TabItemKey = TabRouteName;
  * '시간표 | 후보' 나누기(PlanSwitch)로 오간다. 딥링크 'schedule'·'candidates'도 그대로 연다.
  * 마지막 탭(More)은 숙박 앱처럼 '프로필'로 보이고, 안에 계정·설정·시연 도구를 모은다.
  */
-export const TAB_ITEMS: { key: TabItemKey; label: string; icon: 'home' | 'chat' | 'map' | 'users' | 'user' }[] = [
+export const TAB_ITEMS: { key: TabItemKey; label: string; short?: string; icon: 'home' | 'chat' | 'map' | 'users' | 'user' }[] = [
   { key: 'Home', label: '홈', icon: 'home' },
   { key: 'Map', label: '지도', icon: 'map' },
-  { key: 'ChatList', label: '그룹 채팅', icon: 'chat' },
+  { key: 'ChatList', label: '그룹 채팅', short: '채팅', icon: 'chat' },
   { key: 'Community', label: '커뮤니티', icon: 'users' },
   { key: 'More', label: '프로필', icon: 'user' },
 ];
 
-/** 칸이 없는 탭 라우트를 볼 때 켜 둘 칸 */
-export const TAB_HIGHLIGHT: Partial<Record<TabRouteName, TabRouteName>> = {};
+/**
+ * 칸이 없는 탭 라우트를 볼 때 켜 둘 칸. 후보·시간표는 홈의 여행 카드에서 여는 여행방 화면이라 홈 칸을 켠다
+ * (2026-10-22 셀프 QA: 어느 칸도 켜지지 않아 지금 어디인지 몰랐다).
+ */
+export const TAB_HIGHLIGHT: Partial<Record<TabRouteName, TabRouteName>> = { Candidates: 'Home', Schedule: 'Home' };
 
 /** 지금 탭 라우트에서 켜 둘 하단 탭 칸(순수) */
 export function activeTabKey(route: TabRouteName): TabRouteName {
@@ -177,6 +182,7 @@ export const SCREEN_META: Record<Exclude<RootRouteName, 'Main'> | TabRouteName |
   Members: { no: '14', title: '멤버 초대 · 링크 공유', fr: 'FR-301·303', wp: 'WP2' },
   Login: { no: '15', title: '로그인 · 소셜 로그인', fr: 'FR-102·103', wp: 'WP1' },
   Signup: { no: '16', title: '회원가입 · 이메일 인증', fr: 'FR-101', wp: 'WP1' },
+  Guide: { no: '34', title: '앱 둘러보기 · 기능 안내', fr: '사용 안내', wp: 'WP1' },
   Profile: { no: '17', title: '프로필 · 성향 태그 · 게스트 승격', fr: 'FR-104', wp: 'WP1' },
   More: { no: '18', title: '더보기 · 설정 · 시연 도구', fr: 'FR-204 · 알림 · 세션', wp: 'WP1' },
   LiveTrip: { no: '19', title: '여행 진행 · 시뮬레이터', fr: 'FR-601~604', wp: 'WP5' },

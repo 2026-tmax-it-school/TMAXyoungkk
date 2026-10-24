@@ -70,8 +70,7 @@ function ScrollSeg<K extends string>({
   return (
     <View>
       <View
-        accessibilityElementsHidden
-        importantForAccessibility="no"
+        aria-hidden
         style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 1, backgroundColor: lineC.line }}
       />
       <ScrollView

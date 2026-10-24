@@ -43,7 +43,7 @@ export function Switch({
   );
   if (!onValueChange) {
     return (
-      <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+      <View aria-hidden>
         {track}
       </View>
     );

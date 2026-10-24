@@ -19,6 +19,7 @@ import {
   Btn,
   Card,
   Chip,
+  CodeCells,
   Col,
   Field,
   Foot,
@@ -26,6 +27,8 @@ import {
   Icon,
   lineC,
   Notice,
+  R,
+  RegionArt,
   Row,
   Screen,
   SP,
@@ -180,14 +183,9 @@ export default function InviteAcceptScreen({ navigation, route }: RootScreenProp
       <Screen keyboard>
         <Header back={leave} eyebrow="초대 코드로 합류" title="받은 초대 코드를 적어 주세요" />
         <Body scroll>
-          <Field
-            label="초대 코드"
-            kind="code"
-            value={codeInput}
-            onChangeText={setCodeInput}
-            error={codeError}
-            onSubmitEditing={submitCode}
-          />
+          {/* 피그마 최종안 06: 글자마다 칸. 링크를 붙여 넣어도 코드만 칸에 보인다 */}
+          <CodeCells label="초대 코드" value={codeInput} onChangeText={setCodeInput} error={codeError} onSubmitEditing={submitCode} />
+          <Txt v="mtTight">친구가 보낸 8자리 코드나 초대 링크를 붙여 넣어도 돼요.</Txt>
           {!online ? <Notice tone="warn" icon="alert" text="오프라인이에요. 이 기기에 없는 여행방은 연결된 뒤에 확인할 수 있어요." /> : null}
         </Body>
         <Foot>
@@ -302,6 +300,9 @@ function TripSummary({ trip }: { trip: Trip }) {
   return (
     <Card>
       <Row top>
+        <View style={{ width: 56, height: 56, borderRadius: R.field, overflow: 'hidden' }}>
+          <RegionArt regionId={trip.region} />
+        </View>
         <Col gap={4} grow>
           <Txt v="nmLg">{trip.title}</Txt>
           <Txt v="mt">{`${periodLabel(trip.startDate, trip.endDate)} · ${TRANSPORT_LABEL[trip.transport]}`}</Txt>

@@ -8,7 +8,7 @@ import type { RootScreenProps } from '../navigation/routes';
 import { useBack } from '../navigation/useBack';
 import { getServices } from '../services/registry';
 import { useItineraries } from '../store/itineraries';
-import { Btn, Card, Chip, Col, Empty, Field, Header, IconBtn, Notice, Row, Screen, Seg, SP, Txt } from '../ui';
+import { ArtThumb, Btn, Card, Chip, Col, Empty, Field, Header, IconBtn, Notice, Row, Screen, Seg, SP, Txt } from '../ui';
 
 /** 글자를 멈추고 이만큼 지나면 검색한다(엔터·검색 버튼은 바로) */
 const SEARCH_DEBOUNCE_MS = 400;
@@ -133,8 +133,11 @@ export function ItineraryFeed({
 /** 목록 카드 한 장 */
 export function ItineraryCard({ item, onPress }: { item: SharedItinerary; onPress: () => void }) {
   return (
+    // 피그마 최종안 13: 왼쪽 지역 그림 썸네일, 오른쪽 배지·제목·소개·숫자
     <Card onPress={onPress}>
-      <Col gap={SP.s}>
+      <Row top gap={SP.xl}>
+      <ArtThumb regionId={item.regionId} size={72} />
+      <Col gap={SP.s} grow>
         <Row gap={SP.s} wrap>
           <Chip text={item.regionLabel || '국내'} tone="soft" icon="pin" />
           <Chip text={`${item.dayCount}일 · ${item.placeCount}곳`} tone="line" />
@@ -151,6 +154,7 @@ export function ItineraryCard({ item, onPress }: { item: SharedItinerary; onPres
           {`조회 ${countText(item.views)} · 좋아요 ${countText(item.likes)} · 가져옴 ${countText(item.imports)} · ${item.authorNickname}`}
         </Txt>
       </Col>
+      </Row>
     </Card>
   );
 }

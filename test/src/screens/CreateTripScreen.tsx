@@ -190,7 +190,7 @@ export default function CreateTripScreen({ navigation, route }: RootScreenProps<
               .join(' ')}
           />
         ) : null}
-        <CoverPicker value={cover} onChange={(c) => setCover(c ?? undefined)} />
+        <CoverPicker regionId={regionId || undefined} value={cover} onChange={(c) => setCover(c ?? undefined)} />
         <PickerBox
           label="지역"
           icon="pin"

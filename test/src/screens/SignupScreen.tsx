@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { View } from 'react-native';
 
 import { NICKNAME_MAX, PASSWORD_MIN_LENGTH } from '../core/constants';
-import { isEmailLike, nicknameProblem, normalizeEmail, passwordViolations } from '../core/auth';
+import { emailTypoSuggestion, isEmailLike, nicknameProblem, normalizeEmail, passwordViolations } from '../core/auth';
 import type { MockMail } from '../core/ports';
 import { kstHHMM } from '../core/util';
 import { CodeEntry } from '../features/account/CodeEntry';
@@ -46,6 +46,7 @@ export default function SignupScreen({ navigation, route }: RootScreenProps<'Sig
   const profileNick = useSession((s) => s.profile.nickname);
   const showToast = useUi((s) => s.showToast);
   const [email, setEmail] = useState('');
+  const typo = emailTypoSuggestion(email);
   const [password, setPassword] = useState('');
   const [nickname, setNickname] = useState(session?.kind === 'guest' ? profileNick || session.nickname : '');
   // 로그인에서 '인증 메일 다시 받기'로 온 경우 그 이메일의 코드 입력 단계로 바로 연다
@@ -153,7 +154,7 @@ export default function SignupScreen({ navigation, route }: RootScreenProps<'Sig
       <Screen keyboard>
         {backRow}
         <Body scroll>
-          <AuthTitle title="메일을 확인해 주세요" />
+          <AuthTitle title="메일을 확인해 주세요" step={{ at: 2, total: 2 }} />
           <Col gap={SP.xs}>
             <Txt v="sub">{`${sentTo}로 보냈어요`}</Txt>
             <Txt v="mtTight">몇 분이 지나도 안 오면 스팸함을 확인하거나 아래에서 다시 받아 주세요. 같은 주소로는 하루 5통까지 받을 수 있어요.</Txt>
@@ -199,7 +200,7 @@ export default function SignupScreen({ navigation, route }: RootScreenProps<'Sig
     <Screen keyboard>
       {backRow}
       <Body scroll>
-        <AuthTitle title={promoting ? '게스트를 계정으로' : '회원가입'} />
+        <AuthTitle title={promoting ? '게스트를 계정으로' : '계정 만들기'} step={{ at: 1, total: 2 }} />
         <Txt v="sub">
           {promoting ? '지금 쓰던 여행방과 채팅, 제안을 그대로 두고 계정으로 바꿔요.' : '인증 메일을 확인하면 가입이 끝나요.'}
         </Txt>
@@ -226,6 +227,10 @@ export default function SignupScreen({ navigation, route }: RootScreenProps<'Sig
           keepFocusOnSubmit
           onSubmitEditing={() => passwordRef.current?.focus()}
         />
+        {typo ? (
+          // 도메인 오타면 인증 메일이 엉뚱한 곳으로 간다. 막지 않고 고칠 주소를 한 번 눌러 쓰게 한다
+          <Notice tone="warn" icon="alert" text={`${typo}가 맞나요? 주소가 틀리면 인증 메일을 받을 수 없어요.`} action={{ label: '이 주소로 고치기', onPress: () => setEmail(typo) }} />
+        ) : null}
         <Col gap={6}>
           <Field
             look="auth"
@@ -261,7 +266,8 @@ export default function SignupScreen({ navigation, route }: RootScreenProps<'Sig
           value={nickname}
           onChangeText={setNickname}
           maxLength={NICKNAME_MAX}
-          help="로그인할 때 이메일 대신 쓸 수 있어요. 다른 사람과 겹칠 수 없어요."
+          placeholder="닉네임 (최대 12자)"
+          help="앱에서 보이는 이름이에요. 로그인할 때 이메일 대신 아이디로도 쓸 수 있고, 다른 사람과 겹칠 수 없어요."
           error={nickname.length > 0 && nickProblem ? nickProblem : undefined}
           returnKeyType="go"
           onSubmitEditing={() => {

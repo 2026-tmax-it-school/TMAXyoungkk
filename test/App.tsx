@@ -5,8 +5,10 @@ import { View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { bootstrap } from './src/features/account/bootstrap';
+import { TourOverlay } from './src/features/guide/TourOverlay';
 import { LocationConsentDialog } from './src/features/live/components/LocationConsentDialog';
 import { OfflineBar } from './src/navigation/OfflineBar';
+import { navRef } from './src/navigation/devNav';
 import { linking } from './src/navigation/routes';
 import { navTheme, RootNavigator } from './src/navigation/RootNavigator';
 import { ToastHost } from './src/navigation/ToastHost';
@@ -57,10 +59,12 @@ export default function App() {
           <OfflineBar />
           <View style={{ flex: 1 }}>
             {/* 웹 탭 제목에 라우트 이름(Main, LiveTrip 등)이 그대로 보이지 않게 앱 이름으로 고정한다 */}
-            <NavigationContainer linking={linking} theme={navTheme} documentTitle={{ formatter: () => 'Young Trip' }}>
+            <NavigationContainer ref={navRef} linking={linking} theme={navTheme} documentTitle={{ formatter: () => 'Young Trip' }}>
               <RootNavigator hasSession={hasSession} />
             </NavigationContainer>
           </View>
+          {/* 앱 둘러보기(스포트라이트): 켜졌을 때만 화면 전체를 덮는다 */}
+          <TourOverlay />
         </View>
       ) : (
         <SplashScreen progress={boot.progress} label={boot.label} minMs={SPLASH_MIN_MS} onShown={splashShown.resolve} />

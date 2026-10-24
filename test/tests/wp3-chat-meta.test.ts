@@ -144,7 +144,7 @@ test("extractionCard: 제목은 '후보 N곳에 담았어요', 고를 장소만 
 
 test('ChatScreen: 키보드 대응, Enter로 보내기, 후보 줄, 채팅 설정 시트의 여행방 설정 값·멤버, 후보 보기 버튼 없음', () => {
   const chatSrc = stripComments(read('src/screens/ChatScreen.tsx'));
-  assert.match(chatSrc, /<Screen keyboard>/);
+  assert.match(chatSrc, /<Screen keyboard[ >]/);
   assert.match(chatSrc, /returnKeyType="send"/);
   assert.match(chatSrc, /keepFocusOnSubmit/);
   assert.match(chatSrc, /onSubmitEditing=\{send\}/);

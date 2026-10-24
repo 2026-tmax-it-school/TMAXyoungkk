@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { tripMode } from '../core/group';
 import { humanMin, josa } from '../core/util';
 import { useHomeBack } from '../navigation/useBack';
+import { CandidateCard } from '../features/candidates/components/CandidateCard';
 import { ManualAdd } from '../features/candidates/components/ManualAdd';
 import {
   candidateSections,
@@ -34,6 +35,7 @@ import {
   Row,
   Screen,
   SP,
+  TourTarget,
   Txt,
   WarnCard,
 } from '../ui';
@@ -92,6 +94,7 @@ export default function CandidatesScreen({ navigation, route }: TabScreenProps<'
   const line = summaryLine(view);
   const sections = candidateSections(view, expanded);
   const busy = !!planning?.busy;
+  const spotById = new Map(trip.spots.map((s) => [s.id, s]));
   const open = (spotId: string) => navigation.navigate('SpotDetail', { tripId, spotId });
   const restore = (row: ExcludedRow) => {
     const r = useTrips.getState().dispatch(tripId, { type: 'spot/restore', spotId: row.spotId });
@@ -124,7 +127,9 @@ export default function CandidatesScreen({ navigation, route }: TabScreenProps<'
         ) : null}
 
         {/* 담기: 맨 위 돋보기 검색창이 바로 입력 칸이다(아래에 새 칸을 만들지 않는다, 2026-10-17) */}
-        <ManualAdd key={route.params?.add ? 'add' : 'idle'} trip={trip} focus={route.params?.add === true} />
+        <TourTarget id="cand-search">
+          <ManualAdd key={route.params?.add ? 'add' : 'idle'} trip={trip} focus={route.params?.add === true} />
+        </TourTarget>
         <ListRow first icon="compass" label="성향 태그로 추천 받기" onPress={() => navigation.navigate('Recommend', { tripId })} />
 
         {view.total === 0 ? (
@@ -157,20 +162,22 @@ export default function CandidatesScreen({ navigation, route }: TabScreenProps<'
         {sections.confirmed ? (
           <Col gap={SP.m}>
             <SectionHead section={sections.confirmed} />
-            {sections.confirmed.rows.map((r) => (
-              <Card key={r.spotId} onPress={() => open(r.spotId)}>
-                <Row top>
-                  <Col grow gap={SP.xs}>
-                    <Txt v="nm">{r.name}</Txt>
-                    <Txt v="mtTight">{r.sub}</Txt>
-                  </Col>
-                  <Col gap={SP.xs}>
-                    {r.pinLabel ? <Chip text={r.pinLabel} icon="pinlock" /> : <Chip text={`표 ${r.votes}`} />}
-                    {r.outsideRegion ? <Chip text="목적지 밖" tone="warn" /> : null}
-                  </Col>
-                </Row>
-              </Card>
-            ))}
+            {sections.confirmed.rows.map((r, ri) => {
+              const spot = spotById.get(r.spotId);
+              return spot ? (
+                <CandidateCard
+                  key={r.spotId}
+                  tourLike={ri === 0}
+                  trip={trip}
+                  spot={spot}
+                  name={r.name}
+                  sub={r.sub}
+                  pinLabel={r.pinLabel}
+                  warn={r.outsideRegion ? '목적지 밖' : undefined}
+                  onOpen={() => open(r.spotId)}
+                />
+              ) : null;
+            })}
             {sections.confirmed.hidden > 0 ? (
               <Btn
                 title={unfoldLabel(sections.confirmed.hidden)}
@@ -194,17 +201,20 @@ export default function CandidatesScreen({ navigation, route }: TabScreenProps<'
         {sections.pending ? (
           <Col gap={SP.m}>
             <SectionHead section={sections.pending} />
-            {sections.pending.rows.map((r) => (
-              <Card key={r.spotId} onPress={() => open(r.spotId)}>
-                <Row top>
-                  <Col grow gap={SP.xs}>
-                    <Txt v="nm">{r.name}</Txt>
-                    <Txt v="mtTight">{r.sub}</Txt>
-                  </Col>
-                  {r.pinLabel ? <Chip text={r.pinLabel} icon="pinlock" /> : <Chip text={`표 ${r.votes}`} tone="line" />}
-                </Row>
-              </Card>
-            ))}
+            {sections.pending.rows.map((r) => {
+              const spot = spotById.get(r.spotId);
+              return spot ? (
+                <CandidateCard
+                  key={r.spotId}
+                  trip={trip}
+                  spot={spot}
+                  name={r.name}
+                  sub={r.sub}
+                  pinLabel={r.pinLabel}
+                  onOpen={() => open(r.spotId)}
+                />
+              ) : null;
+            })}
           </Col>
         ) : null}
 

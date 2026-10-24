@@ -98,6 +98,20 @@ async function safePhrases(deps: ExtractDeps, text: string): Promise<ExtractedPh
   }
 }
 
+/** 같은 장소로 볼 거리(km). 예시 일정의 장소와 검색 결과는 placeId가 달라도 같은 이름·가까운 위치면 같은 곳이다 */
+const SAME_SPOT_KM = 0.5;
+
+/**
+ * 이미 후보인 같은 장소(2026-10-24). 같은 placeId, 아니면 같은 이름이고 500m 안.
+ * 예시 일정으로 만든 방에서 채팅에 '전주한옥마을'을 쓰면 새 후보를 또 만들지 않고 제안만 더한다.
+ */
+export function findSameSpot(trip: Pick<Trip, 'spots'>, place: Pick<Place, 'placeId' | 'name' | 'coord'>): Spot | undefined {
+  const byId = trip.spots.find((s) => s.placeId === place.placeId);
+  if (byId) return byId;
+  const key = compactKey(place.name);
+  return trip.spots.find((s) => compactKey(s.name) === key && haversineKm(s.coord, place.coord) <= SAME_SPOT_KM);
+}
+
 async function safeSearch(deps: ExtractDeps, phrase: string): Promise<Place[]> {
   try {
     return await deps.places.search(phrase, deps.region, deps.region.center);
@@ -144,7 +158,7 @@ export async function extractForMessage(
     highlights.push({ start: ph.start, end: ph.end, placeId: place.placeId });
     if (seenPlace.has(place.placeId)) continue;
     seenPlace.add(place.placeId);
-    const existing = trip.spots.find((s) => s.placeId === place.placeId);
+    const existing = findSameSpot(trip, place);
     if (existing) {
       mergedSpotIds.push(existing.id);
       continue;

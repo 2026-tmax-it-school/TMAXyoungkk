@@ -13,7 +13,8 @@ import type {
 import { TRANSPORT_LABEL } from '../constants';
 import { liveLegs } from '../ops/schedule';
 import { proposerCount } from '../spotUtil';
-import { dateRange, toHHMM, toMin, weekday } from '../util';
+import { dateRange, kstDate, kstHHMM, toHHMM, toMin, weekday } from '../util';
+import { hintEarliestMin, hintWindow } from './hints';
 import { bestOrder, cheapestInsertion, type OrderInput } from './order';
 import type { LegTime, Pair, TravelBook } from './travel';
 
@@ -56,11 +57,28 @@ export function resolveBases(trip: Trip): { date: string; base: DayBase | null; 
   });
 }
 
-export function dayContexts(trip: Trip): DayCtx[] {
+/** 오늘 시작을 지금 뒤로 미룰 때 반올림 단위(분) */
+export const TODAY_START_STEP_MIN = 10;
+
+/**
+ * 오늘 일정의 시작 시각(2026-10-22 셀프 QA): 밤 11시 56분에 만든 '오늘 시작' 여행방이 09:00부터 잡혀
+ * 진행 화면이 바로 '15시간 늦음'이었다. 오늘이고 아직 그날 도착 기록이 없으면 지금(10분 단위 올림)보다 이르게 시작하지 않는다.
+ * 여행이 이미 시작된 날(도착 기록 있음)은 그대로 둔다. 지난 일정이 지금 시각으로 밀리면 진행 화면이 어긋난다.
+ */
+export function todayStartMin(trip: Trip, date: string, startMin: number, now: number | undefined): number {
+  if (now === undefined || kstDate(now) !== date) return startMin;
+  if (trip.visits.some((v) => v.date === date && v.status === 'arrived')) return startMin;
+  const nowMin = toMin(kstHHMM(now));
+  const rounded = Math.ceil(nowMin / TODAY_START_STEP_MIN) * TODAY_START_STEP_MIN;
+  return Math.max(startMin, rounded);
+}
+
+/** now를 주면 오늘 시작을 지금 뒤로 미룬다(todayStartMin). 계획을 만든 시점(plan.computedAt)을 넘긴다 */
+export function dayContexts(trip: Trip, now?: number): DayCtx[] {
   return resolveBases(trip).map(({ date, base, source }) => {
     const setting = trip.days.find((d) => d.date === date);
-    const startMin = toMin(setting?.dayStart ?? trip.dayStart);
     const endLimitMin = toMin(setting?.dayEnd ?? trip.dayEnd);
+    const startMin = Math.min(todayStartMin(trip, date, toMin(setting?.dayStart ?? trip.dayStart), now), Math.max(endLimitMin, 0));
     return {
       date,
       base,
@@ -154,25 +172,79 @@ export function orderSpots(
     return { order: idx.map((i) => all[i]), method: 'manual' };
   }
   const { order, method } = bestOrder(orderInput(ctx, spots, book));
-  return { order: repairHours(ctx, order.map((i) => spots[i]), book), method };
+  return { order: repairHints(ctx, repairHours(ctx, order.map((i) => spots[i]), book), book), method };
 }
 
-/** 영업시간 밖에 걸리는 스팟 수(시작 전 도착, 종료 뒤까지 머묾. 휴무일 제외)와 복귀까지 끝나는 시각 */
-function hoursScore(ctx: DayCtx, order: readonly Spot[], book: TravelBook): { late: number; end: number } {
+/**
+ * 시간 힌트로 기다리는 시각(분). 수동 순서 날짜·도착 지정은 쓰지 않는다.
+ * 그날 활동시간 안에 그 시간대가 오지 않으면(예: 17시에 끝나는 날의 야경) 힌트를 버린다. 못 지키는 힌트로 일정을 넘기지 않는다.
+ */
+export function hintWaitMin(ctx: DayCtx, s: Spot, manualDay: boolean): number | undefined {
+  if (manualDay || s.arriveOverride || !s.timeHint) return undefined;
+  const at = hintEarliestMin(s.timeHint);
+  if (at === undefined || at + s.stayMin > ctx.endLimitMin) return undefined;
+  return at;
+}
+
+/**
+ * 영업시간 밖에 걸리는 스팟 수(시작 전 도착, 종료 뒤까지 머묾. 휴무일 제외)와 복귀까지 끝나는 시각.
+ * hint는 시간 힌트 벌점(시간대 밖 도착 분 + 힌트로 기다린 분)이다. evaluateDay와 같은 규칙으로 기다린다.
+ */
+function hoursScore(ctx: DayCtx, order: readonly Spot[], book: TravelBook): { late: number; end: number; hint: number } {
   let t = ctx.startMin;
   let late = 0;
+  let hint = 0;
   let prev: Stop | undefined = ctx.base ? { id: 'base', coord: ctx.base.coord } : undefined;
   for (const s of order) {
     const here: Stop = { id: s.id, coord: s.coord };
     if (prev) t += leg(ctx, book, prev, here).minutes;
     if (s.arriveOverride) t = Math.max(t, toMin(s.arriveOverride));
+    const wait = hintWaitMin(ctx, s, false);
+    if (wait !== undefined && t < wait) {
+      hint += wait - t;
+      t = wait;
+    }
+    if (s.timeHint && !s.arriveOverride) {
+      const w = hintWindow(s.timeHint);
+      if (t > w.to) hint += t - w.to;
+      else if (t < w.from) hint += w.from - t;
+    }
     const open = s.hours && !s.hours.closedWeekdays?.includes(weekday(ctx.date));
     if (open && s.hours && (t < toMin(s.hours.open) || t + s.stayMin > toMin(s.hours.close))) late += 1;
     t += s.stayMin;
     prev = here;
   }
   if (ctx.base && !ctx.noReturn && prev) t += leg(ctx, book, prev, { id: 'base', coord: ctx.base.coord }).minutes;
-  return { late, end: t };
+  return { late, end: t, hint };
+}
+
+/**
+ * 시간 힌트 보정(2026-10-22). 이동 최적 순서에서 힌트 시간대를 어기는 스팟이 있으면(야경 장소가 아침에 오는 등)
+ * 스팟 하나를 다른 자리로 옮겨 본다. 힌트 벌점이 줄고, 영업시간 위반이 늘지 않고, 활동시간 초과가 늘지 않을 때만 바꾼다.
+ */
+export function repairHints(ctx: DayCtx, order: Spot[], book: TravelBook): Spot[] {
+  if (!order.some((s) => s.timeHint)) return order;
+  let cur = order;
+  let score = hoursScore(ctx, cur, book);
+  const overOf = (end: number) => Math.max(0, end - ctx.endLimitMin);
+  for (let guard = 0; guard < order.length * 2 && score.hint > 0; guard += 1) {
+    let best: { order: Spot[]; late: number; end: number; hint: number } | undefined;
+    for (let i = 0; i < cur.length; i += 1) {
+      for (let p = 0; p < cur.length; p += 1) {
+        if (p === i) continue;
+        const cand = [...cur];
+        const [x] = cand.splice(i, 1);
+        cand.splice(p, 0, x);
+        const sc = hoursScore(ctx, cand, book);
+        if (sc.hint >= score.hint || sc.late > score.late || overOf(sc.end) > overOf(score.end)) continue;
+        if (!best || sc.hint < best.hint || (sc.hint === best.hint && sc.end < best.end)) best = { order: cand, ...sc };
+      }
+    }
+    if (!best) break;
+    cur = best.order;
+    score = best;
+  }
+  return cur;
 }
 
 /**
@@ -186,7 +258,7 @@ export function repairHours(ctx: DayCtx, order: Spot[], book: TravelBook): Spot[
   let score = hoursScore(ctx, cur, book);
   const overOf = (end: number) => Math.max(0, end - ctx.endLimitMin);
   for (let guard = 0; guard < order.length && score.late > 0; guard += 1) {
-    let best: { order: Spot[]; late: number; end: number } | undefined;
+    let best: { order: Spot[]; late: number; end: number; hint: number } | undefined;
     for (let i = 1; i < cur.length; i += 1) {
       for (let p = 0; p < i; p += 1) {
         const cand = [...cur];
@@ -199,7 +271,7 @@ export function repairHours(ctx: DayCtx, order: Spot[], book: TravelBook): Spot[
     }
     if (!best) break;
     cur = best.order;
-    score = { late: best.late, end: best.end };
+    score = { late: best.late, end: best.end, hint: best.hint };
   }
   return cur;
 }
@@ -288,6 +360,9 @@ export function evaluateDay(ctx: DayCtx, spots: readonly Spot[], book: TravelBoo
         notices.push({ kind: 'overrideLate', text: `지정한 도착 ${s.arriveOverride}보다 ${arrive - ov}분 늦게 도착합니다` });
       }
     }
+    // 시간 힌트(야경·점심)는 그 시간대 전에 도착하면 기다린다. hoursScore와 같은 규칙
+    const wait = hintWaitMin(ctx, s, method === 'manual');
+    if (wait !== undefined && arrive < wait) arrive = wait;
     const depart = arrive + s.stayMin;
     const hn = hoursNotice(s, ctx.date, arrive, depart);
     if (hn) notices.push(hn);

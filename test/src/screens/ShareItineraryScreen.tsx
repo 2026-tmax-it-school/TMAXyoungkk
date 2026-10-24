@@ -9,7 +9,7 @@ import { useItineraries } from '../store/itineraries';
 import { useSession } from '../store/session';
 import { usePlan, useTripDoc } from '../store/trips';
 import { useUi } from '../store/ui';
-import { Body, Btn, Card, Chip, Col, Empty, Field, Foot, Header, Notice, Row, Screen, SP, Txt } from '../ui';
+import { ArtThumb, Body, Btn, Card, Chip, Col, Empty, Field, Foot, Header, Notice, Row, Screen, SP, Txt } from '../ui';
 
 /**
  * 33 내 일정 공유하기(WP2 소유, 2026-10-17). 여행방의 날짜별 장소(시간표 순서)를 올려 다른 사람이 보고 가져가게 한다.
@@ -66,9 +66,13 @@ export default function ShareItineraryScreen({ navigation, route }: RootScreenPr
       <Header back={back} eyebrow={trip.title} title="내 일정 공유하기" />
       <Body scroll>
         {!account ? <Notice icon="alert" title="로그인이 필요해요" text="계정으로 로그인하면 내 일정을 공유할 수 있어요. 게스트는 다른 사람의 일정을 보고 가져오기만 돼요." /> : null}
-        <Row gap={SP.s} wrap>
-          <Chip text={region?.name ?? '국내'} tone="soft" icon="pin" />
-          <Chip text={`${counts.days}일 · ${counts.places}곳`} tone="line" />
+        {/* 피그마 최종안 13·15 카드 모양: 지역 그림 썸네일 옆에 지역·일수 배지 */}
+        <Row gap={SP.xl}>
+          <ArtThumb regionId={trip.region} size={56} />
+          <Row gap={SP.s} wrap>
+            <Chip text={region?.name ?? '국내'} tone="soft" icon="pin" />
+            <Chip text={`${counts.days}일 · ${counts.places}곳`} tone="line" />
+          </Row>
         </Row>
         <Field label="일정 이름" value={title} onChangeText={(v) => setTitle(v.slice(0, TITLE_MAX))} maxLength={TITLE_MAX} placeholder="예: 경주 한옥 2박 3일" />
         <Field label="소개 (선택)" value={note} onChangeText={(v) => setNote(v.slice(0, NOTE_MAX))} maxLength={NOTE_MAX} multiline placeholder="어떤 여행이었는지 짧게 적어 주세요" />

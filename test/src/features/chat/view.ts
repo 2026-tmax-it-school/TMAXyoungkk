@@ -1,4 +1,6 @@
 import type { ChatHighlight, ChatMessage, Member, Trip } from '../../types';
+import { spotHintLabel } from '../candidates/talk';
+import { placeLabel } from '../schedule/timeline';
 import { proposerCount } from '../../core/spotUtil';
 import { dayShort, kstDate, kstHHMM, weekday } from '../../core/util';
 
@@ -37,6 +39,8 @@ export interface ExtractionRow {
   pinned: boolean;
   /** 이 메시지로 새로 생긴 후보인지, 기존 후보에 제안만 더한 것인지 */
   status: 'created' | 'merged';
+  /** 채팅 속 시간 힌트 라벨(저녁 추천 등, 피그마 최종안 C안). 없으면 없음 */
+  hint?: string;
 }
 
 export interface ExtractionCard {
@@ -60,7 +64,8 @@ export function extractionCard(trip: Trip, msg: ChatMessage): ExtractionCard | u
   const push = (id: string, status: ExtractionRow['status']) => {
     const s = trip.spots.find((x) => x.id === id);
     if (!s || rows.some((r) => r.spotId === id)) return;
-    rows.push({ spotId: id, name: s.name, kind: s.kind ?? s.category, proposerCount: proposerCount(s), pinned: s.pinned, status });
+    const hint = spotHintLabel(trip, s);
+    rows.push({ spotId: id, name: s.name, kind: placeLabel(s.kind, s.category), proposerCount: proposerCount(s), pinned: s.pinned, status, ...(hint ? { hint } : {}) });
   };
   ex.createdSpotIds.forEach((id) => push(id, 'created'));
   ex.mergedSpotIds.forEach((id) => push(id, 'merged'));

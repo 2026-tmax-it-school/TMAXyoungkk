@@ -91,8 +91,8 @@ describe('진입 화면 소스 규칙', () => {
     assert.match(lastField(code(INVITE)), /onSubmitEditing=\{\(\) => \{\s*if \(!joining && who\) void join\(\);/);
     assert.match(lastField(code(LOGIN)), /onSubmitEditing=\{\(\) => void submit\(\)\}/);
     assert.match(lastField(code(SIGNUP)), /onSubmitEditing=\{\(\) => \{\s*if \(canSubmit\) void submit\(\);/);
-    // 초대 코드 칸도 Enter로 확인한다
-    assert.match(fieldBy(code(INVITE), '초대 코드'), /kind="code"[\s\S]*onSubmitEditing=\{submitCode\}/);
+    // 초대 코드 칸(2026-10-23 피그마 최종안: 글자 칸 CodeCells)도 Enter로 확인한다
+    assert.match(code(INVITE), /<CodeCells label="초대 코드"[^>]*onSubmitEditing=\{submitCode\}/);
   });
 
   test('앞 칸은 Enter로 다음 칸에 포커스를 넘긴다(로그인 2칸, 회원가입 3칸)', () => {
@@ -177,7 +177,7 @@ describe('진입 화면 소스 규칙', () => {
   test("회원가입: 입력 단계와 메일 확인 단계로 나누고, 메일 카드에 토큰 조각을 보이지 않는다", () => {
     const src = code(SIGNUP);
     assert.match(src, /if \(sentTo\) \{/);
-    assert.match(src, /<AuthTitle title="메일을 확인해 주세요" \/>/);
+    assert.match(src, /<AuthTitle title="메일을 확인해 주세요"/);
     assert.match(src, /`\$\{sentTo\}로 보냈어요`/);
     assert.match(src, /title="이메일 바꾸기"/);
     assert.match(src, /title="인증 메일 다시 받기" size="sm" variant="quiet"/);

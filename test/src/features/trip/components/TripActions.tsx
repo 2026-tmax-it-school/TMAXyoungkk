@@ -25,7 +25,11 @@ export const QUICK_COLS = 4;
  * - 근접성: 메뉴 묶음과 아래 '시간표 | 후보' 나누기 사이는 화면이 여백을 둔다(같은 묶음끼리만 붙는다).
  * 칸이 4개 이하면 '더 보기' 없이 한 줄이다. 새 여행 만들기는 여기 없다(홈 카드 줄 오른쪽 '+' 칸).
  */
-export function TripActions({ trip }: { trip: Trip }) {
+/**
+ * compact(2026-10-22): 홈 '지금 할 일' 카드 안에 넣을 때. 첫 칸 강조를 끄고(카드의 주 버튼과 초록이 둘로 겹치지 않게)
+ * 좌우 여백을 없앤다(카드가 여백을 준다).
+ */
+export function TripActions({ trip, compact }: { trip: Trip; compact?: boolean }) {
   const navigation = useNavigation();
   const plan = usePlan(trip.id);
   const today = kstDate(useNow());
@@ -64,16 +68,16 @@ export function TripActions({ trip }: { trip: Trip }) {
   const rest = folds ? cells.slice(QUICK_VISIBLE) : [];
   const cell = (c: HomeMenuCell, i: number) => (
     <View key={c.key} style={{ width: `${100 / QUICK_COLS}%` }}>
-      <QuickAction icon={c.icon} label={c.label} disabled={c.disabled} primary={i === 0} onPress={() => open(c)} />
+      <QuickAction icon={c.icon} label={c.label} disabled={c.disabled} primary={!compact && i === 0} onTint={compact} onPress={() => open(c)} />
     </View>
   );
   return (
-    <View style={{ paddingHorizontal: SP.gutter, gap: SP.l }}>
+    <View style={{ paddingHorizontal: compact ? 0 : SP.gutter, gap: SP.l }}>
       <Row gap={0} top>
         {first.map((c, i) => cell(c, i))}
         {folds ? (
           <View style={{ width: `${100 / QUICK_COLS}%` }}>
-            <QuickAction icon={more ? 'up' : 'dots'} label={more ? '접기' : '더 보기'} onPress={() => setMore((v) => !v)} />
+            <QuickAction icon={more ? 'up' : 'dots'} label={more ? '접기' : '더 보기'} onTint={compact} onPress={() => setMore((v) => !v)} />
           </View>
         ) : null}
       </Row>

@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { View } from 'react-native';
+import Svg, { Circle } from 'react-native-svg';
 
 import { activeSpots } from '../core/spotUtil';
 import { dateRange } from '../core/util';
@@ -7,7 +8,7 @@ import { monthDay, planMeta, planningProgress, planningStepRows, stepRowA11y, ty
 import type { RootScreenProps } from '../navigation/routes';
 import { useBack } from '../navigation/useBack';
 import { usePlan, usePlanning, useTripDoc, useTrips } from '../store/trips';
-import { Body, Btn, Card, Col, Foot, Header, Icon, lineC, NotFound, Notice, ProgressBar, Screen, SP, Txt } from '../ui';
+import { Body, Btn, Card, Col, Foot, Header, Icon, lineC, NotFound, Notice, ProgressBar, Row, Screen, SP, surfaceC, Txt } from '../ui';
 
 /**
  * 08 루트 계산 중(FR-505·501, WP4 소유).
@@ -23,21 +24,44 @@ import { Body, Btn, Card, Col, Foot, Header, Icon, lineC, NotFound, Notice, Prog
 
 const ORDINAL = ['첫째', '둘째', '셋째', '넷째', '다섯째', '여섯째', '일곱째', '여덟째', '아홉째', '열째'];
 
+/** 단계 표시(2026-10-23 피그마 최종안 19): 끝난 단계는 주색 원에 흰 체크, 진행 중은 주색 고리, 대기는 선색 고리 */
 function StepMark({ state }: { state: StepRow['state'] }) {
-  if (state === 'done') return <Icon name="check" size={18} color="ok" stroke={2.2} />;
-  // 진행 중은 오른쪽 한 변을 비운 로즈 호(목업 스피너 모양), 대기는 선색 링(글자 아님)
+  const d = 24;
+  if (state === 'done') {
+    return (
+      <View style={{ width: d, height: d, borderRadius: d / 2, backgroundColor: surfaceC.accent, alignItems: 'center', justifyContent: 'center' }}>
+        <Icon name="check" size={14} color="onAccent" stroke={2.6} />
+      </View>
+    );
+  }
   const active = state === 'active';
+  return <View style={{ width: d, height: d, borderRadius: d / 2, borderWidth: active ? 2.5 : 1.5, borderColor: active ? lineC.accent : lineC.line }} />;
+}
+
+/** 진행 고리(피그마 최종안 19). value 0~1만큼 주색 호를 그린다 */
+function ProgressRing({ value }: { value: number }) {
+  const size = 88;
+  const stroke = 8;
+  const r = (size - stroke) / 2;
+  const c = 2 * Math.PI * r;
+  const v = Math.max(0, Math.min(1, value));
   return (
-    <View
-      style={{
-        width: 18,
-        height: 18,
-        borderRadius: 9,
-        borderWidth: 2,
-        borderColor: active ? lineC.accent : lineC.line,
-        borderRightColor: active ? 'transparent' : lineC.line,
-      }}
-    />
+    <View aria-hidden style={{ width: size, height: size }}>
+      <Svg width={size} height={size}>
+        <Circle cx={size / 2} cy={size / 2} r={r} stroke={surfaceC.track} strokeWidth={stroke} fill="none" />
+        <Circle
+          cx={size / 2}
+          cy={size / 2}
+          r={r}
+          stroke={surfaceC.accent}
+          strokeWidth={stroke}
+          fill="none"
+          strokeLinecap="round"
+          strokeDasharray={`${c * v} ${c}`}
+          transform={`rotate(-90 ${size / 2} ${size / 2})`}
+        />
+      </Svg>
+    </View>
   );
 }
 
@@ -102,6 +126,13 @@ export default function PlanningScreen({ navigation, route }: RootScreenProps<'P
         {candidates === 0 ? (
           <Notice icon="pin" text="후보가 없어 배치할 곳이 없어요." />
         ) : null}
+        <Row gap={SP.xxl}>
+          <ProgressRing value={progress} />
+          <Col grow gap={SP.xs}>
+            <Txt v="ttlSm">{finished ? `후보 ${candidates}곳으로 하루를 짰어요` : `후보 ${candidates}곳으로 하루를 짜고 있어요`}</Txt>
+            <Txt v="mt">영업시간 · 이동 거리 · 친구들이 말한 시간을 함께 봐요.</Txt>
+          </Col>
+        </Row>
         <Card>
           <Col gap={SP.l}>
             {rows.map((r) => (

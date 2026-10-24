@@ -3,7 +3,7 @@ import { Image, Pressable, View } from 'react-native';
 
 import type { CommunityPhoto, CommunityPost } from '../../../core/ports';
 import { timeAgo } from '../../../core/community';
-import { Avatar, Card, Col, Icon, R, Row, SP, surfaceC, Txt } from '../../../ui';
+import { Avatar, Col, Icon, lineC, R, Row, SP, surfaceC, Txt } from '../../../ui';
 import { PhotoViewer } from './PhotoViewer';
 
 /**
@@ -99,8 +99,9 @@ export function PostCard({
   const [open, setOpen] = useState(false);
   const [viewing, setViewing] = useState<number | null>(null);
   const long = post.body.length > FOLD_AT;
+  // 피그마 최종안 31: 테두리 카드 대신 줄 사이 구분선으로 나누는 피드
   return (
-    <Card>
+    <View style={{ paddingVertical: SP.xxl, borderBottomWidth: 1, borderBottomColor: lineC.line }}>
       <Col gap={SP.l}>
         <Row gap={SP.m}>
           <Avatar name={post.authorNickname} index={0} />
@@ -176,6 +177,6 @@ export function PostCard({
           onClose={() => setViewing(null)}
         />
       ) : null}
-    </Card>
+    </View>
   );
 }

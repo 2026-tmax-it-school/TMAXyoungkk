@@ -25,7 +25,7 @@ export function LiveNowCard({
 }) {
   if (!arrived && !next && !done) return null;
   return (
-    <Card variant={arrived || done ? 'tinted' : 'default'}>
+    <Card variant={arrived || done ? 'brand' : 'default'}>
       <Col gap={SP.l}>
         {arrived ? (
           <Row gap={SP.l}>

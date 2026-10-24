@@ -422,17 +422,17 @@ test('06 화면: 지금 보는 여행방 줄, 시간표|후보 나누기와 요�
   assert.match(src, /type: 'spot\/restore'[\s\S]*?toast\(/);
 });
 
-test('23 화면: 카드 세 줄, 좁으면 버튼을 아래 줄로, 대체됨 칩 없음, 고르는 중 안내와 잠금, useBack·NotFound, 금지 용어 없음', () => {
+test('23 화면: 썸네일·세 줄·담기 원(2026-10-23 피그마 최종안), 대체됨 칩 없음, 고르는 중 안내와 잠금, useBack·NotFound, 금지 용어 없음', () => {
   const src = stripComments(read('src/screens/RecommendScreen.tsx'));
   assert.doesNotMatch(src, /대체됨/);
-  assert.match(src, /narrow \? null : action/);
-  assert.match(src, /narrow \? <View style=\{styles\.start\}>\{action\}<\/View> : null/);
+  assert.match(src, /<ArtThumb regionId=\{trip\.region\}/);
+  assert.match(src, /<AddCircle added=\{added\} label=\{place\.name\} disabled=\{busy\} onPress=\{\(\) => put\(place\)\} \/>/);
   assert.match(src, /busy \? \(?\s*<Notice icon="clock"/);
   // 상태 안내는 한 자리에 하나만: 고르는 중 > 실패 > 인기 장소로 채움(목록 위에 Notice를 쌓지 않음)
   assert.equal(src.match(/<Notice\b/g)?.length, 3);
   assert.match(src, /busy \? \(\s*<Notice icon="clock"[^]*?\) : failed \? \(\s*<Notice\s+tone="warn"[^]*?\) : result\?\.r\.fallback \? \(\s*<Notice\s+title="인기 장소로 채웠어요"/);
-  assert.match(src, /title="후보에 담기"[^>]*disabled=\{busy\}/);
-  assert.match(src, /후보에 담김/);
+  assert.match(read('src/ui/Thumb.tsx'), /후보에 담김/);
+  assert.match(read('src/ui/Thumb.tsx'), /후보에 담기/);
   assert.match(src, /useBack\('Candidates'\)/);
   assert.match(src, /<NotFound /);
   assert.doesNotMatch(src, /canGoBack|title="오프라인"/);

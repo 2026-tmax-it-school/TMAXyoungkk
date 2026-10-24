@@ -8,7 +8,7 @@ import type { RootScreenProps } from '../navigation/routes';
 import { useBack } from '../navigation/useBack';
 import { useSession } from '../store/session';
 import { useUi } from '../store/ui';
-import { Body, Btn, Card, Choice, Col, ConfirmSheet, Field, Foot, Header, lineC, Notice, Screen, Txt } from '../ui';
+import { Body, Btn, Card, Chip, Choice, Col, ConfirmSheet, Field, Foot, Header, Icon, lineC, Notice, R, Screen, SP, surfaceC, Txt } from '../ui';
 
 type Scenario = 'ok' | 'fail' | 'sameEmail';
 
@@ -108,11 +108,28 @@ export default function SocialConsentScreen({ navigation, route }: RootScreenPro
         <Card>
           <Txt v="label">Young Trip이 받는 정보</Txt>
           {SCOPES.map((s, i) => (
+            // 피그마 최종안 05: 줄마다 체크 원 · 항목 · '필수' 배지(모의 동의라 항목은 모두 필수)
             <View
               key={s}
-              style={{ paddingVertical: 10, borderTopWidth: i === 0 ? 0 : 1, borderTopColor: lineC.line }}
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: SP.xl,
+                paddingVertical: SP.l,
+                borderTopWidth: i === 0 ? 0 : 1,
+                borderTopColor: lineC.line,
+              }}
             >
-              <Txt v="body">{s}</Txt>
+              <View
+                aria-hidden
+                style={{ width: 22, height: 22, borderRadius: R.btnSm, backgroundColor: surfaceC.accent, alignItems: 'center', justifyContent: 'center' }}
+              >
+                <Icon name="check" size={14} color="onAccent" stroke={2.6} />
+              </View>
+              <Txt v="body" style={{ flex: 1 }}>
+                {s}
+              </Txt>
+              <Chip text="필수" tone="ok" />
             </View>
           ))}
         </Card>

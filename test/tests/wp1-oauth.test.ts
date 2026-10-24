@@ -205,7 +205,7 @@ describe('15 로그인 시안 · 디자인 규칙', () => {
 
   test('로그인 화면 순서: 제목 → 아이디 또는 이메일 → 비밀번호 → 로그인 → 회원가입 → 계정찾기 → 구분선 → 카카오 → 구글', () => {
     const src = read('src/screens/LoginScreen.tsx');
-    const marks = ['<AuthTitle title="로그인"', '"아이디 또는 이메일"', 'placeholder="비밀번호"', "'로그인'}", 'title="회원가입"', 'title="계정찾기"', '<Divider', "'카카오 로그인'", "'구글 로그인'"];
+    const marks = ['<AuthTitle title="다시 만나서 반가워요"', '"아이디 또는 이메일"', 'placeholder="비밀번호"', "'로그인'}", 'title="회원가입"', 'title="계정찾기"', '<Divider', "'카카오 로그인'", "'구글 로그인'"];
     const at = marks.map((m) => src.indexOf(m));
     assert.ok(at.every((i) => i >= 0), JSON.stringify(marks.filter((_, i) => at[i] < 0)));
     assert.deepEqual([...at].sort((a, b) => a - b), at);

@@ -7,7 +7,8 @@ import { IconBtn } from './Btn';
 import { Icon } from './Icon';
 import { KeyboardAvoid, useBottomInset } from './KeyboardAvoid';
 import { Txt } from './Txt';
-import { H, SP, surfaceC } from './tokens';
+import { useLayout } from './responsive';
+import { H, lineC, SP, surfaceC } from './tokens';
 
 /**
  * 화면 틀. 앱 바탕은 라이트 고정이다. 390 × 844 기준, 모바일 웹 우선.
@@ -23,10 +24,13 @@ export function Screen({
   children,
   bg = 'bg',
   keyboard,
+  wide,
 }: {
   children?: React.ReactNode;
   bg?: 'bg' | 'card';
   keyboard?: boolean;
+  /** 넓은 화면에서 본문 칸 폭을 이 값으로 넓힌다(홈 컴퓨터 화면의 두 단 배치 등). 폰에서는 쓰지 않는다 */
+  wide?: number;
 }) {
   const [feet, setFeet] = useState(0);
   const register = useCallback(() => {
@@ -34,10 +38,19 @@ export function Screen({
     return () => setFeet((n) => n - 1);
   }, []);
   const foot = useMemo(() => ({ register, hasFoot: feet > 0 }), [register, feet]);
+  const layout = useLayout();
   return (
     <FootCtx.Provider value={foot}>
       <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: surfaceC[bg] }}>
-        {keyboard ? <KeyboardAvoid>{children}</KeyboardAvoid> : children}
+        {/* 넓은 화면(ui/responsive): 본문은 가운데 칸(태블릿 640, 컴퓨터 720)에 둔다. 폰은 화면 폭 그대로 */}
+        <View
+          style={[
+            { flex: 1, width: '100%' },
+            layout.contentMax ? { maxWidth: wide ?? layout.contentMax, alignSelf: 'center', borderWidth: 1, borderTopWidth: 0, borderBottomWidth: 0, borderColor: lineC.line } : null,
+          ]}
+        >
+          {keyboard ? <KeyboardAvoid>{children}</KeyboardAvoid> : children}
+        </View>
       </SafeAreaView>
     </FootCtx.Provider>
   );

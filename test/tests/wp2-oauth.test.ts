@@ -364,6 +364,25 @@ for (const backend of BACKENDS) {
       assert.deepEqual([ps, pw.code], [401, 'badCredentials']);
     });
 
+    test('계정 찾기: 구글로 만든 계정(비밀번호 없음)에도 재설정 메일이 가고, 비밀번호를 정하면 이메일로도 로그인된다', async () => {
+      const [s, g] = await login('google', { sub: 'g-find-1', email: 'findme@gmail.com', verified: true, name: '구글찾기' });
+      assert.equal(s, 200);
+      assert.deepEqual(g.account.providers, ['google']);
+      assert.deepEqual(await call('/auth/password/reset', { email: 'findme@gmail.com' }), [200, { ok: true }]);
+      const mail = (await mails('findme@gmail.com')).find((m) => m.kind === 'reset' && !m.invalidated);
+      assert.ok(mail, '재설정 메일이 쌓인다');
+      assert.equal((await call('/auth/signin', { email: 'findme@gmail.com', password: 'newpass2026' }))[0], 401, '정하기 전에는 이메일 로그인이 안 된다');
+      assert.deepEqual(await call('/auth/password/confirm', { token: mail!.token, password: 'newpass2026' }), [200, { ok: true }]);
+      const [is, inn] = await call('/auth/signin', { email: 'findme@gmail.com', password: 'newpass2026' });
+      assert.equal(is, 200, JSON.stringify(inn));
+      assert.equal(inn.account.accountId, g.account.accountId, '같은 계정이다');
+      assert.deepEqual(inn.account.providers, ['email', 'google']);
+      // 구글 로그인도 그대로 된다
+      const [gs, again] = await login('google', { sub: 'g-find-1', email: 'findme@gmail.com', verified: true, name: '구글찾기' });
+      assert.equal(gs, 200);
+      assert.equal(again.account.accountId, g.account.accountId);
+    });
+
     test('카카오 새 계정: user/me 회원번호가 신원, 인증 안 된 이메일은 믿지 않는다, 닉네임은 겹치면 숫자를 붙인다', async () => {
       await emailAccount('kakaonick@example.com', '바다여행');
       const before = p.calls.length;

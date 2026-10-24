@@ -43,7 +43,7 @@ import { fileURLToPath } from 'node:url';
 
 import { createMailer, mailerOptionsFromEnv } from './mailer.mjs';
 import { AI_DEFAULTS, aiOptionsFromEnv, createAiRecommender, isAiPath } from './ai.mjs';
-import { createAuthService, createMemoryAuthStore, devOutboxFromEnv, isAuthPath } from './auth.mjs';
+import { createAuthService, createMemoryAuthStore, devOutboxFromEnv, isAuthPath, mailExemptFromEnv } from './auth.mjs';
 import { createCommunityService, createMemoryCommunityStore, isCommunityPath, POST_BODY_MAX } from './community.mjs';
 import { BODY_MAX as ITINERARY_BODY_MAX, createItineraryService, createMemoryItineraryStore, isItineraryPath } from './itineraries.mjs';
 import { projectOps } from './db/projection.mjs';
@@ -509,7 +509,7 @@ async function main() {
     store,
     allowReset,
     proxy,
-    auth: { devOutbox, oauth, ...(mailer ? { mailer } : {}) },
+    auth: { devOutbox, oauth, mailExempt: mailExemptFromEnv(process.env), ...(mailer ? { mailer } : {}) },
     ai,
     log: (m) => console.log(m),
   });

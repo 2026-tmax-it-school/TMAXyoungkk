@@ -66,7 +66,7 @@ export function TripEditSheet({ tripId, onClose, onMore }: { tripId?: string; on
         <Txt v="mt">방장만 표지, 이름, 날짜를 바꿀 수 있어요.</Txt>
       ) : (
         <ScrollView style={{ maxHeight: SHEET_BODY_MAX_H }} contentContainerStyle={{ gap: SP.xl }} keyboardShouldPersistTaps="handled">
-          <CoverPicker value={shownCover} onChange={setCover} />
+          <CoverPicker regionId={trip?.region} value={shownCover} onChange={setCover} />
           <Field label="여행방 이름" value={title} onChangeText={setTitle} maxLength={TITLE_MAX} />
           <PickerBox
             label="날짜"

@@ -639,7 +639,7 @@ test('멤버 초대 화면: 링크 아래에 초대 코드와 코드 복사가 �
   const members = read('src/screens/MembersScreen.tsx');
   assert.match(members, /<Txt v="label">초대 코드<\/Txt>/);
   assert.match(members, /\{inv\.code\}/);
-  assert.match(members, /accessibilityLabel="초대 코드 복사"[\s\S]{0,120}copyInviteCode\(trip\)/);
+  assert.match(members, /a11yLabel="초대 코드 복사"[\s\S]{0,120}copyInviteCode\(trip\)/);
   const actions = read('src/features/trip/actions.ts');
   assert.match(actions, /export async function copyInviteCode\(trip: Trip\)/);
   assert.match(actions, /copyText\(code\)/);

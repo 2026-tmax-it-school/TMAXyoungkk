@@ -27,6 +27,8 @@ export type TimelineRow =
       title: string;
       /** 문서 스팟의 카테고리. spots를 넘기지 않았거나 스팟이 없으면 없다 */
       category?: Category;
+      /** 문서 스팟의 세부 분류(카카오 'kind', 예: '절,사찰'). 있으면 보조 줄은 후보 목록과 같은 이 이름을 쓴다(2026-10-22) */
+      place?: string;
       stayMin: number;
       pinned: boolean;
       proposerCount: number;
@@ -47,10 +49,11 @@ export function baseSub(day: DayPlan): string {
 export function timelineRows(
   day: DayPlan,
   visitStatus?: Record<string, Visit['status']>,
-  spots?: readonly Pick<Spot, 'id' | 'category'>[],
+  spots?: readonly (Pick<Spot, 'id' | 'category'> & Partial<Pick<Spot, 'kind'>>)[],
 ): TimelineRow[] {
   const rows: TimelineRow[] = [];
   const categoryOf = new Map((spots ?? []).map((s) => [s.id, s.category]));
+  const kindOf = new Map((spots ?? []).map((s) => [s.id, s.kind]));
   const noBase = day.baseSource === 'firstSpot';
   if (!noBase || day.items.length === 0) {
     rows.push({
@@ -83,6 +86,7 @@ export function timelineRows(
       depart: it.depart,
       title: it.name,
       category: categoryOf.get(it.spotId),
+      place: kindOf.get(it.spotId),
       stayMin: it.stayMin,
       pinned: it.pinned,
       proposerCount: it.proposerCount,
@@ -119,9 +123,20 @@ export function timelineRows(
 }
 
 /** 스팟 카드 보조 줄 '관광지 · 체류 90분'(카테고리가 없으면 '체류 90분') */
-export function spotSubLine(row: { category?: Category; stayMin: number }): string {
+/**
+ * 보조 줄 '절·사찰 · 체류 90분'. 장소 분류는 후보 목록(candidates/rows.kindLabel)과 같은 규칙이다
+ * (2026-10-22 셀프 QA: 후보는 '절,사찰', 시간표는 모두 '관광지'였다).
+ */
+export function spotSubLine(row: { category?: Category; place?: string; stayMin: number }): string {
   const stay = `체류 ${row.stayMin}분`;
-  return row.category ? `${row.category} · ${stay}` : stay;
+  const label = placeLabel(row.place, row.category);
+  return label ? `${label} · ${stay}` : stay;
+}
+
+/** 세부 분류가 있으면 그것('절,사찰' → '절·사찰'), 없으면 카테고리. 둘 다 없으면 빈 문자열 */
+export function placeLabel(kind: string | undefined, category: string | undefined): string {
+  const k = (kind ?? '').trim();
+  return k ? k.replace(/\s*,\s*/g, '·') : (category ?? '');
 }
 
 /** 이동수단 아이콘 이름 */

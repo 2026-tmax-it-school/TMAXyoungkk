@@ -69,7 +69,9 @@ import {
   Sheet,
   SP,
   Txt,
+  TourTarget,
   useBottomInset,
+  useLayout,
 } from '../ui';
 
 /**
@@ -95,6 +97,9 @@ const INERT = { inert: true } as object;
 
 /** 이 폭 이상이면 채팅과 지도를 나란히 둔다 */
 const WIDE_MIN = 900;
+/** 컴퓨터 채팅 전체 너비(피그마 최종안 D2: 채팅방 목록 300 + 채팅·지도) */
+const CHAT_DESK_W = 1180;
+const DESK_ROOMS_W = 300;
 /** 넓은 화면의 채팅 열 폭 */
 const CHAT_COL_W = 400;
 
@@ -124,10 +129,13 @@ export default function ChatScreen({ navigation, route }: RootScreenProps<'Chat'
   const bottom = useBottomInset();
   const { width } = useWindowDimensions();
   const wide = width >= WIDE_MIN;
+  const desk = useLayout().mode === 'desktop';
   const [text, setText] = useState('');
   const [menu, setMenu] = useState(false);
   // 머리의 방 이름(▼)을 누르면 채팅방 목록 시트로 다른 방을 고른다(2026-10-17). 하단 '채팅' 탭은 목록 없이 이 화면으로 바로 온다(2026-10-21)
   const [rooms, setRooms] = useState(false);
+  // 방 고르기 창 검색어(2026-10-22 셀프 QA: 목록 화면을 없애면서 검색칸이 같이 빠졌다). 방이 4개 이상일 때만 칸을 보인다
+  const [roomQuery, setRoomQuery] = useState('');
   const myTrips = useMyTrips();
   // 연 방을 '가장 최근에 쓴 여행방'으로 남긴다. 다음에 하단 '채팅' 탭을 누르면 이 방이 열린다
   useEffect(() => {
@@ -402,7 +410,6 @@ export default function ChatScreen({ navigation, route }: RootScreenProps<'Chat'
           <View
             style={[styles.layer, mapOn ? styles.offstage : null]}
             aria-hidden={mapOn}
-            importantForAccessibility={mapOn ? 'no-hide-descendants' : 'auto'}
             {...(IS_WEB && mapOn ? INERT : null)}
           >
             {chatColumn}
@@ -413,8 +420,8 @@ export default function ChatScreen({ navigation, route }: RootScreenProps<'Chat'
     );
   }
 
-  return (
-    <Screen keyboard>
+  const pane = (
+    <>
       <Header
         size="row"
         back={back}
@@ -425,6 +432,7 @@ export default function ChatScreen({ navigation, route }: RootScreenProps<'Chat'
         titlePressLabel={`${trip.title} 채팅방, 다른 채팅방 고르기`}
         right={
           <>
+            <TourTarget id="chat-seg">
             {!wide ? (
               <Seg<ChatView>
                 compact
@@ -436,6 +444,7 @@ export default function ChatScreen({ navigation, route }: RootScreenProps<'Chat'
                 onChange={switchView}
               />
             ) : null}
+            </TourTarget>
             <IconBtn icon="gear" label="채팅 설정" onPress={() => setMenu(true)} />
           </>
         }
@@ -449,6 +458,30 @@ export default function ChatScreen({ navigation, route }: RootScreenProps<'Chat'
         onShare={() => setShareOpen(true)}
       />
       {body}
+    </>
+  );
+
+  return (
+    <Screen keyboard wide={desk ? CHAT_DESK_W : undefined}>
+      {desk ? (
+        // 피그마 최종안 D2(컴퓨터): 왼쪽 채팅방 목록 단, 오른쪽 지금 방(채팅과 지도)
+        <View style={styles.deskRow}>
+          <View style={styles.deskRooms}>
+            <View style={styles.deskRoomsHead}>
+              <Txt v="ttl">채팅</Txt>
+            </View>
+            <ChatRoomList
+              current={trip.id}
+              onOpen={(id) => {
+                if (id !== trip.id) navigation.replace('Chat', { tripId: id });
+              }}
+            />
+          </View>
+          <View style={styles.deskPane}>{pane}</View>
+        </View>
+      ) : (
+        pane
+      )}
       <Sheet visible={plus} onClose={() => setPlus(false)} title="더하기">
         <View>
           <ListRow
@@ -474,12 +507,27 @@ export default function ChatScreen({ navigation, route }: RootScreenProps<'Chat'
       </Sheet>
       <ShareTripSheet trip={trip} visible={shareOpen} onClose={() => setShareOpen(false)} onManage={() => navigation.navigate('Members', { tripId })} />
 
-      <Sheet visible={rooms} onClose={() => setRooms(false)} title="채팅방" scroll>
+      <Sheet
+        visible={rooms}
+        onClose={() => {
+          setRooms(false);
+          setRoomQuery('');
+        }}
+        title="채팅방"
+        scroll
+      >
+        {myTrips.length >= ROOM_SEARCH_MIN ? (
+          <View style={styles.roomSearch}>
+            <Field label="채팅방 검색" hideLabel size="sm" value={roomQuery} onChangeText={setRoomQuery} placeholder="방 이름이나 여행지로 찾기" />
+          </View>
+        ) : null}
         <ChatRoomList
           inset={false}
+          query={roomQuery}
           current={trip.id}
           onOpen={(id) => {
             setRooms(false);
+            setRoomQuery('');
             if (id === trip.id) return;
             useUi.getState().setCurrentTrip(id);
             navigation.replace('Chat', { tripId: id });
@@ -633,7 +681,15 @@ export default function ChatScreen({ navigation, route }: RootScreenProps<'Chat'
   );
 }
 
+/** 방이 이만큼 이상이면 방 고르기 창에 검색칸을 둔다 */
+const ROOM_SEARCH_MIN = 4;
+
 const styles = StyleSheet.create({
+  deskRow: { flex: 1, flexDirection: 'row' },
+  deskRooms: { width: DESK_ROOMS_W, borderRightWidth: 1, borderRightColor: lineC.line, paddingTop: SP.xl },
+  deskRoomsHead: { paddingHorizontal: SP.gutter, paddingBottom: SP.xl },
+  deskPane: { flex: 1, minWidth: 0 },
+  roomSearch: { marginBottom: SP.l },
   fill: {
     flex: 1,
     minHeight: 0,

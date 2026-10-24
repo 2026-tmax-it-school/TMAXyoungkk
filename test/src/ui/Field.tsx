@@ -8,8 +8,9 @@ import { H, lineC, R, SP, surfaceC, T, textC } from './tokens';
 
 /** 여러 줄 입력의 한 줄 높이(T.field 행간) */
 const LINE_H = T.field.lineHeight;
-/** '보기'/'숨기기' 글자 버튼의 위아래 hitSlop. 글자 행간(btnSm)에 더해 누르는 높이가 44(H.touch)가 되게 한다 */
-const REVEAL_SLOP_V = (H.touch - T.btnSm.lineHeight) / 2;
+/** 비밀번호 보기·숨기기 눈 아이콘 크기와, 누르는 영역이 44(H.touch)가 되게 하는 hitSlop */
+const REVEAL_ICON = 20;
+const REVEAL_SLOP = (H.touch - REVEAL_ICON) / 2;
 
 /**
  * 입력 칸(DS TextField). 높이 56, 라운드 8, line-strong 1px. 라벨은 칸 안의 안내문으로 보인다(선택 상자 PickerBox와 같은 모양,
@@ -25,7 +26,7 @@ const REVEAL_SLOP_V = (H.touch - T.btnSm.lineHeight) / 2;
  * - kind: 칸 종류(이메일·아이디·비밀번호·새 비밀번호·닉네임·초대 코드). 자동완성·자동 고침·키보드·엔터 키 기본값을
  *   ui/fieldKind 표에서 정한다. 직접 준 keyboardType·returnKeyType·autoCapitalize가 이긴다. 비밀번호 종류는 secure가 기본이다.
  * - inputRef: 앞 칸의 엔터(returnKeyType 'next')에서 이 칸으로 포커스를 넘길 때 쓴다.
- * - secure 칸에는 오른쪽에 '보기'/'숨기기' 글자 버튼이 있다. 칸 높이는 그대로이고, 누르는 높이는 hitSlop으로 44(H.touch)다.
+ * - 비밀번호 칸에는 오른쪽에 눈 아이콘 버튼이 있다(보이면 빗금 친 눈, 가려지면 눈). 칸 높이는 그대로이고, 누르는 영역은 hitSlop으로 44(H.touch)다.
  * - 오류 줄은 accessibilityLiveRegion polite로 스크린리더가 바로 읽는다.
  */
 export function Field({
@@ -116,7 +117,8 @@ export function Field({
             ref={inputRef}
             value={value}
             onChangeText={onChangeText}
-            placeholder={inside ? label : placeholder}
+            // 안내 글자를 따로 안 준 로그인·회원가입 칸이 빈 상자로 보이지 않게 라벨을 안내 글자로 쓴다(2026-10-24 닉네임 칸)
+            placeholder={inside || (!hideLabel && !placeholder) ? label : placeholder}
             placeholderTextColor={textC.muted}
             maxLength={maxLength}
             secureTextEntry={masked && !shown}
@@ -146,12 +148,11 @@ export function Field({
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={shown ? `${label} 숨기기` : `${label} 보기`}
+              accessibilityState={{ selected: shown }}
               onPress={() => setShown((v) => !v)}
-              hitSlop={{ top: REVEAL_SLOP_V, bottom: REVEAL_SLOP_V, left: SP.m, right: SP.m }}
+              hitSlop={{ top: REVEAL_SLOP, bottom: REVEAL_SLOP, left: REVEAL_SLOP, right: REVEAL_SLOP }}
             >
-              <Txt v="btnSm" c="muted">
-                {shown ? '숨기기' : '보기'}
-              </Txt>
+              <Icon name={shown ? 'eyeOff' : 'eye'} size={REVEAL_ICON} color="muted" stroke={1.8} />
             </Pressable>
           ) : null}
           {inside && maxLength ? (
@@ -199,6 +200,7 @@ export function Choice<K extends string>({
           <Pressable
             key={o.key}
             accessibilityRole="radio"
+            accessibilityLabel={o.label}
             accessibilityState={{ selected: on, disabled: !!o.disabled }}
             disabled={o.disabled}
             onPress={() => onChange(o.key)}

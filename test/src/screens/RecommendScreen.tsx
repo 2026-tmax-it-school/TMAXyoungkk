@@ -17,7 +17,7 @@ import { getServices } from '../services/registry';
 import { useSession } from '../store/session';
 import { useTripDoc, useTrips } from '../store/trips';
 import { useUi } from '../store/ui';
-import { Body, Btn, Card, Chip, Col, Empty, Header, NotFound, Notice, Screen, SP, Tag, Txt } from '../ui';
+import { AddCircle, ArtThumb, Body, Btn, Card, Chip, Col, Empty, Header, NotFound, Notice, Row, Screen, SP, Tag, Txt } from '../ui';
 
 /** 이 폭보다 좁으면(360 폰) 카드의 '후보에 담기'를 이름 옆이 아니라 카드 맨 아래 줄로 보낸다 */
 const NARROW_W = 380;
@@ -181,26 +181,20 @@ export default function RecommendScreen({ navigation, route }: RootScreenProps<'
         {result
           ? result.r.items.map(({ place, reason }) => {
               const added = trip.spots.some((s) => s.placeId === place.placeId);
-              const action = added ? (
-                <Chip text="후보에 담김" tone="ok" icon="check" />
-              ) : (
-                <Btn title="후보에 담기" size="sm" variant="ghost" icon="plus" disabled={busy} onPress={() => put(place)} />
-              );
+              // 피그마 최종안 12: 왼쪽 그림 썸네일, 가운데 이름·종류·이유, 오른쪽 담기 원(담으면 체크)
               return (
                 <Card key={place.placeId}>
-                  <View style={styles.head}>
-                    <View style={styles.name}>
+                  <Row top gap={SP.xl}>
+                    <ArtThumb regionId={trip.region} size={narrow ? 56 : 64} />
+                    <Col grow gap={SP.xs}>
                       <Txt v="nm" numberOfLines={2}>
                         {place.name}
                       </Txt>
-                    </View>
-                    {narrow ? null : action}
-                  </View>
-                  <Col gap={SP.xs}>
-                    <Txt v="mtTight">{[place.kind ?? place.category, place.address].filter(Boolean).join(' · ')}</Txt>
-                    {reason ? <Txt v="mt">{reason}</Txt> : null}
-                  </Col>
-                  {narrow ? <View style={styles.start}>{action}</View> : null}
+                      <Txt v="mtTight">{[place.kind ?? place.category, place.address].filter(Boolean).join(' · ')}</Txt>
+                      {reason ? <Txt v="mt">{reason}</Txt> : null}
+                    </Col>
+                    <AddCircle added={added} label={place.name} disabled={busy} onPress={() => put(place)} />
+                  </Row>
                 </Card>
               );
             })
@@ -214,8 +208,5 @@ export default function RecommendScreen({ navigation, route }: RootScreenProps<'
 
 const styles = StyleSheet.create({
   tags: { flexDirection: 'row', flexWrap: 'wrap', gap: SP.s },
-  head: { flexDirection: 'row', alignItems: 'flex-start', gap: SP.m },
-  name: { flex: 1, minWidth: 0 },
-  start: { alignSelf: 'flex-start' },
   source: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: SP.s },
 });

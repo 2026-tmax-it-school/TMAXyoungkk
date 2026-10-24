@@ -143,7 +143,7 @@ export default function LoginScreen({ navigation }: RootScreenProps<'Login'>) {
         </Row>
       </View>
       <Body scroll>
-        <AuthTitle title="로그인" />
+        <AuthTitle title="다시 만나서 반가워요" sub="이메일로 로그인하거나 간편 로그인을 쓰세요." />
         {session?.kind === 'guest' ? (
           <Col gap={SP.m}>
             <Notice
@@ -201,7 +201,7 @@ export default function LoginScreen({ navigation }: RootScreenProps<'Login'>) {
         <AuthBtn title="회원가입" variant="outline" onPress={() => navigation.navigate('Signup')} />
         <TextLink title="계정찾기" align="right" onPress={() => setFindOpen(true)} />
 
-        <Divider />
+        <Divider label="또는" />
 
         <AuthBtn
           title={kakao.busy ? '카카오 확인 중' : '카카오 로그인'}

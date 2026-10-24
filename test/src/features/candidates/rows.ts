@@ -1,4 +1,5 @@
 import type { ExcludedSpot, Plan, Spot, TimetableItem, Trip } from '../../types';
+import { placeLabel } from '../schedule/timeline';
 import { DAYPART_EVENING, DAYPART_NOON } from '../../core/constants';
 import { activeMembers } from '../../core/group';
 import { priorityCompare, proposerCount, spotVoterIds, votePinned } from '../../core/spotUtil';
@@ -83,8 +84,9 @@ export function daypart(hhmm: string): '오전' | '오후' | '저녁' {
   return '저녁';
 }
 
+/** 장소 분류 이름. 시간표 보조 줄(schedule/timeline.placeLabel)과 같은 규칙('절,사찰' → '절·사찰') */
 export function kindLabel(spot: Pick<Spot, 'kind' | 'category'>): string {
-  return spot.kind ?? spot.category;
+  return placeLabel(spot.kind, spot.category);
 }
 
 /** spotId → 배치된 날짜와 시간표 항목 */

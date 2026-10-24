@@ -226,7 +226,7 @@ describe('여행방 빠른 메뉴(후보·시간표 화면 위)', () => {
     const actions = readFileSync('src/features/trip/components/TripActions.tsx', 'utf8');
     assert.match(actions, /export const QUICK_VISIBLE = 3;/);
     assert.match(actions, /export const QUICK_COLS = 4;/);
-    assert.match(actions, /primary=\{i === 0\}/);
+    assert.match(actions, /primary=\{!compact && i === 0\}/, '첫 칸 강조(홈 카드 안 compact에서는 끔)');
     assert.match(actions, /label=\{more \? '접기' : '더 보기'\}/);
     assert.match(actions, /const folds = cells\.length > QUICK_COLS;/);
     assert.match(readFileSync('src/screens/CandidatesScreen.tsx', 'utf8'), /<TripActions trip=\{trip\} \/>/);

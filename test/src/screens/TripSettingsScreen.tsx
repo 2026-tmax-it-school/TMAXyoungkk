@@ -159,7 +159,7 @@ export default function TripSettingsScreen({ navigation, route }: RootScreenProp
         <Txt v="eyebrow">기본 정보</Txt>
         <Card>
           {host ? (
-            <CoverPicker value={trip.cover} onChange={(cover) => dispatch(trip.id, { type: 'trip/update', patch: { cover } })} />
+            <CoverPicker regionId={trip.region} value={trip.cover} onChange={(cover) => dispatch(trip.id, { type: 'trip/update', patch: { cover } })} />
           ) : null}
           {host ? (
             <Field

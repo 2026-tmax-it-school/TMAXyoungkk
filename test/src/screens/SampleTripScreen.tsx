@@ -8,7 +8,7 @@ import { sampleTripFor } from '../data/sampleTrips';
 import { MapCanvas } from '../components/map/MapCanvas';
 import type { RootScreenProps } from '../navigation/routes';
 import { useBack } from '../navigation/useBack';
-import { Body, Btn, Card, Chip, Col, Empty, Foot, Header, Row, Screen, Seg, SP, Txt } from '../ui';
+import { ArtHero, Body, Btn, Card, Chip, Col, Empty, Foot, Header, Row, Screen, Seg, SP, Txt } from '../ui';
 
 /**
  * 30 추천 여행지 · 예시 일정(WP2 소유, 2026-10-17). 홈 '추천 여행지'를 누르면 그 지역의 예시 2박 3일을 보여 준다.
@@ -51,8 +51,15 @@ export default function SampleTripScreen({ navigation, route }: RootScreenProps<
 
   return (
     <Screen>
-      <Header back={back} eyebrow={`${region?.name ?? '추천 여행 일정'} · 예시 일정`} title={sample.title} sub={sample.blurb} />
-      <Body scroll>
+      <Body scroll flush>
+        {/* 피그마 최종안 11·14: 위에 지역 그림 머리, 아래 제목과 소개 */}
+        <ArtHero regionId={regionId} onBack={back} />
+        <View style={{ gap: SP.xxl, paddingHorizontal: SP.gutter }}>
+        <Col gap={SP.xs}>
+          <Txt v="eyebrow">{`${region?.name ?? '추천 여행 일정'} · 예시 일정`}</Txt>
+          <Txt v="ttl">{sample.title}</Txt>
+          <Txt v="mt">{sample.blurb}</Txt>
+        </Col>
         <Row gap={SP.s} wrap>
           <Chip text="예시 일정" tone="soft" icon="cal" />
           <Chip text={`장소 ${sampleSpotCount(sample)}곳`} tone="line" />
@@ -94,6 +101,7 @@ export default function SampleTripScreen({ navigation, route }: RootScreenProps<
         <Txt v="mtTight">
           예시 일정은 참고용이에요. 영업시간과 휴무일은 가기 전에 확인해 주세요. 출발·복귀 기점은 {sample.base.name}이에요.
         </Txt>
+        </View>
       </Body>
       <Foot>
         <Btn title="이 일정으로 여행방 만들기" onPress={() => navigation.navigate('CreateTrip', { regionId, sample: true })} />

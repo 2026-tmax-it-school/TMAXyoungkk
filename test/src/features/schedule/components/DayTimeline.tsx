@@ -72,12 +72,13 @@ export function OrderBadge({ n, dim }: { n: number; dim?: boolean }) {
         height: BADGE,
         paddingHorizontal: SP.xs,
         borderRadius: R.chip,
-        backgroundColor: dim ? surfaceC.off : surfaceC.soft,
+        // 피그마 최종안 20·21: 지도 핀과 같은 잉크 원에 흰 숫자(지나친 곳은 연회색)
+        backgroundColor: dim ? surfaceC.off : surfaceC.ink,
         alignItems: 'center',
         justifyContent: 'center',
       }}
     >
-      <Txt v="chip" c={dim ? 'muted' : 'accentStrong'}>
+      <Txt v="chip" c={dim ? 'muted' : 'onInk'}>
         {n}
       </Txt>
     </View>
@@ -111,6 +112,16 @@ export function DayTimeline({
   onPressLeg?: (legIndex: number) => void;
 }) {
   const rows = timelineRows(day, visitStatus, trip.spots);
+  // 같은 대체 안내(자동차 경로가 없어 도보로 계산 등)는 하루에 한 번만 보인다(2026-10-24: 카드마다 반복돼 시끄러웠다)
+  const seenNotice = new Set<string>();
+  const freshNotices = <T extends { kind: string; text: string }>(list: T[]): T[] =>
+    list.filter((n) => {
+      if (n.kind !== 'fallbackTransport' && n.kind !== 'noRoute') return true;
+      const key = `${n.kind}:${n.text}`;
+      if (seenNotice.has(key)) return false;
+      seenNotice.add(key);
+      return true;
+    });
   const renderRow = (r: TimelineRow, i: number) => {
     const first = i === 0;
     const last = i === rows.length - 1;
@@ -145,6 +156,7 @@ export function DayTimeline({
       );
     }
     const hollow = r.kind !== 'spot';
+    const noticesNow = r.kind === 'spot' ? freshNotices(r.notices) : [];
     const content =
       r.kind === 'spot' ? (
         <Card
@@ -169,11 +181,11 @@ export function DayTimeline({
               </Col>
             ) : null}
           </Row>
-          {r.notices.length || r.carryOver || r.manual ? (
+          {noticesNow.length || r.carryOver || r.manual ? (
             <Row gap={SP.s} wrap>
               {r.manual ? <Chip text="직접 편집" tone="line" /> : null}
               {r.carryOver ? <Chip text="다음 날 이월 제안" tone="warn" /> : null}
-              {r.notices.map((n) => (
+              {noticesNow.map((n) => (
                 <Chip key={n.kind + n.text} text={n.text} tone={NOTICE_TONE[n.kind]} />
               ))}
             </Row>

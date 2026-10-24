@@ -75,6 +75,7 @@ export function ExtractionCardView({
                 <Txt v="btnSm">{r.name}</Txt>
                 <Txt v="mtTight">{`· ${r.kind}`}</Txt>
               </View>
+              {r.hint ? <Chip text={r.hint} tone="warn" icon="clock" /> : null}
               {rowChip(r)}
               <Icon name="right" size={16} color="muted" stroke={2} />
             </Row>

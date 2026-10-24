@@ -32,6 +32,13 @@ export const DAYPART_EVENING = '18:00';
 /** 기점 왕복이 이 값 이상이면 제외 사유 문장이 tooFar가 된다. 제외 여부는 바꾸지 않는다. */
 export const FAR_ROUNDTRIP_MIN = 60;
 
+/**
+ * FR-505 근접도 배치에서 빈 날을 새로 여는 비용(분). 2026-10-22 셀프 QA: 가까운 두 곳이 서로 다른 날로 나뉘고
+ * 하루가 10:30에 끝났다(빈 날은 끼워 넣는 비용이 기점 왕복뿐이라, 기점이 없으면 0이라 늘 이겼다).
+ * 이미 일정이 있는 날에 끼우는 비용이 이 값만큼 더 커야 빈 날로 간다. 수용량 판정은 바꾸지 않는다.
+ */
+export const OPEN_DAY_PENALTY_MIN = 60;
+
 /** FR-501: 하루 스팟이 이 수 이하면 정확해(Held-Karp), 넘으면 근사 정렬. */
 export const EXACT_ORDER_MAX = 10;
 

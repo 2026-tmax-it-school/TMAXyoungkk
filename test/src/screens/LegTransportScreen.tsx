@@ -24,7 +24,7 @@ import { appClock } from '../services/clock';
 import { getServices } from '../services/registry';
 import { usePlan, useTripDoc, useTrips } from '../store/trips';
 import { useUi } from '../store/ui';
-import { Body, Btn, Card, Chip, Col, Empty, Foot, Header, Icon, IconBtn, lineC, Notice, Row, Screen, SP, Txt } from '../ui';
+import { Body, Btn, Card, Chip, Col, Empty, Foot, H, Header, Icon, IconBtn, lineC, Notice, R, Row, Screen, SP, surfaceC, Txt } from '../ui';
 
 /**
  * 12 이동수단 · 경로 비교(FR-504, WP4 소유). 목업 12.
@@ -186,9 +186,21 @@ export default function LegTransportScreen({ navigation, route }: RootScreenProp
     // 시간이 추정일 때만 적는다. 선이 실제 길이면 거리는 실제라 '시간 추정', 직선이면 '직선거리 추정'(길찾기 칩과 같은 말)
     const sub = [km, o.leg.estimated ? (o.leg.road ? '시간 추정' : '직선거리 추정') : undefined].filter(Boolean).join(' · ');
     return (
-      <Card key={o.transport} variant={on ? 'selected' : 'default'} onPress={() => setPicked(o.transport)}>
+      // 피그마 최종안 27: 고른 수단은 연두 면 카드, 수단 아이콘은 원 안에
+      <Card key={o.transport} variant={on ? 'brand' : 'default'} onPress={() => setPicked(o.transport)}>
         <Row top gap={SP.l}>
-          <Icon name={transportIcon(o.transport)} size={22} color={on ? 'accent' : 'muted'} />
+          <View
+            style={{
+              width: H.iconBtn,
+              height: H.iconBtn,
+              borderRadius: R.iconBtn,
+              alignItems: 'center',
+              justifyContent: 'center',
+              backgroundColor: on ? surfaceC.card : surfaceC.soft,
+            }}
+          >
+            <Icon name={transportIcon(o.transport)} size={20} color={on ? 'accent' : 'ink'} />
+          </View>
           <Col grow gap={SP.xs}>
             <Row gap={SP.s}>
               <Txt v="nm">{TRANSPORT_LABEL[o.transport]}</Txt>
