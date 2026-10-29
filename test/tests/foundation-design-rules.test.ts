@@ -240,6 +240,9 @@ const VOTE_WORD_ALLOWED = [
   'src/features/candidates/rows.ts',
   'src/features/candidates/detail.ts',
   'src/screens/SpotDetailScreen.tsx',
+  // 2026-10-24: 후보 카드의 좋아요를 이름 투표로 바꿨다(버튼 '투표 N', 누가 투표했는지 이름). 앱 둘러보기도 같은 말을 쓴다
+  'src/features/candidates/components/CandidateCard.tsx',
+  'src/features/guide/tour.ts',
 ];
 
 test('용어를 바꾸지 않는다(확정 장소·제외 장소·투표·출발지 금지, 투표는 채팅방 지도 폴더만 예외)', () => {
@@ -249,8 +252,8 @@ test('용어를 바꾸지 않는다(확정 장소·제외 장소·투표·출발
   ]);
 });
 
-test("'투표' 예외는 채팅방 지도 폴더와 투표 결과를 보이는 후보 행·스팟 상세뿐이고, 지도 위 그림자 허용 목록에 공용 시트·알약이 있다", () => {
-  assert.equal(VOTE_WORD_ALLOWED.length, 4);
+test("'투표' 예외는 채팅방 지도 폴더와 투표 결과를 보이는 후보 행·후보 카드·스팟 상세·앱 둘러보기뿐이고, 지도 위 그림자 허용 목록에 공용 시트·알약이 있다", () => {
+  assert.equal(VOTE_WORD_ALLOWED.length, 6);
   for (const g of ['src/ui/PeekSheet.tsx', 'src/ui/MapPill.tsx', 'src/features/chat/map/**']) assert.ok(FLOAT_ALLOWED.includes(g), g);
   assert.ok(matches('src/features/chat/map/VoteToggle.tsx', VOTE_WORD_ALLOWED));
   assert.ok(!matches('src/features/chat/components/CandidateBar.tsx', VOTE_WORD_ALLOWED));

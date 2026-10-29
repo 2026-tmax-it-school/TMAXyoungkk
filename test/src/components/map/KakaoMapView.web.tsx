@@ -119,6 +119,8 @@ function createNode(it: OverlayItem, press: () => void): HTMLElement {
   el.innerHTML = html;
   el.style.width = `${size}px`;
   el.style.height = `${size}px`;
+  // 물방울 핀: 투명한 칸은 지도 누름을 막지 않는다(몸통·이름표만 누른다)
+  if (html.includes('data-drop')) el.style.pointerEvents = 'none';
   if (it.action) {
     el.setAttribute('role', 'button');
     el.setAttribute('aria-label', it.name ?? '');

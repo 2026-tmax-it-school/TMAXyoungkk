@@ -68,6 +68,18 @@ export function buildOverlayItems(d: LayerData, pointOf: (m: MapMarkerInput, ind
       out.push({ key: `m:${m.id}`, kind: 'base', spec: { kind: 'base', compact: d.compact }, coord: m.coord, name: pinName(m) });
       return;
     }
+    if (m.kind === 'drop') {
+      // 찍은 새 핀은 묶지 않는다(뾰족한 끝이 찍은 자리다)
+      out.push({
+        key: `m:${m.id}`,
+        kind: 'pin',
+        spec: { kind: 'drop', name: m.title, compact: d.compact },
+        coord: m.coord,
+        name: pinName(m),
+        action: d.pressable ? { type: 'marker', id: m.id } : undefined,
+      });
+      return;
+    }
     const p = pointOf(m, i);
     if (p) rest.push({ ...m, ...p });
   });

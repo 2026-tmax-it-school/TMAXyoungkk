@@ -157,7 +157,7 @@ function setItems(items){
     if(o&&o.sig!==it.sig){o.ov.setMap(null);delete ov[it.key];o=null;}
     if(o){o.ov.setPosition(ll(it.at));return;}
     var el=document.createElement('div');
-    el.innerHTML=it.html;el.style.width=it.size+'px';el.style.height=it.size+'px';
+    el.innerHTML=it.html;el.style.width=it.size+'px';el.style.height=it.size+'px';if(it.html.indexOf('data-drop')>=0)el.style.pointerEvents='none';
     if(it.press){
       el.setAttribute('role','button');el.setAttribute('aria-label',it.name||'');el.tabIndex=0;
       el.addEventListener('click',function(e){e.stopPropagation();out({t:'tap',key:it.key});});

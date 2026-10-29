@@ -926,9 +926,16 @@ describe('서버 저장과 소스 규칙', () => {
     assert.match(chips, /hitSlop=\{\{ top: SLOP, bottom: SLOP \}\}/, '지역 칩은 누르는 높이 44');
   });
 
-  test("'투표'는 src/features/chat/map과 투표 결과를 보이는 후보 행·스팟 상세에만 있다", () => {
+  test("'투표'는 src/features/chat/map과 투표 결과를 보이는 후보 행·후보 카드·스팟 상세·앱 둘러보기에만 있다", () => {
     // 2026-10-17: 표가 제외 순서와 자동 고정을 정하면서 후보 행('투표로 고정')과 스팟 상세 투표 카드도 쓴다
-    const shows = ['src/features/candidates/rows.ts', 'src/features/candidates/detail.ts', 'src/screens/SpotDetailScreen.tsx'];
+    // 2026-10-24: 후보 카드의 좋아요를 이름 투표로 바꿨다. 앱 둘러보기도 같은 말을 쓴다
+    const shows = [
+      'src/features/candidates/rows.ts',
+      'src/features/candidates/detail.ts',
+      'src/screens/SpotDetailScreen.tsx',
+      'src/features/candidates/components/CandidateCard.tsx',
+      'src/features/guide/tour.ts',
+    ];
     const outside = listFiles('src', ['.ts', '.tsx']).filter((f) => !f.startsWith('src/features/chat/map/') && !shows.includes(f));
     const bad = outside.filter((f) => src(f).includes('투표'));
     assert.deepEqual(bad, []);

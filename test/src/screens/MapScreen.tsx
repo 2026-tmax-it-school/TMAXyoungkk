@@ -3,9 +3,13 @@ import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { MapCanvas } from '../components/map/MapCanvas';
 import { TRANSPORT_LABEL } from '../core/constants';
+import { activeMembers } from '../core/group';
 import { etaView, pickLiveDate } from '../core/live/session';
 import { dayOrdinal, daySummary } from '../core/map/model';
+import { regionById } from '../data/regions';
 import { dayLabel, dayShort, humanMin, weekday } from '../core/util';
+import { adderText } from '../core/spotUtil';
+import { addPlace, pickAtCoord } from '../features/candidates/actions';
 import '../features/live/photoBridge';
 import { useHomeBack } from '../navigation/useBack';
 import { useDayMap } from '../features/live/useDayMap';
@@ -16,7 +20,7 @@ import { useNow } from '../services/clock';
 import { useLive } from '../store/live';
 import { usePlan, useTrips } from '../store/trips';
 import { useUi } from '../store/ui';
-import type { DayPlan, Plan, TimetableItem, Trip } from '../types';
+import type { DayPlan, LatLng, Place, Plan, TimetableItem, Trip } from '../types';
 import {
   Btn,
   Chip,
@@ -68,6 +72,20 @@ const LEGEND_DOT = 10;
 
 const isBase = (id: string) => id === 'base' || id.startsWith('base:');
 
+/** 지도를 눌러 찍은 새 핀 */
+const PIN_ID = 'pin';
+
+/** 가까운 장소가 없을 때 찍은 자리를 그대로 담는 장소 */
+function customPlace(c: LatLng): Place {
+  return {
+    placeId: `pin:${c.latitude.toFixed(5)},${c.longitude.toFixed(5)}`,
+    name: '지도에서 고른 곳',
+    coord: c,
+    category: '관광지',
+    kind: '직접 고른 곳',
+  };
+}
+
 /** Seg 칸 이름 '17 금' */
 function segLabel(date: string): string {
   return `${Number(date.slice(8))} ${WEEK[weekday(date)]}`;
@@ -109,6 +127,13 @@ export default function MapScreen({ navigation, route }: TabScreenProps<'Map'>) 
   const [mapH, setMapH] = useState(0);
   const [sheetH, setSheetH] = useState(0);
   const sheetScroll = useRef<ScrollView>(null);
+  // 지도를 눌러 찍은 핀과 그 핀으로 루트에 장소를 더하는 흐름
+  const [pin, setPin] = useState<LatLng | undefined>(undefined);
+  const [pinPlace, setPinPlace] = useState<{ place: Place; outside: boolean } | undefined>(undefined);
+  const [pinOpen, setPinOpen] = useState(false);
+  const [addDay, setAddDay] = useState<string | undefined>(undefined);
+  const [addedSpotId, setAddedSpotId] = useState<string | undefined>(undefined);
+  const pinSeq = useRef(0);
   // 시간표·여행 진행에서 날짜를 넘겨 다시 열면 그 날짜를 따라간다(탭 화면은 내려가지 않아 첫 값만으로는 모자란다).
   // 같은 날짜를 다시 넘겨도('전체'로 바꾼 뒤 다시 '지도') 따라가도록 값이 아니라 params 객체에 건다.
   // navigate는 params를 새로 만들고, 탭 바 누름은 같은 객체를 그대로 두므로 고른 날짜를 덮지 않는다.
@@ -131,6 +156,13 @@ export default function MapScreen({ navigation, route }: TabScreenProps<'Map'>) 
   useEffect(() => {
     setSelected(undefined);
   }, [date, trip?.id]);
+  // 다른 방으로 바꾸면 찍어 둔 핀과 추가 완료 표시를 버린다
+  useEffect(() => {
+    setPin(undefined);
+    setPinPlace(undefined);
+    setPinOpen(false);
+    setAddedSpotId(undefined);
+  }, [trip?.id]);
   // 고른 스팟이 계획·제외·후보 어디에도 없으면(동기화로 빠짐) 빈 카드를 그리지 않고 선택을 푼다
   const selectedName = selected && trip ? spotNameOf(trip, plan, selected) : undefined;
   useEffect(() => {
@@ -138,18 +170,31 @@ export default function MapScreen({ navigation, route }: TabScreenProps<'Map'>) 
   }, [selected, selectedName]);
   // 펼친 목록을 내려 둔 채 핀을 골라도 카드가 보이게 시트 맨 위로 올린다
   useEffect(() => {
-    if (selected) sheetScroll.current?.scrollTo({ y: 0, animated: false });
-  }, [selected]);
+    if (selected || pinOpen) sheetScroll.current?.scrollTo({ y: 0, animated: false });
+  }, [selected, pinOpen]);
 
   const dayIndex = plan ? plan.days.findIndex((d) => d.date === date) : -1;
   const day = dayIndex >= 0 ? plan?.days[dayIndex] : undefined;
   const summary = useMemo(() => (day ? daySummary(day) : undefined), [day]);
   const pickedMarker = selected ? map.markers.find((m) => m.id === selected) : undefined;
-  const markers = useMemo(
-    () => (pickedMarker ? map.markers.map((m) => (m.id === pickedMarker.id ? { ...m, scale: PICKED_SCALE } : m)) : map.markers),
-    [map.markers, pickedMarker],
-  );
-  const fitTo = useMemo(() => (pickedMarker ? [pickedMarker.coord] : undefined), [pickedMarker]);
+  const markers = useMemo(() => {
+    const base = pickedMarker ? map.markers.map((m) => (m.id === pickedMarker.id ? { ...m, scale: PICKED_SCALE } : m)) : map.markers;
+    return pin
+      ? [...base, { id: PIN_ID, coord: pin, kind: 'drop' as const, title: pinPlace?.place.name ?? '지도에서 고른 곳' }]
+      : base;
+  }, [map.markers, pickedMarker, pin, pinPlace]);
+  // 찍은 핀은 맞춤 범위에 넣지 않는다. 넣으면 핀을 찍을 때마다 지도가 다시 맞춰져 핀이 늘 가운데로 온다
+  // (빈 여행방은 핀 하나뿐이라 특히 그렇다). 핀이 있는 동안은 핀 없는 지금 범위(없으면 여행 지역 중심)로 고정한다.
+  const regionId = trip?.region;
+  const fitBase = useMemo(() => {
+    const pts: LatLng[] = [...map.markers.map((m) => m.coord), ...map.polylines.flatMap((l) => l.coords)];
+    if (pts.length === 0) {
+      const c = regionId ? regionById(regionId)?.center : undefined;
+      if (c) pts.push(c);
+    }
+    return pts;
+  }, [map.markers, map.polylines, regionId]);
+  const fitTo = useMemo(() => (pickedMarker ? [pickedMarker.coord] : pin ? fitBase : undefined), [pickedMarker, pin, fitBase]);
 
   if (!trip) {
     return (
@@ -176,8 +221,8 @@ export default function MapScreen({ navigation, route }: TabScreenProps<'Map'>) 
   const rows = day?.items ?? [];
   const unplanned = !!map.model?.unplanned;
   const segItems = [
-    { key: 'all', label: '전체', a11yLabel: '전체 날짜' },
-    ...(plan?.days ?? []).map((d) => ({ key: d.date, label: segLabel(d.date), a11yLabel: dayLabel(d.date) })),
+    { key: 'all', label: '전체 루트', a11yLabel: '전체 날짜' },
+    ...(plan?.days ?? []).map((d, i) => ({ key: d.date, label: `${i + 1}일차`, a11yLabel: dayLabel(d.date) })),
   ];
   // 진행 중이면 진행 중인 구간, 아니면 첫 구간을 연다
   const liveLeg = liveHere && day && liveDate === day.date && timing ? map.legs.find((l) => l.toId === timing.spotId) : undefined;
@@ -186,6 +231,10 @@ export default function MapScreen({ navigation, route }: TabScreenProps<'Map'>) 
   // 같은 핀을 다시 누르면 풀고, 새로 고르면 목록 줄처럼 시트를 접어 카드를 보인다.
   // 겹친 스팟 목록에서 고른 것은 다시 누르기가 아니므로 늘 고른다(onClusterPick → pickRow)
   const pressMarker = (id: string) => {
+    if (id === PIN_ID) {
+      openPin();
+      return;
+    }
     if (isBase(id)) return;
     if (selected === id) {
       setSelected(undefined);
@@ -197,6 +246,68 @@ export default function MapScreen({ navigation, route }: TabScreenProps<'Map'>) 
   const pickRow = (id: string) => {
     setSelected(id);
     setSnap('peek');
+  };
+  const tripDays = trip.days.map((d) => d.date);
+  const adderOf = (spotId: string) => adderText(trip, trip.spots.find((x) => x.id === spotId));
+  const defaultAddDay = date !== 'all' ? date : (tripDays[0] ?? '');
+  const dayNo = (d: string) => `${Math.max(0, tripDays.indexOf(d)) + 1}일차`;
+  /** 지도를 누르면 그 자리에 핀을 놓고, 300m 안 장소가 있으면 그 이름을 쓴다 */
+  const pressMap = (coord: LatLng) => {
+    const seq = ++pinSeq.current;
+    setPin(coord);
+    setPinPlace(undefined);
+    setPinOpen(false);
+    setSelected(undefined);
+    setAddedSpotId(undefined);
+    void pickAtCoord(trip, coord).then((out) => {
+      if (seq !== pinSeq.current) return;
+      if (out.kind === 'one') setPinPlace({ place: out.option.place, outside: out.option.outside });
+      else if (out.kind === 'many' && out.options[0]) setPinPlace({ place: out.options[0].place, outside: out.options[0].outside });
+    });
+  };
+  const openPin = () => {
+    setSelected(undefined);
+    setPinOpen(true);
+    setAddDay(defaultAddDay);
+    setSnap('peek');
+  };
+  const closePin = () => {
+    pinSeq.current += 1;
+    setPin(undefined);
+    setPinPlace(undefined);
+    setPinOpen(false);
+  };
+  /** 고른 날짜의 루트에 장소를 더한다(후보에 담고 그 날짜로 정한다) */
+  const addPinToRoute = () => {
+    if (!pin) return;
+    const day = addDay ?? defaultAddDay;
+    const target = pinPlace ?? { place: customPlace(pin), outside: false };
+    const r = addPlace(tripId, target.place, target.outside, { quiet: true });
+    if (!r.ok) {
+      useUi.getState().showToast(r.reason, 'warn');
+      return;
+    }
+    const doc = useTrips.getState().docs[tripId];
+    const spot = doc?.spots.find((x) => x.placeId === target.place.placeId && !x.removedByUser);
+    if (spot) {
+      const d = useTrips.getState().dispatch(tripId, { type: 'schedule/setDate', spotId: spot.id, date: day });
+      if (!d.ok) useUi.getState().showToast(d.reason, 'warn');
+      setAddedSpotId(spot.id);
+    }
+    // 날짜 탭에서는 그 날짜 탭에 머물고, 전체에서는 전체에 머문다. 새 줄이 보이게 시트를 펼친다
+    setPicked(date === 'all' ? 'all' : day);
+    closePin();
+    setSnap('full');
+    const by = spot ? adderOf(spot.id) : '';
+    useUi.getState().showToast(`${target.place.name}을(를) ${dayNo(day)} 루트에 추가했어요${by ? ` · 추가한 사람 ${by}` : ''}`);
+  };
+  /** 루트에서 장소를 뺀다(제외 스팟에서 되돌릴 수 있다) */
+  const removeFromRoute = (spotId: string, name: string) => {
+    const r = useTrips.getState().dispatch(tripId, { type: 'spot/remove', spotId });
+    if (r.ok) {
+      if (addedSpotId === spotId) setAddedSpotId(undefined);
+      useUi.getState().showToast(`${name}을(를) 루트에서 뺐어요`);
+    }
   };
   const restore = (spotId: string, name: string) => {
     const r = useTrips.getState().dispatch(tripId, { type: 'spot/restore', spotId });
@@ -236,6 +347,25 @@ export default function MapScreen({ navigation, route }: TabScreenProps<'Map'>) 
         ) : null}
       </View>
       <Icon name={expanded ? 'down' : 'up'} size={18} color="muted" stroke={2.2} />
+    </Pressable>
+  );
+
+  const memberCount = activeMembers(trip).length;
+  // 채팅방은 아래 시트 맨 위로 내려온다: '채팅방 · 멤버 N명'과 방 이름, 누르면 채팅방으로 간다
+  const chatHead = (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`${trip.title} 채팅방 열기, 멤버 ${memberCount}명`}
+      onPress={() => navigation.navigate('Chat', { tripId })}
+      style={styles.chatHead}
+    >
+      <View style={styles.headText}>
+        <Txt v="eyebrow" c="accent">{`채팅방 · 멤버 ${memberCount}명`}</Txt>
+        <Txt v="nmLg" numberOfLines={1}>
+          {trip.title}
+        </Txt>
+      </View>
+      <Icon name="right" size={18} color="muted" stroke={2.2} />
     </Pressable>
   );
 
@@ -290,6 +420,7 @@ export default function MapScreen({ navigation, route }: TabScreenProps<'Map'>) 
             fitTo={fitTo}
             user={liveLast ? { coord: liveLast.coord, accuracyM: liveLast.accuracyM } : undefined}
             onMarkerPress={pressMarker}
+            onPressMap={pressMap}
             onClusterPick={(id) => {
               if (!isBase(id)) pickRow(id);
             }}
@@ -317,16 +448,33 @@ export default function MapScreen({ navigation, route }: TabScreenProps<'Map'>) 
           maxRatio={SHEET_MAX_RATIO}
           gripLabel="루트 목록"
           onSettle={setSheetH}
-          head={head}
+          head={
+            <View>
+              {chatHead}
+              {/* 핀 카드가 열리면 날짜 머리 줄은 접어 카드 버튼이 접힌 시트에서도 보이게 한다 */}
+              {pinOpen ? null : head}
+            </View>
+          }
         >
           <ScrollView ref={sheetScroll} style={styles.grow} contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
             {/* 스팟을 고른 동안은 날짜 Seg를 접어 360px 접힌 시트에서도 카드 버튼 줄이 보이게 한다(x로 풀면 돌아온다) */}
-            {segItems.length > 2 && !selected ? <Seg items={segItems} value={date} onChange={(k) => setPicked(k)} /> : null}
+            {segItems.length > 2 && !selected && !pinOpen ? <Seg items={segItems} value={date} onChange={(k) => setPicked(k)} /> : null}
 
-            {selected && selectedName !== undefined ? (
+            {pinOpen && pin ? (
+              <PinCard
+                name={pinPlace?.place.name ?? '지도에서 고른 곳'}
+                sub={pinPlace?.place.address ?? (pinPlace ? pinPlace.place.kind : '이 자리를 그대로 루트에 더해요')}
+                days={tripDays.map((d, i) => ({ date: d, label: `${i + 1}일차` }))}
+                addDay={addDay ?? defaultAddDay}
+                onPickDay={setAddDay}
+                onAdd={addPinToRoute}
+                onClose={closePin}
+              />
+            ) : selected && selectedName !== undefined ? (
               <PickedCard
                 spotId={selected}
                 name={selectedName}
+                adder={adderOf(selected)}
                 plan={plan}
                 legToIndex={map.legs.find((l) => l.toId === selected)?.index}
                 onClose={() => setSelected(undefined)}
@@ -361,40 +509,56 @@ export default function MapScreen({ navigation, route }: TabScreenProps<'Map'>) 
               </Row>
             )}
 
-            {!expanded && excluded.length > 0 ? (
+            {!expanded && !pinOpen && excluded.length > 0 ? (
               <View style={styles.start}>
                 <Btn title={`제외 스팟 ${excluded.length}곳`} size="sm" variant="quiet" onPress={() => setSnap('full')} />
               </View>
             ) : null}
 
-            {expanded && day && rows.length > 0 ? (
-              <View>
-                {rows.map((it, i) => {
-                  const on = it.spotId === selected;
-                  return (
-                    <Pressable
-                      key={it.spotId}
-                      accessibilityRole="button"
-                      accessibilityLabel={`${i + 1}번째 ${it.name}, 도착 ${it.arrive}`}
-                      accessibilityState={{ selected: on }}
-                      onPress={() => pickRow(it.spotId)}
-                      style={[styles.listRow, on ? styles.listRowOn : null]}
-                    >
-                      <View style={styles.num}>
-                        <Txt v="time" c="accent">
-                          {String(i + 1)}
-                        </Txt>
-                      </View>
-                      <Txt v="nm" numberOfLines={1} style={styles.grow}>
-                        {it.name}
-                      </Txt>
-                      {it.pinned ? <Chip text="고정" tone="soft" /> : null}
-                      <Txt v="mtTight">{it.arrive}</Txt>
-                    </Pressable>
-                  );
-                })}
-              </View>
-            ) : null}
+            {expanded && !pinOpen && !unplanned
+              ? (day ? [{ d: day, i: dayIndex }] : (plan?.days ?? []).map((d, i) => ({ d, i }))).map(({ d, i: di }) =>
+                  d.items.length > 0 ? (
+                    <View key={d.date}>
+                      {day ? null : (
+                        <Txt v="label" style={styles.dayHead}>{`${di + 1}일차 · ${dayShort(d.date)}`}</Txt>
+                      )}
+                      {d.items.map((it, i) => {
+                        const on = it.spotId === selected;
+                        const added = it.spotId === addedSpotId;
+                        return (
+                          <Row key={it.spotId} gap={SP.s}>
+                            <Pressable
+                              accessibilityRole="button"
+                              accessibilityLabel={`${i + 1}번째 ${it.name}, 도착 ${it.arrive}`}
+                              accessibilityState={{ selected: on }}
+                              onPress={() => pickRow(it.spotId)}
+                              style={[styles.listRow, styles.grow, on || added ? styles.listRowOn : null]}
+                            >
+                              <View style={styles.num}>
+                                <Txt v="time" c="accent">
+                                  {String(i + 1)}
+                                </Txt>
+                              </View>
+                              <View style={styles.grow}>
+                                <Txt v="nm" numberOfLines={1}>
+                                  {it.name}
+                                </Txt>
+                                {adderOf(it.spotId) ? (
+                                  <Txt v="mtTight" numberOfLines={1}>{`${adderOf(it.spotId)}님이 추가`}</Txt>
+                                ) : null}
+                              </View>
+                              {added ? <Chip text="추가 완료" tone="ok" /> : null}
+                              {it.pinned && !added ? <Chip text="고정" tone="soft" /> : null}
+                              <Txt v="mtTight">{it.arrive}</Txt>
+                            </Pressable>
+                            <IconBtn icon="trash" label={`${it.name} 루트에서 빼기`} onPress={() => removeFromRoute(it.spotId, it.name)} />
+                          </Row>
+                        );
+                      })}
+                    </View>
+                  ) : null,
+                )
+              : null}
 
             {expanded && excluded.length > 0 ? (
               <View style={styles.excluded}>
@@ -419,6 +583,9 @@ export default function MapScreen({ navigation, route }: TabScreenProps<'Map'>) 
             ) : null}
 
             {map.osmRoads ? <Txt v="mtTight">선은 실제 길 모양 · 길 데이터 OpenStreetMap 기여자</Txt> : null}
+            {pinOpen ? null : (
+              <Btn title="여행 채팅에 메시지 보내기" icon="chat" size="sm" variant="quiet" onPress={() => navigation.navigate('Chat', { tripId })} />
+            )}
           </ScrollView>
         </PeekSheet>
       </View>
@@ -433,6 +600,7 @@ export default function MapScreen({ navigation, route }: TabScreenProps<'Map'>) 
 function PickedCard({
   spotId,
   name,
+  adder,
   plan,
   legToIndex,
   onClose,
@@ -444,6 +612,8 @@ function PickedCard({
   spotId: string;
   /** spotNameOf로 찾은 이름(루트 계산 전 후보도 이름이 있다) */
   name: string;
+  /** 누가 추가했나('민지', '민지 외 2명'). 모르면 빈 문자열 */
+  adder: string;
   plan: Plan | undefined;
   legToIndex: number | undefined;
   onClose: () => void;
@@ -456,7 +626,7 @@ function PickedCard({
   const ex = planned ? undefined : plan?.excluded.find((x) => x.spotId === spotId);
   const it = planned?.item;
   const facts = it
-    ? [`도착 ${it.arrive}`, `체류 ${humanMin(it.stayMin)}`, it.travelMin > 0 ? `앞 구간 ${humanMin(it.travelMin)}` : undefined]
+    ? [`도착 ${it.arrive}`, `체류 ${humanMin(it.stayMin)}`, it.travelMin > 0 ? `앞 구간 ${humanMin(it.travelMin)}` : undefined, adder ? `${adder}님이 추가` : undefined]
         .filter(Boolean)
         .join(' · ')
     : ex
@@ -505,6 +675,57 @@ function PickedCard({
   );
 }
 
+/** 지도에서 찍은 핀 카드. 이름, 루트에 넣을 날짜, [N일차 루트에 추가] [취소] */
+function PinCard({
+  name,
+  sub,
+  days,
+  addDay,
+  onPickDay,
+  onAdd,
+  onClose,
+}: {
+  name: string;
+  sub: string | undefined;
+  days: { date: string; label: string }[];
+  addDay: string;
+  onPickDay: (date: string) => void;
+  onAdd: () => void;
+  onClose: () => void;
+}) {
+  const label = days.find((d) => d.date === addDay)?.label ?? '';
+  return (
+    <View style={styles.card}>
+      <Row gap={SP.l}>
+        <View accessible accessibilityLabel={sub ? `${name}, ${sub}` : name} style={styles.grow}>
+          <Txt v="nm" numberOfLines={1}>
+            {name}
+          </Txt>
+          {sub ? (
+            <Txt v="mtTight" numberOfLines={1}>
+              {sub}
+            </Txt>
+          ) : null}
+        </View>
+        <IconBtn icon="x" label="핀 지우기" onPress={onClose} />
+      </Row>
+      <Txt v="label">어느 날 루트에 넣을까요</Txt>
+      {/* 날짜가 많아도(8일차…) 한 줄로 옆으로 밀어 고르게 해 카드가 길어지지 않는다 */}
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.dayRow}>
+        {days.map((d) => (
+          <Btn key={d.date} title={d.label} size="sm" variant={d.date === addDay ? 'primary' : 'quiet'} onPress={() => onPickDay(d.date)} />
+        ))}
+      </ScrollView>
+      <Row gap={SP.m}>
+        <Btn title="취소" size="sm" variant="quiet" onPress={onClose} />
+        <View style={styles.grow}>
+          <Btn title={`${label} 루트에 추가`} size="sm" onPress={onAdd} />
+        </View>
+      </Row>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   deskPanel: { left: SP.gutter, right: undefined, width: DESK_PANEL_W, bottom: SP.gutter, borderRadius: R.sheet },
   area: { flex: 1, minHeight: 0 },
@@ -532,6 +753,17 @@ const styles = StyleSheet.create({
     paddingBottom: SP.s,
   },
   headText: { flex: 1, minWidth: 0 },
+  chatHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SP.m,
+    minHeight: H.touch,
+    paddingHorizontal: SP.gutter,
+    paddingTop: SP.xs,
+    paddingBottom: SP.s,
+  },
+  dayHead: { paddingTop: SP.m, paddingHorizontal: SP.s },
+  dayRow: { flexDirection: 'row', gap: SP.m, paddingRight: SP.gutter },
   body: { gap: SP.l, paddingHorizontal: SP.gutter, paddingTop: SP.xs, paddingBottom: SP.xxl },
   liveLine: {
     flexDirection: 'row',

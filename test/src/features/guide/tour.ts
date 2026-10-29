@@ -60,8 +60,8 @@ export const TOUR_STEPS: TourStep[] = [
     id: 'cand-like',
     screen: 'Candidates',
     target: 'cand-like',
-    title: '좋아요',
-    text: '가고 싶은 곳에 좋아요를 눌러요. 좋아요가 많은 곳이 먼저 일정에 들어가요. 누가 꺼냈는지도 카드에 보여요.',
+    title: '투표',
+    text: '가고 싶은 곳에 투표해요. 누가 투표했는지 이름이 보이고, 표가 많은 곳이 먼저 일정에 들어가요.',
     when: 'trip',
   },
   {
@@ -94,7 +94,7 @@ export const TOUR_STEPS: TourStep[] = [
     screen: 'Map',
     target: 'tab-Map',
     title: '지도',
-    text: '날짜별 루트를 순번 핀과 선으로 봐요. 장소를 누르면 길찾기와 상세로 이어져요.',
+    text: '아래 패널에 채팅방과 날짜별 루트가 있어요. 지도를 누르면 핀이 생기고, 핀을 눌러 원하는 날짜 루트에 장소를 더해요.',
     when: 'always',
   },
   {

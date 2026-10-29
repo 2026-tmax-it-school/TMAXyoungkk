@@ -1,12 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, View, type GestureResponderEvent, type LayoutChangeEvent } from 'react-native';
-import Svg, { Circle, G, Line, Polyline, Rect } from 'react-native-svg';
+import Svg, { Circle, G, Line, Path, Polyline, Rect } from 'react-native-svg';
 
 import type { LatLng } from '../../types';
 import { fitAreaHeight, focusOptions, layoutMap, unproject, type MapCluster } from '../../core/map/layout';
 import { pinName } from '../../core/map/engine';
 import { useUi } from '../../store/ui';
-import { avatarLook, lineC, mapC, OPACITY, pinScale, R, SvgLabel } from '../../ui';
+import { avatarLook, dropName, lineC, mapC, OPACITY, pinScale, R, SvgLabel } from '../../ui';
 import { MAP_ENGINE } from './engine';
 import { GOOGLE_VIEW_READY, GoogleMapView } from './GoogleMapView';
 import { KAKAO_VIEW_READY, KakaoMapView } from './KakaoMapView';
@@ -241,6 +241,29 @@ function SvgMapCanvas(props: MapViewProps) {
           ))}
           {layout.projected.map((m) => {
             const press = props.onMarkerPress && m.kind !== 'base' ? () => props.onMarkerPress?.(m.id) : undefined;
+            if (m.kind === 'drop') {
+              // 찍은 새 핀: 뾰족한 끝이 (m.x, m.y). 초록 물방울 + 흰 십자, 위에 이름 알약
+              const tag = dropName(m.title);
+              const tw = Math.min(116, [...tag].length * 11 + 20);
+              return (
+                <G key={m.id} {...tap(press)} accessible={SVG_ACCESSIBLE} accessibilityLabel={pinName(m)}>
+                  {tag ? (
+                    <>
+                      <Rect x={m.x - tw / 2} y={m.y - 60} width={tw} height={19} rx={9.5} fill={mapC.ink} />
+                      <SvgLabel x={m.x} y={m.y - 46} text={tag} v="pinSm" c="onInk" />
+                    </>
+                  ) : null}
+                  <Path
+                    d={`M${m.x} ${m.y} C${m.x - 8} ${m.y - 12} ${m.x - 16} ${m.y - 18} ${m.x - 16} ${m.y - 24} A16 16 0 1 1 ${m.x + 16} ${m.y - 24} C${m.x + 16} ${m.y - 18} ${m.x + 8} ${m.y - 12} ${m.x} ${m.y} Z`}
+                    fill={mapC.ok}
+                    stroke={mapC.white}
+                    strokeWidth={2.5}
+                    strokeLinejoin="round"
+                  />
+                  <Path d={`M${m.x} ${m.y - 31}v14M${m.x - 7} ${m.y - 24}h14`} stroke={mapC.white} strokeWidth={3} strokeLinecap="round" />
+                </G>
+              );
+            }
             if (m.kind === 'base') {
               return (
                 <G key={m.id} accessible={SVG_ACCESSIBLE} accessibilityLabel={`기점 ${m.title}`}>

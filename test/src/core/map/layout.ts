@@ -12,7 +12,8 @@ import { ARRIVAL_ACCURACY_M } from '../constants';
 export interface MapMarkerInput {
   id: string;
   coord: LatLng;
-  kind: 'spot' | 'excluded' | 'base';
+  /** 'drop'은 지도를 눌러 찍은 새 핀(물방울 핀 + 위에 이름). 묶지 않고 좌표(뾰족한 끝)에 그린다 */
+  kind: 'spot' | 'excluded' | 'base' | 'drop';
   label?: string;
   title: string;
   /** 순번 핀 면 색. 여러 날짜를 겹쳐 그릴 때(11 '전체') 그날 선 색을 쓴다. 없으면 잉크 */
@@ -240,7 +241,7 @@ export function layoutMap(input: MapLayoutInput): MapLayout {
   const clusterable: (MapMarkerInput & XY)[] = [];
   for (const m of input.markers) {
     const xy = project(proj, m.coord);
-    (m.kind === 'base' ? base : clusterable).push({ ...m, ...xy });
+    (m.kind === 'base' || m.kind === 'drop' ? base : clusterable).push({ ...m, ...xy });
   }
   const { singles, clusters } = clusterMarkers(clusterable, input.clusterPx ?? DEFAULT_CLUSTER_PX);
 

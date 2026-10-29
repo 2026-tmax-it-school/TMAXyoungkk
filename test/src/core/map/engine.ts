@@ -124,6 +124,7 @@ export function focusPadding(size: { width: number; height: number }): number {
 export function pinName(m: Pick<MapMarkerInput, 'kind' | 'label' | 'title'>): string {
   if (m.kind === 'base') return `기점 ${m.title}`;
   if (m.kind === 'excluded') return `제외 스팟 ${m.title}`;
+  if (m.kind === 'drop') return `찍은 핀 ${m.title}, 눌러서 루트에 추가`;
   if (!m.label) return m.title;
   // 순번이면 'N번', 글자 라벨(길찾기의 '출발'·'도착')이면 그대로 앞에 붙인다
   return /^\d+$/.test(m.label) ? `${m.label}번 ${m.title}` : `${m.label} ${m.title}`;

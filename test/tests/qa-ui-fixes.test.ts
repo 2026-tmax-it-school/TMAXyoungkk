@@ -125,3 +125,31 @@ test('B11: 지도로 찾은 한 곳은 확인 시트를 거쳐 담는다', () =>
   assert.match(src, /handle\(out, '누른 곳 300m 안에 담을 수 있는 장소가 없어요', true, true\)/);
   assert.match(src, /title="이 장소를 후보에 담을까요\?"/);
 });
+
+test('누가 추가했나: adderText는 처음 담은 사람과 나머지 수를 읽는다', async () => {
+  const { adderText } = await import('../src/core/spotUtil');
+  const trip = { members: [{ id: 'm1', nickname: '민지' }, { id: 'm2', nickname: '준호' }, { id: 'm3', nickname: '수아' }] } as unknown as Parameters<typeof adderText>[0];
+  const spot = (ids: string[]) => ({ proposals: ids.map((memberId) => ({ memberId })) }) as unknown as Parameters<typeof adderText>[1];
+  assert.equal(adderText(trip, spot(['m1'])), '민지');
+  assert.equal(adderText(trip, spot(['m2', 'm1', 'm3'])), '준호 외 2명');
+  assert.equal(adderText(trip, spot(['m1', 'm1'])), '민지');
+  assert.equal(adderText(trip, spot(['mX'])), '멤버');
+  assert.equal(adderText(trip, spot([])), '');
+  assert.equal(adderText(trip, undefined), '');
+});
+
+test('탭 줄은 넘치면 좌우 화살표로 옆으로 밀고, 채팅방 지도도 핀으로 후보를 담는다', () => {
+  const seg = read('src/ui/Seg.tsx');
+  assert.match(seg, /const canRight = m\.content - m\.view - m\.x > 4;/);
+  assert.match(seg, /label="이전 칸 보기"/);
+  assert.match(seg, /label="다음 칸 보기"/);
+  assert.match(seg, /onContentSizeChange=\{\(w\) => setM/);
+  const chat = read('src/features/chat/map/ChatMapView.tsx');
+  assert.match(chat, /onPressMap=\{pressMap\}/);
+  assert.match(chat, /kind: 'drop' as const, title: pinName/);
+  assert.match(chat, /addPlace\(trip\.id, place, pinPlace\?\.outside \?\? false, \{ quiet: true \}\)/);
+  assert.match(chat, /추가한 사람 \$\{by\}/);
+  assert.match(chat, /title="후보에 담기"/);
+  // 핀은 맞춤 범위에서 뺀다
+  assert.match(chat, /const mapFit = pin \? \(input\.fitTo \?\? \(regionCenter \? \[regionCenter\] : undefined\)\) : input\.fitTo;/);
+});

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
 
 import { Icon, type IconName } from './Icon';
@@ -52,6 +52,11 @@ function ScrollSeg<K extends string>({
 }) {
   const scroller = useRef<ScrollView>(null);
   const xs = useRef<Partial<Record<string, number>>>({});
+  // 칸이 넘치면 양 끝에 좌우 화살표가 뜬다(마우스에는 옆으로 미는 손짓이 없다)
+  const [m, setM] = useState({ x: 0, content: 0, view: 0 });
+  const canLeft = m.x > 4;
+  const canRight = m.content - m.view - m.x > 4;
+  const nudge = (dir: 1 | -1) => scroller.current?.scrollTo({ x: Math.max(0, m.x + dir * Math.max(120, m.view * 0.6)), animated: true });
   const keys = items.map((it) => it.key);
   const keySig = keys.join('|');
   const reveal = (animated: boolean) => {
@@ -78,6 +83,10 @@ function ScrollSeg<K extends string>({
         horizontal
         showsHorizontalScrollIndicator={false}
         accessibilityRole="tablist"
+        scrollEventThrottle={16}
+        onScroll={(e) => setM((p) => ({ ...p, x: e.nativeEvent.contentOffset.x }))}
+        onContentSizeChange={(w) => setM((p) => ({ ...p, content: w }))}
+        onLayout={(e) => setM((p) => ({ ...p, view: e.nativeEvent.layout.width }))}
         contentContainerStyle={{ flexDirection: 'row', gap: SP.section - 4 }}
       >
         {items.map((it) => {
@@ -117,7 +126,32 @@ function ScrollSeg<K extends string>({
           );
         })}
       </ScrollView>
+      {canLeft ? <SegArrow side="left" label="이전 칸 보기" onPress={() => nudge(-1)} /> : null}
+      {canRight ? <SegArrow side="right" label="다음 칸 보기" onPress={() => nudge(1)} /> : null}
     </View>
+  );
+}
+
+/** 칸 줄 양 끝의 좌우 화살표. 뒤 칸이 비치지 않게 흰 바탕이다 */
+function SegArrow({ side, label, onPress }: { side: 'left' | 'right'; label: string; onPress: () => void }) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      onPress={onPress}
+      style={{
+        position: 'absolute',
+        top: 0,
+        bottom: 1,
+        [side]: 0,
+        width: 36,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: surfaceC.card,
+      }}
+    >
+      <Icon name={side === 'left' ? 'back' : 'right'} size={18} color="ink" stroke={2.2} />
+    </Pressable>
   );
 }
 

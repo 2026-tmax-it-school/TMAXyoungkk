@@ -1,4 +1,4 @@
-import React, { memo, useEffect, useMemo, useState } from 'react';
+import React, { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { BackHandler, Platform, Pressable, StyleSheet, View, type LayoutChangeEvent } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -6,16 +6,17 @@ import { MapCanvas } from '../../../components/map/MapCanvas';
 import type { ChatArea } from '../../../core/chatmap/areas';
 import { chatMapInput, chatMapLayout, type ChatMapEvent, type ChatMapState } from '../../../core/chatmap/mapView';
 import { mentionsOf, rankSpots, railOrder, VOTE_BUDGET, voteBlocked, voteCounts, voterIds, votesLeft } from '../../../core/chatmap/votes';
-import { proposerIds } from '../../../core/spotUtil';
+import { adderText, proposerIds } from '../../../core/spotUtil';
 import { activeMembers } from '../../../core/group';
 import { isEditLocked } from '../../../core/ops';
 import type { MapMarkerInput, MapPolylineInput } from '../../../core/map/layout';
 import { regionById } from '../../../data/regions';
+import { addPlace, pickAtCoord } from '../../candidates/actions';
 import { useNow } from '../../../services/clock';
 import { myMemberId } from '../../../store/trips';
 import { useUi } from '../../../store/ui';
-import type { Trip } from '../../../types';
-import { Col, Empty, Icon, IconBtn, ListRow, MapPill, PeekSheet, Row, SHEET_MINI_H, SP, Txt, type SheetSnap } from '../../../ui';
+import type { LatLng, Place, Trip } from '../../../types';
+import { Btn, Card, Col, Empty, Icon, IconBtn, ListRow, MapPill, PeekSheet, Row, SHEET_MINI_H, SP, Txt, type SheetSnap } from '../../../ui';
 import { memberIndex } from '../view';
 import { canVote as canVoteNow, toggleVote } from './actions';
 import { MemberRail, type RailMember } from './MemberRail';
@@ -27,6 +28,8 @@ const SNAPS: readonly SheetSnap[] = ['mini', 'peek', 'full'];
 const NO_LINES: MapPolylineInput[] = [];
 const NO_COUNTS: Record<string, number> = {};
 const NO_MARKERS: MapMarkerInput[] = [];
+/** 지도를 눌러 찍은 새 핀(채팅방 지도에서는 후보로 담는다) */
+const PIN_ID = 'pin';
 
 /**
  * 채팅방 지도(FR-405, 명세 밖 추가). 채팅에서 나온 장소를 지도에 모으고, 지역·멤버로 거르고, 장소마다 한 표씩 준다.
@@ -68,6 +71,10 @@ export const ChatMapView = memo(function ChatMapView({
   // 채팅방은 탭 바가 없어 시트가 화면 맨 아래에 닿는다. 아래 안전 영역만큼 시트를 띄운다
   const safeBottom = useSafeAreaInsets().bottom;
   const [sheetH, setSheetH] = useState(SHEET_MINI_H);
+  const [pin, setPin] = useState<LatLng | undefined>(undefined);
+  const [pinPlace, setPinPlace] = useState<{ place: Place; outside: boolean } | undefined>(undefined);
+  const [pinOpen, setPinOpen] = useState(false);
+  const pinSeq = useRef(0);
   const now = useNow();
   // memo라 화면이 다시 그려져도 여기는 그대로다. '나'(시연의 보내는 사람 바꾸기)가 바뀌면 직접 다시 그린다
   const actingAs = useUi((s) => s.actingAs[trip.id]);
@@ -196,7 +203,53 @@ export const ChatMapView = memo(function ChatMapView({
     if (spot) toggleVote(trip.id, spot);
   };
   const lay = chatMapLayout(size.w, size.h, sheetH, wide);
+  // 지도를 누르면 물방울 핀(이름 포함), 핀을 누르면 '후보에 담기' 카드. 누른 자리 300m 안 장소가 있으면 그 이름을 쓴다
+  const pressMap = (coord: LatLng) => {
+    const seq = ++pinSeq.current;
+    setPin(coord);
+    setPinPlace(undefined);
+    setPinOpen(false);
+    void pickAtCoord(trip, coord).then((out) => {
+      if (seq !== pinSeq.current) return;
+      if (out.kind === 'one') setPinPlace({ place: out.option.place, outside: out.option.outside });
+      else if (out.kind === 'many' && out.options[0]) setPinPlace({ place: out.options[0].place, outside: out.options[0].outside });
+    });
+  };
+  const closePin = () => {
+    pinSeq.current += 1;
+    setPin(undefined);
+    setPinPlace(undefined);
+    setPinOpen(false);
+  };
+  const pinName = pinPlace?.place.name ?? '지도에서 고른 곳';
+  const addPin = () => {
+    if (!pin) return;
+    const place: Place = pinPlace?.place ?? {
+      placeId: `pin:${pin.latitude.toFixed(5)},${pin.longitude.toFixed(5)}`,
+      name: '지도에서 고른 곳',
+      coord: pin,
+      category: '관광지',
+      kind: '직접 고른 곳',
+    };
+    const r = addPlace(trip.id, place, pinPlace?.outside ?? false, { quiet: true });
+    if (!r.ok) {
+      useUi.getState().showToast(r.reason, 'warn');
+      return;
+    }
+    const spot = trip.spots.find((x) => x.placeId === place.placeId && !x.removedByUser);
+    const by = adderText(trip, spot) || (me ? (trip.members.find((m) => m.id === me)?.nickname ?? '') : '');
+    closePin();
+    useUi.getState().showToast(`${place.name}을(를) 후보에 담았어요${by ? ` · 추가한 사람 ${by}` : ''}`);
+  };
+  const regionCenter = regionById(trip.region)?.center;
+  // 핀은 맞춤 범위에 넣지 않는다(넣으면 핀이 늘 가운데로 온다)
+  const mapFit = pin ? (input.fitTo ?? (regionCenter ? [regionCenter] : undefined)) : input.fitTo;
+  const mapMarkers = pin ? [...input.markers, { id: PIN_ID, coord: pin, kind: 'drop' as const, title: pinName }] : input.markers;
   const pressPin = (spotId: string) => {
+    if (spotId === PIN_ID) {
+      setPinOpen(true);
+      return;
+    }
     const key = areaBySpot[spotId];
     if (!key) return;
     // 고른 지역 안의 핀은 지역을 풀지 않고 그 핀에 맞춘다(무엇인지 보려고 누른 것이다). 칩은 그대로 토글이다
@@ -210,10 +263,11 @@ export const ChatMapView = memo(function ChatMapView({
         <MapCanvas
           flat
           height={size.h}
-          markers={input.markers}
-          fitTo={input.fitTo}
+          markers={mapMarkers}
+          fitTo={mapFit}
           polylines={NO_LINES}
           onMarkerPress={pressPin}
+          onPressMap={pressMap}
           overlayBottom={lay.overlayBottom}
         >
           {solo ? null : (
@@ -230,6 +284,29 @@ export const ChatMapView = memo(function ChatMapView({
           />
           )}
         </MapCanvas>
+      ) : null}
+      {pinOpen && pin ? (
+        <View style={[styles.pinCard, { bottom: lay.overlayBottom + SP.m }, wide ? { left: lay.sheetLeft + SP.gutter } : null]}>
+          <Card>
+            <Row gap={SP.l}>
+              <Col grow>
+                <Txt v="nm" numberOfLines={1}>
+                  {pinName}
+                </Txt>
+                <Txt v="mtTight" numberOfLines={1}>
+                  {pinPlace?.place.address ?? '이 자리를 후보로 담을까요'}
+                </Txt>
+              </Col>
+              <IconBtn icon="x" label="핀 지우기" onPress={closePin} />
+            </Row>
+            <Row gap={SP.m}>
+              <Btn title="취소" size="sm" variant="quiet" onPress={closePin} />
+              <Col grow>
+                <Btn title="후보에 담기" size="sm" onPress={addPin} />
+              </Col>
+            </Row>
+          </Card>
+        </View>
       ) : null}
       {solo ? (
         <PeekSheet
@@ -315,6 +392,7 @@ export const ChatMapView = memo(function ChatMapView({
 });
 
 const styles = StyleSheet.create({
+  pinCard: { position: 'absolute', left: SP.gutter, right: SP.gutter },
   soloHint: { position: 'absolute', top: SP.l, left: SP.gutter, right: SP.gutter, alignItems: 'center' },
   soloMini: { flexDirection: 'row', alignItems: 'center', gap: SP.m, paddingHorizontal: SP.xl, minHeight: 48 },
   fill: {

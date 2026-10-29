@@ -2,6 +2,9 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { read, stripComments } from './setup/scan';
+import { pinName } from '../src/core/map/engine';
+import { layoutMap } from '../src/core/map/layout';
+import { dropName, mapPinSvg } from '../src/ui/mapPinSvg';
 
 /**
  * 11 지도 탭 · 13 구간 안내 · 27 길찾기 배치(UX 점검 B7, 2026-10-12).
@@ -30,7 +33,7 @@ test('11 지도 탭: 하단 시트는 PeekSheet(peek·full, 지도 높이의 60%
   // 접힌 시트의 '제외 스팟 N곳'은 펼치는 버튼이다
   assert.match(map, /<Btn title=\{`제외 스팟 \$\{excluded\.length\}곳`\} size="sm" variant="quiet" onPress=\{\(\) => setSnap\('full'\)\}/);
   // 스팟 목록은 펼쳤을 때만, 줄 높이 44
-  assert.match(map, /\{expanded && day && rows\.length > 0 \?/);
+  assert.match(map, /\{expanded && !pinOpen && !unplanned\s*\?/);
   assert.match(map, /listRow: \{[\s\S]*?minHeight: H\.touch/);
 });
 
@@ -61,12 +64,12 @@ test('11 지도 탭: 핀·목록은 스팟을 고르고(다시 누르면 풀림)
   for (const f of ['MapCanvas.tsx', 'GoogleMapView.tsx', 'GoogleMapView.web.tsx', 'KakaoMapView.tsx', 'KakaoMapView.web.tsx']) {
     assert.match(read(`src/components/map/${f}`), /onPick=\{\(id\) => \((props|latest\.current)\.onClusterPick \?\? \1\.onMarkerPress\)\?\.\(id\)\}/, f);
   }
-  assert.match(map, /if \(selected\) sheetScroll\.current\?\.scrollTo\(\{ y: 0, animated: false \}\);/);
+  assert.match(map, /if \(selected \|\| pinOpen\) sheetScroll\.current\?\.scrollTo\(\{ y: 0, animated: false \}\);/);
   assert.match(map, /<ScrollView ref=\{sheetScroll\}/);
   // 고른 동안은 날짜 Seg를 접어 360px 접힌 시트에서도 카드 버튼 줄이 보인다
-  assert.match(map, /\{segItems\.length > 2 && !selected \? <Seg /);
+  assert.match(map, /\{segItems\.length > 2 && !selected && !pinOpen \? <Seg /);
   assert.match(map, /fitTo=\{fitTo\}/);
-  assert.match(map, /pickedMarker \? \[pickedMarker\.coord\] : undefined/);
+  assert.match(map, /pickedMarker \? \[pickedMarker\.coord\] : pin \? fitBase : undefined/);
   assert.match(map, /<IconBtn icon="x" label="선택 풀기"/);
   assert.match(map, /title="상세 보기"/);
   assert.match(map, /title="구간 안내"/);
@@ -85,7 +88,7 @@ test('11 지도 탭: 루트 계산 전 후보를 골라도 카드에 이름이 �
   assert.doesNotMatch(map, /ex\?\.name \?\? ''/);
   assert.match(map, /const selectedName = selected && trip \? spotNameOf\(trip, plan, selected\) : undefined;/);
   assert.match(map, /if \(selected && selectedName === undefined\) setSelected\(undefined\);/);
-  assert.match(map, /\{selected && selectedName !== undefined \? \(\s*<PickedCard\s+spotId=\{selected\}\s+name=\{selectedName\}/);
+  assert.match(map, /selected && selectedName !== undefined \? \(\s*<PickedCard\s+spotId=\{selected\}\s+name=\{selectedName\}/);
   // 카드 글 묶음은 스크린리더가 한 번에 읽고(accessible), 순번 원은 숨긴다(이름에 'n번째'가 있다)
   const card = map.slice(map.indexOf('function PickedCard('), map.indexOf('const styles = StyleSheet.create'));
   assert.match(card, /<View\s+accessible\s+accessibilityLabel=\{planned \? `\$\{planned\.index \+ 1\}번째 스팟/);
@@ -156,4 +159,72 @@ test('27 길찾기: 한 줄 머리말·useBack, 끝점 줄 높이 44, 설명 문
   assert.match(dir, /quickList: \{ flexGrow: 0, maxHeight: QUICK_LIST_MAX_H \}/);
   // 경로가 준비되기 전에는 카카오맵 버튼이 없다(회색 비활성 버튼이 자리만 차지하지 않게)
   assert.doesNotMatch(dir, /disabled=\{!ready\.ready\}/);
+});
+
+test('11 지도 탭: 채팅방은 시트 맨 위, 지도를 누르면 핀, 핀 카드에서 날짜를 골라 루트에 더하고 빼고 추가 완료가 보인다', () => {
+  // 채팅방 머리: '채팅방 · 멤버 N명'과 방 이름이 시트 머리에 있고 누르면 채팅방으로 간다
+  assert.match(map, /`채팅방 · 멤버 \$\{memberCount\}명`/);
+  assert.match(map, /navigation\.navigate\('Chat', \{ tripId \}\)/);
+  // 탭 이름: 전체 루트 · N일차
+  assert.match(map, /label: '전체 루트'/);
+  assert.match(map, /label: `\$\{i \+ 1\}일차`/);
+  // 지도를 누르면 핀, 핀을 누르면 날짜 고르기 카드
+  assert.match(map, /onPressMap=\{pressMap\}/);
+  assert.match(map, /if \(id === PIN_ID\) \{\s*openPin\(\);\s*return;\s*\}/);
+  assert.match(map, /<PinCard\b/);
+  assert.match(map, /어느 날 루트에 넣을까요/);
+  // 날짜 탭에서는 그 날짜가 기본 선택
+  assert.match(map, /const defaultAddDay = date !== 'all' \? date : \(tripDays\[0\] \?\? ''\);/);
+  // 추가는 후보에 담고 그 날짜로 정한다. 날짜 탭에서는 그 날짜 탭에 머문다
+  assert.match(map, /addPlace\(tripId, target\.place, target\.outside, \{ quiet: true \}\)/);
+  assert.match(map, /type: 'schedule\/setDate', spotId: spot\.id, date: day/);
+  assert.match(map, /setPicked\(date === 'all' \? 'all' : day\);/);
+  // 삭제와 추가 완료
+  assert.match(map, /type: 'spot\/remove', spotId/);
+  assert.match(map, /<IconBtn icon="trash" label=\{`\$\{it\.name\} 루트에서 빼기`\}/);
+  assert.match(map, /<Chip text="추가 완료" tone="ok" \/>/);
+});
+
+test('11 지도 탭: 찍은 핀은 맞춤 범위에 넣지 않아 늘 가운데로 오지 않고, 누가 추가했는지 보인다', () => {
+  assert.match(map, /const fitBase = useMemo\(\(\) => \{/);
+  assert.match(map, /regionById\(regionId\)\?\.center/);
+  // 핀 마커는 markers에만 더하고 fit 점(fitBase)에는 쓰지 않는다
+  const fitSrc = map.slice(map.indexOf('const fitBase = useMemo'), map.indexOf('const fitTo = useMemo'));
+  assert.doesNotMatch(fitSrc, /\bpin\b/);
+  assert.match(map, /`\$\{adderOf\(it\.spotId\)\}님이 추가`/);
+  assert.match(map, /adder \? `\$\{adder\}님이 추가` : undefined/);
+  assert.match(map, /추가한 사람 \$\{by\}/);
+  // 홈의 여행방 카드는 지도 화면으로 간다
+  const home = read('src/screens/HomeScreen.tsx');
+  assert.match(home, /const openMap = \(t: Trip\) => \{\s*setCurrentTrip\(t\.id\);\s*navigation\.navigate\('Map', \{\}\);/);
+  assert.equal((home.match(/onPress=\{\(\) => openMap\(t\)\}/g) ?? []).length, 2);
+});
+
+test('11 지도 탭: 찍은 핀은 물방울 핀(끝이 좌표)과 위의 이름이고, 묶이지 않으며, 핀 카드는 한 줄 날짜로 짧다', () => {
+  // 물방울 핀 그림: 정사각형 한가운데가 뾰족한 끝, 이름은 8글자까지
+  assert.equal(dropName('국립경주박물관 별관'), '국립경주박물관 …');
+  assert.equal(dropName('불국사'), '불국사');
+  const svg = mapPinSvg({ kind: 'drop', name: '불국사' });
+  assert.equal(svg.size, 120);
+  assert.match(svg.html, /data-drop="1"/);
+  assert.match(svg.html, /M60 60 C/);
+  assert.match(svg.html, />불국사</);
+  // 이름이 있는 핀 읽기 이름
+  assert.match(pinName({ kind: 'drop', title: '불국사' }), /찍은 핀 불국사/);
+  // 가까운 핀과 함께여도 묶음에 들어가지 않는다
+  const c = { latitude: 35.8, longitude: 129.2 };
+  const layout = layoutMap({
+    markers: [
+      { id: 'a', coord: c, kind: 'spot', label: '1', title: 'A' },
+      { id: 'pin', coord: { latitude: c.latitude + 0.00001, longitude: c.longitude }, kind: 'drop', title: '새 핀' },
+    ],
+    polylines: [],
+    size: { width: 390, height: 360 },
+  } as Parameters<typeof layoutMap>[0]);
+  assert.ok(layout.projected.some((m) => m.id === 'pin' && m.kind === 'drop'));
+  assert.equal(layout.clusters.length, 0);
+  // 앱 코드: 새 핀은 drop 종류, 날짜는 한 줄로 밀고, 핀 카드가 열리면 머리 줄을 접는다
+  assert.match(map, /kind: 'drop' as const, title: pinPlace\?\.place\.name \?\? '지도에서 고른 곳'/);
+  assert.match(map, /<ScrollView horizontal showsHorizontalScrollIndicator=\{false\} contentContainerStyle=\{styles\.dayRow\}>/);
+  assert.match(map, /\{pinOpen \? null : head\}/);
 });
