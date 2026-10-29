@@ -83,7 +83,8 @@ test('스포트라이트 단계: 여행방 유무에 맞게 고르고, 단계마
   assert.equal(new Set(TOUR_STEPS.map((s) => s.id)).size, TOUR_STEPS.length);
   assert.equal(tourCounter(2, 12), '3 / 12');
   const all = JSON.stringify(TOUR_STEPS);
-  for (const w of ['확정 장소', '제외 장소', '투표', '출발지']) assert.ok(!all.includes(w), w);
+  // 2026-10-24: 후보 카드가 이름 투표라 앱 둘러보기도 '투표'를 쓴다
+  for (const w of ['확정 장소', '제외 장소', '출발지']) assert.ok(!all.includes(w), w);
 });
 
 test('스포트라이트: 구멍은 화면 안으로 잘리고 그림자 네 장이 빈틈 없이 나머지를 덮는다', () => {

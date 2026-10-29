@@ -13,6 +13,18 @@ export function proposerIds(spot: Spot): string[] {
   return out;
 }
 
+/**
+ * '누가 추가했나' 한 줄. 처음 담은 사람 이름과 나머지 수('민지 외 2명'). 이름을 모르는 멤버(나간 사람 포함)는 '멤버'로 읽는다.
+ * 제안이 없으면 빈 문자열이다.
+ */
+export function adderText(trip: Pick<Trip, 'members'>, spot: Spot | undefined): string {
+  if (!spot) return '';
+  const ids = proposerIds(spot);
+  if (ids.length === 0) return '';
+  const nameOf = (id: string) => trip.members.find((m) => m.id === id)?.nickname ?? '멤버';
+  return ids.length === 1 ? nameOf(ids[0]) : `${nameOf(ids[0])} 외 ${ids.length - 1}명`;
+}
+
 export function proposerCount(spot: Spot): number {
   return proposerIds(spot).length;
 }

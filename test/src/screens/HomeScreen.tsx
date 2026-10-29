@@ -134,6 +134,12 @@ export default function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
     setCurrentTrip(group[0].id);
   };
 
+  /** 여행방 카드를 누르면 그 방의 지도 화면(채팅방 패널·루트·핀 추가)으로 간다 */
+  const openMap = (t: Trip) => {
+    setCurrentTrip(t.id);
+    navigation.navigate('Map', {});
+  };
+
   const goNext = (t: Trip) => {
     setCurrentTrip(t.id);
     const step = tripNextStep(t, plans[t.id], today);
@@ -291,7 +297,7 @@ export default function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
                     selected={t.id === current?.id}
                     info={tripCardInfo(t, plans[t.id], now)}
                     nextLabel={tripNextStep(t, plans[t.id], today).label}
-                    onPress={() => goNext(t)}
+                    onPress={() => openMap(t)}
                   />
                 ))}
                 <AddTile icon="plus" title="새 여행방 만들기" sub="날짜와 기점부터" onPress={openCreate} />
@@ -369,7 +375,7 @@ export default function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
                   selected={t.id === current?.id}
                   info={tripCardInfo(t, plans[t.id], now)}
                   nextLabel={tripNextStep(t, plans[t.id], today).label}
-                  onPress={() => goNext(t)}
+                  onPress={() => openMap(t)}
                 />
               ))}
               <EdgePeek side="right" icon="plus" label="새 여행방 만들기" onPress={openCreate} />

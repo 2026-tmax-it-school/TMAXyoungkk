@@ -31,6 +31,8 @@ export type PinSpec = PinLook &
     | { kind: 'base'; compact?: boolean }
     | { kind: 'cluster'; count: number; compact?: boolean }
     | { kind: 'user'; compact?: boolean }
+    /** 지도를 눌러 찍은 새 핀: 초록 물방울 핀(뾰족한 끝이 좌표)과 그 위의 이름 */
+    | { kind: 'drop'; name?: string; compact?: boolean }
     | { kind: 'dot'; tone: 'ink' | 'faint'; size?: 'sm' | 'md' }
   );
 
@@ -91,9 +93,30 @@ function box(r: number, stroke: number): { size: number; c: number } {
   return { size, c: size / 2 };
 }
 
+/** 물방울 핀 이름은 8글자까지만 그린다 */
+export function dropName(name: string | undefined): string {
+  const chars = [...(name ?? '')];
+  return chars.length > 8 ? `${chars.slice(0, 8).join('')}…` : chars.join('');
+}
+
 export function mapPinSvg(p: PinSpec): PinSvg {
   const look: PinLook = { scale: p.scale, dim: p.dim };
   switch (p.kind) {
+    case 'drop': {
+      // 정사각형 한가운데(60,60)가 뾰족한 끝이다. 머리 원은 그 위(중심 y=36), 이름 알약은 맨 위
+      const name = dropName(p.name);
+      const w = Math.min(116, [...name].length * 11 + 20);
+      const tag = name
+        ? `<rect x="${60 - w / 2}" y="1" width="${w}" height="19" rx="9.5" fill="${mapC.ink}" pointer-events="auto"/>` +
+          `<text x="60" y="14.5" text-anchor="middle" font-family="${F.bold}" font-size="11" fill="${mapC.white}" pointer-events="auto">${esc(name)}</text>`
+        : '';
+      const body =
+        `<path d="M60 60 C52 48 44 42 44 36 A16 16 0 1 1 76 36 C76 42 68 48 60 60 Z" fill="${mapC.ok}" stroke="${mapC.white}" stroke-width="2.5" stroke-linejoin="round" pointer-events="auto"/>` +
+        `<path d="M60 29v14M53 36h14" stroke="${mapC.white}" stroke-width="3" stroke-linecap="round" pointer-events="none"/>`;
+      const svg = wrap(120, tag + body, look);
+      // 웹 오버레이는 투명한 네모 칸이 지도 누름을 가로채지 않게 몸통과 이름표만 누를 수 있다(data-drop을 보고 노드가 pointer-events를 끈다)
+      return { ...svg, html: svg.html.replace('style="display:block;overflow:visible"', 'data-drop="1" style="display:block;overflow:visible;pointer-events:none"') };
+    }
     case 'spot': {
       const color = mapC[p.color ?? 'ink'];
       // 프로필 핀: 순번 핀과 같은 크기 원에 그 멤버 아바타 면·머리글자(ui/Avatar와 같은 색)

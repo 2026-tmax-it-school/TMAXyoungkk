@@ -12,6 +12,7 @@ import { spotHintLabel, spotWho, voterNames } from '../talk';
  * 06 후보 카드(2026-10-23 피그마 최종안 17). 위에서부터 이름과 시간 힌트 배지, 보조 줄, 누가 꺼냈는지, 좋아요 줄이다.
  * 카드를 통째로 버튼으로 두면 좋아요가 버튼 속 버튼이 된다. 상세 열기(위 칸)와 좋아요(아래 알약)를 따로 둔다.
  * 좋아요는 채팅방 지도와 같은 한 표(features/chat/map/actions.toggleVote, 표 수 제한·끝난 여행 막기 포함)다.
+ * 2026-10-24: 좋아요를 이름 투표로 바꿨다. 버튼은 '투표 N'(내가 했으면 '투표함 N'), 왼쪽에 누가 투표했는지 이름을 쓴다.
  */
 export function CandidateCard({
   trip,
@@ -38,17 +39,17 @@ export function CandidateCard({
   const voters = voterNames(trip, spot);
   const me = myMemberId(trip);
   const mine = me ? hasVote(spot, me) : false;
-  const label = `좋아요 ${voters.length}`;
+  const label = mine ? `투표함 ${voters.length}` : `투표 ${voters.length}`;
   const likeBtn = (
     <Pressable
       accessibilityRole="button"
       accessibilityState={{ selected: mine }}
-      accessibilityLabel={`${name} ${mine ? '좋아요 취소' : '좋아요'}, ${label}`}
+      accessibilityLabel={`${name} ${mine ? '투표 취소' : '투표'}, 지금 ${voters.length}표${voters.length ? `: ${voters.join(', ')}` : ''}`}
       onPress={() => toggleVote(trip.id, spot)}
       hitSlop={(H.touch - H.btnSm) / 2}
       style={[styles.like, mine ? styles.likeOn : styles.likeOff]}
     >
-      <Icon name="heart" size={16} color={mine ? 'onAccent' : 'ink'} stroke={2} />
+      <Icon name="check" size={16} color={mine ? 'onAccent' : 'ink'} stroke={2} />
       <Txt v="chip" c={mine ? 'onAccent' : 'ink'}>
         {label}
       </Txt>
@@ -74,11 +75,29 @@ export function CandidateCard({
         </Col>
       </Pressable>
       <Row>
-        <View style={styles.grow}>{voters.length > 0 ? <AvatarStack names={voters} max={4} /> : <Txt v="mtTight">아직 표가 없어요</Txt>}</View>
+        <View style={styles.grow}>
+          {voters.length > 0 ? (
+            <Row gap={SP.s}>
+              <AvatarStack names={voters} max={4} />
+              <Txt v="mtTight" numberOfLines={2} style={styles.grow}>
+                {votedText(voters)}
+              </Txt>
+            </Row>
+          ) : (
+            <Txt v="mtTight">아직 표가 없어요</Txt>
+          )}
+        </View>
         {tourLike ? <TourTarget id="cand-like">{likeBtn}</TourTarget> : likeBtn}
       </Row>
     </Card>
   );
+}
+
+/** 투표한 사람 이름 줄. 셋까지 이름을 다 쓰고 넘치면 '외 N명'이다('민지, 준호 투표', '민지, 준호, 수아 외 2명 투표') */
+export function votedText(voters: readonly string[]): string {
+  const shown = voters.slice(0, 3).join(', ');
+  const rest = voters.length - 3;
+  return rest > 0 ? `${shown} 외 ${rest}명 투표` : `${shown} 투표`;
 }
 
 const styles = StyleSheet.create({

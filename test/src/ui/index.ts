@@ -43,7 +43,7 @@ export { TabBar } from './TabBar';
 export { COVER_LG_H, CoverTile, FeatureTile, ListRow, ProfileEditHero, ProfileHero, QuickAction, SectionTitle } from './Discover';
 export { Toast } from './Toast';
 export { GOOGLE_MAP_STYLE, type GoogleMapStyleRule } from './mapStyle';
-export { mapPinSvg, pinScale, type PinColor, type PinLook, type PinSpec, type PinSvg } from './mapPinSvg';
+export { dropName, mapPinSvg, pinScale, type PinColor, type PinLook, type PinSpec, type PinSvg } from './mapPinSvg';
 export { PE } from './pointer';
 export { useTour, type TourRect } from './tourStore';
 export { TourTarget } from './TourTarget';

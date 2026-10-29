@@ -152,6 +152,7 @@ function createNode(libs: Libs, it: OverlayItem, sig: string, press: () => void)
   el.style.width = `${size}px`;
   el.style.height = `${size}px`;
   el.style.zIndex = String(Z[it.kind]);
+  if (html.includes('data-drop')) el.style.pointerEvents = 'none';
   if (it.press) {
     el.setAttribute('role', 'button');
     el.setAttribute('aria-label', it.name ?? '');
